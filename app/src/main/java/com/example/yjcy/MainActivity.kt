@@ -739,19 +739,20 @@ fun TopInfoBar(
     onPauseToggle: () -> Unit,
     onSettingsClick: () -> Unit
 ) {
-    Card(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.Black.copy(alpha = 0.3f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-        shape = RoundedCornerShape(12.dp),
-        border = androidx.compose.foundation.BorderStroke(
-            width = 1.dp,
-            color = Color.White.copy(alpha = 0.2f)
-        )
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.08f),
+                        Color.White.copy(alpha = 0.12f)
+                    )
+                ),
+                shape = RoundedCornerShape(16.dp)
+            )
+            .clip(RoundedCornerShape(16.dp))
     ) {
         Row(
             modifier = Modifier
@@ -764,35 +765,7 @@ fun TopInfoBar(
             modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 返回主菜单按钮
-            Card(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clickable { navController.navigate("main_menu") },
-                colors = CardDefaults.cardColors(
-                    containerColor = Color.White.copy(alpha = 0.15f)
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                shape = RoundedCornerShape(8.dp),
-                border = androidx.compose.foundation.BorderStroke(
-                    width = 1.dp,
-                    color = Color.White.copy(alpha = 0.3f)
-                )
-            ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "←",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-            
-            Spacer(modifier = Modifier.width(12.dp))
+
             
             // 公司LOGO和名字
             Row(
@@ -900,31 +873,7 @@ fun TopInfoBar(
                     )
                 }
                 
-                // 设置按钮
-                Card(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clickable { onSettingsClick() },
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color.White.copy(alpha = 0.15f)
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                    shape = RoundedCornerShape(6.dp),
-                    border = androidx.compose.foundation.BorderStroke(
-                        width = 1.dp,
-                        color = Color.White.copy(alpha = 0.3f)
-                    )
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "⚙️",
-                            fontSize = 12.sp
-                        )
-                    }
-                }
+
             }
         }
     }
@@ -936,33 +885,25 @@ fun PauseButton(
     isPaused: Boolean,
     onClick: () -> Unit
 ) {
-    Card(
+    Box(
         modifier = Modifier
             .size(24.dp)
-            .clickable { onClick() },
-        colors = CardDefaults.cardColors(
-            containerColor = if (isPaused) Color(0xFFDC2626) else Color(0xFF16A34A)
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 4.dp
-        ),
-        shape = RoundedCornerShape(4.dp),
-        border = androidx.compose.foundation.BorderStroke(
-            width = 1.dp,
-            color = if (isPaused) Color(0xFFDC2626).copy(alpha = 0.8f) else Color(0xFF16A34A).copy(alpha = 0.8f)
-        )
-    ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = if (isPaused) "▶" else "⏸",
-                color = Color.White,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold
+            .background(
+                color = if (isPaused) 
+                    Color(0xFFDC2626).copy(alpha = 0.8f) 
+                else 
+                    Color(0xFF16A34A).copy(alpha = 0.8f),
+                shape = RoundedCornerShape(6.dp)
             )
-        }
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = if (isPaused) "▶" else "⏸",
+            color = Color.White,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -972,33 +913,25 @@ fun SpeedButton(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    Card(
+    Box(
         modifier = Modifier
             .size(24.dp)
-            .clickable { onClick() },
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) Color(0xFFF59E0B) else Color.White.copy(alpha = 0.15f)
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isSelected) 6.dp else 2.dp
-        ),
-        shape = RoundedCornerShape(4.dp),
-        border = androidx.compose.foundation.BorderStroke(
-            width = 1.dp,
-            color = if (isSelected) Color(0xFFF59E0B).copy(alpha = 0.8f) else Color.White.copy(alpha = 0.3f)
-        )
-    ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = speed.toString(),
-                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.9f),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
+            .background(
+                color = if (isSelected) 
+                    Color(0xFF6366F1).copy(alpha = 0.9f) 
+                else 
+                    Color.White.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(6.dp)
             )
-        }
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = speed.toString(),
+            color = Color.White,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
