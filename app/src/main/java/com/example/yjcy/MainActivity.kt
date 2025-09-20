@@ -716,8 +716,8 @@ fun GameScreen(navController: androidx.navigation.NavController) {
                 }
             }
             
-            // 底部导航栏
-            BottomNavigationBar(
+            // 底部导航栏 - 使用优化版本（字体加粗+黑色）
+            EnhancedBottomNavigationBar(
                 selectedTab = selectedTab,
                 onTabSelected = { selectedTab = it }
             )
@@ -1741,6 +1741,132 @@ fun BottomNavItem(
             color = textColor,
             fontSize = 10.sp,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+        )
+    }
+}
+
+// 优化版本的底部导航栏组件 - 字体加粗+黑色
+@Composable
+fun EnhancedBottomNavigationBar(
+    selectedTab: Int,
+    onTabSelected: (Int) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.08f),
+                        Color.White.copy(alpha = 0.12f)
+                    )
+                ),
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+            )
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            EnhancedBottomNavItem(
+                icon = "🏢",
+                label = "公司概览",
+                isSelected = selectedTab == 0,
+                onClick = { onTabSelected(0) }
+            )
+            
+            EnhancedBottomNavItem(
+                icon = "👥",
+                label = "员工管理",
+                isSelected = selectedTab == 1,
+                onClick = { onTabSelected(1) }
+            )
+            
+            EnhancedBottomNavItem(
+                icon = "🎯",
+                label = "招聘中心",
+                isSelected = selectedTab == 2,
+                onClick = { onTabSelected(2) }
+            )
+            
+            EnhancedBottomNavItem(
+                icon = "🎮",
+                label = "项目管理",
+                isSelected = selectedTab == 3,
+                onClick = { onTabSelected(3) }
+            )
+            
+            EnhancedBottomNavItem(
+                icon = "📊",
+                label = "市场分析",
+                isSelected = selectedTab == 4,
+                onClick = { onTabSelected(4) }
+            )
+            
+            EnhancedBottomNavItem(
+                icon = "⚙️",
+                label = "设置",
+                isSelected = selectedTab == 5,
+                onClick = { onTabSelected(5) }
+            )
+        }
+    }
+}
+
+@Composable
+fun EnhancedBottomNavItem(
+    icon: String,
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val scale by animateFloatAsState(
+        targetValue = if (isSelected) 1.1f else 1.0f,
+        animationSpec = tween(
+            durationMillis = 300,
+            easing = FastOutSlowInEasing
+        ),
+        label = "scale"
+    )
+    
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clickable { onClick() }
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .scale(scale)
+    ) {
+        Text(
+            text = icon,
+            fontSize = 20.sp,
+            modifier = Modifier
+                .background(
+                    brush = if (isSelected) {
+                        Brush.radialGradient(
+                            colors = listOf(
+                                Color(0xFF6366F1).copy(alpha = 0.3f),
+                                Color(0xFF8B5CF6).copy(alpha = 0.2f),
+                                Color.Transparent
+                            ),
+                            radius = 40f
+                        )
+                    } else {
+                        Brush.radialGradient(
+                            colors = listOf(Color.Transparent, Color.Transparent)
+                        )
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                )
+                .padding(8.dp)
+        )
+        Text(
+            text = label,
+            color = Color.Black, // 设置为黑色
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold // 设置为加粗
         )
     }
 }
@@ -2836,10 +2962,9 @@ fun InGameSettingsContent(
 ) {
     val context = LocalContext.current
     val saveManager = remember { SaveManager(context) }
-    var soundEnabled by remember { mutableStateOf(true) }
-    var musicEnabled by remember { mutableStateOf(true) }
-    var gameSpeed by remember { mutableStateOf(1f) }
     var showSaveDialog by remember { mutableStateOf(false) }
+    var showExitConfirmDialog by remember { mutableStateOf(false) }
+    var shouldReturnToMenuAfterSave by remember { mutableStateOf(false) }
     
     Column(
         modifier = Modifier
@@ -2882,167 +3007,15 @@ fun InGameSettingsContent(
                 )
             }
         }
+
         
-        // 音效开关
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 12.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = Color.White.copy(alpha = 0.1f)
-            ),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "🔊",
-                        fontSize = 20.sp,
-                        modifier = Modifier.padding(end = 12.dp)
-                    )
-                    Text(
-                        text = "音效",
-                        color = Color.White,
-                        fontSize = 16.sp
-                    )
-                }
-                Switch(
-                    checked = soundEnabled,
-                    onCheckedChange = { soundEnabled = it },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.White,
-                        checkedTrackColor = Color(0xFF10B981),
-                        uncheckedThumbColor = Color.White,
-                        uncheckedTrackColor = Color.Gray
-                    )
-                )
-            }
-        }
-        
-        // 音乐开关
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 12.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = Color.White.copy(alpha = 0.1f)
-            ),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "🎵",
-                        fontSize = 20.sp,
-                        modifier = Modifier.padding(end = 12.dp)
-                    )
-                    Text(
-                        text = "背景音乐",
-                        color = Color.White,
-                        fontSize = 16.sp
-                    )
-                }
-                Switch(
-                    checked = musicEnabled,
-                    onCheckedChange = { musicEnabled = it },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.White,
-                        checkedTrackColor = Color(0xFF10B981),
-                        uncheckedThumbColor = Color.White,
-                        uncheckedTrackColor = Color.Gray
-                    )
-                )
-            }
-        }
-        
-        // 游戏速度设置
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 24.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = Color.White.copy(alpha = 0.1f)
-            ),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                ) {
-                    Text(
-                        text = "⚡",
-                        fontSize = 20.sp,
-                        modifier = Modifier.padding(end = 12.dp)
-                    )
-                    Text(
-                        text = "游戏速度",
-                        color = Color.White,
-                        fontSize = 16.sp
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                    Text(
-                        text = "${gameSpeed.toInt()}x",
-                        color = Color(0xFF10B981),
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                
-                Slider(
-                    value = gameSpeed,
-                    onValueChange = { gameSpeed = it },
-                    valueRange = 1f..5f,
-                    steps = 3,
-                    colors = SliderDefaults.colors(
-                        thumbColor = Color(0xFF10B981),
-                        activeTrackColor = Color(0xFF10B981),
-                        inactiveTrackColor = Color.White.copy(alpha = 0.3f)
-                    )
-                )
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "1x",
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 12.sp
-                    )
-                    Text(
-                        text = "5x",
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 12.sp
-                    )
-                }
-            }
-        }
+
+
         
         // 返回主菜单按钮
         Button(
             onClick = {
-                navController.navigate("main_menu")
+                showExitConfirmDialog = true
             },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(
@@ -3110,6 +3083,11 @@ fun InGameSettingsContent(
                                     showSaveDialog = false
                                     // 显示保存成功提示
                                     Toast.makeText(context, "游戏已保存到存档位 $slotNumber", Toast.LENGTH_SHORT).show()
+                                    // 如果需要在保存后返回主菜单
+                                    if (shouldReturnToMenuAfterSave) {
+                                        shouldReturnToMenuAfterSave = false
+                                        navController.navigate("main_menu")
+                                    }
                                 },
                             colors = CardDefaults.cardColors(
                                 containerColor = Color.White.copy(alpha = 0.1f)
@@ -3154,6 +3132,71 @@ fun InGameSettingsContent(
             confirmButton = {
                 TextButton(
                     onClick = { showSaveDialog = false }
+                ) {
+                    Text(
+                        text = "取消",
+                        color = Color.White
+                    )
+                }
+            },
+            containerColor = Color(0xFF1F2937),
+            titleContentColor = Color.White,
+            textContentColor = Color.White
+        )
+    }
+    
+    // 返回主菜单确认对话框
+    if (showExitConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showExitConfirmDialog = false },
+            title = {
+                Text(
+                    text = "返回主菜单",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "当前游戏进度尚未保存，是否要先保存游戏再返回主菜单？",
+                    color = Color.White.copy(alpha = 0.8f)
+                )
+            },
+            confirmButton = {
+                Row {
+                    // 保存并返回按钮
+                    TextButton(
+                        onClick = {
+                            showExitConfirmDialog = false
+                            shouldReturnToMenuAfterSave = true
+                            showSaveDialog = true
+                        }
+                    ) {
+                        Text(
+                            text = "保存并返回",
+                            color = Color(0xFF10B981)
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.width(8.dp))
+                    
+                    // 直接返回按钮
+                    TextButton(
+                        onClick = {
+                            showExitConfirmDialog = false
+                            navController.navigate("main_menu")
+                        }
+                    ) {
+                        Text(
+                            text = "直接返回",
+                            color = Color(0xFFEF4444)
+                        )
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showExitConfirmDialog = false }
                 ) {
                     Text(
                         text = "取消",
