@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.core.*
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.runtime.remember
@@ -21,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.delay
@@ -34,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -46,6 +49,9 @@ import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import android.content.Context
 import com.google.gson.Gson
+import com.example.yjcy.ui.RecruitmentCenter
+import com.example.yjcy.data.CandidateManager
+import com.example.yjcy.ui.EmployeeManagementEnhanced
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -686,10 +692,16 @@ fun GameScreen(navController: androidx.navigation.NavController) {
             ) {
                 when (selectedTab) {
                     0 -> CompanyOverviewContent()
-                    1 -> EmployeeManagementContent()
-                    2 -> ProjectManagementContent()
-                    3 -> MarketAnalysisContent()
-                    4 -> InGameSettingsContent(
+                    1 -> EmployeeManagementContent(
+                        onNavigateToRecruitment = { selectedTab = 2 }
+                    )
+                    2 -> RecruitmentCenterContent()
+                    3 -> ProjectManagementContent(
+                        games = games,
+                        onGamesUpdate = { updatedGames -> games = updatedGames }
+                    )
+                    4 -> MarketAnalysisContent()
+                    5 -> InGameSettingsContent(
                         navController = navController,
                         money = money,
                         fans = fans,
@@ -1102,7 +1114,9 @@ fun CompanyInfoCard(
 }
 
 @Composable
-fun EmployeeManagementContent() {
+fun EmployeeManagementContent(
+    onNavigateToRecruitment: () -> Unit = {}
+) {
     // 员工数据状态
     val employees = remember {
         mutableStateListOf(
@@ -1114,161 +1128,29 @@ fun EmployeeManagementContent() {
         )
     }
     
-    var selectedPosition by remember { mutableStateOf("全部") }
-    val positions = listOf("全部", "程序员", "策划师", "美术师", "音效师", "客服")
-    
-    Card(
-        modifier = Modifier.fillMaxSize(),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White.copy(alpha = 0.1f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
-        ) {
-            // 标题和筛选
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "👥 员工管理",
-                    color = Color.White,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                
-                // 职业筛选下拉菜单
-                var expanded by remember { mutableStateOf(false) }
-                Box {
-                    Card(
-                        modifier = Modifier.clickable { expanded = true },
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFFF59E0B).copy(alpha = 0.2f)
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = selectedPosition,
-                                color = Color.White,
-                                fontSize = 12.sp
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "▼",
-                                color = Color.White,
-                                fontSize = 10.sp
-                            )
-                        }
-                    }
-                    
-                    DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
-                    ) {
-                        positions.forEach { position ->
-                            DropdownMenuItem(
-                                text = { Text(position) },
-                                onClick = {
-                                    selectedPosition = position
-                                    expanded = false
-                                }
-                            )
-                        }
-                    }
+    // 使用增强版员工管理界面
+    EmployeeManagementEnhanced(
+        employees = employees,
+        onTrainEmployee = { employee, skillType ->
+            // 执行培训逻辑
+            val index = employees.indexOfFirst { it.id == employee.id }
+            if (index != -1) {
+                val updatedEmployee = when (skillType) {
+                    "开发" -> employee.copy(skillDevelopment = minOf(5, employee.skillDevelopment + 1))
+                    "策划" -> employee.copy(skillDesign = minOf(5, employee.skillDesign + 1))
+                    "美术" -> employee.copy(skillArt = minOf(5, employee.skillArt + 1))
+                    "音效" -> employee.copy(skillMusic = minOf(5, employee.skillMusic + 1))
+                    "客服" -> employee.copy(skillService = minOf(5, employee.skillService + 1))
+                    else -> employee
                 }
+                employees[index] = updatedEmployee
             }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // 员工统计卡片
-            EmployeeStatsCard(employees = employees)
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // 员工列表
-            val filteredEmployees = if (selectedPosition == "全部") {
-                employees
-            } else {
-                employees.filter { it.position == selectedPosition }
-            }
-            
-            // 培训对话框状态
-            var showTrainingDialog by remember { mutableStateOf(false) }
-            var selectedEmployeeForTraining by remember { mutableStateOf<Employee?>(null) }
-            var selectedSkillForTraining by remember { mutableStateOf("") }
-            
-            // 解雇确认对话框状态
-            var showDismissDialog by remember { mutableStateOf(false) }
-            var selectedEmployeeForDismiss by remember { mutableStateOf<Employee?>(null) }
-            
-            EmployeeList(
-                employees = filteredEmployees,
-                onTrainEmployee = { employee, skillType ->
-                    selectedEmployeeForTraining = employee
-                    selectedSkillForTraining = skillType
-                    showTrainingDialog = true
-                },
-                onDismissEmployee = { employee ->
-                    selectedEmployeeForDismiss = employee
-                    showDismissDialog = true
-                }
-            )
-            
-            // 培训确认对话框
-            if (showTrainingDialog && selectedEmployeeForTraining != null) {
-                TrainingConfirmDialog(
-                    employee = selectedEmployeeForTraining!!,
-                    skillType = selectedSkillForTraining,
-                    onConfirm = { employee, skill ->
-                        // 执行培训逻辑 - 只允许培训专属技能
-                        val index = employees.indexOfFirst { it.id == employee.id }
-                        if (index != -1) {
-                            val specialtySkillType = employee.getSpecialtySkillType()
-                            val updatedEmployee = when (employee.position) {
-                                "程序员" -> employee.copy(skillDevelopment = minOf(5, employee.skillDevelopment + 1))
-                                "策划师" -> employee.copy(skillDesign = minOf(5, employee.skillDesign + 1))
-                                "美术师" -> employee.copy(skillArt = minOf(5, employee.skillArt + 1))
-                                "音效师" -> employee.copy(skillMusic = minOf(5, employee.skillMusic + 1))
-                                "客服" -> employee.copy(skillService = minOf(5, employee.skillService + 1))
-                                else -> employee
-                            }
-                            employees[index] = updatedEmployee
-                        }
-                        showTrainingDialog = false
-                        selectedEmployeeForTraining = null
-                    },
-                    onDismiss = {
-                        showTrainingDialog = false
-                        selectedEmployeeForTraining = null
-                    }
-                )
-            }
-            
-            // 解雇确认对话框
-            if (showDismissDialog && selectedEmployeeForDismiss != null) {
-                DismissConfirmDialog(
-                    employee = selectedEmployeeForDismiss!!,
-                    onConfirm = { employee ->
-                        employees.removeIf { it.id == employee.id }
-                        showDismissDialog = false
-                        selectedEmployeeForDismiss = null
-                    },
-                    onDismiss = {
-                        showDismissDialog = false
-                        selectedEmployeeForDismiss = null
-                    }
-                )
-            }
-        }
-    }
+        },
+        onDismissEmployee = { employee ->
+            employees.removeAll { it.id == employee.id }
+        },
+        onNavigateToRecruitment = onNavigateToRecruitment
+    )
 }
 
 // 员工数据类
@@ -1734,18 +1616,24 @@ fun BottomNavigationBar(
     selectedTab: Int,
     onTabSelected: (Int) -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White.copy(alpha = 0.1f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.08f),
+                        Color.White.copy(alpha = 0.12f)
+                    )
+                ),
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+            )
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 8.dp),
+                .padding(vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             BottomNavItem(
@@ -1763,24 +1651,31 @@ fun BottomNavigationBar(
             )
             
             BottomNavItem(
-                icon = "🎮",
-                label = "项目管理",
+                icon = "🎯",
+                label = "招聘中心",
                 isSelected = selectedTab == 2,
                 onClick = { onTabSelected(2) }
             )
             
             BottomNavItem(
-                icon = "📊",
-                label = "市场分析",
+                icon = "🎮",
+                label = "项目管理",
                 isSelected = selectedTab == 3,
                 onClick = { onTabSelected(3) }
             )
             
             BottomNavItem(
-                icon = "⚙️",
-                label = "设置",
+                icon = "📊",
+                label = "市场分析",
                 isSelected = selectedTab == 4,
                 onClick = { onTabSelected(4) }
+            )
+            
+            BottomNavItem(
+                icon = "⚙️",
+                label = "设置",
+                isSelected = selectedTab == 5,
+                onClick = { onTabSelected(5) }
             )
         }
     }
@@ -1793,25 +1688,57 @@ fun BottomNavItem(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    val scale by animateFloatAsState(
+        targetValue = if (isSelected) 1.1f else 1.0f,
+        animationSpec = tween(
+            durationMillis = 300,
+            easing = FastOutSlowInEasing
+        ),
+        label = "scale"
+    )
+    
+    val textColor by animateColorAsState(
+        targetValue = if (isSelected) Color(0xFF6366F1) else Color.White.copy(alpha = 0.7f),
+        animationSpec = tween(
+            durationMillis = 300,
+            easing = FastOutSlowInEasing
+        ),
+        label = "textColor"
+    )
+    
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .clickable { onClick() }
             .padding(horizontal = 8.dp, vertical = 4.dp)
+            .scale(scale)
     ) {
         Text(
             text = icon,
             fontSize = 20.sp,
             modifier = Modifier
                 .background(
-                    color = if (isSelected) Color(0xFFF59E0B).copy(alpha = 0.2f) else Color.Transparent,
-                    shape = RoundedCornerShape(8.dp)
+                    brush = if (isSelected) {
+                        Brush.radialGradient(
+                            colors = listOf(
+                                Color(0xFF6366F1).copy(alpha = 0.3f),
+                                Color(0xFF8B5CF6).copy(alpha = 0.2f),
+                                Color.Transparent
+                            ),
+                            radius = 40f
+                        )
+                    } else {
+                        Brush.radialGradient(
+                            colors = listOf(Color.Transparent, Color.Transparent)
+                        )
+                    },
+                    shape = RoundedCornerShape(12.dp)
                 )
                 .padding(8.dp)
         )
         Text(
             text = label,
-            color = if (isSelected) Color(0xFFF59E0B) else Color.White.copy(alpha = 0.7f),
+            color = textColor,
             fontSize = 10.sp,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
         )
@@ -2101,10 +2028,8 @@ enum class Platform(val displayName: String, val icon: String) {
 }
 
 enum class BusinessModel(val displayName: String, val icon: String) {
-    FREE_TO_PLAY("免费游戏", "🆓"),
-    PREMIUM("付费游戏", "💰"),
-    SUBSCRIPTION("订阅制", "📅"),
-    FREEMIUM("免费增值", "💎")
+    SINGLE_PLAYER("单机游戏", "🎮"),
+    ONLINE_GAME("网络游戏", "🌐")
 }
 
 // 存档数据类
@@ -2161,9 +2086,11 @@ class SaveManager(private val context: Context) {
 }
 
 @Composable
-fun ProjectManagementContent() {
+fun ProjectManagementContent(
+    games: List<Game> = emptyList(),
+    onGamesUpdate: (List<Game>) -> Unit = {}
+) {
     var showGameDevelopmentDialog by remember { mutableStateOf(false) }
-    var currentGames by remember { mutableStateOf(listOf<Game>()) }
     
     Column(
         modifier = Modifier
@@ -2222,7 +2149,7 @@ fun ProjectManagementContent() {
             modifier = Modifier.padding(bottom = 12.dp)
         )
         
-        if (currentGames.isEmpty()) {
+        if (games.isEmpty()) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -2262,7 +2189,7 @@ fun ProjectManagementContent() {
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(currentGames) { game ->
+                items(games) { game ->
                     GameProjectCard(game = game)
                 }
             }
@@ -2274,7 +2201,7 @@ fun ProjectManagementContent() {
         GameDevelopmentDialog(
             onDismiss = { showGameDevelopmentDialog = false },
             onGameCreated = { newGame ->
-                currentGames = currentGames + newGame
+                onGamesUpdate(games + newGame)
                 showGameDevelopmentDialog = false
             }
         )
@@ -2339,7 +2266,7 @@ fun GameProjectCard(game: Game) {
             Column {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
                 ) {
                     Text(
                         text = "开发进度",
@@ -2380,116 +2307,147 @@ fun GameDevelopmentDialog(
     var selectedPlatforms by remember { mutableStateOf(setOf<Platform>()) }
     var selectedBusinessModel by remember { mutableStateOf<BusinessModel?>(null) }
     
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = when (currentStep) {
-                    0 -> "🎮 输入游戏名称"
-                    1 -> "🎨 选择游戏主题"
-                    2 -> "📱 选择平台和商业模式"
-                    3 -> "✅ 确认开发"
-                    else -> "开发新游戏"
-                },
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-        },
-        text = {
-            when (currentStep) {
-                0 -> GameNameInputStep(
-                    gameName = gameName,
-                    onGameNameChange = { gameName = it }
-                )
-                1 -> GameThemeSelectionStep(
-                    selectedTheme = selectedTheme,
-                    onThemeSelected = { selectedTheme = it }
-                )
-                2 -> PlatformAndBusinessModelStep(
-                    selectedPlatforms = selectedPlatforms,
-                    selectedBusinessModel = selectedBusinessModel,
-                    onPlatformToggle = { platform ->
-                        selectedPlatforms = if (selectedPlatforms.contains(platform)) {
-                            selectedPlatforms - platform
-                        } else {
-                            selectedPlatforms + platform
-                        }
-                    },
-                    onBusinessModelSelected = { selectedBusinessModel = it }
-                )
-                3 -> GameConfirmationStep(
-                    gameName = gameName,
-                    theme = selectedTheme,
-                    platforms = selectedPlatforms.toList(),
-                    businessModel = selectedBusinessModel
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    when (currentStep) {
-                        0 -> if (gameName.isNotBlank()) currentStep = 1
-                        1 -> if (selectedTheme != null) currentStep = 2
-                        2 -> if (selectedPlatforms.isNotEmpty() && selectedBusinessModel != null) currentStep = 3
-                        3 -> {
-                            // 创建游戏
-                            val newGame = Game(
-                                id = java.util.UUID.randomUUID().toString(),
-                                name = gameName,
-                                theme = selectedTheme!!,
-                                platforms = selectedPlatforms.toList(),
-                                businessModel = selectedBusinessModel!!
-                            )
-                            onGameCreated(newGame)
-                        }
-                    }
-                },
-                enabled = when (currentStep) {
-                    0 -> gameName.isNotBlank()
-                    1 -> selectedTheme != null
-                    2 -> selectedPlatforms.isNotEmpty() && selectedBusinessModel != null
-                    3 -> true
-                    else -> false
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF10B981)
-                )
+    Dialog(
+        onDismissRequest = onDismiss
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(min = 400.dp)
+                .padding(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF1F2937)
+            ),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
             ) {
+                // 标题
                 Text(
                     text = when (currentStep) {
-                        3 -> "开始开发"
-                        else -> "下一步"
+                        0 -> "🎮 输入游戏名称"
+                        1 -> "🎨 选择游戏主题"
+                        2 -> "📱 选择平台和商业模式"
+                        3 -> "✅ 确认开发"
+                        else -> "开发新游戏"
                     },
-                    color = Color.White
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 16.dp)
                 )
-            }
-        },
-        dismissButton = {
-            if (currentStep > 0) {
-                TextButton(
-                    onClick = { currentStep-- }
-                ) {
-                    Text(
-                        text = "上一步",
-                        color = Color.White.copy(alpha = 0.7f)
+                
+                // 内容
+                when (currentStep) {
+                    0 -> GameNameInputStep(
+                        gameName = gameName,
+                        onGameNameChange = { gameName = it }
+                    )
+                    1 -> GameThemeSelectionStep(
+                        selectedTheme = selectedTheme,
+                        onThemeSelected = { selectedTheme = it }
+                    )
+                    2 -> PlatformAndBusinessModelStep(
+                        selectedPlatforms = selectedPlatforms,
+                        selectedBusinessModel = selectedBusinessModel,
+                        onPlatformToggle = { platform ->
+                            selectedPlatforms = if (selectedPlatforms.contains(platform)) {
+                                selectedPlatforms - platform
+                            } else {
+                                selectedPlatforms + platform
+                            }
+                        },
+                        onBusinessModelSelected = { selectedBusinessModel = it }
+                    )
+                    3 -> GameConfirmationStep(
+                        gameName = gameName,
+                        theme = selectedTheme,
+                        platforms = selectedPlatforms.toList(),
+                        businessModel = selectedBusinessModel
                     )
                 }
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                // 按钮区域
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+                ) {
+                    if (currentStep > 0) {
+                        OutlinedButton(
+                            onClick = { currentStep-- },
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color.White
+                            ),
+                            border = BorderStroke(
+                                width = 1.dp,
+                                color = Color.White.copy(alpha = 0.5f)
+                            )
+                        ) {
+                            Text(
+                                text = "上一步",
+                                color = Color.White
+                            )
+                        }
+                    }
+                    Button(
+                        onClick = onDismiss,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.White.copy(alpha = 0.1f),
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text(
+                            text = "取消",
+                            color = Color.White
+                        )
+                    }
+                    Button(
+                        onClick = {
+                            when (currentStep) {
+                                0 -> if (gameName.isNotBlank()) currentStep = 1
+                                1 -> if (selectedTheme != null) currentStep = 2
+                                2 -> if (selectedPlatforms.isNotEmpty() && selectedBusinessModel != null) currentStep = 3
+                                3 -> {
+                                    // 创建游戏
+                                    val newGame = Game(
+                                        id = java.util.UUID.randomUUID().toString(),
+                                        name = gameName,
+                                        theme = selectedTheme!!,
+                                        platforms = selectedPlatforms.toList(),
+                                        businessModel = selectedBusinessModel!!
+                                    )
+                                    onGameCreated(newGame)
+                                }
+                            }
+                        },
+                        enabled = when (currentStep) {
+                            0 -> gameName.isNotBlank()
+                            1 -> selectedTheme != null
+                            2 -> selectedPlatforms.isNotEmpty() && selectedBusinessModel != null
+                            3 -> true
+                            else -> false
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF10B981)
+                        )
+                    ) {
+                        Text(
+                            text = when (currentStep) {
+                                3 -> "开始开发"
+                                else -> "下一步"
+                            },
+                            color = Color.White
+                        )
+                    }
+                }
             }
-            TextButton(
-                onClick = onDismiss
-            ) {
-                Text(
-                    text = "取消",
-                    color = Color.White.copy(alpha = 0.7f)
-                )
-            }
-        },
-        containerColor = Color(0xFF1F2937),
-        titleContentColor = Color.White,
-        textContentColor = Color.White
-    )
+        }
+    }
 }
 
 @Composable
@@ -3208,6 +3166,27 @@ fun InGameSettingsContent(
             textContentColor = Color.White
         )
     }
+}
+
+@Composable
+fun RecruitmentCenterContent() {
+    val candidateManager = remember { CandidateManager() }
+    val candidates = candidateManager.candidates
+    
+    RecruitmentCenter(
+        candidates = candidates,
+        onHireCandidate = { candidate ->
+            // TODO: 实现招聘逻辑，将候选人转换为员工
+            candidateManager.updateCandidateStatus(candidate.id, com.example.yjcy.data.AvailabilityStatus.HIRED)
+        },
+        onRefreshCandidates = {
+            // 生成新的候选人
+            repeat(3) {
+                candidateManager.addCandidate(candidateManager.generateRandomCandidate())
+            }
+        },
+        currentMoney = 100000 // TODO: 从游戏状态获取实际资金
+    )
 }
 
 @Preview(showBackground = true)

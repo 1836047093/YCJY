@@ -309,3 +309,250 @@ CREATE TABLE employee_dismissal_records (
 CREATE INDEX idx_dismissal_records_dismissed_at ON employee_dismissal_records(dismissed_at DESC);
 CREATE INDEX idx_dismissal_records_position ON employee_dismissal_records(position);
 ```
+
+**候选人才库表 (candidate_pool)**
+```sql
+-- 创建候选人才库表
+CREATE TABLE candidate_pool (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    position TEXT NOT NULL CHECK (position IN ('程序员', '策划师', '美术师', '音效师', '客服')),
+    skill_development INTEGER DEFAULT 1 CHECK (skill_development BETWEEN 1 AND 5),
+    skill_design INTEGER DEFAULT 1 CHECK (skill_design BETWEEN 1 AND 5),
+    skill_art INTEGER DEFAULT 1 CHECK (skill_art BETWEEN 1 AND 5),
+    skill_music INTEGER DEFAULT 1 CHECK (skill_music BETWEEN 1 AND 5),
+    skill_service INTEGER DEFAULT 1 CHECK (skill_service BETWEEN 1 AND 5),
+    expected_salary INTEGER NOT NULL,
+    recruitment_cost INTEGER NOT NULL,
+    availability_days INTEGER DEFAULT 7, -- 可招聘天数
+    special_ability TEXT, -- 特殊能力描述
+    generated_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL
+);
+
+-- 创建索引
+CREATE INDEX idx_candidate_pool_position ON candidate_pool(position);
+CREATE INDEX idx_candidate_pool_expires_at ON candidate_pool(expires_at);
+CREATE INDEX idx_candidate_pool_expected_salary ON candidate_pool(expected_salary);
+```
+
+## 5. 员工管理模块技术实现方案
+
+### 5.1 搜索与筛选技术方案
+
+**实时搜索实现**
+```kotlin
+// 搜索状态管理
+data class EmployeeSearchState(
+    val searchQuery: String = "",
+    val selectedPosition: String = "全部",
+    val salaryRange: IntRange = 0..50000,
+    val skillLevelRange: IntRange = 1..5,
+    val sortBy: EmployeeSortType = EmployeeSortType.NAME,
+    val sortOrder: SortOrder = SortOrder.ASC
+)
+
+// 搜索Repository
+class EmployeeSearchRepository {
+    suspend fun searchEmployees(
+        query: String,
+        filters: EmployeeFilters
+    ): Flow<List<Employee>> {
+        return employeeDao.searchEmployees(
+            "%$query%", 
+            filters.position,
+            filters.minSalary,
+            filters.maxSalary,
+            filters.minSkillLevel,
+            filters.maxSkillLevel
+        )
+    }
+}
+```
+
+**分页实现方案**
+```kotlin
+// 使用Paging 3实现分页
+class EmployeePagingSource(
+    private val employeeDao: EmployeeDao,
+    private val searchQuery: String,
+    private val filters: EmployeeFilters
+) : PagingSource<Int, Employee>() {
+    
+    override suspend fun load(params: LoadParams<Int>): LoadResult<Int, Employee> {
+        val page = params.key ?: 0
+        val pageSize = params.loadSize
+        
+        return try {
+            val employees = employeeDao.getEmployeesPaged(
+                query = searchQuery,
+                filters = filters,
+                limit = pageSize,
+                offset = page * pageSize
+            )
+            
+            LoadResult.Page(
+                data = employees,
+                prevKey = if (page == 0) null else page - 1,
+                nextKey = if (employees.isEmpty()) null else page + 1
+            )
+        } catch (e: Exception) {
+            LoadResult.Error(e)
+        }
+    }
+}
+```
+
+### 5.2 招聘系统技术实现
+
+**候选人生成算法**
+```kotlin
+class CandidateGenerator {
+    private val namePool = listOf("张三", "李四", "王五", "赵六", "钱七")
+    private val positions = listOf("程序员", "策划师", "美术师", "音效师", "客服")
+    
+    fun generateCandidates(count: Int): List<Candidate> {
+        return (1..count).map {
+            val position = positions.random()
+            val baseSkill = Random.nextInt(1, 4)
+            
+            Candidate(
+                name = generateRandomName(),
+                position = position,
+                skills = generateSkillsForPosition(position, baseSkill),
+                expectedSalary = calculateExpectedSalary(position, baseSkill),
+                recruitmentCost = calculateRecruitmentCost(baseSkill),
+                specialAbility = generateSpecialAbility(),
+                availabilityDays = Random.nextInt(3, 8),
+                generatedAt = System.currentTimeMillis(),
+                expiresAt = System.currentTimeMillis() + TimeUnit.DAYS.toMillis(7)
+            )
+        }
+    }
+}
+```
+
+**招聘成功率计算**
+```kotlin
+class RecruitmentCalculator {
+    fun calculateSuccessRate(
+        candidate: Candidate,
+        offerSalary: Int,
+        companyReputation: Int
+    ): Float {
+        val salaryFactor = (offerSalary.toFloat() / candidate.expectedSalary).coerceIn(0.5f, 2.0f)
+        val reputationFactor = (companyReputation / 100f).coerceIn(0.1f, 1.0f)
+        val baseProbability = 0.6f
+        
+        return (baseProbability * salaryFactor * reputationFactor).coerceIn(0.1f, 0.95f)
+    }
+}
+```
+
+### 5.3 现代化UI技术实现
+
+**动画效果实现**
+```kotlin
+@Composable
+fun ModernEmployeeCard(
+    employee: Employee,
+    onClick: () -> Unit
+) {
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.95f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)
+    )
+    
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .scale(scale)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        isPressed = true
+                        tryAwaitRelease()
+                        isPressed = false
+                    },
+                    onTap = { onClick() }
+                )
+            },
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 8.dp,
+            pressedElevation = 12.dp
+        ),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        // 卡片内容
+    }
+}
+```
+
+**渐变背景实现**
+```kotlin
+@Composable
+fun GradientBackground() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF1E3A8A),
+                        Color(0xFF3B82F6),
+                        Color(0xFF60A5FA)
+                    )
+                )
+            )
+    )
+}
+```
+
+### 5.4 性能优化技术方案
+
+**虚拟滚动实现**
+```kotlin
+@Composable
+fun VirtualizedEmployeeList(
+    employees: LazyPagingItems<Employee>
+) {
+    LazyColumn(
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(
+            count = employees.itemCount,
+            key = { index -> employees[index]?.id ?: index }
+        ) { index ->
+            employees[index]?.let { employee ->
+                ModernEmployeeCard(
+                    employee = employee,
+                    onClick = { /* 处理点击 */ }
+                )
+            }
+        }
+    }
+}
+```
+
+**数据缓存策略**
+```kotlin
+class EmployeeCacheManager {
+    private val memoryCache = LruCache<String, List<Employee>>(50)
+    
+    suspend fun getCachedEmployees(
+        cacheKey: String,
+        loader: suspend () -> List<Employee>
+    ): List<Employee> {
+        return memoryCache.get(cacheKey) ?: run {
+            val employees = loader()
+            memoryCache.put(cacheKey, employees)
+            employees
+        }
+    }
+}
+```
