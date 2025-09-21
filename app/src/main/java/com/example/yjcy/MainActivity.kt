@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.core.*
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.runtime.remember
@@ -20,6 +21,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.window.Dialog
@@ -52,6 +54,7 @@ import android.content.Context
 import com.google.gson.Gson
 import com.example.yjcy.ui.RecruitmentCenter
 import com.example.yjcy.data.CandidateManager
+import com.example.yjcy.data.Candidate
 import com.example.yjcy.ui.EmployeeManagementEnhanced
 import com.example.yjcy.ui.ProjectManagementWrapper
 import android.content.SharedPreferences
@@ -69,6 +72,11 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import android.os.Build
+import android.view.View
+import android.view.WindowInsets
+import android.view.WindowInsetsController
+import androidx.core.view.WindowCompat
 
 
 
@@ -79,7 +87,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-
+        // 增强全屏显示设置
+        // enableFullScreenDisplay()  // 临时注释掉以解决闪退问题
         
         enableEdgeToEdge()
         setContent {
@@ -136,6 +145,36 @@ class MainActivity : ComponentActivity() {
         }
     }
     
+    // 增强全屏显示方法
+    private fun enableFullScreenDisplay() {
+        // 设置窗口兼容性
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Android 11+ 使用 WindowInsetsController
+            window.insetsController?.let { controller ->
+                controller.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+                controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        } else {
+            // Android 7-10 兼容实现
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+            )
+        }
+        
+        // 设置刘海屏适配
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode = 
+                android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+    }
 
 }
 
@@ -750,13 +789,71 @@ fun GameScreen(
     var isPaused by remember { mutableStateOf(false) }
     var companyName by remember { mutableStateOf(saveData?.companyName ?: initialCompanyName) }
     var founderName by remember { mutableStateOf(saveData?.founderName ?: initialFounderName) }
-    var founderProfession by remember { mutableStateOf(saveData?.founderProfession ?: FounderProfession.valueOf(initialFounderProfession)) }
+    var founderProfession by remember { mutableStateOf(saveData?.founderProfession ?: try { FounderProfession.valueOf(initialFounderProfession) } catch (e: IllegalArgumentException) { FounderProfession.PROGRAMMER }) }
     var games by remember { mutableStateOf(saveData?.games ?: emptyList<Game>()) }
     var showRecruitmentCenter by remember { mutableStateOf(false) }
+    
+    // 员工状态管理 - 提升到GameScreen级别
+    val allEmployees = remember { mutableStateListOf<Employee>() }
     
     // 创建创始人对象
     val founder = remember(founderName, founderProfession) {
         Founder(name = founderName, profession = founderProfession)
+    }
+    
+    // 初始化员工列表 - 将创始人转换为员工并添加到列表开头
+    LaunchedEffect(founder) {
+        if (allEmployees.isEmpty() || allEmployees.firstOrNull()?.name != founder.name) {
+            allEmployees.clear()
+            val founderAsEmployee = Employee(
+                id = 0,
+                name = founder.name,
+                position = when (founder.profession) {
+                    FounderProfession.PROGRAMMER -> "程序员"
+                    FounderProfession.DESIGNER -> "策划师"
+                    FounderProfession.ARTIST -> "美术师"
+                    FounderProfession.SOUND_ENGINEER -> "音效师"
+                    FounderProfession.CUSTOMER_SERVICE -> "客服"
+                },
+                salary = 0,
+                skillDevelopment = when (founder.profession) {
+                    FounderProfession.PROGRAMMER -> 5
+                    FounderProfession.DESIGNER -> 2
+                    FounderProfession.ARTIST -> 1
+                    FounderProfession.SOUND_ENGINEER -> 1
+                    FounderProfession.CUSTOMER_SERVICE -> 1
+                },
+                skillDesign = when (founder.profession) {
+                    FounderProfession.PROGRAMMER -> 2
+                    FounderProfession.DESIGNER -> 5
+                    FounderProfession.ARTIST -> 2
+                    FounderProfession.SOUND_ENGINEER -> 1
+                    FounderProfession.CUSTOMER_SERVICE -> 1
+                },
+                skillArt = when (founder.profession) {
+                    FounderProfession.PROGRAMMER -> 1
+                    FounderProfession.DESIGNER -> 2
+                    FounderProfession.ARTIST -> 5
+                    FounderProfession.SOUND_ENGINEER -> 2
+                    FounderProfession.CUSTOMER_SERVICE -> 1
+                },
+                skillMusic = when (founder.profession) {
+                    FounderProfession.PROGRAMMER -> 1
+                    FounderProfession.DESIGNER -> 1
+                    FounderProfession.ARTIST -> 2
+                    FounderProfession.SOUND_ENGINEER -> 5
+                    FounderProfession.CUSTOMER_SERVICE -> 1
+                },
+                skillService = when (founder.profession) {
+                    FounderProfession.PROGRAMMER -> 2
+                    FounderProfession.DESIGNER -> 2
+                    FounderProfession.ARTIST -> 1
+                    FounderProfession.SOUND_ENGINEER -> 1
+                    FounderProfession.CUSTOMER_SERVICE -> 5
+                }
+            )
+            allEmployees.add(founderAsEmployee)
+        }
     }
     
     // 时间推进系统
@@ -824,7 +921,31 @@ fun GameScreen(
                 if (showRecruitmentCenter && selectedTab == 1) {
                     // 显示招聘中心界面
                     RecruitmentCenterContent(
-                        onBack = { showRecruitmentCenter = false }
+                        onBack = { showRecruitmentCenter = false },
+                        onHireCandidate = { candidate ->
+                            // 将候选人转换为员工并添加到员工列表
+                            val newEmployee = Employee(
+                                id = candidate.id,
+                                name = candidate.name,
+                                position = candidate.position,
+                                skillDevelopment = candidate.programmingSkill,
+                                skillDesign = candidate.designSkill,
+                                skillArt = candidate.planningSkill,
+                                skillMusic = candidate.soundSkill,
+                                skillService = candidate.customerServiceSkill,
+                                salary = candidate.expectedSalary
+                            )
+                            
+                            // 确保创始人员工（id=0）始终保持在列表第一位
+                            val founderEmployee = allEmployees.find { it.id == 0 }
+                            allEmployees.add(newEmployee)
+                            if (founderEmployee != null && allEmployees.firstOrNull()?.id != 0) {
+                                allEmployees.remove(founderEmployee)
+                                allEmployees.add(0, founderEmployee)
+                            }
+                            
+                            showRecruitmentCenter = false
+                        }
                     )
                 } else {
                     when (selectedTab) {
@@ -834,11 +955,13 @@ fun GameScreen(
                         )
                         1 -> EmployeeManagementContent(
                             onNavigateToRecruitment = { showRecruitmentCenter = true },
-                            founder = founder
+                            founder = founder,
+                            allEmployees = allEmployees
                         )
                         2 -> ProjectManagementWrapper(
                             games = games,
-                            onGamesUpdate = { updatedGames -> games = updatedGames }
+                            onGamesUpdate = { updatedGames -> games = updatedGames },
+                            founder = founder
                         )
                         3 -> MarketAnalysisContent()
                         4 -> InGameSettingsContent(
@@ -926,8 +1049,8 @@ fun TopInfoBar(
         
         // 中间区域：日期和游戏速度
         Column(
-            modifier = Modifier.weight(1.2f),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier.weight(1.5f),
+            horizontalAlignment = Alignment.Start
         ) {
             // 日期和游戏速度下拉选择
             Row(
@@ -1200,20 +1323,10 @@ fun CompanyInfoCard(
 @Composable
 fun EmployeeManagementContent(
     onNavigateToRecruitment: () -> Unit = {},
-    founder: Founder? = null
+    founder: Founder? = null,
+    allEmployees: MutableList<Employee> = mutableListOf()
 ) {
-    // 员工数据状态
-    val employees = remember {
-        mutableStateListOf<Employee>()
-    }
-    
-    // 将创始人转换为员工对象并添加到员工列表开头
-    val allEmployees = remember(founder, employees.toList()) {
-        val employeeList = mutableListOf<Employee>()
-        founder?.let { employeeList.add(it.toEmployee()) }
-        employeeList.addAll(employees)
-        employeeList
-    }
+
     
     // 使用增强版员工管理界面
     EmployeeManagementEnhanced(
@@ -1222,24 +1335,24 @@ fun EmployeeManagementContent(
             // 创始人不能被培训（技能已经是满级）
             if (employee.id != 0) {
                 // 执行培训逻辑
-                val index = employees.indexOfFirst { it.id == employee.id }
+                val index = allEmployees.indexOfFirst { it.id == employee.id }
                 if (index != -1) {
                     val updatedEmployee = when (skillType) {
-                        "开发" -> employee.copy(skillDevelopment = minOf(5, employee.skillDevelopment + 1))
-                        "策划" -> employee.copy(skillDesign = minOf(5, employee.skillDesign + 1))
-                        "美术" -> employee.copy(skillArt = minOf(5, employee.skillArt + 1))
-                        "音效" -> employee.copy(skillMusic = minOf(5, employee.skillMusic + 1))
-                        "客服" -> employee.copy(skillService = minOf(5, employee.skillService + 1))
+                        "开发" -> employee.copy(skillDevelopment = minOf(100, employee.skillDevelopment + 10))
+                        "设计" -> employee.copy(skillDesign = minOf(100, employee.skillDesign + 10))
+                        "美工" -> employee.copy(skillArt = minOf(100, employee.skillArt + 10))
+                        "音乐" -> employee.copy(skillMusic = minOf(100, employee.skillMusic + 10))
+                        "服务" -> employee.copy(skillService = minOf(100, employee.skillService + 10))
                         else -> employee
                     }
-                    employees[index] = updatedEmployee
+                    allEmployees[index] = updatedEmployee
                 }
             }
         },
         onDismissEmployee = { employee ->
             // 创始人不能被解雇
             if (employee.id != 0) {
-                employees.removeAll { it.id == employee.id }
+                allEmployees.removeAll { it.id == employee.id }
             }
         },
         onNavigateToRecruitment = onNavigateToRecruitment
@@ -2017,7 +2130,7 @@ fun ContinueScreen(navController: androidx.navigation.NavController) {
                         // 设置全局存档数据，以便GameScreen可以使用
                         currentLoadedSaveData = saveData
                         Toast.makeText(context, "加载存档 $slotIndex", Toast.LENGTH_SHORT).show()
-                        navController.navigate("game/${saveData.companyName}/${saveData.founderName}/🎮")
+                        navController.navigate("game/${saveData.companyName}/${saveData.founderName}/🎮/${saveData.founderProfession?.name ?: "PROGRAMMER"}")
                     },
                     onDeleteSave = {
                         saveToDelete = Pair(slotIndex, saves[slotIndex])
@@ -2349,8 +2462,8 @@ data class Founder(
     val profession: FounderProfession,
     val skillLevel: Int = 5 // 固定为5级
 ) {
-    fun toEmployee(): Employee {
-        return Employee(
+    fun toEmployee(): com.example.yjcy.ui.Employee {
+        return com.example.yjcy.ui.Employee(
             id = 0, // 特殊ID标识创始人
             name = name,
             position = profession.displayName,
@@ -2359,7 +2472,8 @@ data class Founder(
             skillArt = if (profession.specialtySkill == "美工") 5 else 1,
             skillMusic = if (profession.specialtySkill == "音乐") 5 else 1,
             skillService = if (profession.specialtySkill == "服务") 5 else 1,
-            salary = 0 // 创始人无薪资
+            salary = 0, // 创始人无薪资
+            isAssigned = false // 默认未分配
         )
     }
 }
@@ -3456,7 +3570,10 @@ fun InGameSettingsContent(
 }
 
 @Composable
-fun RecruitmentCenterContent(onBack: () -> Unit = {}) {
+fun RecruitmentCenterContent(
+    onBack: () -> Unit = {},
+    onHireCandidate: (Candidate) -> Unit = {}
+) {
     val candidateManager = remember { CandidateManager() }
     val candidates = candidateManager.candidates
     
@@ -3497,8 +3614,10 @@ fun RecruitmentCenterContent(onBack: () -> Unit = {}) {
         RecruitmentCenter(
             candidates = candidates,
             onHireCandidate = { candidate ->
-                // TODO: 实现招聘逻辑，将候选人转换为员工
+                // 更新候选人状态为已雇佣
                 candidateManager.updateCandidateStatus(candidate.id, com.example.yjcy.data.AvailabilityStatus.HIRED)
+                // 调用传入的回调函数，将候选人添加到员工列表
+                onHireCandidate(candidate)
             },
             onRefreshCandidates = {
                 // 生成新的候选人
@@ -3782,7 +3901,7 @@ fun EnhancedPauseButton(
     }
 }
 
-// 游戏速度下拉选择组件
+// 游戏速度下拉选项组件
 @Composable
 fun GameSpeedDropdown(
     currentSpeed: Int,
@@ -3792,106 +3911,113 @@ fun GameSpeedDropdown(
 ) {
     var expanded by remember { mutableStateOf(false) }
     
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        // 游戏速度下拉选择
-        Box {
-            // 下拉按钮
-            Row(
+    Box {
+        // 下拉按钮 - 现代化设计
+        Button(
+            onClick = { expanded = true },
+            modifier = Modifier
+                .height(32.dp)
+                .widthIn(min = 80.dp, max = 120.dp)
+                .wrapContentWidth()
+                .shadow(
+                    elevation = 2.dp,
+                    shape = RoundedCornerShape(8.dp),
+                    ambientColor = Color.Black.copy(alpha = 0.1f),
+                    spotColor = Color.Black.copy(alpha = 0.1f)
+                ),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF374151),
+                contentColor = Color.White
+            ),
+            shape = RoundedCornerShape(8.dp),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+            elevation = ButtonDefaults.buttonElevation(
+                defaultElevation = 2.dp,
+                pressedElevation = 1.dp,
+                hoveredElevation = 3.dp
+            )
+        ) {
+            Text(
+                text = if (isPaused) "暂停" else "${currentSpeed}x",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        
+        // 下拉菜单 - 现代化卡片设计
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier
+                .background(
+                    color = Color(0xFF1F2937),
+                    shape = RoundedCornerShape(10.dp)
+                )
+                .border(
+                    width = 1.dp,
+                    color = Color(0xFF374151),
+                    shape = RoundedCornerShape(10.dp)
+                )
+                .shadow(
+                    elevation = 8.dp,
+                    shape = RoundedCornerShape(10.dp),
+                    ambientColor = Color.Black.copy(alpha = 0.08f),
+                    spotColor = Color.Black.copy(alpha = 0.08f)
+                )
+                .padding(vertical = 2.dp)
+        ) {
+            // 暂停选项 - 现代化样式
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        text = "暂停",
+                        color = if (isPaused) Color(0xFF10B981) else Color(0xFFE5E7EB),
+                        fontSize = 14.sp,
+                        fontWeight = if (isPaused) FontWeight.SemiBold else FontWeight.Medium
+                    )
+                },
+                onClick = {
+                    onPauseToggle()
+                    expanded = false
+                },
                 modifier = Modifier
                     .background(
-                        color = Color.White.copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(6.dp)
+                        color = if (isPaused) Color(0xFF065F46).copy(alpha = 0.2f) else Color.Transparent,
+                        shape = RoundedCornerShape(8.dp)
                     )
-                    .clickable { expanded = !expanded }
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "⚡",
-                    fontSize = 10.sp
-                )
-                Spacer(modifier = Modifier.width(2.dp))
-                Text(
-                    text = if (isPaused) "暂停" else "${currentSpeed}x",
-                    color = Color.White,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                Spacer(modifier = Modifier.width(2.dp))
-                Text(
-                    text = if (expanded) "▲" else "▼",
-                    color = Color.White,
-                    fontSize = 8.sp
-                )
-            }
+                    .padding(horizontal = 6.dp, vertical = 4.dp)
+                    .animateContentSize()
+            )
             
-            // 下拉菜单
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-                modifier = Modifier.background(
-                    color = Color(0xFF1F2937),
-                    shape = RoundedCornerShape(6.dp)
-                )
-            ) {
-                // 暂停选项
+            // 速度选项 - 现代化样式
+            listOf(1, 2, 3).forEach { speed ->
                 DropdownMenuItem(
                     text = {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "⏸",
-                                fontSize = 12.sp
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "暂停",
-                                color = Color.White,
-                                fontSize = 12.sp
-                            )
-                        }
+                        Text(
+                            text = "${speed}x",
+                            color = if (currentSpeed == speed && !isPaused) Color(0xFF10B981) else Color(0xFFE5E7EB),
+                            fontSize = 14.sp,
+                            fontWeight = if (currentSpeed == speed && !isPaused) FontWeight.SemiBold else FontWeight.Medium
+                        )
                     },
                     onClick = {
-                        onPauseToggle()
+                        // 如果当前是暂停状态，先取消暂停
+                        if (isPaused) {
+                            onPauseToggle()
+                        }
+                        onSpeedChange(speed)
                         expanded = false
                     },
-                    modifier = Modifier.background(
-                        if (isPaused) Color(0xFF374151) else Color.Transparent
-                    )
-                )
-                
-                // 速度选项
-                listOf(1, 2, 3).forEach { speed ->
-                    DropdownMenuItem(
-                        text = {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "⚡",
-                                    fontSize = 12.sp
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "${speed}x速度",
-                                    color = Color.White,
-                                    fontSize = 12.sp
-                                )
-                            }
-                        },
-                        onClick = {
-                            onSpeedChange(speed)
-                            expanded = false
-                        },
-                        modifier = Modifier.background(
-                            if (currentSpeed == speed && !isPaused) Color(0xFF374151) else Color.Transparent
+                    modifier = Modifier
+                        .background(
+                            color = if (currentSpeed == speed && !isPaused) Color(0xFF065F46).copy(alpha = 0.2f) else Color.Transparent,
+                            shape = RoundedCornerShape(8.dp)
                         )
-                    )
-                }
+                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                        .animateContentSize()
+                )
             }
         }
     }

@@ -71,6 +71,8 @@ fun EmployeeManagementEnhanced(
     onDismissEmployee: (Employee) -> Unit,
     onNavigateToRecruitment: () -> Unit
 ) {
+
+    
     var searchQuery by remember { mutableStateOf("") }
     var selectedPositions by remember { mutableStateOf(emptyList<String>()) }
     var salaryRange by remember { mutableStateOf(0f..20000f) }
@@ -228,7 +230,7 @@ fun EmployeeManagementEnhanced(
                 onClearFilters = {
                     selectedPositions = emptyList()
                     salaryRange = 0f..20000f
-                    skillLevelRange = 1f..5f
+                    skillLevelRange = 1f..100f
                 }
             )
         }

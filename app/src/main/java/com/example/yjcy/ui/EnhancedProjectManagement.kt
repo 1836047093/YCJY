@@ -21,7 +21,8 @@ import androidx.compose.ui.unit.sp
 fun EnhancedProjectManagementContent(
     games: List<com.example.yjcy.ui.Game> = emptyList(),
     onGamesUpdate: (List<com.example.yjcy.ui.Game>) -> Unit = {},
-    availableEmployees: List<Employee> = getDefaultEmployees()
+    founder: com.example.yjcy.Founder? = null,
+    availableEmployees: List<com.example.yjcy.ui.Employee> = founder?.let { listOf(it.toEmployee()) } ?: getDefaultEmployees()
 ) {
     var showGameDevelopmentDialog by remember { mutableStateOf(false) }
     

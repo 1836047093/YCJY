@@ -48,7 +48,9 @@ fun RecruitmentCenter(
             
             val matchesSkillLevel = candidate.getSpecialtySkillLevel().toFloat() in skillLevelRange.start..skillLevelRange.endInclusive
             
-            matchesSearch && matchesPosition && matchesSalary && matchesSkillLevel
+            val isAvailable = candidate.availabilityStatus != AvailabilityStatus.HIRED
+            
+            matchesSearch && matchesPosition && matchesSalary && matchesSkillLevel && isAvailable
         }
     }
     
