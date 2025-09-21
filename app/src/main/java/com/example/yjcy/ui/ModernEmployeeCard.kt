@@ -1,5 +1,6 @@
 package com.example.yjcy.ui
 
+import com.example.yjcy.Employee
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -19,7 +20,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.yjcy.Employee
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,12 +76,13 @@ fun ModernEmployeeCard(
                             text = employee.name,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = Color.White
                         )
                         Text(
                             text = employee.position,
                             fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
                         )
                     }
                     
@@ -117,7 +118,8 @@ fun ModernEmployeeCard(
                             Text(
                                 text = "Lv.${employee.getSpecialtySkillLevel()}",
                                 fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
                                 modifier = Modifier.padding(start = 4.dp)
                             )
                         }
@@ -229,7 +231,8 @@ fun SkillBar(
         Text(
             text = skillName,
             fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
             modifier = Modifier.width(40.dp)
         )
         

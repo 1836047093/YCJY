@@ -1,5 +1,6 @@
 package com.example.yjcy.ui
 
+import com.example.yjcy.Employee
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -23,7 +24,25 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import com.example.yjcy.Employee
+
+import com.example.yjcy.ui.theme.YjcyTheme
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.focus.FocusManager
+import kotlin.math.min
+import kotlin.math.max
+import com.example.yjcy.data.*
 
 // 员工筛选条件
 data class EmployeeFilter(
@@ -60,6 +79,8 @@ fun EmployeeManagementEnhanced(
     var sortAscending by remember { mutableStateOf(true) }
     var currentPage by remember { mutableStateOf(0) }
     var showFilters by remember { mutableStateOf(false) }
+    
+
     
     val itemsPerPage = 8
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -136,7 +157,7 @@ fun EmployeeManagementEnhanced(
             )
             .padding(16.dp)
     ) {
-        // 标题和招聘按钮
+        // 标题和操作按钮
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -149,14 +170,21 @@ fun EmployeeManagementEnhanced(
                 fontWeight = FontWeight.Bold
             )
             
-            ModernButton(
-                text = "招聘中心",
-                icon = "🎯",
-                onClick = onNavigateToRecruitment,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF16A34A).copy(alpha = 0.2f)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+
+                
+                ModernButton(
+                    text = "招聘中心",
+                    icon = "🎯",
+                    onClick = onNavigateToRecruitment,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF16A34A).copy(alpha = 0.2f)
+                    )
                 )
-            )
+            }
         }
         
         Spacer(modifier = Modifier.height(16.dp))
