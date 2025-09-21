@@ -95,7 +95,7 @@ fun EnhancedProjectManagementContent(
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text(
-                    text = "👥 可用员工: ${availableEmployees.filter { !it.isAssigned }.size}人",
+                    text = "👥 可用员工: ${availableEmployees.size}人",
                     color = Color.White,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -148,7 +148,7 @@ fun EnhancedProjectManagementContent(
                 items(games) { game ->
                     EnhancedGameProjectCard(
                         game = game,
-                        availableEmployees = availableEmployees.filter { !it.isAssigned },
+                        availableEmployees = availableEmployees,
                         onEmployeeAssigned = { updatedGame, selectedEmployees ->
                             // 更新游戏的员工分配
                             val updatedGames = games.map { existingGame ->

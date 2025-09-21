@@ -97,7 +97,7 @@ fun RecruitmentCenter(
     ) {
         // 标题栏
         RecruitmentHeader(
-            totalCandidates = candidates.size,
+            totalCandidates = candidates.count { it.availabilityStatus == AvailabilityStatus.AVAILABLE },
             filteredCandidates = filteredCandidates.size,
             currentMoney = currentMoney,
             onRefresh = onRefreshCandidates
@@ -210,7 +210,7 @@ fun RecruitmentHeader(
                 Spacer(modifier = Modifier.height(4.dp))
                 
                 Text(
-                    text = "显示 $filteredCandidates / $totalCandidates 位候选人",
+                    text = "显示 $totalCandidates / 5 位候选人",
                     color = Color.White.copy(alpha = 0.8f),
                     fontSize = 12.sp
                 )
@@ -250,14 +250,6 @@ fun SearchAndFilterBar(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 搜索框
-        SearchBar(
-            query = searchQuery,
-            onQueryChange = onSearchChange,
-            placeholder = "搜索候选人姓名或职位...",
-            modifier = Modifier.weight(1f)
-        )
-        
         // 筛选按钮
         ModernButton(
             text = "筛选",

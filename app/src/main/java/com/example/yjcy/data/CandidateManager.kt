@@ -249,6 +249,13 @@ class CandidateManager {
     }
     
     /**
+     * 获取可用候选人数量（状态为AVAILABLE的候选人）
+     */
+    fun getAvailableCandidatesCount(): Int {
+        return candidates.count { it.availabilityStatus == AvailabilityStatus.AVAILABLE }
+    }
+
+    /**
      * 生成更多候选人
      */
     fun generateMoreCandidates(count: Int = 5) {

@@ -24,11 +24,26 @@ import androidx.compose.foundation.lazy.items
 fun ProjectManagementWrapper(
     games: List<com.example.yjcy.Game> = emptyList(),
     onGamesUpdate: (List<com.example.yjcy.Game>) -> Unit = {},
-    founder: com.example.yjcy.Founder? = null
+    founder: com.example.yjcy.Founder? = null,
+    allEmployees: List<com.example.yjcy.Employee> = emptyList()
 ) {
     // 直接使用员工分配功能的项目管理
     EnhancedProjectManagementContent(
                     founder = founder,
+                    availableEmployees = allEmployees.map { originalEmployee ->
+                        Employee(
+                            id = originalEmployee.id,
+                            name = originalEmployee.name,
+                            position = originalEmployee.position,
+                            skillDevelopment = originalEmployee.skillDevelopment,
+                            skillDesign = originalEmployee.skillDesign,
+                            skillArt = originalEmployee.skillArt,
+                            skillMusic = originalEmployee.skillMusic,
+                            skillService = originalEmployee.skillService,
+                            salary = originalEmployee.salary,
+                            isAssigned = false
+                        )
+                    },
                     games = games.map { originalGame ->
                         // 将原始Game转换为增强版Game
                         Game(

@@ -811,6 +811,9 @@ fun GameScreen(
     // 员工状态管理 - 提升到GameScreen级别
     val allEmployees = remember { mutableStateListOf<Employee>() }
     
+    // 候选人管理器 - 提升到GameScreen级别以保持状态
+    val candidateManager = remember { CandidateManager() }
+    
     // 创建创始人对象
     val founder = remember(founderName, founderProfession) {
         Founder(name = founderName, profession = founderProfession)
@@ -936,6 +939,7 @@ fun GameScreen(
                 if (showRecruitmentCenter && selectedTab == 1) {
                     // 显示招聘中心界面
                     RecruitmentCenterContent(
+                        candidateManager = candidateManager,
                         onBack = { showRecruitmentCenter = false },
                         onHireCandidate = { candidate, candidateManager ->
                             // 检查是否有足够资金
@@ -1000,7 +1004,8 @@ fun GameScreen(
                         2 -> ProjectManagementWrapper(
                             games = games,
                             onGamesUpdate = { updatedGames -> games = updatedGames },
-                            founder = founder
+                            founder = founder,
+                            allEmployees = allEmployees
                         )
                         3 -> MarketAnalysisContent()
                         4 -> InGameSettingsContent(
@@ -3655,10 +3660,10 @@ fun InGameSettingsContent(
 
 @Composable
 fun RecruitmentCenterContent(
+    candidateManager: CandidateManager,
     onBack: () -> Unit = {},
     onHireCandidate: (Candidate, CandidateManager) -> Unit = { _, _ -> }
 ) {
-    val candidateManager = remember { CandidateManager() }
     val candidates = candidateManager.candidates
     
     Column(
@@ -3702,8 +3707,11 @@ fun RecruitmentCenterContent(
                 onHireCandidate(candidate, candidateManager)
             },
             onRefreshCandidates = {
-                // 生成新的候选人
-                repeat(3) {
+                // 计算当前可用候选人数量，如果少于5个则生成足够的候选人使总数达到5个
+                val currentAvailableCount = candidateManager.getAvailableCandidatesCount()
+                val maxCandidates = 5
+                val needToGenerate = maxOf(0, maxCandidates - currentAvailableCount)
+                repeat(needToGenerate) {
                     candidateManager.addCandidate(candidateManager.generateRandomCandidate())
                 }
             },
