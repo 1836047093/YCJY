@@ -80,6 +80,17 @@ import androidx.core.view.WindowCompat
 
 
 
+// 资金格式化函数
+fun formatMoney(amount: Long): String {
+    return when {
+        amount >= 1_000_000_000_000L -> "${amount / 1_000_000_000_000L}T"
+        amount >= 1_000_000_000L -> "${amount / 1_000_000_000L}B"
+        amount >= 1_000_000L -> "${amount / 1_000_000L}M"
+        amount >= 1_000L -> "${amount / 1_000L}K"
+        else -> amount.toString()
+    }
+}
+
 // 全局变量存储当前加载的存档数据
 var currentLoadedSaveData: SaveData? = null
 
@@ -793,6 +804,10 @@ fun GameScreen(
     var games by remember { mutableStateOf(saveData?.games ?: emptyList<Game>()) }
     var showRecruitmentCenter by remember { mutableStateOf(false) }
     
+    // 消息状态
+    var showMessage by remember { mutableStateOf(false) }
+    var messageText by remember { mutableStateOf("") }
+    
     // 员工状态管理 - 提升到GameScreen级别
     val allEmployees = remember { mutableStateListOf<Employee>() }
     
@@ -922,29 +937,53 @@ fun GameScreen(
                     // 显示招聘中心界面
                     RecruitmentCenterContent(
                         onBack = { showRecruitmentCenter = false },
-                        onHireCandidate = { candidate ->
-                            // 将候选人转换为员工并添加到员工列表
-                            val newEmployee = Employee(
-                                id = candidate.id,
-                                name = candidate.name,
-                                position = candidate.position,
-                                skillDevelopment = candidate.programmingSkill,
-                                skillDesign = candidate.designSkill,
-                                skillArt = candidate.planningSkill,
-                                skillMusic = candidate.soundSkill,
-                                skillService = candidate.customerServiceSkill,
-                                salary = candidate.expectedSalary
-                            )
-                            
-                            // 确保创始人员工（id=0）始终保持在列表第一位
-                            val founderEmployee = allEmployees.find { it.id == 0 }
-                            allEmployees.add(newEmployee)
-                            if (founderEmployee != null && allEmployees.firstOrNull()?.id != 0) {
-                                allEmployees.remove(founderEmployee)
-                                allEmployees.add(0, founderEmployee)
+                        onHireCandidate = { candidate, candidateManager ->
+                            // 检查是否有足够资金
+                            if (money >= candidate.recruitmentCost) {
+                                // 根据招聘成功率判断是否成功
+                                val random = kotlin.random.Random.nextFloat()
+                                val hireSuccessRate = candidate.getHireSuccessRate()
+                                
+                                if (random <= hireSuccessRate) {
+                                     // 招聘成功
+                                     // 扣除招聘费用
+                                     money -= candidate.recruitmentCost
+                                     
+                                     // 更新候选人状态为已雇佣
+                                     candidateManager.updateCandidateStatus(candidate.id, com.example.yjcy.data.AvailabilityStatus.HIRED)
+                                     
+                                     // 将候选人转换为员工并添加到员工列表
+                                    val newEmployee = Employee(
+                                        id = candidate.id,
+                                        name = candidate.name,
+                                        position = candidate.position,
+                                        skillDevelopment = candidate.programmingSkill,
+                                        skillDesign = candidate.designSkill,
+                                        skillArt = candidate.planningSkill,
+                                        skillMusic = candidate.soundSkill,
+                                        skillService = candidate.customerServiceSkill,
+                                        salary = candidate.expectedSalary
+                                    )
+                                    
+                                    // 确保创始人员工（id=0）始终保持在列表第一位
+                                    val founderEmployee = allEmployees.find { it.id == 0 }
+                                    allEmployees.add(newEmployee)
+                                    if (founderEmployee != null && allEmployees.firstOrNull()?.id != 0) {
+                                        allEmployees.remove(founderEmployee)
+                                        allEmployees.add(0, founderEmployee)
+                                    }
+                                } else {
+                                    // 招聘失败，扣除一半费用
+                                    money -= candidate.recruitmentCost / 2
+                                    // 显示招聘失败消息
+                                    messageText = "招聘${candidate.name}失败！扣除一半招聘费用：¥${candidate.recruitmentCost / 2}"
+                                    showMessage = true
+                                }
+                            } else {
+                                // 显示资金不足消息
+                                messageText = "资金不足！招聘${candidate.name}需要¥${candidate.recruitmentCost}，当前资金：¥${money}"
+                                showMessage = true
                             }
-                            
-                            showRecruitmentCenter = false
                         }
                     )
                 } else {
@@ -985,6 +1024,51 @@ fun GameScreen(
                 selectedTab = selectedTab,
                 onTabSelected = { selectedTab = it }
             )
+        }
+        
+        // 消息弹窗
+        if (showMessage) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .clickable { showMessage = false },
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    modifier = Modifier
+                        .padding(32.dp)
+                        .fillMaxWidth(0.8f),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color.White
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = messageText,
+                            fontSize = 16.sp,
+                            color = Color.Black,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = { showMessage = false },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF6366F1)
+                            )
+                        ) {
+                            Text(
+                                text = "确定",
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -1090,7 +1174,7 @@ fun TopInfoBar(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "¥${String.format("%,d", money)}",
+                    text = "¥${formatMoney(money)}",
                     color = Color.White,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
@@ -1114,7 +1198,7 @@ fun TopInfoBar(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = String.format("%,d", fans),
+                        text = formatMoney(fans.toLong()),
                         color = Color.White,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
@@ -1442,7 +1526,7 @@ fun EmployeeStatsCard(employees: List<Employee>) {
                         fontSize = 12.sp
                     )
                     Text(
-                        text = "¥${String.format("%,d", employees.sumOf { it.salary })}",
+                        text = "¥${formatMoney(employees.sumOf { it.salary }.toLong())}",
                         color = Color.White,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold
@@ -1534,7 +1618,7 @@ fun EmployeeCard(
                 }
                 
                 Text(
-                    text = "¥${String.format("%,d", employee.salary)}/月",
+                    text = "¥${formatMoney(employee.salary.toLong())}/月",
                     color = Color(0xFFF59E0B),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
@@ -1701,7 +1785,7 @@ fun TrainingConfirmDialog(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "培训费用：¥${String.format("%,d", trainingCost)}",
+                    text = "培训费用：¥${formatMoney(trainingCost.toLong())}",
                     color = Color(0xFFF59E0B),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
@@ -1771,7 +1855,7 @@ fun DismissConfirmDialog(
                     fontSize = 14.sp
                 )
                 Text(
-                    text = "月薪：¥${String.format("%,d", employee.salary)}",
+                    text = "月薪：¥${formatMoney(employee.salary.toLong())}",
                     color = Color.White.copy(alpha = 0.8f),
                     fontSize = 14.sp
                 )
@@ -3471,7 +3555,7 @@ fun InGameSettingsContent(
                                         fontSize = 12.sp
                                     )
                                     Text(
-                                        text = "资金: ¥${existingSave.money} | 粉丝: ${existingSave.fans}",
+                                        text = "资金: ¥${formatMoney(existingSave.money)} | 粉丝: ${formatMoney(existingSave.fans.toLong())}",
                                         color = Color.White.copy(alpha = 0.7f),
                                         fontSize = 12.sp
                                     )
@@ -3572,7 +3656,7 @@ fun InGameSettingsContent(
 @Composable
 fun RecruitmentCenterContent(
     onBack: () -> Unit = {},
-    onHireCandidate: (Candidate) -> Unit = {}
+    onHireCandidate: (Candidate, CandidateManager) -> Unit = { _, _ -> }
 ) {
     val candidateManager = remember { CandidateManager() }
     val candidates = candidateManager.candidates
@@ -3614,10 +3698,8 @@ fun RecruitmentCenterContent(
         RecruitmentCenter(
             candidates = candidates,
             onHireCandidate = { candidate ->
-                // 更新候选人状态为已雇佣
-                candidateManager.updateCandidateStatus(candidate.id, com.example.yjcy.data.AvailabilityStatus.HIRED)
-                // 调用传入的回调函数，将候选人添加到员工列表
-                onHireCandidate(candidate)
+                // 调用传入的回调函数，处理招聘逻辑
+                onHireCandidate(candidate, candidateManager)
             },
             onRefreshCandidates = {
                 // 生成新的候选人

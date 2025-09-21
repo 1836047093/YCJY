@@ -271,29 +271,44 @@ fun SkillPreview(candidate: Candidate) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        SkillMiniIndicator(
-            skillName = "开发",
-            level = candidate.programmingSkill,
-            modifier = Modifier.weight(1f)
-        )
-        
-        SkillMiniIndicator(
-            skillName = "美术",
-            level = candidate.designSkill,
-            modifier = Modifier.weight(1f)
-        )
-        
-        SkillMiniIndicator(
-            skillName = "策划",
-            level = candidate.designSkill,
-            modifier = Modifier.weight(1f)
-        )
-        
-        SkillMiniIndicator(
-            skillName = "音效",
-            level = candidate.soundSkill,
-            modifier = Modifier.weight(1f)
-        )
+        // 只显示候选人的专属技能
+        when (candidate.position) {
+            "程序员" -> {
+                SkillMiniIndicator(
+                    skillName = "开发",
+                    level = candidate.programmingSkill,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            "美术师" -> {
+                SkillMiniIndicator(
+                    skillName = "美术",
+                    level = candidate.designSkill,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            "策划师" -> {
+                SkillMiniIndicator(
+                    skillName = "策划",
+                    level = candidate.planningSkill,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            "音效师" -> {
+                SkillMiniIndicator(
+                    skillName = "音效",
+                    level = candidate.soundSkill,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            "客服" -> {
+                SkillMiniIndicator(
+                    skillName = "服务",
+                    level = candidate.customerServiceSkill,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
     }
 }
 
@@ -350,15 +365,17 @@ fun CandidateDetailedInfo(candidate: Candidate) {
         
         Spacer(modifier = Modifier.height(12.dp))
         
-        // 详细技能展示
+        // 详细技能展示 - 只显示专属技能
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            DetailedSkillRow("程序开发", candidate.programmingSkill)
-            DetailedSkillRow("美术设计", candidate.designSkill)
-            DetailedSkillRow("游戏策划", candidate.designSkill)
-            DetailedSkillRow("音效制作", candidate.soundSkill)
-            DetailedSkillRow("客户服务", candidate.customerServiceSkill)
+            when (candidate.position) {
+                "程序员" -> DetailedSkillRow("程序开发", candidate.programmingSkill)
+                "美术师" -> DetailedSkillRow("美术设计", candidate.designSkill)
+                "策划师" -> DetailedSkillRow("游戏策划", candidate.planningSkill)
+                "音效师" -> DetailedSkillRow("音效制作", candidate.soundSkill)
+                "客服" -> DetailedSkillRow("客户服务", candidate.customerServiceSkill)
+            }
         }
         
         Spacer(modifier = Modifier.height(16.dp))
