@@ -144,18 +144,19 @@ fun ModernEmployeeCard(
                         Text(
                             text = "技能详情",
                             fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                         
-                        val skills: List<Pair<String, Int>> = listOf(
-                            "开发" to employee.skillDevelopment,
-                            "设计" to employee.skillDesign,
-                            "美工" to employee.skillArt,
-                            "音效" to employee.skillMusic,
-                            "客服" to employee.skillService
-                        )
+                        val skills: List<Pair<String, Int>> = when (employee.position) {
+                            "程序员" -> listOf("开发" to employee.skillDevelopment)
+                            "策划师" -> listOf("设计" to employee.skillDesign)
+                            "美术师" -> listOf("美工" to employee.skillArt)
+                            "音效师" -> listOf("音效" to employee.skillMusic)
+                            "客服" -> listOf("客服" to employee.skillService)
+                            else -> listOf("开发" to employee.skillDevelopment)
+                        }
                         
                         skills.forEach { skill ->
                             val skillName = skill.first
@@ -264,7 +265,8 @@ fun SkillBar(
         Text(
             text = "$skillLevel/$maxLevel",
             fontSize = 10.sp,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
             modifier = Modifier.padding(start = 8.dp)
         )
     }
@@ -293,13 +295,14 @@ fun TrainingDialog(
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
                 
-                val skills: List<Pair<String, Int>> = listOf(
-                    "开发" to employee.skillDevelopment,
-                    "设计" to employee.skillDesign,
-                    "美工" to employee.skillArt,
-                    "音效" to employee.skillMusic,
-                    "客服" to employee.skillService
-                )
+                val skills: List<Pair<String, Int>> = when (employee.position) {
+                    "程序员" -> listOf("开发" to employee.skillDevelopment)
+                    "策划师" -> listOf("设计" to employee.skillDesign)
+                    "美术师" -> listOf("美工" to employee.skillArt)
+                    "音效师" -> listOf("音效" to employee.skillMusic)
+                    "客服" -> listOf("客服" to employee.skillService)
+                    else -> listOf("开发" to employee.skillDevelopment)
+                }
                 
                 skills.forEach { skill ->
                     val skillName = skill.first

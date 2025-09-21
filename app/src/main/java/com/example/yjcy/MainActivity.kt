@@ -110,11 +110,12 @@ class MainActivity : ComponentActivity() {
                     composable("game_setup") {
                         GameSetupScreen(navController)
                     }
-                    composable("game/{companyName}/{founderName}/{selectedLogo}") { backStackEntry ->
+                    composable("game/{companyName}/{founderName}/{selectedLogo}/{founderProfession}") { backStackEntry ->
                         val companyName = backStackEntry.arguments?.getString("companyName") ?: "我的游戏公司"
                         val founderName = backStackEntry.arguments?.getString("founderName") ?: "创始人"
                         val selectedLogo = backStackEntry.arguments?.getString("selectedLogo") ?: "🎮"
-                        GameScreen(navController, companyName, founderName, selectedLogo, currentLoadedSaveData)
+                        val founderProfession = backStackEntry.arguments?.getString("founderProfession") ?: "PROGRAMMER"
+                        GameScreen(navController, companyName, founderName, selectedLogo, founderProfession, currentLoadedSaveData)
                         // 清除存档数据，避免影响下次新游戏
                         currentLoadedSaveData = null
                     }
@@ -503,6 +504,7 @@ fun GameSetupScreen(navController: androidx.navigation.NavController) {
     var companyName by remember { mutableStateOf("") }
     var founderName by remember { mutableStateOf("") }
     var selectedLogo by remember { mutableStateOf("🎮") }
+    var selectedProfession by remember { mutableStateOf<FounderProfession?>(null) }
     var isCompanyNameValid by remember { mutableStateOf(true) }
     
     val logoOptions = listOf("🎮", "🏢", "💼", "🚀", "⭐", "🎯")
@@ -642,6 +644,66 @@ fun GameSetupScreen(navController: androidx.navigation.NavController) {
                 )
             }
             
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            // 创始人职业选择
+            Column {
+                Text(
+                    text = "选择创始人职业",
+                    fontSize = 16.sp,
+                    color = Color.White,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(FounderProfession.values()) { profession ->
+                        Box(
+                            modifier = Modifier
+                                .width(100.dp)
+                                .height(80.dp)
+                                .background(
+                                    color = if (selectedProfession == profession) Color.White.copy(alpha = 0.3f) else Color.Transparent,
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .border(
+                                    width = 2.dp,
+                                    color = if (selectedProfession == profession) Color.White else Color.White.copy(alpha = 0.5f),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .clickable { selectedProfession = profession }
+                                .padding(8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = profession.icon,
+                                    fontSize = 20.sp
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = profession.displayName,
+                                    fontSize = 12.sp,
+                                    color = Color.White,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                }
+                selectedProfession?.let { profession ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "专属技能：${profession.specialtySkill}",
+                        fontSize = 14.sp,
+                        color = Color.White.copy(alpha = 0.8f),
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                }
+            }
+            
             Spacer(modifier = Modifier.height(32.dp))
             
             // 按钮组
@@ -657,8 +719,8 @@ fun GameSetupScreen(navController: androidx.navigation.NavController) {
                 GameMenuButton(
                     text = "开始游戏",
                     onClick = {
-                        if (companyName.isNotEmpty() && founderName.isNotEmpty() && isCompanyNameValid) {
-                            navController.navigate("game/$companyName/$founderName/$selectedLogo")
+                        if (companyName.isNotEmpty() && founderName.isNotEmpty() && selectedProfession != null && isCompanyNameValid) {
+                            navController.navigate("game/$companyName/$founderName/$selectedLogo/${selectedProfession!!.name}")
                         }
                     },
                     modifier = Modifier.weight(1f)
@@ -674,10 +736,11 @@ fun GameScreen(
     initialCompanyName: String = "我的游戏公司",
     initialFounderName: String = "创始人",
     selectedLogo: String = "🎮",
+    initialFounderProfession: String = "PROGRAMMER",
     saveData: SaveData? = null
 ) {
     // 游戏状态数据 - 如果有存档数据则使用存档数据，否则使用默认值
-    var money by remember { mutableStateOf(saveData?.money ?: 10000L) }
+    var money by remember { mutableStateOf(saveData?.money ?: 1000000L) }
     var fans by remember { mutableStateOf(saveData?.fans ?: 0) }
     var currentYear by remember { mutableStateOf(saveData?.currentYear ?: 1) }
     var currentMonth by remember { mutableStateOf(saveData?.currentMonth ?: 1) }
@@ -687,8 +750,14 @@ fun GameScreen(
     var isPaused by remember { mutableStateOf(false) }
     var companyName by remember { mutableStateOf(saveData?.companyName ?: initialCompanyName) }
     var founderName by remember { mutableStateOf(saveData?.founderName ?: initialFounderName) }
+    var founderProfession by remember { mutableStateOf(saveData?.founderProfession ?: FounderProfession.valueOf(initialFounderProfession)) }
     var games by remember { mutableStateOf(saveData?.games ?: emptyList<Game>()) }
     var showRecruitmentCenter by remember { mutableStateOf(false) }
+    
+    // 创建创始人对象
+    val founder = remember(founderName, founderProfession) {
+        Founder(name = founderName, profession = founderProfession)
+    }
     
     // 时间推进系统
     LaunchedEffect(gameSpeed, isPaused) {
@@ -759,9 +828,13 @@ fun GameScreen(
                     )
                 } else {
                     when (selectedTab) {
-                        0 -> CompanyOverviewContent(companyName = companyName)
+                        0 -> CompanyOverviewContent(
+                            companyName = companyName,
+                            founder = founder
+                        )
                         1 -> EmployeeManagementContent(
-                            onNavigateToRecruitment = { showRecruitmentCenter = true }
+                            onNavigateToRecruitment = { showRecruitmentCenter = true },
+                            founder = founder
                         )
                         2 -> ProjectManagementWrapper(
                             games = games,
@@ -996,7 +1069,10 @@ fun SpeedButton(
 }
 
 @Composable
-fun CompanyOverviewContent(companyName: String = "我的游戏公司") {
+fun CompanyOverviewContent(
+    companyName: String = "我的游戏公司",
+    founder: Founder? = null
+) {
     Card(
         modifier = Modifier.fillMaxSize(),
         colors = CardDefaults.cardColors(
@@ -1028,6 +1104,21 @@ fun CompanyOverviewContent(companyName: String = "我的游戏公司") {
                     "成立时间" to "第1年1月1日"
                 )
             )
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // 创始人信息
+            if (founder != null) {
+                CompanyInfoCard(
+                    title = "创始人信息",
+                    items = listOf(
+                        "姓名" to founder.name,
+                        "职业" to "${founder.profession.icon} ${founder.profession.displayName}",
+                        "专属技能" to founder.profession.specialtySkill,
+                        "技能等级" to "全技能 Lv.5"
+                    )
+                )
+            }
             
             Spacer(modifier = Modifier.height(12.dp))
             
@@ -1108,39 +1199,48 @@ fun CompanyInfoCard(
 
 @Composable
 fun EmployeeManagementContent(
-    onNavigateToRecruitment: () -> Unit = {}
+    onNavigateToRecruitment: () -> Unit = {},
+    founder: Founder? = null
 ) {
     // 员工数据状态
     val employees = remember {
-        mutableStateListOf(
-            Employee(1, "张程序", "程序员", 3, 1, 1, 1, 1, 8000),
-            Employee(2, "李美术", "美术师", 1, 1, 3, 1, 1, 7000),
-            Employee(3, "王策划", "策划师", 1, 3, 1, 1, 1, 6000),
-            Employee(4, "赵音效", "音效师", 1, 1, 1, 3, 1, 6500),
-            Employee(5, "钱客服", "客服", 1, 1, 1, 1, 3, 5000)
-        )
+        mutableStateListOf<Employee>()
+    }
+    
+    // 将创始人转换为员工对象并添加到员工列表开头
+    val allEmployees = remember(founder, employees.toList()) {
+        val employeeList = mutableListOf<Employee>()
+        founder?.let { employeeList.add(it.toEmployee()) }
+        employeeList.addAll(employees)
+        employeeList
     }
     
     // 使用增强版员工管理界面
     EmployeeManagementEnhanced(
-        employees = employees,
+        employees = allEmployees,
         onTrainEmployee = { employee, skillType ->
-            // 执行培训逻辑
-            val index = employees.indexOfFirst { it.id == employee.id }
-            if (index != -1) {
-                val updatedEmployee = when (skillType) {
-                    "开发" -> employee.copy(skillDevelopment = minOf(5, employee.skillDevelopment + 1))
-                    "策划" -> employee.copy(skillDesign = minOf(5, employee.skillDesign + 1))
-                    "美术" -> employee.copy(skillArt = minOf(5, employee.skillArt + 1))
-                    "音效" -> employee.copy(skillMusic = minOf(5, employee.skillMusic + 1))
-                    "客服" -> employee.copy(skillService = minOf(5, employee.skillService + 1))
-                    else -> employee
+            // 创始人不能被培训（技能已经是满级）
+            if (employee.id != 0) {
+                // 执行培训逻辑
+                val index = employees.indexOfFirst { it.id == employee.id }
+                if (index != -1) {
+                    val updatedEmployee = when (skillType) {
+                        "开发" -> employee.copy(skillDevelopment = minOf(5, employee.skillDevelopment + 1))
+                        "策划" -> employee.copy(skillDesign = minOf(5, employee.skillDesign + 1))
+                        "美术" -> employee.copy(skillArt = minOf(5, employee.skillArt + 1))
+                        "音效" -> employee.copy(skillMusic = minOf(5, employee.skillMusic + 1))
+                        "客服" -> employee.copy(skillService = minOf(5, employee.skillService + 1))
+                        else -> employee
+                    }
+                    employees[index] = updatedEmployee
                 }
-                employees[index] = updatedEmployee
             }
         },
         onDismissEmployee = { employee ->
-            employees.removeAll { it.id == employee.id }
+            // 创始人不能被解雇
+            if (employee.id != 0) {
+                employees.removeAll { it.id == employee.id }
+            }
         },
         onNavigateToRecruitment = onNavigateToRecruitment
     )
@@ -2234,6 +2334,36 @@ fun LeaderboardScreen(navController: androidx.navigation.NavController) {
     }
 }
 
+// 创始人职业枚举
+enum class FounderProfession(val displayName: String, val icon: String, val specialtySkill: String) {
+    PROGRAMMER("程序员", "💻", "开发"),
+    DESIGNER("策划师", "📋", "设计"),
+    ARTIST("美术师", "🎨", "美工"),
+    SOUND_ENGINEER("音效师", "🎵", "音乐"),
+    CUSTOMER_SERVICE("客服", "📞", "服务")
+}
+
+// 创始人数据类
+data class Founder(
+    val name: String,
+    val profession: FounderProfession,
+    val skillLevel: Int = 5 // 固定为5级
+) {
+    fun toEmployee(): Employee {
+        return Employee(
+            id = 0, // 特殊ID标识创始人
+            name = name,
+            position = profession.displayName,
+            skillDevelopment = if (profession.specialtySkill == "开发") 5 else 1,
+            skillDesign = if (profession.specialtySkill == "设计") 5 else 1,
+            skillArt = if (profession.specialtySkill == "美工") 5 else 1,
+            skillMusic = if (profession.specialtySkill == "音乐") 5 else 1,
+            skillService = if (profession.specialtySkill == "服务") 5 else 1,
+            salary = 0 // 创始人无薪资
+        )
+    }
+}
+
 // 游戏相关数据类
 data class Game(
     val id: String,
@@ -2275,7 +2405,8 @@ enum class BusinessModel(val displayName: String, val icon: String) {
 data class SaveData(
     val companyName: String = "我的游戏公司",
     val founderName: String = "创始人",
-    val money: Long = 10000L,
+    val founderProfession: FounderProfession? = null, // 新增字段，向后兼容
+    val money: Long = 1000000L,
     val fans: Int = 0,
     val currentYear: Int = 1,
     val currentMonth: Int = 1,

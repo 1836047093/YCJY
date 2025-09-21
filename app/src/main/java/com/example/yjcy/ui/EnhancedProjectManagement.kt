@@ -341,16 +341,7 @@ fun EnhancedGameDevelopmentDialog(
  * 获取默认员工数据
  */
 fun getDefaultEmployees(): List<Employee> {
-    return listOf(
-        Employee(1, "张程序", "程序员", 3, 1, 1, 1, 1, 8000, false),
-        Employee(2, "李美术", "美术师", 1, 1, 3, 1, 1, 7000, false),
-        Employee(3, "王策划", "策划师", 1, 3, 1, 1, 1, 6500, false),
-        Employee(4, "赵音效", "音效师", 1, 1, 1, 3, 1, 6000, false),
-        Employee(5, "陈客服", "客服", 1, 1, 1, 1, 3, 5000, false),
-        Employee(6, "刘全能", "程序员", 2, 2, 2, 2, 2, 9000, false),
-        Employee(7, "孙设计", "美术师", 1, 2, 4, 1, 1, 7500, false),
-        Employee(8, "周创意", "策划师", 1, 4, 1, 2, 1, 7200, false)
-    )
+    return emptyList()
 }
 
 // 游戏开发步骤组件（简化版本，实际应该从原文件导入）
