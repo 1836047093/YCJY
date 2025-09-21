@@ -76,7 +76,20 @@ fun ProjectManagementWrapper(
                             developmentProgress = originalGame.developmentProgress,
                             isCompleted = originalGame.isCompleted,
                             revenue = originalGame.revenue,
-                            assignedEmployees = emptyList() // 初始为空，可以通过分配功能添加
+                            assignedEmployees = originalGame.assignedEmployees.map { originalEmployee ->
+                                Employee(
+                                    id = originalEmployee.id,
+                                    name = originalEmployee.name,
+                                    position = originalEmployee.position,
+                                    skillDevelopment = originalEmployee.skillDevelopment,
+                                    skillDesign = originalEmployee.skillDesign,
+                                    skillArt = originalEmployee.skillArt,
+                                    skillMusic = originalEmployee.skillMusic,
+                                    skillService = originalEmployee.skillService,
+                                    salary = originalEmployee.salary,
+                                    isAssigned = true
+                                )
+                            }
                         )
                     },
                     onGamesUpdate = { enhancedGames ->
@@ -109,7 +122,20 @@ fun ProjectManagementWrapper(
                                 },
                                 developmentProgress = enhancedGame.developmentProgress,
                                 isCompleted = enhancedGame.isCompleted,
-                                revenue = enhancedGame.revenue
+                                revenue = enhancedGame.revenue,
+                                assignedEmployees = enhancedGame.assignedEmployees.map { enhancedEmployee ->
+                                    com.example.yjcy.Employee(
+                                        id = enhancedEmployee.id,
+                                        name = enhancedEmployee.name,
+                                        position = enhancedEmployee.position,
+                                        skillDevelopment = enhancedEmployee.skillDevelopment,
+                                        skillDesign = enhancedEmployee.skillDesign,
+                                        skillArt = enhancedEmployee.skillArt,
+                                        skillMusic = enhancedEmployee.skillMusic,
+                                        skillService = enhancedEmployee.skillService,
+                                        salary = enhancedEmployee.salary
+                                    )
+                                }
                             )
                         }
                         onGamesUpdate(originalGames)

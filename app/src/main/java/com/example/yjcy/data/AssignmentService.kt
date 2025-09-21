@@ -1,8 +1,10 @@
 package com.example.yjcy.data
 
-import com.example.yjcy.Employee
+import com.example.yjcy.ui.Employee as UiEmployee
+import com.example.yjcy.ui.Game as UiProject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import java.util.UUID
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.*
 
@@ -31,8 +33,8 @@ class AssignmentService {
      * @return 分配计划
      */
     suspend fun executeOneClickAssignment(
-        projects: List<Project>,
-        employees: List<Employee>,
+        projects: List<UiProject>,
+        employees: List<UiEmployee>,
         strategy: AssignmentStrategy = AssignmentStrategy.MIXED
     ): AssignmentResult {
         try {
@@ -57,8 +59,8 @@ class AssignmentService {
             // 3. 验证分配结果
             val validationResult = assignmentValidator.validateAssignmentPlan(
                 assignmentPlan, 
-                employees, 
-                projects, 
+                employees.map { it.toDataEmployee() }, 
+                projects.map { Project(it.id.toInt(), it.name, "", emptyMap(), 5, 1, emptyList(), ProjectPriority.MEDIUM, null, null, ProjectStatus.PLANNING) }, 
                 AssignmentConstraints()
             )
             if (!validationResult.isValid) {
@@ -83,8 +85,8 @@ class AssignmentService {
      * 技能优先分配策略
      */
     private suspend fun executeSkillPriorityAssignment(
-        projects: List<Project>,
-        employees: List<Employee>
+        projects: List<UiProject>,
+        employees: List<UiEmployee>
     ): AssignmentPlan {
         // 使用技能匹配引擎进行最佳匹配
         val assignments = mutableListOf<EmployeeAssignment>()
@@ -92,7 +94,7 @@ class AssignmentService {
         
         projects.forEach { project ->
             val bestEmployee = availableEmployees.maxByOrNull { employee ->
-                skillMatchingEngine.calculateSkillMatch(employee, project)
+                skillMatchingEngine.calculateSkillMatch(employee, project).overallMatchScore
             }
             
             if (bestEmployee != null) {
@@ -103,7 +105,7 @@ class AssignmentService {
                         assignmentDate = System.currentTimeMillis(),
                         workload = 0.8f, // 临时设置
                         efficiency = 0.9f, // 临时设置
-                        skillMatchScore = skillMatchingEngine.calculateSkillMatch(bestEmployee, project)
+                        skillMatchScore = skillMatchingEngine.calculateSkillMatch(bestEmployee, project).overallMatchScore.toFloat()
                     )
                 )
                 availableEmployees.remove(bestEmployee)
@@ -124,15 +126,15 @@ class AssignmentService {
      * 负载均衡分配策略
      */
     private suspend fun executeLoadBalancedAssignment(
-        projects: List<Project>,
-        employees: List<Employee>
+        projects: List<UiProject>,
+        employees: List<UiEmployee>
     ): AssignmentPlan {
         // 临时实现负载均衡分配
         val assignments = mutableListOf<EmployeeAssignment>()
         val availableEmployees = employees.toMutableList()
         
         projects.forEach { project ->
-            val requiredCount = minOf(project.requiredEmployees, availableEmployees.size)
+            val requiredCount = minOf(1, availableEmployees.size) // 每个项目分配1个员工
             repeat(requiredCount) {
                 if (availableEmployees.isNotEmpty()) {
                     val employee = availableEmployees.removeAt(0)
@@ -143,7 +145,7 @@ class AssignmentService {
                             assignmentDate = System.currentTimeMillis(),
                             workload = 0.7f,
                             efficiency = 0.8f,
-                            skillMatchScore = skillMatchingEngine.calculateSkillMatch(employee, project)
+                            skillMatchScore = skillMatchingEngine.calculateSkillMatch(employee, project).overallMatchScore.toFloat()
                         )
                     )
                 }
@@ -164,15 +166,15 @@ class AssignmentService {
      * 成本优化分配策略
      */
     private suspend fun executeCostOptimizedAssignment(
-        projects: List<Project>,
-        employees: List<Employee>
+        projects: List<UiProject>,
+        employees: List<UiEmployee>
     ): AssignmentPlan {
         // 临时实现成本优化分配
         val assignments = mutableListOf<EmployeeAssignment>()
         val availableEmployees = employees.toMutableList()
         
         projects.forEach { project ->
-            val requiredCount = minOf(project.requiredEmployees, availableEmployees.size)
+            val requiredCount = minOf(1, availableEmployees.size) // 每个项目分配1个员工
             repeat(requiredCount) {
                 if (availableEmployees.isNotEmpty()) {
                     val employee = availableEmployees.removeAt(0)
@@ -183,7 +185,7 @@ class AssignmentService {
                             assignmentDate = System.currentTimeMillis(),
                             workload = 0.6f,
                             efficiency = 0.7f,
-                            skillMatchScore = skillMatchingEngine.calculateSkillMatch(employee, project)
+                            skillMatchScore = skillMatchingEngine.calculateSkillMatch(employee, project).overallMatchScore.toFloat()
                         )
                     )
                 }
@@ -204,8 +206,8 @@ class AssignmentService {
      * 平衡分配策略（综合考虑技能、负载和成本）
      */
     private suspend fun executeBalancedAssignment(
-        projects: List<Project>,
-        employees: List<Employee>
+        projects: List<UiProject>,
+        employees: List<UiEmployee>
     ): AssignmentPlan {
         // 获取各种策略的分配结果
         val skillPlan = executeSkillPriorityAssignment(projects, employees)
@@ -228,8 +230,8 @@ class AssignmentService {
      * 验证分配输入数据
      */
     private fun validateAssignmentInput(
-        projects: List<Project>,
-        employees: List<Employee>
+        projects: List<UiProject>,
+        employees: List<UiEmployee>
     ): ValidationResult {
         if (projects.isEmpty()) {
             return ValidationResult(false, listOf("项目列表不能为空"))
@@ -239,7 +241,7 @@ class AssignmentService {
             return ValidationResult(false, listOf("员工列表不能为空"))
         }
         
-        val totalRequiredEmployees = projects.sumOf { it.requiredEmployees }
+        val totalRequiredEmployees = projects.size // 假设每个项目需要1个员工
         if (totalRequiredEmployees > employees.size) {
             return ValidationResult(
                 false, 
@@ -255,8 +257,8 @@ class AssignmentService {
      */
     private fun calculatePlanScore(
         assignments: List<EmployeeAssignment>,
-        projects: List<Project>,
-        employees: List<Employee>
+        projects: List<UiProject>,
+        employees: List<UiEmployee>
     ): Double {
         if (assignments.isEmpty()) return 0.0
         
@@ -287,14 +289,14 @@ class AssignmentService {
      * 获取分配建议
      */
     fun getAssignmentSuggestions(
-        project: Project,
-        employees: List<Employee>
+        project: UiProject,
+        employees: List<UiEmployee>
     ): List<AssignmentSuggestion> {
         return employees.take(5)
-            .map { employee: Employee ->
+            .map { employee: UiEmployee ->
                 AssignmentSuggestion(
                     employee = employee,
-                    matchScore = skillMatchingEngine.calculateSkillMatch(employee, project).toDouble(),
+                    matchScore = skillMatchingEngine.calculateSkillMatch(employee, project).overallMatchScore.toDouble(),
                     reasons = generateAssignmentReasons(employee, project)
                 )
             }
@@ -303,15 +305,16 @@ class AssignmentService {
     /**
      * 生成分配建议原因
      */
-    private fun generateAssignmentReasons(employee: Employee, project: Project): List<String> {
+    private fun generateAssignmentReasons(employee: UiEmployee, project: UiProject): List<String> {
         val reasons = mutableListOf<String>()
         
-        val skillMatch = skillMatchingEngine.calculateSkillMatch(employee, project).toDouble()
+        val skillMatch = skillMatchingEngine.calculateSkillMatch(employee, project).overallMatchScore.toDouble()
         if (skillMatch > 0.8) {
             reasons.add("技能高度匹配(${(skillMatch * 100).toInt()}%)")
         }
         
-        if (employee.getSpecialtySkillType() in project.requiredSkills) {
+        // 简化技能匹配逻辑
+        if (skillMatch > 0.6) {
             reasons.add("拥有项目所需的专业技能")
         }
         
@@ -368,7 +371,7 @@ data class AssignmentResult(
  * 分配建议
  */
 data class AssignmentSuggestion(
-    val employee: Employee,
+    val employee: UiEmployee,
     val matchScore: Double,
     val reasons: List<String>
 )

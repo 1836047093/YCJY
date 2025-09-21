@@ -894,6 +894,32 @@ fun GameScreen(
                     currentYear++
                 }
             }
+            
+            // 更新游戏开发进度
+            games = games.map { game ->
+                if (!game.isCompleted && game.assignedEmployees.isNotEmpty()) {
+                    // 计算员工技能总和
+                    val totalSkillPoints = game.assignedEmployees.sumOf { employee ->
+                        employee.skillDevelopment + employee.skillDesign + 
+                        employee.skillArt + employee.skillMusic + employee.skillService
+                    }
+                    
+                    // 基础进度增长：每天0.1%，根据员工技能调整
+                    val baseProgress = 0.001f // 0.1%
+                    val skillMultiplier = (totalSkillPoints / 100f).coerceAtLeast(0.1f)
+                    val progressIncrease = baseProgress * skillMultiplier
+                    
+                    val newProgress = (game.developmentProgress + progressIncrease).coerceAtMost(1.0f)
+                    val isCompleted = newProgress >= 1.0f
+                    
+                    game.copy(
+                        developmentProgress = newProgress,
+                        isCompleted = isCompleted
+                    )
+                } else {
+                    game
+                }
+            }
         }
     }
     
@@ -2576,7 +2602,8 @@ data class Game(
     val businessModel: BusinessModel,
     val developmentProgress: Float = 0f,
     val isCompleted: Boolean = false,
-    val revenue: Long = 0L
+    val revenue: Long = 0L,
+    val assignedEmployees: List<Employee> = emptyList() // 新增：已分配的员工列表
 )
 
 enum class GameTheme(val displayName: String, val icon: String) {

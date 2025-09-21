@@ -97,6 +97,11 @@ data class Employee(
             else -> getTotalSkillPoints() / 5
         }
     }
+    
+    // 获取员工的专业技能等级
+    fun getSpecialtySkillLevel(): Int {
+        return getPrimarySkillValue()
+    }
 }
 
 /**
@@ -378,18 +383,23 @@ fun EmployeeAssignmentDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    OutlinedButton(
-                        onClick = onDismiss,
+                    Button(
+                        onClick = {
+                            // 一键分配功能
+                            val assignmentService = EnhancedAssignmentService()
+                            val result = assignmentService.assignBestEmployeesToProject(
+                                game,
+                                availableEmployees
+                            )
+                            selectedEmployees = result.assignedEmployees.toSet()
+                        },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.outlinedButtonColors(
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF10B981),
                             contentColor = Color.White
-                        ),
-                        border = BorderStroke(
-                            width = 1.dp,
-                            color = Color.White.copy(alpha = 0.5f)
                         )
                     ) {
-                        Text("取消")
+                        Text("一键分配")
                     }
                     
                     Button(
@@ -402,7 +412,7 @@ fun EmployeeAssignmentDialog(
                             contentColor = Color.White
                         )
                     ) {
-                        Text("确认分配")
+                        Text("确认")
                     }
                 }
             }
