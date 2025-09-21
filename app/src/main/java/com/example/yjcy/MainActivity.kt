@@ -1311,12 +1311,13 @@ fun CompanyOverviewContent(
     companyName: String = "我的游戏公司",
     founder: Founder? = null
 ) {
-    Card(
-        modifier = Modifier.fillMaxSize(),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White.copy(alpha = 0.1f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                color = Color.White.copy(alpha = 0.05f),
+                shape = RoundedCornerShape(12.dp)
+            )
     ) {
         Column(
             modifier = Modifier
@@ -1330,7 +1331,7 @@ fun CompanyOverviewContent(
                 fontWeight = FontWeight.Bold
             )
             
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
             
             // 公司基本信息
             CompanyInfoCard(
@@ -1343,7 +1344,7 @@ fun CompanyOverviewContent(
                 )
             )
             
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             
             // 创始人信息
             if (founder != null) {
@@ -1358,7 +1359,7 @@ fun CompanyOverviewContent(
                 )
             }
             
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             
             // 员工信息
             CompanyInfoCard(
@@ -1371,7 +1372,7 @@ fun CompanyOverviewContent(
                 )
             )
             
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             
             // 项目信息
             CompanyInfoCard(
@@ -1392,15 +1393,16 @@ fun CompanyInfoCard(
     title: String,
     items: List<Pair<String, String>>
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White.copy(alpha = 0.05f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                color = Color.White.copy(alpha = 0.05f),
+                shape = RoundedCornerShape(12.dp)
+            )
     ) {
         Column(
-            modifier = Modifier.padding(12.dp)
+            modifier = Modifier.padding(16.dp)
         ) {
             Text(
                 text = title,
@@ -1409,13 +1411,13 @@ fun CompanyInfoCard(
                 fontWeight = FontWeight.Bold
             )
             
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             
             items.forEach { (label, value) ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 2.dp),
+                        .padding(vertical = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
