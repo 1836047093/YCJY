@@ -1,8 +1,13 @@
 package com.example.yjcy.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -11,8 +16,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
 
 /**
  * 增强版项目管理内容组件，集成员工分配功能
@@ -371,40 +379,346 @@ fun GameThemeSelectionStep(
     selectedTheme: GameTheme?,
     onThemeSelected: (GameTheme) -> Unit
 ) {
-    LazyColumn(
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+    var showDialog by remember { mutableStateOf(false) }
+    
+    ThemeSelectionBox(
+        selectedTheme = selectedTheme,
+        onClick = { showDialog = true }
+    )
+    
+    if (showDialog) {
+        ThemeSelectionDialog(
+            selectedTheme = selectedTheme,
+            onThemeSelected = { theme ->
+                onThemeSelected(theme)
+                showDialog = false
+            },
+            onDismiss = { showDialog = false }
+        )
+    }
+}
+
+@Composable
+fun ThemeSelectionBox(
+    selectedTheme: GameTheme?,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White.copy(alpha = 0.1f)
+        ),
+        shape = RoundedCornerShape(8.dp)
     ) {
-        items(GameTheme.values().toList()) { theme ->
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onThemeSelected(theme) },
-                colors = CardDefaults.cardColors(
-                    containerColor = if (selectedTheme == theme) 
-                        Color(0xFF10B981).copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f)
-                ),
-                shape = RoundedCornerShape(8.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                if (selectedTheme != null) {
                     Text(
-                        text = theme.icon,
-                        fontSize = 24.sp,
-                        modifier = Modifier.padding(end = 12.dp)
+                        text = selectedTheme.icon,
+                        fontSize = 20.sp,
+                        modifier = Modifier.padding(end = 8.dp)
                     )
                     Text(
-                        text = theme.displayName,
+                        text = selectedTheme.displayName,
                         color = Color.White,
-                        fontSize = 16.sp
+                        fontSize = 14.sp
+                    )
+                } else {
+                    Text(
+                        text = "请选择游戏主题",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 14.sp
                     )
                 }
             }
+            Text(
+                text = "▼",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 12.sp
+            )
         }
     }
+}
+
+@Composable
+fun ThemeSelectionDialog(
+    selectedTheme: GameTheme?,
+    onThemeSelected: (GameTheme) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1F2937),
+        title = {
+            Text(
+                text = "选择游戏主题",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            ThemeGrid(
+                selectedTheme = selectedTheme,
+                onThemeSelected = onThemeSelected
+            )
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss
+            ) {
+                Text(
+                    text = "取消",
+                    color = Color.White.copy(alpha = 0.7f)
+                )
+            }
+        },
+        confirmButton = {}
+    )
+}
+
+@Composable
+fun ThemeGrid(
+    selectedTheme: GameTheme?,
+    onThemeSelected: (GameTheme) -> Unit
+) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(3),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(GameTheme.values().toList()) { theme ->
+            ThemeCard(
+                theme = theme,
+                isSelected = selectedTheme == theme,
+                onClick = { onThemeSelected(theme) }
+            )
+        }
+    }
+}
+
+@Composable
+fun ThemeCard(
+    theme: GameTheme,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .aspectRatio(1f)
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) 
+                Color(0xFF10B981).copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f)
+        ),
+        shape = RoundedCornerShape(12.dp),
+        border = if (isSelected) BorderStroke(2.dp, Color(0xFF10B981)) else null
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = theme.icon,
+                fontSize = 28.sp
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = theme.displayName,
+                color = Color.White,
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                lineHeight = 14.sp
+            )
+        }
+    }
+}
+
+@Composable
+fun PlatformSelectionBox(
+    selectedPlatforms: Set<Platform>,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White.copy(alpha = 0.1f)
+        ),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (selectedPlatforms.isNotEmpty()) {
+                    // 显示前3个平台的图标
+                    selectedPlatforms.take(3).forEach { platform ->
+                        Text(
+                            text = platform.icon,
+                            fontSize = 16.sp,
+                            modifier = Modifier.padding(end = 4.dp)
+                        )
+                    }
+                    if (selectedPlatforms.size > 3) {
+                        Text(
+                            text = "+${selectedPlatforms.size - 3}",
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
+                    Text(
+                        text = "已选择 ${selectedPlatforms.size} 个平台",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                } else {
+                    Text(
+                        text = "请选择发布平台",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 14.sp
+                    )
+                }
+            }
+            Text(
+                text = "▼",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 12.sp
+            )
+        }
+    }
+}
+
+@Composable
+fun PlatformCard(
+    platform: Platform,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .aspectRatio(1f)
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) 
+                Color(0xFF10B981).copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f)
+        ),
+        shape = RoundedCornerShape(12.dp),
+        border = if (isSelected) BorderStroke(2.dp, Color(0xFF10B981)) else null
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = platform.icon,
+                fontSize = 28.sp
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = platform.displayName,
+                color = Color.White,
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                lineHeight = 14.sp
+            )
+        }
+    }
+}
+
+@Composable
+fun PlatformGrid(
+    selectedPlatforms: Set<Platform>,
+    onPlatformToggle: (Platform) -> Unit
+) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(Platform.values().toList()) { platform ->
+            PlatformCard(
+                platform = platform,
+                isSelected = selectedPlatforms.contains(platform),
+                onClick = { onPlatformToggle(platform) }
+            )
+        }
+    }
+}
+
+@Composable
+fun PlatformSelectionDialog(
+    selectedPlatforms: Set<Platform>,
+    onPlatformToggle: (Platform) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1F2937),
+        title = {
+            Text(
+                text = "选择发布平台",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            PlatformGrid(
+                selectedPlatforms = selectedPlatforms,
+                onPlatformToggle = onPlatformToggle
+            )
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss
+            ) {
+                Text(
+                    text = "取消",
+                    color = Color.White.copy(alpha = 0.7f)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onDismiss
+            ) {
+                Text(
+                    text = "确定",
+                    color = Color(0xFF10B981)
+                )
+            }
+        }
+    )
 }
 
 @Composable
@@ -414,6 +728,8 @@ fun PlatformAndBusinessModelStep(
     onPlatformToggle: (Platform) -> Unit,
     onBusinessModelSelected: (BusinessModel) -> Unit
 ) {
+    var showPlatformDialog by remember { mutableStateOf(false) }
+    
     Column {
         Text(
             text = "选择平台:",
@@ -424,36 +740,17 @@ fun PlatformAndBusinessModelStep(
         
         Spacer(modifier = Modifier.height(8.dp))
         
-        Platform.values().forEach { platform ->
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onPlatformToggle(platform) },
-                colors = CardDefaults.cardColors(
-                    containerColor = if (selectedPlatforms.contains(platform)) 
-                        Color(0xFF3B82F6).copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f)
-                ),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = platform.icon,
-                        fontSize = 20.sp,
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-                    Text(
-                        text = platform.displayName,
-                        color = Color.White,
-                        fontSize = 14.sp
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(4.dp))
+        PlatformSelectionBox(
+            selectedPlatforms = selectedPlatforms,
+            onClick = { showPlatformDialog = true }
+        )
+        
+        if (showPlatformDialog) {
+            PlatformSelectionDialog(
+                selectedPlatforms = selectedPlatforms,
+                onPlatformToggle = onPlatformToggle,
+                onDismiss = { showPlatformDialog = false }
+            )
         }
         
         Spacer(modifier = Modifier.height(16.dp))
