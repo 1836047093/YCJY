@@ -906,7 +906,7 @@ fun GameScreen(
                     
                     // 基础进度增长：每天0.1%，根据员工技能调整
                     val baseProgress = 0.001f // 0.1%
-                    val skillMultiplier = (totalSkillPoints / 100f).coerceAtLeast(0.1f)
+                    val skillMultiplier = (totalSkillPoints / 25f).coerceAtLeast(0.1f)
                     val progressIncrease = baseProgress * skillMultiplier
                     
                     val newProgress = (game.developmentProgress + progressIncrease).coerceAtMost(1.0f)
@@ -968,8 +968,13 @@ fun GameScreen(
                         candidateManager = candidateManager,
                         onBack = { showRecruitmentCenter = false },
                         onHireCandidate = { candidate, candidateManager ->
-                            // 检查是否有足够资金
-                            if (money >= candidate.recruitmentCost) {
+                            // 检查职位人数限制（每个职位最多5人）
+                            val currentPositionCount = allEmployees.count { it.position == candidate.position }
+                            if (currentPositionCount >= 5) {
+                                // 显示职位人数已满消息
+                                messageText = "${candidate.position}职位已达到招聘上限（5人）！无法招聘${candidate.name}"
+                                showMessage = true
+                            } else if (money >= candidate.recruitmentCost) {
                                 // 根据招聘成功率判断是否成功
                                 val random = kotlin.random.Random.nextFloat()
                                 val hireSuccessRate = candidate.getHireSuccessRate()
@@ -1019,9 +1024,10 @@ fun GameScreen(
                 } else {
                     when (selectedTab) {
                         0 -> CompanyOverviewContent(
-                            companyName = companyName,
-                            founder = founder
-                        )
+                        companyName = companyName,
+                        founder = founder,
+                        allEmployees = allEmployees
+                    )
                         1 -> EmployeeManagementContent(
                             onNavigateToRecruitment = { showRecruitmentCenter = true },
                             founder = founder,
@@ -1309,7 +1315,8 @@ fun SpeedButton(
 @Composable
 fun CompanyOverviewContent(
     companyName: String = "我的游戏公司",
-    founder: Founder? = null
+    founder: Founder? = null,
+    allEmployees: List<Employee> = emptyList()
 ) {
     Box(
         modifier = Modifier
@@ -1338,8 +1345,6 @@ fun CompanyOverviewContent(
                 title = "公司信息",
                 items = listOf(
                     "公司名称" to companyName,
-                    "公司等级" to "Lv.1",
-                    "声誉值" to "0",
                     "成立时间" to "第1年1月1日"
                 )
             )
@@ -1354,7 +1359,7 @@ fun CompanyOverviewContent(
                         "姓名" to founder.name,
                         "职业" to "${founder.profession.icon} ${founder.profession.displayName}",
                         "专属技能" to founder.profession.specialtySkill,
-                        "技能等级" to "全技能 Lv.5"
+                        "技能等级" to "${founder.profession.specialtySkill} Lv.5"
                     )
                 )
             }
@@ -1362,26 +1367,16 @@ fun CompanyOverviewContent(
             Spacer(modifier = Modifier.height(16.dp))
             
             // 员工信息
+            val employeesByProfession = allEmployees.groupBy { it.position }
             CompanyInfoCard(
                 title = "团队状况",
                 items = listOf(
-                    "员工总数" to "3人",
-                    "程序员" to "1人",
-                    "美术师" to "1人",
-                    "策划师" to "1人"
-                )
-            )
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // 项目信息
-            CompanyInfoCard(
-                title = "项目状况",
-                items = listOf(
-                    "进行中项目" to "0个",
-                    "已完成项目" to "0个",
-                    "总收益" to "¥0",
-                    "平均评分" to "暂无"
+                    "员工总数" to "${allEmployees.size}人",
+                    "程序员" to "${employeesByProfession["程序员"]?.size ?: 0}人",
+                    "美术师" to "${employeesByProfession["美术师"]?.size ?: 0}人",
+                    "策划师" to "${employeesByProfession["策划师"]?.size ?: 0}人",
+                    "客服" to "${employeesByProfession["客服"]?.size ?: 0}人",
+                    "音效师" to "${employeesByProfession["音效师"]?.size ?: 0}人"
                 )
             )
         }
@@ -2584,11 +2579,11 @@ data class Founder(
             id = 0, // 特殊ID标识创始人
             name = name,
             position = profession.displayName,
-            skillDevelopment = if (profession.specialtySkill == "开发") 5 else 1,
-            skillDesign = if (profession.specialtySkill == "设计") 5 else 1,
-            skillArt = if (profession.specialtySkill == "美工") 5 else 1,
-            skillMusic = if (profession.specialtySkill == "音乐") 5 else 1,
-            skillService = if (profession.specialtySkill == "服务") 5 else 1,
+            skillDevelopment = if (profession.specialtySkill == "开发") 5 else 0,
+            skillDesign = if (profession.specialtySkill == "设计") 5 else 0,
+            skillArt = if (profession.specialtySkill == "美工") 5 else 0,
+            skillMusic = if (profession.specialtySkill == "音乐") 5 else 0,
+            skillService = if (profession.specialtySkill == "服务") 5 else 0,
             salary = 0, // 创始人无薪资
             isAssigned = false // 默认未分配
         )

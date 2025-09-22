@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
 import kotlin.math.roundToInt
+import android.util.Log
 
 @Composable
 fun FilterPanel(
@@ -146,10 +147,15 @@ fun PositionFilterChips(
             
             FilterChip(
                 onClick = {
+                    Log.d("PositionFilterChips", "Clicked position: $position, isSelected: $isSelected")
                     if (isSelected) {
-                        onPositionsChange(selectedPositions - position)
+                        val newPositions = selectedPositions - position
+                        Log.d("PositionFilterChips", "Removing position, new list: $newPositions")
+                        onPositionsChange(newPositions)
                     } else {
-                        onPositionsChange(selectedPositions + position)
+                        val newPositions = selectedPositions + position
+                        Log.d("PositionFilterChips", "Adding position, new list: $newPositions")
+                        onPositionsChange(newPositions)
                     }
                 },
                 label = {

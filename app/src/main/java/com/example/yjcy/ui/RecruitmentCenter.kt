@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
 import com.example.yjcy.data.*
 import kotlin.math.roundToInt
+import android.util.Log
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -116,7 +117,8 @@ fun RecruitmentCenter(
             onSortChange = { newSortBy, ascending ->
                 sortBy = newSortBy
                 sortAscending = ascending
-            }
+            },
+            selectedPositions = selectedPositions
         )
         
         Spacer(modifier = Modifier.height(8.dp))
@@ -243,7 +245,8 @@ fun SearchAndFilterBar(
     onToggleFilters: () -> Unit,
     sortBy: CandidateSortBy,
     sortAscending: Boolean,
-    onSortChange: (CandidateSortBy, Boolean) -> Unit
+    onSortChange: (CandidateSortBy, Boolean) -> Unit,
+    selectedPositions: List<String> = emptyList()
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -259,6 +262,30 @@ fun SearchAndFilterBar(
                 containerColor = if (showFilters) Color(0xFFF59E0B).copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f)
             )
         )
+        
+        // 显示当前筛选的职位
+        Log.d("RecruitmentCenter", "selectedPositions: $selectedPositions")
+        
+        // 临时调试显示 - 始终显示状态
+        Text(
+            text = "DEBUG: [${selectedPositions.joinToString(", ")}]",
+            color = Color.Red,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 4.dp)
+        )
+        
+        if (selectedPositions.isNotEmpty()) {
+            Text(
+                text = "（${selectedPositions.joinToString(", ")}）",
+                color = Color(0xFFF59E0B),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
+        }
+        
+        Spacer(modifier = Modifier.weight(1f))
         
         // 排序菜单
         CandidateSortDropdown(
@@ -323,6 +350,38 @@ fun CandidateFilterPanel(
             )
             
             Spacer(modifier = Modifier.height(8.dp))
+            
+            // 显示当前筛选的职位
+            if (selectedPositions.isNotEmpty()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF16A34A).copy(alpha = 0.2f)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "🎯 当前筛选: ",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = selectedPositions.joinToString(", "),
+                            color = Color(0xFF16A34A),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
             
             PositionFilterChips(
                 selectedPositions = selectedPositions,
