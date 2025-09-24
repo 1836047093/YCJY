@@ -68,6 +68,9 @@ import com.example.yjcy.ui.EmployeeManagementEnhanced
 import com.example.yjcy.ui.HRCenterEmployeeManagement
 import com.example.yjcy.ui.HRCenterScreen
 import com.example.yjcy.ui.ProjectManagementWrapper
+import com.example.yjcy.ui.RecruitmentConfigScreen
+import com.example.yjcy.ui.CandidateConfirmationScreen
+import com.example.yjcy.ui.RecruitmentHistoryScreen
 import com.example.yjcy.data.Employee
 import com.example.yjcy.data.Founder
 import com.example.yjcy.data.Game
@@ -172,6 +175,23 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("in_game_settings") {
                         InGameSettingsScreen(navController)
+                    }
+                    composable("recruitment_config") {
+                        RecruitmentConfigScreen(
+                            onNavigateBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable("candidate_confirmation/{taskId}") { backStackEntry ->
+                        val taskId = backStackEntry.arguments?.getString("taskId") ?: ""
+                        CandidateConfirmationScreen(
+                            taskId = taskId,
+                            onNavigateBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable("recruitment_history") {
+                        RecruitmentHistoryScreen(
+                            onNavigateBack = { navController.popBackStack() }
+                        )
                     }
                 }
             }
@@ -1046,9 +1066,9 @@ fun GameScreen(
                 } else if (showHRCenter && selectedTab == 1) {
                     // 显示人事中心界面
                     HRCenterScreen(
-                        onNavigateToConfig = { /* TODO: 实现配置界面导航 */ },
-                        onNavigateToConfirmation = { /* TODO: 实现确认界面导航 */ },
-                        onNavigateToHistory = { /* TODO: 实现历史界面导航 */ },
+                        onNavigateToConfig = { navController.navigate("recruitment_config") },
+                        onNavigateToConfirmation = { navController.navigate("candidate_confirmation/0") },
+                        onNavigateToHistory = { navController.navigate("recruitment_history") },
                         onNavigateBack = { showHRCenter = false }
                     )
                 } else {

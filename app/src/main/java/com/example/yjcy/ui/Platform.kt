@@ -4,7 +4,5 @@ enum class Platform(val displayName: String, val icon: String) {
     PC("PC", "💻"),
     MOBILE("手机", "📱"),
     CONSOLE("主机", "🎮"),
-    WEB("网页", "🌐"),
-    VR("VR", "🥽"),
-    SWITCH("Switch", "🎯")
+    WEB("网页", "🌐")
 }

@@ -59,9 +59,6 @@ fun HRCenterScreen(
     ) {
         // 标题栏
         HRCenterHeader(
-            isAutoEnabled = isAutoRecruitmentEnabled,
-            onToggleAuto = { hrManager.toggleAutoRecruitment() },
-            stats = recruitmentStats,
             onNavigateBack = onNavigateBack
         )
         
@@ -83,7 +80,7 @@ fun HRCenterScreen(
             text = "招聘任务",
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF333333)
+            color = Color.White
         )
         
         Spacer(modifier = Modifier.height(8.dp))
@@ -129,9 +126,6 @@ fun HRCenterScreen(
  */
 @Composable
 fun HRCenterHeader(
-    isAutoEnabled: Boolean,
-    onToggleAuto: () -> Unit,
-    stats: RecruitmentTaskStats,
     onNavigateBack: () -> Unit = {}
 ) {
     Card(
@@ -139,84 +133,29 @@ fun HRCenterHeader(
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            IconButton(
+                onClick = onNavigateBack,
+                modifier = Modifier.size(32.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = onNavigateBack,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "返回",
-                            tint = Color(0xFF1976D2)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "人事中心",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1976D2)
-                    )
-                }
-                
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "自动招聘",
-                        fontSize = 14.sp,
-                        color = Color(0xFF666666)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Switch(
-                        checked = isAutoEnabled,
-                        onCheckedChange = { onToggleAuto() },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color(0xFF4CAF50),
-                            checkedTrackColor = Color(0xFF4CAF50).copy(alpha = 0.5f)
-                        )
-                    )
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            // 统计信息
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                StatItem(
-                    label = "活跃任务",
-                    value = stats.activeTasks.toString(),
-                    color = Color(0xFF2196F3)
-                )
-                StatItem(
-                    label = "已雇佣",
-                    value = stats.totalHired.toString(),
-                    color = Color(0xFF4CAF50)
-                )
-                StatItem(
-                    label = "成功率",
-                    value = "${stats.successRate.toInt()}%",
-                    color = Color(0xFFFF9800)
-                )
-                StatItem(
-                    label = "总预算",
-                    value = "${stats.totalBudgetUsed}万",
-                    color = Color(0xFF9C27B0)
+                Icon(
+                    imageVector = Icons.Default.ArrowBack,
+                    contentDescription = "返回",
+                    tint = Color(0xFF1976D2)
                 )
             }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "人事中心",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
         }
     }
 }
@@ -237,12 +176,13 @@ fun StatItem(
             text = value,
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
-            color = color
+            color = Color.White
         )
         Text(
             text = label,
             fontSize = 12.sp,
-            color = Color(0xFF666666)
+            fontWeight = FontWeight.Bold,
+            color = Color.White
         )
     }
 }
@@ -343,14 +283,15 @@ fun QuickActionCard(
                 Text(
                     text = title,
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFF333333)
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
                 )
                 
                 Text(
                     text = subtitle,
                     fontSize = 12.sp,
-                    color = Color(0xFF666666),
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
                     textAlign = TextAlign.Center
                 )
             }
@@ -388,13 +329,14 @@ fun RecruitmentTaskCard(
                         text = config?.positionType ?: "未知职位",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
-                        color = Color(0xFF333333)
+                        color = Color.White
                     )
                     
                     Text(
                         text = "目标: ${task.hiredCount}/${task.targetCount} | 进度: ${task.getProgressPercentage().toInt()}%",
                         fontSize = 12.sp,
-                        color = Color(0xFF666666)
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
                     )
                 }
                 
@@ -449,7 +391,8 @@ fun RecruitmentTaskCard(
                 Text(
                     text = "已用预算: ${task.totalBudgetUsed}万",
                     fontSize = 12.sp,
-                    color = Color(0xFF666666)
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
                 )
             }
         }
@@ -478,9 +421,9 @@ fun TaskStatusChip(status: RecruitmentTaskStatus) {
     ) {
         Text(
             text = text,
-            fontSize = 10.sp,
-            color = color,
-            fontWeight = FontWeight.Medium
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
         )
     }
 }
@@ -513,14 +456,16 @@ fun EmptyTasksCard(onNavigateToConfig: () -> Unit) {
             Text(
                 text = "暂无招聘任务",
                 fontSize = 16.sp,
-                color = Color(0xFF666666),
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
                 textAlign = TextAlign.Center
             )
             
             Text(
                 text = "点击下方按钮创建第一个招聘配置",
                 fontSize = 14.sp,
-                color = Color(0xFF999999),
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
                 textAlign = TextAlign.Center
             )
             
@@ -538,7 +483,11 @@ fun EmptyTasksCard(onNavigateToConfig: () -> Unit) {
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("创建招聘配置")
+                Text(
+                    text = "创建招聘配置",
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
             }
         }
     }
@@ -644,8 +593,12 @@ fun TaskDetailsDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("关闭")
-            }
+            Text(
+                text = "关闭",
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        }
         }
     )
 }

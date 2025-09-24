@@ -20,7 +20,7 @@ class EnhancedAssignmentTest {
                 name = "动作冒险游戏",
                 theme = GameTheme.ACTION,
                 platforms = listOf(Platform.PC),
-                businessModel = BusinessModel.PREMIUM,
+                businessModel = BusinessModel.SINGLE_PLAYER,
                 assignedEmployees = emptyList()
             ),
             Game(
@@ -28,7 +28,7 @@ class EnhancedAssignmentTest {
                 name = "休闲益智游戏",
                 theme = GameTheme.PUZZLE,
                 platforms = listOf(Platform.MOBILE),
-                businessModel = BusinessModel.FREE_TO_PLAY,
+                businessModel = BusinessModel.ONLINE_GAME,
                 assignedEmployees = emptyList()
             ),
             Game(
@@ -36,7 +36,7 @@ class EnhancedAssignmentTest {
                 name = "角色扮演游戏",
                 theme = GameTheme.RPG,
                 platforms = listOf(Platform.PC, Platform.CONSOLE),
-                businessModel = BusinessModel.SUBSCRIPTION,
+                businessModel = BusinessModel.SINGLE_PLAYER,
                 assignedEmployees = emptyList()
             )
         )

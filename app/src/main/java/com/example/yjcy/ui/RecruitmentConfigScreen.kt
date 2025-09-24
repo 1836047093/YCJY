@@ -38,7 +38,7 @@ fun RecruitmentConfigScreen(
     val recruitmentConfigs by hrManager.recruitmentConfigs.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     var editingConfig by remember { mutableStateOf<RecruitmentConfig?>(null) }
-    var showTemplateDialog by remember { mutableStateOf(false) }
+
     
     Column(
         modifier = Modifier
@@ -48,8 +48,7 @@ fun RecruitmentConfigScreen(
         // 顶部栏
         ConfigScreenTopBar(
             onNavigateBack = onNavigateBack,
-            onAddConfig = { showAddDialog = true },
-            onShowTemplates = { showTemplateDialog = true }
+            onAddConfig = { showAddDialog = true }
         )
         
         // 配置列表
@@ -78,8 +77,7 @@ fun RecruitmentConfigScreen(
             if (recruitmentConfigs.isEmpty()) {
                 item {
                     EmptyConfigCard(
-                        onAddConfig = { showAddDialog = true },
-                        onShowTemplates = { showTemplateDialog = true }
+                        onAddConfig = { showAddDialog = true }
                     )
                 }
             }
@@ -110,16 +108,7 @@ fun RecruitmentConfigScreen(
         )
     }
     
-    // 模板选择对话框
-    if (showTemplateDialog) {
-        TemplateSelectionDialog(
-            onDismiss = { showTemplateDialog = false },
-            onSelectTemplate = { template ->
-                hrManager.addRecruitmentConfig(template)
-                showTemplateDialog = false
-            }
-        )
-    }
+
 }
 
 /**
@@ -129,8 +118,7 @@ fun RecruitmentConfigScreen(
 @Composable
 fun ConfigScreenTopBar(
     onNavigateBack: () -> Unit,
-    onAddConfig: () -> Unit,
-    onShowTemplates: () -> Unit
+    onAddConfig: () -> Unit
 ) {
     TopAppBar(
         title = {
@@ -148,16 +136,10 @@ fun ConfigScreenTopBar(
             }
         },
         actions = {
-            IconButton(onClick = onShowTemplates) {
-                Icon(
-                    imageVector = Icons.Default.LibraryBooks,
-                    contentDescription = "模板"
-                )
-            }
             IconButton(onClick = onAddConfig) {
                 Icon(
                     imageVector = Icons.Default.Add,
-                    contentDescription = "添加配置"
+                    contentDescription = "创建招聘配置"
                 )
             }
         },
@@ -361,8 +343,7 @@ fun ConfigDetailItem(
  */
 @Composable
 fun EmptyConfigCard(
-    onAddConfig: () -> Unit,
-    onShowTemplates: () -> Unit
+    onAddConfig: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -400,66 +381,44 @@ fun EmptyConfigCard(
             
             Spacer(modifier = Modifier.height(24.dp))
             
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            Button(
+                onClick = onAddConfig,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF2196F3)
+                )
             ) {
-                OutlinedButton(
-                    onClick = onShowTemplates,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.LibraryBooks,
-                        contentDescription = "模板",
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("使用模板")
-                }
-                
-                Button(
-                    onClick = onAddConfig,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF2196F3)
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "添加",
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("自定义配置")
-                }
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "添加",
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("创建招聘配置")
             }
         }
     }
 }
 
 /**
- * 配置编辑对话框
+ * 简化的配置编辑对话框
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConfigEditDialog(
     config: RecruitmentConfig?,
     onDismiss: () -> Unit,
     onSave: (RecruitmentConfig) -> Unit
 ) {
-    var positionType by remember { mutableStateOf(config?.positionType ?: "") }
-    var minSkillLevel by remember { mutableStateOf(config?.minSkillLevel?.toString() ?: "1") }
-    var maxSalary by remember { mutableStateOf(config?.maxSalary?.toString() ?: "10") }
-    var minAge by remember { mutableStateOf(config?.minAge?.toString() ?: "22") }
-    var maxExperience by remember { mutableStateOf(config?.maxExperience?.toString() ?: "10") }
-    var targetCount by remember { mutableStateOf(config?.targetCount?.toString() ?: "1") }
-    var priority by remember { mutableStateOf(config?.priority ?: RecruitmentPriority.NORMAL) }
-    var autoApprove by remember { mutableStateOf(config?.autoApprove ?: false) }
-    var autoApproveThreshold by remember { mutableStateOf((config?.autoApproveThreshold?.times(100))?.toInt()?.toString() ?: "80") }
-    var specialRequirements by remember { mutableStateOf(config?.specialRequirements ?: "") }
+    var positionType by remember { mutableStateOf(config?.positionType ?: "程序员") }
+    var skillLevel by remember { mutableStateOf(config?.minSkillLevel?.toFloat() ?: 5f) }
+    var monthlySalary by remember { mutableStateOf(config?.maxSalary?.toString() ?: "8") }
+    var expanded by remember { mutableStateOf(false) }
+    
+    val positionOptions = listOf("程序员", "美术师", "策划师", "音效师")
     
     val isValid = positionType.isNotBlank() && 
-                  minSkillLevel.toIntOrNull() != null &&
-                  maxSalary.toIntOrNull() != null &&
-                  targetCount.toIntOrNull() != null
+                  monthlySalary.toIntOrNull() != null &&
+                  monthlySalary.toIntOrNull()!! > 0
     
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -480,165 +439,102 @@ fun ConfigEditDialog(
                     color = Color(0xFF333333)
                 )
                 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(24.dp))
                 
-                // 职位类型
-                OutlinedTextField(
-                    value = positionType,
-                    onValueChange = { positionType = it },
-                    label = { Text("职位类型") },
-                    placeholder = { Text("如：程序员、美术、策划") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                // 技能等级和薪资
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                // 职位类型下拉选择
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = !expanded }
                 ) {
                     OutlinedTextField(
-                        value = minSkillLevel,
-                        onValueChange = { minSkillLevel = it },
-                        label = { Text("最低技能等级") },
-                        modifier = Modifier.weight(1f),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true
+                        value = positionType,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("职位类型") },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor()
                     )
                     
-                    OutlinedTextField(
-                        value = maxSalary,
-                        onValueChange = { maxSalary = it },
-                        label = { Text("最高薪资(万)") },
-                        modifier = Modifier.weight(1f),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                // 年龄和经验
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    OutlinedTextField(
-                        value = minAge,
-                        onValueChange = { minAge = it },
-                        label = { Text("最低年龄") },
-                        modifier = Modifier.weight(1f),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true
-                    )
-                    
-                    OutlinedTextField(
-                        value = maxExperience,
-                        onValueChange = { maxExperience = it },
-                        label = { Text("最高经验(年)") },
-                        modifier = Modifier.weight(1f),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                // 目标人数
-                OutlinedTextField(
-                    value = targetCount,
-                    onValueChange = { targetCount = it },
-                    label = { Text("目标招聘人数") },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true
-                )
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                // 优先级选择
-                Text(
-                    text = "优先级",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFF333333)
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    RecruitmentPriority.values().forEach { priorityOption ->
-                        FilterChip(
-                            selected = priority == priorityOption,
-                            onClick = { priority = priorityOption },
-                            label = {
-                                Text(
-                                    text = when (priorityOption) {
-                                        RecruitmentPriority.LOW -> "低"
-                                        RecruitmentPriority.NORMAL -> "普通"
-                                        RecruitmentPriority.HIGH -> "高"
-                                        RecruitmentPriority.URGENT -> "紧急"
-                                    },
-                                    fontSize = 12.sp
-                                )
-                            }
-                        )
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        positionOptions.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option) },
+                                onClick = {
+                                    positionType = option
+                                    expanded = false
+                                }
+                            )
+                        }
                     }
                 }
                 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(20.dp))
                 
-                // 自动批准设置
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                // 技能等级滑块
+                Column {
                     Text(
-                        text = "启用自动批准",
+                        text = "技能等级: ${skillLevel.toInt()}级",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         color = Color(0xFF333333)
                     )
                     
-                    Switch(
-                        checked = autoApprove,
-                        onCheckedChange = { autoApprove = it },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color(0xFF4CAF50),
-                            checkedTrackColor = Color(0xFF4CAF50).copy(alpha = 0.5f)
-                        )
-                    )
-                }
-                
-                if (autoApprove) {
                     Spacer(modifier = Modifier.height(8.dp))
                     
-                    OutlinedTextField(
-                        value = autoApproveThreshold,
-                        onValueChange = { autoApproveThreshold = it },
-                        label = { Text("自动批准阈值(%)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true
+                    Slider(
+                        value = skillLevel,
+                        onValueChange = { skillLevel = it },
+                        valueRange = 1f..10f,
+                        steps = 8,
+                        colors = SliderDefaults.colors(
+                            thumbColor = Color(0xFF2196F3),
+                            activeTrackColor = Color(0xFF2196F3)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
                     )
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "1级",
+                            fontSize = 12.sp,
+                            color = Color(0xFF666666)
+                        )
+                        Text(
+                            text = "10级",
+                            fontSize = 12.sp,
+                            color = Color(0xFF666666)
+                        )
+                    }
                 }
                 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(20.dp))
                 
-                // 特殊要求
+                // 月薪输入
                 OutlinedTextField(
-                    value = specialRequirements,
-                    onValueChange = { specialRequirements = it },
-                    label = { Text("特殊技能要求") },
-                    placeholder = { Text("如：Unity, Photoshop (用逗号分隔)") },
+                    value = monthlySalary,
+                    onValueChange = { monthlySalary = it },
+                    label = { Text("月薪(万元)") },
+                    placeholder = { Text("如：8") },
                     modifier = Modifier.fillMaxWidth(),
-                    maxLines = 3
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.AttachMoney,
+                            contentDescription = "薪资",
+                            tint = Color(0xFF666666)
+                        )
+                    }
                 )
                 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -657,20 +553,24 @@ fun ConfigEditDialog(
                     
                     Button(
                         onClick = {
+                            val salaryValue = monthlySalary.toIntOrNull() ?: 8
                             val newConfig = RecruitmentConfig(
                                 id = config?.id ?: 0,
                                 positionType = positionType,
-                                minSkillLevel = minSkillLevel.toIntOrNull() ?: 1,
-                                minSalary = 3000,
-                                maxSalary = maxSalary.toIntOrNull() ?: 10,
-                                minAge = minAge.toIntOrNull() ?: 22,
-                                maxExperience = maxExperience.toIntOrNull() ?: 10,
-                                specialRequirements = specialRequirements,
-                                targetCount = targetCount.toIntOrNull() ?: 1,
+                                minSkillLevel = skillLevel.toInt(),
+                                maxSkillLevel = skillLevel.toInt(),
+                                minSalary = (salaryValue * 0.8 * 1000).toInt(), // 最低薪资为设定值的80%
+                                maxSalary = salaryValue * 1000, // 转换为元
+                                minAge = 22,
+                                maxAge = 45,
+                                minExperience = 0,
+                                maxExperience = 10,
+                                specialRequirements = "",
+                                targetCount = 1,
                                 isActive = config?.isActive ?: true,
-                                priority = priority,
-                                autoApprove = autoApprove,
-                                autoApproveThreshold = (autoApproveThreshold.toIntOrNull() ?: 80) / 100f,
+                                priority = RecruitmentPriority.NORMAL,
+                                autoApprove = false,
+                                autoApproveThreshold = 0.8f,
                                 createdAt = config?.createdAt ?: System.currentTimeMillis(),
                                 updatedAt = System.currentTimeMillis()
                             )
@@ -683,84 +583,6 @@ fun ConfigEditDialog(
                         )
                     ) {
                         Text(if (config == null) "创建" else "保存")
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * 模板选择对话框
- */
-@Composable
-fun TemplateSelectionDialog(
-    onDismiss: () -> Unit,
-    onSelectTemplate: (RecruitmentConfig) -> Unit
-) {
-    val templates = RecruitmentConfigTemplates.getAllTemplates()
-    
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text(
-                    text = "选择配置模板",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF333333)
-                )
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.heightIn(max = 400.dp)
-                ) {
-                    items(templates) { template ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onSelectTemplate(template) },
-                            colors = CardDefaults.cardColors(
-                                containerColor = Color(0xFFF5F5F5)
-                            )
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(12.dp)
-                            ) {
-                                Text(
-                                    text = template.positionType,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF333333)
-                                )
-                                
-                                Text(
-                                    text = template.specialRequirements,
-                                    fontSize = 12.sp,
-                                    color = Color(0xFF666666),
-                                    maxLines = 2
-                                )
-                            }
-                        }
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("取消")
                     }
                 }
             }

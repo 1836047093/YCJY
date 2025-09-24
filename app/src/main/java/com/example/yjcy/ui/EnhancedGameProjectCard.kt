@@ -75,12 +75,8 @@ fun EnhancedGameProjectCard(
                         Card(
                             colors = CardDefaults.cardColors(
                                 containerColor = when (game.businessModel) {
-                                    BusinessModel.FREE_TO_PLAY -> Color(0xFF10B981)
-                                    BusinessModel.PREMIUM -> Color(0xFF8B5CF6)
-                                    BusinessModel.SUBSCRIPTION -> Color(0xFF3B82F6)
-                                    BusinessModel.FREEMIUM -> Color(0xFFF59E0B)
-                                    BusinessModel.AD_SUPPORTED -> Color(0xFFEF4444)
-                                    BusinessModel.DLC -> Color(0xFF6366F1)
+                                    BusinessModel.SINGLE_PLAYER -> Color(0xFF8B5CF6)
+                                    BusinessModel.ONLINE_GAME -> Color(0xFF10B981)
                                 }.copy(alpha = 0.2f)
                             ),
                             shape = RoundedCornerShape(4.dp)
@@ -88,12 +84,8 @@ fun EnhancedGameProjectCard(
                             Text(
                                 text = game.businessModel.displayName,
                                 color = when (game.businessModel) {
-                                    BusinessModel.FREE_TO_PLAY -> Color(0xFF10B981)
-                                    BusinessModel.PREMIUM -> Color(0xFF8B5CF6)
-                                    BusinessModel.SUBSCRIPTION -> Color(0xFF3B82F6)
-                                    BusinessModel.FREEMIUM -> Color(0xFFF59E0B)
-                                    BusinessModel.AD_SUPPORTED -> Color(0xFFEF4444)
-                                    BusinessModel.DLC -> Color(0xFF6366F1)
+                                    BusinessModel.SINGLE_PLAYER -> Color(0xFF8B5CF6)
+                                    BusinessModel.ONLINE_GAME -> Color(0xFF10B981)
                                 },
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium,
