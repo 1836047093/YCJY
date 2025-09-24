@@ -1,7 +1,4 @@
 package com.example.yjcy.data
-
-import com.example.yjcy.ui.Employee
-import com.example.yjcy.ui.Game
 import kotlin.math.pow
 import kotlin.math.sqrt
 

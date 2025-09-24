@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.yjcy.data.EnhancedAssignmentResult
 import com.example.yjcy.data.SkillMatchResult
+import com.example.yjcy.data.Employee
 
 /**
  * 增强分配结果对话框

@@ -1,7 +1,4 @@
 package com.example.yjcy.data
-
-import com.example.yjcy.ui.Employee as UiEmployee
-import com.example.yjcy.ui.Game as UiProject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.util.UUID
@@ -33,8 +30,8 @@ class AssignmentService {
      * @return 分配计划
      */
     suspend fun executeOneClickAssignment(
-        projects: List<UiProject>,
-        employees: List<UiEmployee>,
+        projects: List<Game>,
+        employees: List<Employee>,
         strategy: AssignmentStrategy = AssignmentStrategy.MIXED
     ): AssignmentResult {
         try {
@@ -59,7 +56,7 @@ class AssignmentService {
             // 3. 验证分配结果
             val validationResult = assignmentValidator.validateAssignmentPlan(
                 assignmentPlan, 
-                employees.map { it.toDataEmployee() }, 
+                employees, 
                 projects.map { Project(it.id.toInt(), it.name, "", emptyMap(), 5, 1, emptyList(), ProjectPriority.MEDIUM, null, null, ProjectStatus.PLANNING) }, 
                 AssignmentConstraints()
             )
@@ -85,8 +82,8 @@ class AssignmentService {
      * 技能优先分配策略
      */
     private suspend fun executeSkillPriorityAssignment(
-        projects: List<UiProject>,
-        employees: List<UiEmployee>
+        projects: List<Game>,
+        employees: List<Employee>
     ): AssignmentPlan {
         // 使用技能匹配引擎进行最佳匹配
         val assignments = mutableListOf<EmployeeAssignment>()
@@ -126,8 +123,8 @@ class AssignmentService {
      * 负载均衡分配策略
      */
     private suspend fun executeLoadBalancedAssignment(
-        projects: List<UiProject>,
-        employees: List<UiEmployee>
+        projects: List<Game>,
+        employees: List<Employee>
     ): AssignmentPlan {
         // 临时实现负载均衡分配
         val assignments = mutableListOf<EmployeeAssignment>()
@@ -166,8 +163,8 @@ class AssignmentService {
      * 成本优化分配策略
      */
     private suspend fun executeCostOptimizedAssignment(
-        projects: List<UiProject>,
-        employees: List<UiEmployee>
+        projects: List<Game>,
+        employees: List<Employee>
     ): AssignmentPlan {
         // 临时实现成本优化分配
         val assignments = mutableListOf<EmployeeAssignment>()
@@ -206,8 +203,8 @@ class AssignmentService {
      * 平衡分配策略（综合考虑技能、负载和成本）
      */
     private suspend fun executeBalancedAssignment(
-        projects: List<UiProject>,
-        employees: List<UiEmployee>
+        projects: List<Game>,
+        employees: List<Employee>
     ): AssignmentPlan {
         // 获取各种策略的分配结果
         val skillPlan = executeSkillPriorityAssignment(projects, employees)
@@ -230,8 +227,8 @@ class AssignmentService {
      * 验证分配输入数据
      */
     private fun validateAssignmentInput(
-        projects: List<UiProject>,
-        employees: List<UiEmployee>
+        projects: List<Game>,
+        employees: List<Employee>
     ): ValidationResult {
         if (projects.isEmpty()) {
             return ValidationResult(false, listOf("项目列表不能为空"))
@@ -257,8 +254,8 @@ class AssignmentService {
      */
     private fun calculatePlanScore(
         assignments: List<EmployeeAssignment>,
-        projects: List<UiProject>,
-        employees: List<UiEmployee>
+        projects: List<Game>,
+        employees: List<Employee>
     ): Double {
         if (assignments.isEmpty()) return 0.0
         
@@ -289,11 +286,11 @@ class AssignmentService {
      * 获取分配建议
      */
     fun getAssignmentSuggestions(
-        project: UiProject,
-        employees: List<UiEmployee>
+        project: Game,
+        employees: List<Employee>
     ): List<AssignmentSuggestion> {
         return employees.take(5)
-            .map { employee: UiEmployee ->
+            .map { employee: Employee ->
                 AssignmentSuggestion(
                     employee = employee,
                     matchScore = skillMatchingEngine.calculateSkillMatch(employee, project).overallMatchScore.toDouble(),
@@ -305,7 +302,7 @@ class AssignmentService {
     /**
      * 生成分配建议原因
      */
-    private fun generateAssignmentReasons(employee: UiEmployee, project: UiProject): List<String> {
+    private fun generateAssignmentReasons(employee: Employee, project: Game): List<String> {
         val reasons = mutableListOf<String>()
         
         val skillMatch = skillMatchingEngine.calculateSkillMatch(employee, project).overallMatchScore.toDouble()
@@ -371,7 +368,7 @@ data class AssignmentResult(
  * 分配建议
  */
 data class AssignmentSuggestion(
-    val employee: UiEmployee,
+    val employee: Employee,
     val matchScore: Double,
     val reasons: List<String>
 )

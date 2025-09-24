@@ -68,6 +68,17 @@ import com.example.yjcy.ui.EmployeeManagementEnhanced
 import com.example.yjcy.ui.HRCenterEmployeeManagement
 import com.example.yjcy.ui.HRCenterScreen
 import com.example.yjcy.ui.ProjectManagementWrapper
+import com.example.yjcy.data.Employee
+import com.example.yjcy.data.Founder
+import com.example.yjcy.data.Game
+import com.example.yjcy.data.SaveData
+import com.example.yjcy.ui.GameTheme
+import com.example.yjcy.ui.Platform
+import com.example.yjcy.ui.BusinessModel
+import com.example.yjcy.data.Competitor
+import com.example.yjcy.data.GameThemeTrend
+import com.example.yjcy.data.TrendDirection
+import com.example.yjcy.data.FounderProfession
 import android.content.SharedPreferences
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.Checkbox
@@ -1513,42 +1524,7 @@ fun EmployeeManagementContent(
     )
 }
 
-// 员工数据类
-data class Employee(
-    val id: Int,
-    val name: String,
-    val position: String,
-    val skillDevelopment: Int,
-    val skillDesign: Int,
-    val skillArt: Int,
-    val skillMusic: Int,
-    val skillService: Int,
-    val salary: Int
-) {
-    // 获取员工的专属技能类型
-    fun getSpecialtySkillType(): String {
-        return when (position) {
-            "程序员" -> "开发"
-            "策划师" -> "设计"
-            "美术师" -> "美工"
-            "音效师" -> "音乐"
-            "客服" -> "服务"
-            else -> "开发"
-        }
-    }
-    
-    // 获取员工的专属技能等级
-    fun getSpecialtySkillLevel(): Int {
-        return when (position) {
-            "程序员" -> skillDevelopment
-            "策划师" -> skillDesign
-            "美术师" -> skillArt
-            "音效师" -> skillMusic
-            "客服" -> skillService
-            else -> skillDevelopment
-        }
-    }
-}
+
 
 @Composable
 fun EmployeeStatsCard(employees: List<Employee>) {
@@ -2601,110 +2577,11 @@ fun LeaderboardScreen(navController: androidx.navigation.NavController) {
     }
 }
 
-// 创始人职业枚举
-enum class FounderProfession(val displayName: String, val icon: String, val specialtySkill: String) {
-    PROGRAMMER("程序员", "💻", "开发"),
-    DESIGNER("策划师", "📋", "设计"),
-    ARTIST("美术师", "🎨", "美工"),
-    SOUND_ENGINEER("音效师", "🎵", "音乐"),
-    CUSTOMER_SERVICE("客服", "📞", "服务")
-}
 
-// 创始人数据类
-data class Founder(
-    val name: String,
-    val profession: FounderProfession,
-    val skillLevel: Int = 5 // 固定为5级
-) {
-    fun toEmployee(): com.example.yjcy.ui.Employee {
-        return com.example.yjcy.ui.Employee(
-            id = 0, // 特殊ID标识创始人
-            name = name,
-            position = profession.displayName,
-            skillDevelopment = if (profession.specialtySkill == "开发") 5 else 0,
-            skillDesign = if (profession.specialtySkill == "设计") 5 else 0,
-            skillArt = if (profession.specialtySkill == "美工") 5 else 0,
-            skillMusic = if (profession.specialtySkill == "音乐") 5 else 0,
-            skillService = if (profession.specialtySkill == "服务") 5 else 0,
-            salary = 0, // 创始人无薪资
-            isAssigned = false // 默认未分配
-        )
-    }
-}
 
-// 游戏相关数据类
-data class Game(
-    val id: String,
-    val name: String,
-    val theme: GameTheme,
-    val platforms: List<Platform>,
-    val businessModel: BusinessModel,
-    val developmentProgress: Float = 0f,
-    val isCompleted: Boolean = false,
-    val revenue: Long = 0L,
-    val assignedEmployees: List<Employee> = emptyList() // 新增：已分配的员工列表
-)
 
-enum class GameTheme(val displayName: String, val icon: String) {
-    ACTION("动作", "⚔️"),
-    ADVENTURE("冒险", "🗺️"),
-    RPG("角色扮演", "🧙"),
-    STRATEGY("策略", "♟️"),
-    SIMULATION("模拟", "🏗️"),
-    PUZZLE("益智", "🧩"),
-    RACING("竞速", "🏎️"),
-    SPORTS("体育", "⚽"),
-    HORROR("恐怖", "👻"),
-    CASUAL("休闲", "🎲")
-}
 
-enum class Platform(val displayName: String, val icon: String) {
-    PC("PC", "💻"),
-    MOBILE("手机", "📱"),
-    CONSOLE("主机", "🎮"),
-    WEB("网页", "🌐")
-}
 
-enum class BusinessModel(val displayName: String, val icon: String) {
-    SINGLE_PLAYER("单机游戏", "🎮"),
-    ONLINE_GAME("网络游戏", "🌐")
-}
-
-// 存档数据类
-data class SaveData(
-    val companyName: String = "我的游戏公司",
-    val founderName: String = "创始人",
-    val founderProfession: FounderProfession? = null, // 新增字段，向后兼容
-    val money: Long = 1000000L,
-    val fans: Int = 0,
-    val currentYear: Int = 1,
-    val currentMonth: Int = 1,
-    val currentDay: Int = 1,
-    val saveTime: Long = System.currentTimeMillis(),
-    val games: List<Game> = emptyList()
-)
-
-// 市场分析相关数据类
-data class Competitor(
-    val id: String,
-    val name: String,
-    val icon: String, // emoji图标
-    val annualRevenue: Long, // 年收入（万元）
-    val fanCount: Int, // 粉丝数（万人）
-    val marketValue: Long // 市值（万元）
-)
-
-data class GameThemeTrend(
-    val theme: String, // 主题名称
-    val icon: String, // emoji图标
-    val hotIndex: Float, // 热度指数 0-100
-    val marketShare: Float, // 市场占有率 0-100%
-    val trend: TrendDirection // 趋势方向
-)
-
-enum class TrendDirection {
-    UP, DOWN, STABLE
-}
 
 // 现代化色彩系统
 object ModernColorSystem {

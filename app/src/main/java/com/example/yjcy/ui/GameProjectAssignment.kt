@@ -20,89 +20,11 @@ import androidx.compose.ui.window.Dialog
 import com.example.yjcy.data.*
 import com.example.yjcy.ui.OneClickAssignmentButton
 
-// 游戏数据类
-data class Game(
-    val id: String,
-    val name: String,
-    val theme: GameTheme,
-    val platforms: List<Platform>,
-    val businessModel: BusinessModel,
-    val developmentProgress: Float = 0f,
-    val isCompleted: Boolean = false,
-    val revenue: Long = 0L,
-    val assignedEmployees: List<Employee> = emptyList() // 新增：已分配的员工列表
-)
+// Game类已在MainActivity.kt中定义，避免重复定义
 
-enum class GameTheme(val displayName: String, val icon: String) {
-    ACTION("动作", "⚔️"),
-    ADVENTURE("冒险", "🗺️"),
-    RPG("角色扮演", "🧙"),
-    STRATEGY("策略", "♟️"),
-    SIMULATION("模拟", "🏗️"),
-    PUZZLE("解谜", "🧩"),
-    RACING("竞速", "🏎️"),
-    SPORTS("体育", "⚽")
-}
+// GameTheme, Platform, BusinessModel 枚举已在MainActivity.kt中定义，避免重复定义
 
-enum class Platform(val displayName: String, val icon: String) {
-    PC("PC", "💻"),
-    MOBILE("手机", "📱"),
-    CONSOLE("主机", "🎮"),
-    WEB("网页", "🌐")
-}
-
-enum class BusinessModel(val displayName: String, val icon: String) {
-    SINGLE_PLAYER("单机游戏", "🎮"),
-    ONLINE_GAME("网络游戏", "🌐")
-}
-
-// 员工数据类
-data class Employee(
-    val id: Int,
-    val name: String,
-    val position: String,
-    val skillDevelopment: Int,
-    val skillDesign: Int,
-    val skillArt: Int,
-    val skillMusic: Int,
-    val skillService: Int,
-    val salary: Int,
-    val isAssigned: Boolean = false // 新增：是否已分配
-) {
-    // 获取员工的专属技能类型
-    fun getSpecialtySkillType(): String {
-        return when (position) {
-            "程序员" -> "开发"
-            "策划师" -> "设计"
-            "美术师" -> "美工"
-            "音效师" -> "音乐"
-            "客服" -> "服务"
-            else -> "通用"
-        }
-    }
-    
-    // 获取员工的总技能点数
-    fun getTotalSkillPoints(): Int {
-        return skillDevelopment + skillDesign + skillArt + skillMusic + skillService
-    }
-    
-    // 获取员工的主要技能值
-    fun getPrimarySkillValue(): Int {
-        return when (position) {
-            "程序员" -> skillDevelopment
-            "策划师" -> skillDesign
-            "美术师" -> skillArt
-            "音效师" -> skillMusic
-            "客服" -> skillService
-            else -> getTotalSkillPoints() / 5
-        }
-    }
-    
-    // 获取员工的专业技能等级
-    fun getSpecialtySkillLevel(): Int {
-        return getPrimarySkillValue()
-    }
-}
+// Employee数据类已在data/Employee.kt和MainActivity.kt中定义，避免重复定义
 
 /**
  * 增强版游戏项目卡片，包含员工分配功能

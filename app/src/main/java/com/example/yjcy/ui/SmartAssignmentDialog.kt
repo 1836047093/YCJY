@@ -1,6 +1,6 @@
 package com.example.yjcy.ui
 
-import com.example.yjcy.Employee
+import com.example.yjcy.data.Employee
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border

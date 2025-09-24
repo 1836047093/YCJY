@@ -12,7 +12,7 @@ class EnhancedAssignmentTest {
     /**
      * 创建测试数据
      */
-    private fun createTestData(): Pair<List<Game>, List<com.example.yjcy.ui.Employee>> {
+    private fun createTestData(): Pair<List<Game>, List<Employee>> {
         // 创建测试项目
         val projects = listOf(
             Game(
@@ -20,7 +20,7 @@ class EnhancedAssignmentTest {
                 name = "动作冒险游戏",
                 theme = GameTheme.ACTION,
                 platforms = listOf(Platform.PC),
-                businessModel = BusinessModel.SINGLE_PLAYER,
+                businessModel = BusinessModel.PREMIUM,
                 assignedEmployees = emptyList()
             ),
             Game(
@@ -28,7 +28,7 @@ class EnhancedAssignmentTest {
                 name = "休闲益智游戏",
                 theme = GameTheme.PUZZLE,
                 platforms = listOf(Platform.MOBILE),
-                businessModel = BusinessModel.SINGLE_PLAYER,
+                businessModel = BusinessModel.FREE_TO_PLAY,
                 assignedEmployees = emptyList()
             ),
             Game(
@@ -36,14 +36,14 @@ class EnhancedAssignmentTest {
                 name = "角色扮演游戏",
                 theme = GameTheme.RPG,
                 platforms = listOf(Platform.PC, Platform.CONSOLE),
-                businessModel = BusinessModel.ONLINE_GAME,
+                businessModel = BusinessModel.SUBSCRIPTION,
                 assignedEmployees = emptyList()
             )
         )
         
         // 创建测试员工
         val employees = listOf(
-            com.example.yjcy.ui.Employee(
+            Employee(
                 id = 1,
                 name = "张三",
                 position = "高级程序员",
@@ -52,10 +52,9 @@ class EnhancedAssignmentTest {
                 skillArt = 4,
                 skillMusic = 3,
                 skillService = 5,
-                salary = 15000,
-                isAssigned = false
+                salary = 15000
             ),
-            com.example.yjcy.ui.Employee(
+            Employee(
                 id = 2,
                 name = "李四",
                 position = "UI设计师",
@@ -64,10 +63,9 @@ class EnhancedAssignmentTest {
                 skillArt = 8,
                 skillMusic = 4,
                 skillService = 6,
-                salary = 12000,
-                isAssigned = false
+                salary = 12000
             ),
-            com.example.yjcy.ui.Employee(
+            Employee(
                 id = 3,
                 name = "王五",
                 position = "美术师",
@@ -76,10 +74,9 @@ class EnhancedAssignmentTest {
                 skillArt = 9,
                 skillMusic = 5,
                 skillService = 4,
-                salary = 11000,
-                isAssigned = false
+                salary = 11000
             ),
-            com.example.yjcy.ui.Employee(
+            Employee(
                 id = 4,
                 name = "赵六",
                 position = "音效师",
@@ -88,10 +85,9 @@ class EnhancedAssignmentTest {
                 skillArt = 6,
                 skillMusic = 9,
                 skillService = 3,
-                salary = 10000,
-                isAssigned = false
+                salary = 10000
             ),
-            com.example.yjcy.ui.Employee(
+            Employee(
                 id = 5,
                 name = "钱七",
                 position = "全栈开发",
@@ -100,10 +96,9 @@ class EnhancedAssignmentTest {
                 skillArt = 6,
                 skillMusic = 5,
                 skillService = 8,
-                salary = 14000,
-                isAssigned = false
+                salary = 14000
             ),
-            com.example.yjcy.ui.Employee(
+            Employee(
                 id = 6,
                 name = "孙八",
                 position = "初级程序员",
@@ -112,8 +107,7 @@ class EnhancedAssignmentTest {
                 skillArt = 3,
                 skillMusic = 2,
                 skillService = 4,
-                salary = 8000,
-                isAssigned = false
+                salary = 8000
             )
         )
         
@@ -126,14 +120,14 @@ class EnhancedAssignmentTest {
     fun testSkillMatchingEngine() {
         println("=== 测试技能匹配引擎 ===")
         
-        val (projects, employees: List<com.example.yjcy.ui.Employee>) = createTestData()
+        val (projects, employees: List<Employee>) = createTestData()
         val skillEngine = SkillMatchingEngine()
         
         projects.forEach { project ->
             println("\n项目: ${project.name}")
             println("主题: ${project.theme.displayName}")
             
-            val rankedEmployees: List<com.example.yjcy.ui.Employee> = employees.take(3)
+            val rankedEmployees: List<Employee> = employees.take(3)
             
             println("推荐员工排序:")
             rankedEmployees.forEach { employee ->
@@ -245,7 +239,7 @@ class EnhancedAssignmentTest {
         
         // 测试员工数量不足
         println("\n测试员工数量不足:")
-        val limitedEmployees: List<com.example.yjcy.ui.Employee> = createTestData().second.take(2)
+        val limitedEmployees: List<Employee> = createTestData().second.take(2)
         val limitedResult = assignmentService.assignBestEmployeesToProjects(
             projects = createTestData().first,
             availableEmployees = limitedEmployees
@@ -298,14 +292,14 @@ class PerformanceTest {
                 id = "project$i",
                 name = "测试项目$i",
                 theme = GameTheme.values().random(),
-                platforms = listOf(com.example.yjcy.ui.Platform.MOBILE),
+                platforms = listOf(Platform.MOBILE),
                 businessModel = BusinessModel.values().random(),
                 assignedEmployees = emptyList()
             )
         }
         
         val employees = (1..200).map { i ->
-            com.example.yjcy.ui.Employee(
+            Employee(
                 id = i,
                 name = "员工$i",
                 position = "职位$i",
@@ -314,8 +308,7 @@ class PerformanceTest {
                 skillArt = (1..10).random(),
                 skillMusic = (1..10).random(),
                 skillService = (1..10).random(),
-                salary = (8000..20000).random(),
-                isAssigned = false
+                salary = (8000..20000).random()
             )
         }
         

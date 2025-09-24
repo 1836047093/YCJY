@@ -1,6 +1,6 @@
 package com.example.yjcy.ui
 
-import com.example.yjcy.Employee
+import com.example.yjcy.data.*
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -131,7 +131,7 @@ fun HRCenterEmployeeManagement(
         modifier = Modifier
             .fillMaxSize()
             .background(
-                brush = Brush.verticalGradient(
+                Brush.verticalGradient(
                     colors = listOf(
                         Color(0xFF1A237E),
                         Color(0xFF4A148C)

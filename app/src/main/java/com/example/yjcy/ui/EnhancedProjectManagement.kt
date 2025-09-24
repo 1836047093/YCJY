@@ -1,10 +1,12 @@
 package com.example.yjcy.ui
 
+import com.example.yjcy.data.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -35,16 +37,24 @@ import kotlin.math.sin
  */
 @Composable
 fun EnhancedProjectManagementContent(
-    games: List<com.example.yjcy.ui.Game> = emptyList(),
-    onGamesUpdate: (List<com.example.yjcy.ui.Game>) -> Unit = {},
-    founder: com.example.yjcy.Founder? = null,
-    availableEmployees: List<com.example.yjcy.ui.Employee> = founder?.let { listOf(it.toEmployee()) } ?: getDefaultEmployees()
+    games: List<Game> = emptyList(),
+    onGamesUpdate: (List<Game>) -> Unit = {},
+    founder: Founder? = null,
+    availableEmployees: List<Employee> = founder?.let { listOf(it.toEmployee()) } ?: getDefaultEmployees()
 ) {
     var showGameDevelopmentDialog by remember { mutableStateOf(false) }
     
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF1A237E),
+                        Color(0xFF4A148C)
+                    )
+                )
+            )
             .padding(16.dp)
     ) {
         // 标题
@@ -427,7 +437,7 @@ fun SuperEnhancedGameDevelopmentDialog(
                                 // 创建游戏
                                 if (gameName.isNotBlank() && selectedTheme != null && 
                                     selectedPlatforms.isNotEmpty() && selectedBusinessModel != null) {
-                                    val newGame = com.example.yjcy.ui.Game(
+                                    val newGame = Game(
                                         id = java.util.UUID.randomUUID().toString(),
                                         name = gameName,
                                         theme = selectedTheme!!,
@@ -546,7 +556,7 @@ fun AnimatedThemeCard(
 @Composable
 fun EnhancedGameDevelopmentDialog(
     onDismiss: () -> Unit,
-    onGameCreated: (com.example.yjcy.ui.Game) -> Unit
+    onGameCreated: (Game) -> Unit
 ) {
     var currentStep by remember { mutableStateOf(0) }
     var gameName by remember { mutableStateOf("") }
@@ -660,7 +670,7 @@ fun EnhancedGameDevelopmentDialog(
                                     // 创建游戏
                                     if (gameName.isNotBlank() && selectedTheme != null && 
                                         selectedPlatforms.isNotEmpty() && selectedBusinessModel != null) {
-                                        val newGame = com.example.yjcy.ui.Game(
+                                        val newGame = Game(
                                             id = java.util.UUID.randomUUID().toString(),
                                             name = gameName,
                                             theme = selectedTheme!!,
@@ -707,25 +717,38 @@ fun getDefaultEmployees(): List<Employee> {
     return emptyList()
 }
 
-// 游戏开发步骤组件（简化版本，实际应该从原文件导入）
 @Composable
 fun GameNameInputStep(
     gameName: String,
     onGameNameChange: (String) -> Unit
 ) {
-    OutlinedTextField(
-        value = gameName,
-        onValueChange = onGameNameChange,
-        label = { Text("游戏名称", color = Color.White.copy(alpha = 0.7f)) },
-        placeholder = { Text("请输入游戏名称", color = Color.White.copy(alpha = 0.5f)) },
-        modifier = Modifier.fillMaxWidth(),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = Color.White,
-            unfocusedTextColor = Color.White,
-            focusedBorderColor = Color(0xFF10B981),
-            unfocusedBorderColor = Color.White.copy(alpha = 0.3f)
+    Column {
+        Text(
+            text = "请输入您要开发的游戏名称：",
+            color = Color.White.copy(alpha = 0.8f),
+            fontSize = 14.sp,
+            modifier = Modifier.padding(bottom = 12.dp)
         )
-    )
+        
+        OutlinedTextField(
+            value = gameName,
+            onValueChange = onGameNameChange,
+            placeholder = {
+                Text(
+                    text = "例如：超级冒险",
+                    color = Color.White.copy(alpha = 0.5f)
+                )
+            },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF10B981),
+                unfocusedBorderColor = Color.White.copy(alpha = 0.3f),
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White,
+                cursorColor = Color(0xFF10B981)
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
 }
 
 @Composable
