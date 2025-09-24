@@ -3309,7 +3309,7 @@ fun GameNameInputStep(
 ) {
     Column {
         Text(
-            text = "请输入您要开发的游戏名称：",
+            text = "请输入游戏名称：",
             color = Color.White.copy(alpha = 0.8f),
             fontSize = 14.sp,
             modifier = Modifier.padding(bottom = 12.dp)

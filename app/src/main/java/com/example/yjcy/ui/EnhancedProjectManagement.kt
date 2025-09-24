@@ -353,19 +353,7 @@ fun SuperEnhancedGameDevelopmentDialog(
             Column(
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // 步骤标题
-                Text(
-                    text = when (currentStep) {
-                        0 -> "第1步: 输入游戏名称"
-                        1 -> "第2步: 选择游戏主题"
-                        2 -> "第3步: 选择平台和商业模式"
-                        3 -> "第4步: 确认信息"
-                        else -> ""
-                    },
-                    color = Color.White.copy(alpha = 0.8f),
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
+                // 步骤标题已删除
                 
                 // 步骤内容
                 when (currentStep) {
@@ -724,7 +712,7 @@ fun GameNameInputStep(
 ) {
     Column {
         Text(
-            text = "请输入您要开发的游戏名称：",
+            text = "请输入游戏名称：",
             color = Color.White.copy(alpha = 0.8f),
             fontSize = 14.sp,
             modifier = Modifier.padding(bottom = 12.dp)
