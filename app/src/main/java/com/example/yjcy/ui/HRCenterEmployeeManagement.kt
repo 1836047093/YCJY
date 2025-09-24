@@ -44,32 +44,13 @@ import kotlin.math.min
 import kotlin.math.max
 import com.example.yjcy.data.*
 
-// 员工筛选条件
-data class EmployeeFilter(
-    val searchQuery: String = "",
-    val positions: List<String> = emptyList(),
-    val minSalary: Int? = null,
-    val maxSalary: Int? = null,
-    val minSkillLevel: Int? = null,
-    val maxSkillLevel: Int? = null
-)
-
-// 员工排序方式
-enum class EmployeeSortBy {
-    NAME,           // 按姓名排序
-    POSITION,       // 按职位排序
-    SALARY,         // 按薪资排序
-    SKILL_LEVEL,    // 按技能等级排序
-    HIRE_DATE       // 按入职时间排序
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EmployeeManagementEnhanced(
+fun HRCenterEmployeeManagement(
     employees: List<Employee>,
     onTrainEmployee: (Employee, String) -> Unit,
     onDismissEmployee: (Employee) -> Unit,
-    onNavigateToRecruitment: () -> Unit
+    onNavigateToHRCenter: () -> Unit
 ) {
 
     
@@ -179,9 +160,9 @@ fun EmployeeManagementEnhanced(
 
                 
                 ModernButton(
-                    text = "招聘中心",
-                    icon = "🎯",
-                    onClick = onNavigateToRecruitment,
+                    text = "人事中心",
+                    icon = "🏢",
+                    onClick = onNavigateToHRCenter,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF16A34A).copy(alpha = 0.2f)
                     )
@@ -269,136 +250,6 @@ fun EmployeeManagementEnhanced(
                 currentPage = currentPage,
                 totalPages = totalPages,
                 onPageChange = { currentPage = it }
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun SearchBar(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    onSearch: () -> Unit,
-    placeholder: String
-) {
-    OutlinedTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        placeholder = {
-            Text(
-                text = placeholder,
-                color = Color.White.copy(alpha = 0.6f)
-            )
-        },
-        leadingIcon = {
-            Icon(
-                Icons.Default.Search,
-                contentDescription = "搜索",
-                tint = Color.White.copy(alpha = 0.7f)
-            )
-        },
-        trailingIcon = {
-            if (query.isNotEmpty()) {
-                IconButton(
-                    onClick = { onQueryChange("") }
-                ) {
-                    Icon(
-                        Icons.Default.Clear,
-                        contentDescription = "清除",
-                        tint = Color.White.copy(alpha = 0.7f)
-                    )
-                }
-            }
-        },
-        keyboardOptions = KeyboardOptions(
-            imeAction = ImeAction.Search
-        ),
-        keyboardActions = KeyboardActions(
-            onSearch = { onSearch() }
-        ),
-        singleLine = true,
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = Color.White,
-            unfocusedTextColor = Color.White,
-            focusedBorderColor = Color(0xFFF59E0B),
-            unfocusedBorderColor = Color.White.copy(alpha = 0.3f),
-            cursorColor = Color(0xFFF59E0B)
-        ),
-        modifier = Modifier.fillMaxWidth()
-    )
-}
-
-@Composable
-fun FilterSortBar(
-    showFilters: Boolean,
-    onToggleFilters: () -> Unit,
-    sortBy: EmployeeSortBy,
-    sortAscending: Boolean,
-    onSortChange: (EmployeeSortBy, Boolean) -> Unit,
-    resultCount: Int,
-    selectedPosition: String? = null
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // 筛选按钮
-        ModernButton(
-            text = if (selectedPosition != null) "筛选 ($selectedPosition)" else "筛选",
-            icon = if (showFilters) "🔽" else "🔼",
-            onClick = onToggleFilters,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (showFilters) Color(0xFFF59E0B).copy(alpha = 0.2f) else Color.White.copy(alpha = 0.1f)
-            )
-        )
-        
-        // 结果计数
-        Text(
-            text = "共 $resultCount 名员工",
-            color = Color.White.copy(alpha = 0.8f),
-            fontSize = 14.sp
-        )
-        
-        // 排序按钮
-        SortDropdownMenu(
-            sortBy = sortBy,
-            sortAscending = sortAscending,
-            onSortChange = onSortChange
-        )
-    }
-}
-
-// ModernButton已在ModernComponents.kt中定义，此处删除重复定义
-
-@Composable
-fun EmptyStateCard(message: String) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(32.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White.copy(alpha = 0.1f)
-        ),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "📭",
-                fontSize = 48.sp
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = message,
-                color = Color.White.copy(alpha = 0.8f),
-                fontSize = 16.sp,
-                textAlign = TextAlign.Center
             )
         }
     }

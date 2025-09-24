@@ -1,6 +1,8 @@
 package com.example.yjcy.ui
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -10,16 +12,22 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.PI
+import kotlin.math.sin
 
 
 /**
@@ -176,13 +184,359 @@ fun EnhancedProjectManagementContent(
     
     // 游戏开发流程对话框
     if (showGameDevelopmentDialog) {
-        EnhancedGameDevelopmentDialog(
+        SuperEnhancedGameDevelopmentDialog(
             onDismiss = { showGameDevelopmentDialog = false },
             onGameCreated = { newGame ->
                 onGamesUpdate(games + newGame)
                 showGameDevelopmentDialog = false
             }
         )
+    }
+}
+
+// 新增的增强版主题选择组件
+@Composable
+fun EnhancedGameThemeSelectionStep(
+    selectedTheme: GameTheme?,
+    onThemeSelected: (GameTheme) -> Unit
+) {
+    var showDialog by remember { mutableStateOf(false) }
+    
+    ThemeSelectionBox(
+        selectedTheme = selectedTheme,
+        onClick = { showDialog = true }
+    )
+    
+    if (showDialog) {
+        EnhancedThemeSelectionDialog(
+            selectedTheme = selectedTheme,
+            onThemeSelected = onThemeSelected,
+            onDismiss = { showDialog = false }
+        )
+    }
+}
+
+@Composable
+fun EnhancedThemeSelectionDialog(
+    selectedTheme: GameTheme?,
+    onThemeSelected: (GameTheme) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var tempSelectedTheme by remember { mutableStateOf(selectedTheme) }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1F2937),
+        title = {
+            Text(
+                text = "选择游戏主题",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            AnimatedThemeGrid(
+                selectedTheme = tempSelectedTheme,
+                onThemeSelected = { theme ->
+                    tempSelectedTheme = theme
+                }
+            )
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss
+            ) {
+                Text(
+                    text = "取消",
+                    color = Color.White.copy(alpha = 0.7f)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    tempSelectedTheme?.let { onThemeSelected(it) }
+                    onDismiss()
+                },
+                enabled = tempSelectedTheme != null
+            ) {
+                Text(
+                    text = "确定",
+                    color = if (tempSelectedTheme != null) Color(0xFF10B981) else Color.White.copy(alpha = 0.5f)
+                )
+            }
+        }
+    )
+}
+
+@Composable
+fun AnimatedThemeGrid(
+    selectedTheme: GameTheme?,
+    onThemeSelected: (GameTheme) -> Unit
+) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(3),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(GameTheme.values().toList()) { theme ->
+            AnimatedThemeCard(
+                theme = theme,
+                isSelected = selectedTheme == theme,
+                onClick = { onThemeSelected(theme) }
+            )
+        }
+    }
+}
+
+/**
+ * 超级增强版游戏开发对话框 - 使用增强版主题选择组件
+ * 与EnhancedGameDevelopmentDialog完全相同，但在主题选择步骤中使用EnhancedGameThemeSelectionStep
+ */
+@Composable
+fun SuperEnhancedGameDevelopmentDialog(
+    onDismiss: () -> Unit,
+    onGameCreated: (Game) -> Unit
+) {
+    var currentStep by remember { mutableStateOf(0) }
+    var gameName by remember { mutableStateOf("") }
+    var selectedTheme by remember { mutableStateOf<GameTheme?>(null) }
+    var selectedPlatforms by remember { mutableStateOf(setOf<Platform>()) }
+    var selectedBusinessModel by remember { mutableStateOf<BusinessModel?>(null) }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1F2937),
+        modifier = Modifier.fillMaxWidth(0.95f),
+        title = {
+            Column {
+                Text(
+                    text = "开发新游戏",
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                // 步骤指示器
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    repeat(4) { index ->
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(4.dp)
+                                .background(
+                                    color = if (index <= currentStep) Color(0xFF10B981) else Color.White.copy(alpha = 0.3f),
+                                    shape = RoundedCornerShape(2.dp)
+                                )
+                        )
+                    }
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                // 步骤标题
+                Text(
+                    text = when (currentStep) {
+                        0 -> "第1步: 输入游戏名称"
+                        1 -> "第2步: 选择游戏主题"
+                        2 -> "第3步: 选择平台和商业模式"
+                        3 -> "第4步: 确认信息"
+                        else -> ""
+                    },
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                
+                // 步骤内容
+                when (currentStep) {
+                    0 -> GameNameInputStep(
+                        gameName = gameName,
+                        onGameNameChange = { gameName = it }
+                    )
+                    1 -> EnhancedGameThemeSelectionStep(
+                        selectedTheme = selectedTheme,
+                        onThemeSelected = { selectedTheme = it }
+                    )
+                    2 -> PlatformAndBusinessModelStep(
+                        selectedPlatforms = selectedPlatforms,
+                        selectedBusinessModel = selectedBusinessModel,
+                        onPlatformToggle = { platform ->
+                            selectedPlatforms = if (selectedPlatforms.contains(platform)) {
+                                selectedPlatforms - platform
+                            } else {
+                                selectedPlatforms + platform
+                            }
+                        },
+                        onBusinessModelSelected = { selectedBusinessModel = it }
+                    )
+                    3 -> GameConfirmationStep(
+                        gameName = gameName,
+                        theme = selectedTheme,
+                        platforms = selectedPlatforms.toList(),
+                        businessModel = selectedBusinessModel
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                // 按钮区域
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+                ) {
+                    // 按钮将在confirmButton和dismissButton中处理
+                }
+            }
+        },
+        dismissButton = {
+            if (currentStep > 0) {
+                TextButton(
+                    onClick = { currentStep-- }
+                ) {
+                    Text(
+                        text = "上一步",
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Row {
+                TextButton(
+                    onClick = onDismiss
+                ) {
+                    Text(
+                        text = "取消",
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+                }
+                TextButton(
+                    onClick = {
+                        when (currentStep) {
+                            3 -> {
+                                // 创建游戏
+                                if (gameName.isNotBlank() && selectedTheme != null && 
+                                    selectedPlatforms.isNotEmpty() && selectedBusinessModel != null) {
+                                    val newGame = com.example.yjcy.ui.Game(
+                                        id = java.util.UUID.randomUUID().toString(),
+                                        name = gameName,
+                                        theme = selectedTheme!!,
+                                        platforms = selectedPlatforms.toList(),
+                                        businessModel = selectedBusinessModel!!,
+                                        developmentProgress = 0f,
+                                        isCompleted = false,
+                                        revenue = 0L,
+                                        assignedEmployees = emptyList()
+                                    )
+                                    onGameCreated(newGame)
+                                }
+                            }
+                            else -> currentStep++
+                        }
+                    },
+                    enabled = when (currentStep) {
+                        0 -> gameName.isNotBlank()
+                        1 -> selectedTheme != null
+                        2 -> selectedPlatforms.isNotEmpty() && selectedBusinessModel != null
+                        3 -> true
+                        else -> false
+                    }
+                ) {
+                    Text(
+                        text = if (currentStep == 3) "创建游戏" else "下一步",
+                        color = if (when (currentStep) {
+                            0 -> gameName.isNotBlank()
+                            1 -> selectedTheme != null
+                            2 -> selectedPlatforms.isNotEmpty() && selectedBusinessModel != null
+                            3 -> true
+                            else -> false
+                        }) Color(0xFF10B981) else Color.White.copy(alpha = 0.5f)
+                    )
+                }
+            }
+        }
+    )
+}
+
+@Composable
+fun AnimatedThemeCard(
+    theme: GameTheme,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val borderAlpha by animateFloatAsState(
+        targetValue = if (isSelected) 1f else 0f,
+        animationSpec = tween(300),
+        label = "borderAlpha"
+    )
+    
+    val backgroundAlpha by animateFloatAsState(
+        targetValue = if (isSelected) 0.3f else 0.1f,
+        animationSpec = tween(300),
+        label = "backgroundAlpha"
+    )
+    
+    // 只有选中状态下才有微动画效果
+    val iconScale = if (isSelected) {
+        val infiniteTransition = rememberInfiniteTransition(label = "iconAnimation")
+        val iconPulse by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 2 * PI.toFloat(),
+            animationSpec = infiniteRepeatable(
+                animation = tween(3000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "iconPulse"
+        )
+        1f + (sin(iconPulse) * 0.03f)
+    } else {
+        1f
+    }
+    
+    Card(
+        modifier = Modifier
+            .aspectRatio(1f)
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) 
+                Color(0xFF10B981).copy(alpha = backgroundAlpha) else Color.White.copy(alpha = backgroundAlpha)
+        ),
+        shape = RoundedCornerShape(12.dp),
+        border = if (isSelected) BorderStroke(2.dp, Color(0xFF10B981).copy(alpha = borderAlpha)) else null
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = theme.icon,
+                fontSize = 28.sp,
+                modifier = Modifier.scale(iconScale)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = theme.displayName,
+                color = Color.White,
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                lineHeight = 14.sp
+            )
+        }
     }
 }
 

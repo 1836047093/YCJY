@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.alpha
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.window.Dialog
@@ -47,7 +48,15 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.platform.LocalConfiguration
 import com.example.yjcy.ui.theme.YjcyTheme
+
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import android.content.Context
@@ -56,6 +65,8 @@ import com.example.yjcy.ui.RecruitmentCenter
 import com.example.yjcy.data.CandidateManager
 import com.example.yjcy.data.Candidate
 import com.example.yjcy.ui.EmployeeManagementEnhanced
+import com.example.yjcy.ui.HRCenterEmployeeManagement
+import com.example.yjcy.ui.HRCenterScreen
 import com.example.yjcy.ui.ProjectManagementWrapper
 import android.content.SharedPreferences
 import androidx.compose.foundation.layout.Row
@@ -350,18 +361,10 @@ fun InGameSettingsScreen(navController: NavController) {
             )
         }
     }
-}
+    }
 
 @Composable
 fun MainMenuScreen(navController: androidx.navigation.NavController) {
-    // 创建渐变背景
-    val gradientBrush = Brush.verticalGradient(
-        colors = listOf(
-            Color(0xFF1E3A8A), // 深蓝色
-            Color(0xFF7C3AED)  // 紫色
-        )
-    )
-    
     // Logo动画
     val infiniteTransition = rememberInfiniteTransition(label = "logo_animation")
     val logoScale by infiniteTransition.animateFloat(
@@ -377,7 +380,14 @@ fun MainMenuScreen(navController: androidx.navigation.NavController) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(gradientBrush)
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF667eea),
+                        Color(0xFF764ba2)
+                    )
+                )
+            )
     ) {
         // 背景粒子动画
         ParticleBackground()
@@ -570,8 +580,8 @@ fun GameSetupScreen(navController: androidx.navigation.NavController) {
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF1E3A8A),
-                        Color(0xFF7C3AED)
+                        Color(0xFF667eea),
+                        Color(0xFF764ba2)
                     )
                 )
             )
@@ -803,6 +813,7 @@ fun GameScreen(
     var founderProfession by remember { mutableStateOf(saveData?.founderProfession ?: try { FounderProfession.valueOf(initialFounderProfession) } catch (e: IllegalArgumentException) { FounderProfession.PROGRAMMER }) }
     var games by remember { mutableStateOf(saveData?.games ?: emptyList<Game>()) }
     var showRecruitmentCenter by remember { mutableStateOf(false) }
+    var showHRCenter by remember { mutableStateOf(false) }
     
     // 消息状态
     var showMessage by remember { mutableStateOf(false) }
@@ -1021,6 +1032,14 @@ fun GameScreen(
                             }
                         }
                     )
+                } else if (showHRCenter && selectedTab == 1) {
+                    // 显示人事中心界面
+                    HRCenterScreen(
+                        onNavigateToConfig = { /* TODO: 实现配置界面导航 */ },
+                        onNavigateToConfirmation = { /* TODO: 实现确认界面导航 */ },
+                        onNavigateToHistory = { /* TODO: 实现历史界面导航 */ },
+                        onNavigateBack = { showHRCenter = false }
+                    )
                 } else {
                     when (selectedTab) {
                         0 -> CompanyOverviewContent(
@@ -1028,10 +1047,33 @@ fun GameScreen(
                         founder = founder,
                         allEmployees = allEmployees
                     )
-                        1 -> EmployeeManagementContent(
-                            onNavigateToRecruitment = { showRecruitmentCenter = true },
-                            founder = founder,
-                            allEmployees = allEmployees
+                        1 -> HRCenterEmployeeManagement(
+                            employees = allEmployees,
+                            onTrainEmployee = { employee, skillType ->
+                                // 创始人不能被培训（技能已经是满级）
+                                if (employee.id != 0) {
+                                    // 执行培训逻辑
+                                    val index = allEmployees.indexOfFirst { it.id == employee.id }
+                                    if (index != -1) {
+                                        val updatedEmployee = when (skillType) {
+                                            "开发" -> employee.copy(skillDevelopment = minOf(100, employee.skillDevelopment + 10))
+                                            "设计" -> employee.copy(skillDesign = minOf(100, employee.skillDesign + 10))
+                                            "美工" -> employee.copy(skillArt = minOf(100, employee.skillArt + 10))
+                                            "音乐" -> employee.copy(skillMusic = minOf(100, employee.skillMusic + 10))
+                                            "服务" -> employee.copy(skillService = minOf(100, employee.skillService + 10))
+                                            else -> employee
+                                        }
+                                        allEmployees[index] = updatedEmployee
+                                    }
+                                }
+                            },
+                            onDismissEmployee = { employee ->
+                                // 创始人不能被解雇
+                                if (employee.id != 0) {
+                                    allEmployees.removeAll { it.id == employee.id }
+                                }
+                            },
+                            onNavigateToHRCenter = { showHRCenter = true }
                         )
                         2 -> ProjectManagementWrapper(
                             games = games,
@@ -2484,8 +2526,8 @@ fun SettingsScreen(navController: androidx.navigation.NavController) {
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF1A237E),
-                        Color(0xFF4A148C)
+                        Color(0xFF4facfe),
+                        Color(0xFF00f2fe)
                     )
                 )
             ),
@@ -2535,8 +2577,8 @@ fun LeaderboardScreen(navController: androidx.navigation.NavController) {
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF1A237E),
-                        Color(0xFF4A148C)
+                        Color(0xFF4facfe),
+                        Color(0xFF00f2fe)
                     )
                 )
             ),
@@ -2641,6 +2683,342 @@ data class SaveData(
     val saveTime: Long = System.currentTimeMillis(),
     val games: List<Game> = emptyList()
 )
+
+// 市场分析相关数据类
+data class Competitor(
+    val id: String,
+    val name: String,
+    val icon: String, // emoji图标
+    val annualRevenue: Long, // 年收入（万元）
+    val fanCount: Int, // 粉丝数（万人）
+    val marketValue: Long // 市值（万元）
+)
+
+data class GameThemeTrend(
+    val theme: String, // 主题名称
+    val icon: String, // emoji图标
+    val hotIndex: Float, // 热度指数 0-100
+    val marketShare: Float, // 市场占有率 0-100%
+    val trend: TrendDirection // 趋势方向
+)
+
+enum class TrendDirection {
+    UP, DOWN, STABLE
+}
+
+// 现代化色彩系统
+object ModernColorSystem {
+    // 主要渐变背景
+    val primaryGradient = listOf(
+        Color(0xFF667eea),
+        Color(0xFF764ba2)
+    )
+    
+    val secondaryGradient = listOf(
+        Color(0xFF4facfe),
+        Color(0xFF00f2fe)
+    )
+    
+    val accentGradient = listOf(
+        Color(0xFFfa709a),
+        Color(0xFFfee140)
+    )
+    
+    // 毛玻璃效果颜色
+    val glassBackground = Color.White.copy(alpha = 0.1f)
+    val glassStroke = Color.White.copy(alpha = 0.2f)
+    val glassShadow = Color.Black.copy(alpha = 0.1f)
+    
+    // 文本颜色
+    val primaryText = Color.White
+    val secondaryText = Color.White.copy(alpha = 0.8f)
+    val accentText = Color.White.copy(alpha = 0.9f)
+    
+    // 状态颜色
+    val successColor = Color(0xFF10B981)
+    val warningColor = Color(0xFFF59E0B)
+    val errorColor = Color(0xFFEF4444)
+    val infoColor = Color(0xFF3B82F6)
+    
+    // 趋势颜色
+    val trendUpColor = Color(0xFF10B981)
+    val trendDownColor = Color(0xFFEF4444)
+    val trendStableColor = Color(0xFF6B7280)
+}
+
+// 现代化动画系统
+object ModernAnimationSystem {
+    // 基础动画时长
+    const val FAST_ANIMATION = 200
+    const val NORMAL_ANIMATION = 300
+    const val SLOW_ANIMATION = 500
+    
+    // 缓动函数
+    val fastOutSlowIn = FastOutSlowInEasing
+    val linearOutSlowIn = LinearOutSlowInEasing
+    val fastOutLinearIn = FastOutLinearInEasing
+    
+    // 常用动画规格
+    val fadeInOut = tween<Float>(NORMAL_ANIMATION, easing = fastOutSlowIn)
+    val slideInOut = tween<IntOffset>(NORMAL_ANIMATION, easing = fastOutSlowIn)
+    val scaleInOut = tween<Float>(FAST_ANIMATION, easing = fastOutSlowIn)
+    val colorTransition = tween<Color>(NORMAL_ANIMATION, easing = linearOutSlowIn)
+}
+
+// 毛玻璃效果组件
+@Composable
+fun GlassCard(
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    
+    val animatedScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.98f else 1f,
+        animationSpec = ModernAnimationSystem.scaleInOut
+    )
+    
+    val animatedAlpha by animateFloatAsState(
+        targetValue = if (isPressed) 0.8f else 1f,
+        animationSpec = ModernAnimationSystem.fadeInOut
+    )
+    
+    Card(
+        modifier = modifier
+            .scale(animatedScale)
+            .alpha(animatedAlpha)
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(
+                        interactionSource = interactionSource,
+                        indication = null
+                    ) { onClick() }
+                } else Modifier
+            ),
+        colors = CardDefaults.cardColors(
+            containerColor = ModernColorSystem.glassBackground
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = ModernColorSystem.glassStroke
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 8.dp,
+            pressedElevation = 12.dp
+        ),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            content = content
+        )
+    }
+}
+
+// 数据芯片组件
+@Composable
+fun DataChip(
+    text: String,
+    icon: String? = null,
+    color: Color = ModernColorSystem.infoColor,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(20.dp),
+        color = color.copy(alpha = 0.2f),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.3f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (icon != null) {
+                Text(
+                    text = icon,
+                    fontSize = 12.sp
+                )
+            }
+            Text(
+                text = text,
+                fontSize = 12.sp,
+                color = ModernColorSystem.primaryText,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+// 趋势指示器组件
+@Composable
+fun TrendIndicator(
+    direction: TrendDirection,
+    modifier: Modifier = Modifier
+) {
+    val (icon, color) = when (direction) {
+        TrendDirection.UP -> "📈" to ModernColorSystem.trendUpColor
+        TrendDirection.DOWN -> "📉" to ModernColorSystem.trendDownColor
+        TrendDirection.STABLE -> "➡️" to ModernColorSystem.trendStableColor
+    }
+    
+    Surface(
+        modifier = modifier,
+        shape = CircleShape,
+        color = color.copy(alpha = 0.2f),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.3f))
+    ) {
+        Box(
+            modifier = Modifier.size(32.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = icon,
+                fontSize = 16.sp
+            )
+        }
+    }
+}
+
+// 响应式布局系统
+object ResponsiveLayoutSystem {
+    // 屏幕断点
+    const val COMPACT_WIDTH = 600
+    const val MEDIUM_WIDTH = 840
+    const val EXPANDED_WIDTH = 1200
+    
+    // 布局配置
+    data class LayoutConfig(
+        val isCompact: Boolean,
+        val isMedium: Boolean,
+        val isExpanded: Boolean,
+        val columns: Int,
+        val cardSpacing: Int,
+        val contentPadding: Int,
+        val itemSpacing: Int,
+        val cardPadding: Int,
+        val titleFontSize: Int
+    )
+}
+
+@Composable
+fun getLayoutConfig(): ResponsiveLayoutSystem.LayoutConfig {
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    
+    return when {
+        screenWidth < ResponsiveLayoutSystem.COMPACT_WIDTH -> ResponsiveLayoutSystem.LayoutConfig(
+            isCompact = true,
+            isMedium = false,
+            isExpanded = false,
+            columns = 1,
+            cardSpacing = 8,
+            contentPadding = 12,
+            itemSpacing = 8,
+            cardPadding = 12,
+            titleFontSize = 16
+        )
+        screenWidth < ResponsiveLayoutSystem.MEDIUM_WIDTH -> ResponsiveLayoutSystem.LayoutConfig(
+            isCompact = false,
+            isMedium = true,
+            isExpanded = false,
+            columns = 2,
+            cardSpacing = 12,
+            contentPadding = 16,
+            itemSpacing = 12,
+            cardPadding = 16,
+            titleFontSize = 18
+        )
+        else -> ResponsiveLayoutSystem.LayoutConfig(
+            isCompact = false,
+            isMedium = false,
+            isExpanded = true,
+            columns = 3,
+            cardSpacing = 16,
+            contentPadding = 20,
+            itemSpacing = 16,
+            cardPadding = 20,
+            titleFontSize = 20
+        )
+    }
+}
+
+// 竞争对手数据生成器
+class CompetitorDataGenerator {
+    private val companyNames = listOf(
+        "星辰游戏", "梦想工作室", "创新互娱", 
+        "未来科技", "极光工作室"
+    )
+    private val icons = listOf("🎮", "🌟", "🚀", "💎", "⚡")
+    
+    fun generateCompetitors(): List<Competitor> {
+        return companyNames.mapIndexed { index, name ->
+            Competitor(
+                id = "comp_$index",
+                name = name,
+                icon = icons[index],
+                annualRevenue = Random.nextLong(1000, 50000),
+                fanCount = Random.nextInt(10, 1000),
+                marketValue = Random.nextLong(5000, 200000)
+            )
+        }
+    }
+    
+    // 动态更新现有竞争对手数据（模拟市场波动）
+    fun updateCompetitorData(current: Competitor): Competitor {
+        val revenueChange = Random.nextFloat() * 0.2f - 0.1f // ±10%变化
+        val fanChange = Random.nextFloat() * 0.15f - 0.075f // ±7.5%变化
+        val valueChange = Random.nextFloat() * 0.25f - 0.125f // ±12.5%变化
+        
+        return current.copy(
+            annualRevenue = (current.annualRevenue * (1 + revenueChange)).toLong().coerceAtLeast(500),
+            fanCount = (current.fanCount * (1 + fanChange)).toInt().coerceAtLeast(5),
+            marketValue = (current.marketValue * (1 + valueChange)).toLong().coerceAtLeast(1000)
+        )
+    }
+}
+
+// 游戏主题趋势生成器
+class GameThemeTrendGenerator {
+    private val themes = listOf(
+        "动作" to "⚔️",
+        "角色扮演" to "🧙",
+        "策略" to "🏰",
+        "模拟" to "🏗️",
+        "休闲" to "🎯",
+        "竞技" to "🏆"
+    )
+    
+    fun generateGameThemeTrends(): List<GameThemeTrend> {
+        return themes.map { (theme, icon) ->
+            GameThemeTrend(
+                theme = theme,
+                icon = icon,
+                hotIndex = Random.nextFloat() * 100,
+                marketShare = Random.nextFloat() * 30,
+                trend = TrendDirection.values().random()
+            )
+        }.sortedByDescending { it.hotIndex }
+    }
+    
+    // 动态更新主题趋势（模拟市场变化）
+    fun updateThemeTrend(current: GameThemeTrend): GameThemeTrend {
+        val hotIndexChange = Random.nextFloat() * 20f - 10f // ±10点变化
+        val shareChange = Random.nextFloat() * 5f - 2.5f // ±2.5%变化
+        
+        return current.copy(
+            hotIndex = (current.hotIndex + hotIndexChange).coerceIn(0f, 100f),
+            marketShare = (current.marketShare + shareChange).coerceIn(0f, 50f),
+            trend = when {
+                hotIndexChange > 3f -> TrendDirection.UP
+                hotIndexChange < -3f -> TrendDirection.DOWN
+                else -> TrendDirection.STABLE
+            }
+        )
+    }
+}
 
 // 存档管理类
 class SaveManager(private val context: Context) {
@@ -3381,39 +3759,478 @@ fun GameConfirmationStep(
 
 @Composable
 fun MarketAnalysisContent() {
-    Column(
+    val competitorGenerator = remember { CompetitorDataGenerator() }
+    val trendGenerator = remember { GameThemeTrendGenerator() }
+    val layoutConfig = getLayoutConfig()
+    
+    var competitors by remember { mutableStateOf(competitorGenerator.generateCompetitors()) }
+    var themeTrends by remember { mutableStateOf(trendGenerator.generateGameThemeTrends()) }
+    
+    // 数据更新动画状态
+    var isUpdating by remember { mutableStateOf(false) }
+    val animatedAlpha by animateFloatAsState(
+        targetValue = if (isUpdating) 0.7f else 1f,
+        animationSpec = ModernAnimationSystem.fadeInOut
+    )
+    
+    // 渐变背景动画
+    val infiniteTransition = rememberInfiniteTransition()
+    val gradientOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(8000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        )
+    )
+    
+    // 启动自动更新
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(30000L) // 30秒间隔
+            
+            isUpdating = true
+            delay(300) // 动画时间
+            
+            // 增量更新竞争对手数据
+            competitors = competitors.map { competitor ->
+                competitorGenerator.updateCompetitorData(competitor)
+            }
+            
+            // 增量更新主题趋势
+            themeTrends = themeTrends.map { trend ->
+                trendGenerator.updateThemeTrend(trend)
+            }.sortedByDescending { it.hotIndex }
+            
+            isUpdating = false
+        }
+    }
+    
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .background(
+                brush = Brush.linearGradient(
+                    colors = ModernColorSystem.primaryGradient,
+                    start = Offset(0f, gradientOffset * 1000f),
+                    end = Offset(1000f, (1f - gradientOffset) * 1000f)
+                )
+            )
     ) {
-        Text(
-            text = "📊 市场分析",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-        
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = Color.White.copy(alpha = 0.1f)
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-            shape = RoundedCornerShape(12.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(layoutConfig.contentPadding.dp)
+                .alpha(animatedAlpha)
+                .verticalScroll(rememberScrollState())
         ) {
-            Column(
+            // 现代化标题
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
+                    .padding(bottom = 24.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    modifier = Modifier.size(48.dp),
+                    shape = CircleShape,
+                    color = ModernColorSystem.glassBackground,
+                    border = BorderStroke(1.dp, ModernColorSystem.glassStroke)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "📊",
+                            fontSize = 24.sp
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.width(16.dp))
+                
+                Column {
+                    Text(
+                        text = "市场分析",
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ModernColorSystem.primaryText
+                    )
+                    Text(
+                        text = "实时市场数据与趋势分析",
+                        fontSize = 14.sp,
+                        color = ModernColorSystem.secondaryText
+                    )
+                }
+            }
+            
+            // 竞争对手分析区域
+            GlassCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = layoutConfig.cardSpacing.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "🏢",
+                        fontSize = 20.sp,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    Text(
+                        text = "竞争对手分析",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ModernColorSystem.primaryText
+                    )
+                    
+                    Spacer(modifier = Modifier.weight(1f))
+                    
+                    DataChip(
+                        text = "${competitors.size} 家公司",
+                        icon = "🏭",
+                        color = ModernColorSystem.infoColor
+                    )
+                }
+                
+                competitors.forEach { competitor ->
+                    CompetitorCard(competitor = competitor)
+                    Spacer(modifier = Modifier.height(layoutConfig.itemSpacing.dp))
+                }
+            }
+            
+            // 游戏主题趋势区域
+            GlassCard(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "🎮",
+                        fontSize = 20.sp,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    Text(
+                        text = "游戏主题趋势",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ModernColorSystem.primaryText
+                    )
+                    
+                    Spacer(modifier = Modifier.weight(1f))
+                    
+                    DataChip(
+                        text = "${themeTrends.size} 个主题",
+                        icon = "🎯",
+                        color = ModernColorSystem.accentGradient[0]
+                    )
+                }
+                
+                themeTrends.forEach { trend ->
+                    GameThemeTrendCard(trend = trend)
+                    Spacer(modifier = Modifier.height(layoutConfig.itemSpacing.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CompetitorCard(competitor: Competitor) {
+    val layoutConfig = getLayoutConfig()
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+    
+    val animatedElevation by animateFloatAsState(
+        targetValue = if (isHovered) 12f else 6f,
+        animationSpec = ModernAnimationSystem.fadeInOut
+    )
+    
+    val animatedScale by animateFloatAsState(
+        targetValue = if (isHovered) 1.02f else 1f,
+        animationSpec = ModernAnimationSystem.scaleInOut
+    )
+    
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .scale(animatedScale)
+            .hoverable(interactionSource),
+        colors = CardDefaults.cardColors(
+            containerColor = ModernColorSystem.glassBackground
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = ModernColorSystem.glassStroke
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = animatedElevation.dp
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(layoutConfig.cardPadding.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 公司图标背景
+            Surface(
+                modifier = Modifier.size(56.dp),
+                shape = CircleShape,
+                color = ModernColorSystem.secondaryGradient[0].copy(alpha = 0.2f),
+                border = BorderStroke(1.dp, ModernColorSystem.secondaryGradient[0].copy(alpha = 0.3f))
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = competitor.icon,
+                        fontSize = 28.sp
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = "市场趋势分析功能即将推出",
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
+                    text = competitor.name,
+                    fontSize = layoutConfig.titleFontSize.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = ModernColorSystem.primaryText
                 )
+                
+                // 数据芯片行
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DataChip(
+                        text = "${formatMoney(competitor.annualRevenue)}万",
+                        icon = "💰",
+                        color = ModernColorSystem.successColor,
+                        modifier = Modifier.weight(1f)
+                    )
+                    DataChip(
+                        text = "${competitor.fanCount}万",
+                        icon = "👥",
+                        color = ModernColorSystem.infoColor,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                
+                // 市值显示
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = ModernColorSystem.accentGradient[1].copy(alpha = 0.2f),
+                    border = BorderStroke(1.dp, ModernColorSystem.accentGradient[1].copy(alpha = 0.3f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "📈",
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = "市值: ${formatMoney(competitor.marketValue)}万",
+                            fontSize = 14.sp,
+                            color = ModernColorSystem.primaryText,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun GameThemeTrendCard(trend: GameThemeTrend) {
+    val layoutConfig = getLayoutConfig()
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+    
+    val animatedElevation by animateFloatAsState(
+        targetValue = if (isHovered) 10f else 4f,
+        animationSpec = ModernAnimationSystem.fadeInOut
+    )
+    
+    val animatedScale by animateFloatAsState(
+        targetValue = if (isHovered) 1.01f else 1f,
+        animationSpec = ModernAnimationSystem.scaleInOut
+    )
+    
+    // 根据趋势方向选择颜色
+    val trendColor = when (trend.trend) {
+        TrendDirection.UP -> ModernColorSystem.successColor
+        TrendDirection.DOWN -> ModernColorSystem.errorColor
+        TrendDirection.STABLE -> ModernColorSystem.warningColor
+    }
+    
+    val trendGradient = when (trend.trend) {
+        TrendDirection.UP -> listOf(
+            ModernColorSystem.successColor.copy(alpha = 0.2f),
+            ModernColorSystem.successColor.copy(alpha = 0.1f)
+        )
+        TrendDirection.DOWN -> listOf(
+            ModernColorSystem.errorColor.copy(alpha = 0.2f),
+            ModernColorSystem.errorColor.copy(alpha = 0.1f)
+        )
+        TrendDirection.STABLE -> listOf(
+            ModernColorSystem.warningColor.copy(alpha = 0.2f),
+            ModernColorSystem.warningColor.copy(alpha = 0.1f)
+        )
+    }
+    
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .scale(animatedScale)
+            .hoverable(interactionSource),
+        colors = CardDefaults.cardColors(
+            containerColor = ModernColorSystem.glassBackground
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = trendColor.copy(alpha = 0.3f)
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = animatedElevation.dp
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    brush = Brush.horizontalGradient(
+                        colors = trendGradient
+                    )
+                )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(layoutConfig.cardPadding.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 主题图标背景
+                Surface(
+                    modifier = Modifier.size(52.dp),
+                    shape = CircleShape,
+                    color = trendColor.copy(alpha = 0.2f),
+                    border = BorderStroke(1.dp, trendColor.copy(alpha = 0.4f))
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = trend.icon,
+                            fontSize = 26.sp
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.width(16.dp))
+                
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = trend.theme,
+                            fontSize = layoutConfig.titleFontSize.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = ModernColorSystem.primaryText
+                        )
+                        
+                        TrendIndicator(
+                            direction = trend.trend
+                        )
+                    }
+                    
+                    // 数据指标行
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // 热度指标
+                        Surface(
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            color = ModernColorSystem.errorColor.copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, ModernColorSystem.errorColor.copy(alpha = 0.3f))
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = "🔥",
+                                    fontSize = 12.sp
+                                )
+                                Text(
+                                    text = String.format("%.1f", trend.hotIndex),
+                                    fontSize = 13.sp,
+                                    color = ModernColorSystem.primaryText,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                        
+                        // 占有率指标
+                        Surface(
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            color = ModernColorSystem.infoColor.copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, ModernColorSystem.infoColor.copy(alpha = 0.3f))
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = "📊",
+                                    fontSize = 12.sp
+                                )
+                                Text(
+                                    text = "${String.format("%.1f", trend.marketShare)}%",
+                                    fontSize = 13.sp,
+                                    color = ModernColorSystem.primaryText,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }

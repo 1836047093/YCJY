@@ -17,8 +17,8 @@ import android.util.Log
 
 @Composable
 fun FilterPanel(
-    selectedPositions: List<String>,
-    onPositionsChange: (List<String>) -> Unit,
+    selectedPosition: String?,
+    onPositionChange: (String?) -> Unit,
     salaryRange: ClosedFloatingPointRange<Float>,
     onSalaryRangeChange: (ClosedFloatingPointRange<Float>) -> Unit,
     skillLevelRange: ClosedFloatingPointRange<Float>,
@@ -75,8 +75,8 @@ fun FilterPanel(
             Spacer(modifier = Modifier.height(8.dp))
             
             PositionFilterChips(
-                selectedPositions = selectedPositions,
-                onPositionsChange = onPositionsChange
+                selectedPosition = selectedPosition,
+                onPositionChange = onPositionChange
             )
             
             Spacer(modifier = Modifier.height(16.dp))
@@ -130,6 +130,7 @@ fun FilterPanel(
     }
 }
 
+// 多选版本的职位筛选芯片（用于招聘中心）
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PositionFilterChips(
@@ -156,6 +157,57 @@ fun PositionFilterChips(
                         val newPositions = selectedPositions + position
                         Log.d("PositionFilterChips", "Adding position, new list: $newPositions")
                         onPositionsChange(newPositions)
+                    }
+                },
+                label = {
+                    Text(
+                        text = position,
+                        fontSize = 12.sp,
+                        color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f)
+                    )
+                },
+                selected = isSelected,
+                enabled = true,
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = Color(0xFFF59E0B).copy(alpha = 0.3f),
+                    containerColor = Color.White.copy(alpha = 0.1f)
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = isSelected,
+                    selectedBorderColor = Color(0xFFF59E0B),
+                    borderColor = Color.White.copy(alpha = 0.3f)
+                )
+            )
+        }
+    }
+}
+
+// 单选版本的职位筛选芯片（用于员工管理）
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun PositionFilterChips(
+    selectedPosition: String?,
+    onPositionChange: (String?) -> Unit
+) {
+    val positions = listOf("程序员", "美术师", "策划师", "音效师", "客服")
+    
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        positions.forEach { position ->
+            val isSelected = position == selectedPosition
+            
+            FilterChip(
+                onClick = {
+                    Log.d("PositionFilterChips", "Clicked position: $position, isSelected: $isSelected")
+                    if (isSelected) {
+                        Log.d("PositionFilterChips", "Deselecting position: $position")
+                        onPositionChange(null)
+                    } else {
+                        Log.d("PositionFilterChips", "Selecting position: $position")
+                        onPositionChange(position)
                     }
                 },
                 label = {
