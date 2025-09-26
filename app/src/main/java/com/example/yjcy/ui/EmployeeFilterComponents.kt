@@ -14,13 +14,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
 import kotlin.math.roundToInt
 import android.util.Log
+import com.example.yjcy.data.EmployeeSortBy
 
 @Composable
 fun FilterPanel(
     selectedPosition: String?,
     onPositionChange: (String?) -> Unit,
-    salaryRange: ClosedFloatingPointRange<Float>,
-    onSalaryRangeChange: (ClosedFloatingPointRange<Float>) -> Unit,
     skillLevelRange: ClosedFloatingPointRange<Float>,
     onSkillLevelRangeChange: (ClosedFloatingPointRange<Float>) -> Unit,
     onClearFilters: () -> Unit
@@ -81,30 +80,6 @@ fun FilterPanel(
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            // 薪资范围筛选
-            Text(
-                text = "薪资范围: ¥${salaryRange.start.roundToInt()} - ¥${salaryRange.endInclusive.roundToInt()}",
-                color = Color.White.copy(alpha = 0.9f),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium
-            )
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            RangeSlider(
-                value = salaryRange,
-                onValueChange = onSalaryRangeChange,
-                valueRange = 0f..20000f,
-                steps = 19,
-                colors = SliderDefaults.colors(
-                    thumbColor = Color(0xFFF59E0B),
-                    activeTrackColor = Color(0xFFF59E0B),
-                    inactiveTrackColor = Color.White.copy(alpha = 0.3f)
-                )
-            )
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
             // 技能等级筛选
             Text(
                 text = "技能等级: Lv.${skillLevelRange.start.roundToInt()} - Lv.${skillLevelRange.endInclusive.roundToInt()}",
@@ -130,58 +105,7 @@ fun FilterPanel(
     }
 }
 
-// 多选版本的职位筛选芯片（用于招聘中心）
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-fun PositionFilterChips(
-    selectedPositions: List<String>,
-    onPositionsChange: (List<String>) -> Unit
-) {
-    val positions = listOf("程序员", "美术师", "策划师", "音效师", "客服")
-    
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        positions.forEach { position ->
-            val isSelected = position in selectedPositions
-            
-            FilterChip(
-                onClick = {
-                    Log.d("PositionFilterChips", "Clicked position: $position, isSelected: $isSelected")
-                    if (isSelected) {
-                        val newPositions = selectedPositions - position
-                        Log.d("PositionFilterChips", "Removing position, new list: $newPositions")
-                        onPositionsChange(newPositions)
-                    } else {
-                        val newPositions = selectedPositions + position
-                        Log.d("PositionFilterChips", "Adding position, new list: $newPositions")
-                        onPositionsChange(newPositions)
-                    }
-                },
-                label = {
-                    Text(
-                        text = position,
-                        fontSize = 12.sp,
-                        color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f)
-                    )
-                },
-                selected = isSelected,
-                enabled = true,
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = Color(0xFFF59E0B).copy(alpha = 0.3f),
-                    containerColor = Color.White.copy(alpha = 0.1f)
-                ),
-                border = FilterChipDefaults.filterChipBorder(
-                    enabled = true,
-                    selected = isSelected,
-                    selectedBorderColor = Color(0xFFF59E0B),
-                    borderColor = Color.White.copy(alpha = 0.3f)
-                )
-            )
-        }
-    }
-}
+
 
 // 单选版本的职位筛选芯片（用于员工管理）
 @OptIn(ExperimentalLayoutApi::class)
@@ -230,6 +154,64 @@ fun PositionFilterChips(
                     borderColor = Color.White.copy(alpha = 0.3f)
                 )
             )
+        }
+    }
+}
+
+@Composable
+fun FilterSortBar(
+    showFilters: Boolean,
+    onToggleFilters: () -> Unit,
+    sortBy: EmployeeSortBy,
+    sortAscending: Boolean,
+    onSortChange: (EmployeeSortBy, Boolean) -> Unit,
+    resultCount: Int,
+    selectedPosition: String?
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White.copy(alpha = 0.1f)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 结果统计
+            Text(
+                text = "$resultCount/30",
+                color = Color.White.copy(alpha = 0.8f),
+                fontSize = 14.sp
+            )
+            
+            // 控制按钮组
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 筛选按钮
+                ModernButton(
+                    text = "筛选",
+                    icon = if (showFilters) "🔽" else "🔼",
+                    onClick = onToggleFilters,
+                    enabled = true,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (showFilters) Color(0xFFF59E0B).copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f)
+                    )
+                )
+                
+                // 排序控件
+                SortDropdownMenu(
+                    sortBy = sortBy,
+                    sortAscending = sortAscending,
+                    onSortChange = onSortChange
+                )
+            }
         }
     }
 }

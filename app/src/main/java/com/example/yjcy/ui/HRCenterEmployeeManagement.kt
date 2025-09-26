@@ -50,13 +50,11 @@ fun HRCenterEmployeeManagement(
     employees: List<Employee>,
     onTrainEmployee: (Employee, String) -> Unit,
     onDismissEmployee: (Employee) -> Unit,
-    onNavigateToHRCenter: () -> Unit
+    onNavigateToHRCenter: () -> Unit = {} // 新增人事中心导航回调
 ) {
 
     
-    var searchQuery by remember { mutableStateOf("") }
     var selectedPosition by remember { mutableStateOf<String?>(null) }
-    var salaryRange by remember { mutableStateOf(0f..20000f) }
     var skillLevelRange by remember { mutableStateOf(1f..5f) }
     var sortBy by remember { mutableStateOf(EmployeeSortBy.NAME) }
     var sortAscending by remember { mutableStateOf(true) }
@@ -66,27 +64,12 @@ fun HRCenterEmployeeManagement(
 
     
     val itemsPerPage = 8
-    val keyboardController = LocalSoftwareKeyboardController.current
     
     // 应用筛选和排序
-    val filteredEmployees = remember(employees, searchQuery, selectedPosition, salaryRange, skillLevelRange) {
+    val filteredEmployees = remember(employees, selectedPosition, skillLevelRange) {
         employees.filter { employee ->
-            // 搜索查询
-            if (searchQuery.isNotEmpty()) {
-                val query = searchQuery.lowercase()
-                if (!employee.name.lowercase().contains(query) && 
-                    !employee.position.lowercase().contains(query)) {
-                    return@filter false
-                }
-            }
-            
             // 职位筛选
             if (selectedPosition != null && employee.position != selectedPosition) {
-                return@filter false
-            }
-            
-            // 薪资范围筛选
-            if (employee.salary < salaryRange.start || employee.salary > salaryRange.endInclusive) {
                 return@filter false
             }
             
@@ -140,7 +123,7 @@ fun HRCenterEmployeeManagement(
             )
             .padding(16.dp)
     ) {
-        // 标题和操作按钮
+        // 标题和人事中心入口
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -153,34 +136,41 @@ fun HRCenterEmployeeManagement(
                 fontWeight = FontWeight.Bold
             )
             
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+            // 人事中心入口按钮
+            Card(
+                modifier = Modifier
+                    .clickable { onNavigateToHRCenter() }
+                    .padding(4.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF3F51B5).copy(alpha = 0.8f)
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                shape = RoundedCornerShape(12.dp)
             ) {
-
-                
-                ModernButton(
-                    text = "人事中心",
-                    icon = "🏢",
-                    onClick = onNavigateToHRCenter,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF16A34A).copy(alpha = 0.2f)
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Business,
+                        contentDescription = "人事中心",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
                     )
-                )
+                    Text(
+                        text = "人事中心",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        // 搜索栏
-        SearchBar(
-            query = searchQuery,
-            onQueryChange = { searchQuery = it },
-            onSearch = { keyboardController?.hide() },
-            placeholder = "搜索员工姓名或职位..."
-        )
-        
-        Spacer(modifier = Modifier.height(12.dp))
+
         
         // 筛选和排序控制栏
         FilterSortBar(
@@ -205,14 +195,11 @@ fun HRCenterEmployeeManagement(
             FilterPanel(
                 selectedPosition = selectedPosition,
                 onPositionChange = { selectedPosition = it },
-                salaryRange = salaryRange,
-                onSalaryRangeChange = { salaryRange = it },
                 skillLevelRange = skillLevelRange,
                 onSkillLevelRangeChange = { skillLevelRange = it },
                 onClearFilters = {
                     selectedPosition = null
-                    salaryRange = 0f..20000f
-                    skillLevelRange = 1f..100f
+                    skillLevelRange = 1f..5f
                 }
             )
         }
@@ -222,7 +209,7 @@ fun HRCenterEmployeeManagement(
         // 员工列表
         if (paginatedEmployees.isEmpty()) {
             EmptyStateCard(
-                message = if (searchQuery.isNotEmpty() || selectedPosition != null) {
+                message = if (selectedPosition != null) {
                     "未找到符合条件的员工"
                 } else {
                     "暂无员工数据"

@@ -262,6 +262,39 @@ fun LoadingIndicator(
 }
 
 @Composable
+fun EmptyStateCard(
+    message: String,
+    modifier: Modifier = Modifier
+) {
+    ModernCard(
+        modifier = modifier.fillMaxWidth(),
+        backgroundColor = Color.White.copy(alpha = 0.05f),
+        borderColor = Color.White.copy(alpha = 0.2f)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "📋",
+                fontSize = 48.sp
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Text(
+                text = message,
+                color = Color.White.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+@Composable
 fun StatCard(
     title: String,
     value: String,

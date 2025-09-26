@@ -61,16 +61,14 @@ import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import android.content.Context
 import com.google.gson.Gson
-import com.example.yjcy.ui.RecruitmentCenter
-import com.example.yjcy.data.CandidateManager
-import com.example.yjcy.data.Candidate
-import com.example.yjcy.ui.EmployeeManagementEnhanced
+
+
+
 import com.example.yjcy.ui.HRCenterEmployeeManagement
-import com.example.yjcy.ui.HRCenterScreen
+
 import com.example.yjcy.ui.ProjectManagementWrapper
-import com.example.yjcy.ui.RecruitmentConfigScreen
-import com.example.yjcy.ui.CandidateConfirmationScreen
-import com.example.yjcy.ui.RecruitmentHistoryScreen
+
+
 import com.example.yjcy.data.Employee
 import com.example.yjcy.data.Founder
 import com.example.yjcy.data.Game
@@ -82,6 +80,7 @@ import com.example.yjcy.data.Competitor
 import com.example.yjcy.data.GameThemeTrend
 import com.example.yjcy.data.TrendDirection
 import com.example.yjcy.data.FounderProfession
+
 import android.content.SharedPreferences
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.Checkbox
@@ -120,8 +119,15 @@ fun formatMoney(amount: Long): String {
 var currentLoadedSaveData: SaveData? = null
 
 class MainActivity : ComponentActivity() {
+    companion object {
+
+    }
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        android.util.Log.d("MainActivity", "MainActivity onCreate 开始")
+
         
         // 增强全屏显示设置
         // enableFullScreenDisplay()  // 临时注释掉以解决闪退问题
@@ -176,59 +182,20 @@ class MainActivity : ComponentActivity() {
                     composable("in_game_settings") {
                         InGameSettingsScreen(navController)
                     }
-                    composable("recruitment_config") {
-                        RecruitmentConfigScreen(
-                            onNavigateBack = { navController.popBackStack() }
-                        )
-                    }
-                    composable("candidate_confirmation/{taskId}") { backStackEntry ->
-                        val taskId = backStackEntry.arguments?.getString("taskId") ?: ""
-                        CandidateConfirmationScreen(
-                            taskId = taskId,
-                            onNavigateBack = { navController.popBackStack() }
-                        )
-                    }
-                    composable("recruitment_history") {
-                        RecruitmentHistoryScreen(
-                            onNavigateBack = { navController.popBackStack() }
-                        )
-                    }
-                }
-            }
-        }
-    }
-    
-    // 增强全屏显示方法
-    private fun enableFullScreenDisplay() {
-        // 设置窗口兼容性
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // Android 11+ 使用 WindowInsetsController
-            window.insetsController?.let { controller ->
-                controller.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-                controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            }
-        } else {
-            // Android 7-10 兼容实现
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_FULLSCREEN or
-                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-            )
-        }
-        
-        // 设置刘海屏适配
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            window.attributes.layoutInDisplayCutoutMode = 
-                android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-        }
-    }
 
+                    // composable("hr_center") {
+                    //     HRCenterHomepage(
+                    //         onNavigateToRecruitmentSettings = { /* TODO: 实现招聘设置导航 */ },
+                    //         onNavigateToEmployeeManagement = {
+                    //             // 返回员工管理页面（设置selectedTab为1）
+                    //             // 这里需要想办法设置selectedTab，但NavHost没有直接访问GameScreen状态的方式
+                    //             navController.popBackStack() // 临时方案：返回上一页
+                    //         }
+                    //     }
+            }
+        }
+    }
+}
 }
 
 @Composable
@@ -237,6 +204,7 @@ fun InGameSettingsScreen(navController: NavController) {
     var musicEnabled by remember { mutableStateOf(true) }
     var gameSpeed by remember { mutableStateOf(1f) }
     
+ 
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -843,8 +811,6 @@ fun GameScreen(
     var founderName by remember { mutableStateOf(saveData?.founderName ?: initialFounderName) }
     var founderProfession by remember { mutableStateOf(saveData?.founderProfession ?: try { FounderProfession.valueOf(initialFounderProfession) } catch (e: IllegalArgumentException) { FounderProfession.PROGRAMMER }) }
     var games by remember { mutableStateOf(saveData?.games ?: emptyList<Game>()) }
-    var showRecruitmentCenter by remember { mutableStateOf(false) }
-    var showHRCenter by remember { mutableStateOf(false) }
     
     // 消息状态
     var showMessage by remember { mutableStateOf(false) }
@@ -853,8 +819,9 @@ fun GameScreen(
     // 员工状态管理 - 提升到GameScreen级别
     val allEmployees = remember { mutableStateListOf<Employee>() }
     
-    // 候选人管理器 - 提升到GameScreen级别以保持状态
-    val candidateManager = remember { CandidateManager() }
+
+    
+
     
     // 创建创始人对象
     val founder = remember(founderName, founderProfession) {
@@ -913,6 +880,33 @@ fun GameScreen(
                 }
             )
             allEmployees.add(founderAsEmployee)
+        }
+    }
+    
+    // 员工管理回调函数
+    val onTrainEmployee: (Employee, String) -> Unit = { employee, skillType ->
+        // 创始人不能被培训（技能已经是满级）
+        if (employee.id != 0) {
+            // 执行培训逻辑
+            val index = allEmployees.indexOfFirst { it.id == employee.id }
+            if (index != -1) {
+                val updatedEmployee = when (skillType) {
+                    "开发" -> employee.copy(skillDevelopment = minOf(100, employee.skillDevelopment + 10))
+                    "设计" -> employee.copy(skillDesign = minOf(100, employee.skillDesign + 10))
+                    "美工" -> employee.copy(skillArt = minOf(100, employee.skillArt + 10))
+                    "音乐" -> employee.copy(skillMusic = minOf(100, employee.skillMusic + 10))
+                    "服务" -> employee.copy(skillService = minOf(100, employee.skillService + 10))
+                    else -> employee
+                }
+                allEmployees[index] = updatedEmployee
+            }
+        }
+    }
+    
+    val onDismissEmployee: (Employee) -> Unit = { employee ->
+        // 创始人不能被解雇
+        if (employee.id != 0) {
+            allEmployees.removeAll { it.id == employee.id }
         }
     }
     
@@ -1004,107 +998,17 @@ fun GameScreen(
                     .fillMaxWidth()
                     .padding(16.dp)
             ) {
-                if (showRecruitmentCenter && selectedTab == 1) {
-                    // 显示招聘中心界面
-                    RecruitmentCenterContent(
-                        candidateManager = candidateManager,
-                        onBack = { showRecruitmentCenter = false },
-                        onHireCandidate = { candidate, candidateManager ->
-                            // 检查职位人数限制（每个职位最多5人）
-                            val currentPositionCount = allEmployees.count { it.position == candidate.position }
-                            if (currentPositionCount >= 5) {
-                                // 显示职位人数已满消息
-                                messageText = "${candidate.position}职位已达到招聘上限（5人）！无法招聘${candidate.name}"
-                                showMessage = true
-                            } else if (money >= candidate.recruitmentCost) {
-                                // 根据招聘成功率判断是否成功
-                                val random = kotlin.random.Random.nextFloat()
-                                val hireSuccessRate = candidate.getHireSuccessRate()
-                                
-                                if (random <= hireSuccessRate) {
-                                     // 招聘成功
-                                     // 扣除招聘费用
-                                     money -= candidate.recruitmentCost
-                                     
-                                     // 更新候选人状态为已雇佣
-                                     candidateManager.updateCandidateStatus(candidate.id, com.example.yjcy.data.AvailabilityStatus.HIRED)
-                                     
-                                     // 将候选人转换为员工并添加到员工列表
-                                    val newEmployee = Employee(
-                                        id = candidate.id,
-                                        name = candidate.name,
-                                        position = candidate.position,
-                                        skillDevelopment = candidate.programmingSkill,
-                                        skillDesign = candidate.designSkill,
-                                        skillArt = candidate.planningSkill,
-                                        skillMusic = candidate.soundSkill,
-                                        skillService = candidate.customerServiceSkill,
-                                        salary = candidate.expectedSalary
-                                    )
-                                    
-                                    // 确保创始人员工（id=0）始终保持在列表第一位
-                                    val founderEmployee = allEmployees.find { it.id == 0 }
-                                    allEmployees.add(newEmployee)
-                                    if (founderEmployee != null && allEmployees.firstOrNull()?.id != 0) {
-                                        allEmployees.remove(founderEmployee)
-                                        allEmployees.add(0, founderEmployee)
-                                    }
-                                } else {
-                                    // 招聘失败，扣除一半费用
-                                    money -= candidate.recruitmentCost / 2
-                                    // 显示招聘失败消息
-                                    messageText = "招聘${candidate.name}失败！扣除一半招聘费用：¥${candidate.recruitmentCost / 2}"
-                                    showMessage = true
-                                }
-                            } else {
-                                // 显示资金不足消息
-                                messageText = "资金不足！招聘${candidate.name}需要¥${candidate.recruitmentCost}，当前资金：¥${money}"
-                                showMessage = true
-                            }
-                        }
-                    )
-                } else if (showHRCenter && selectedTab == 1) {
-                    // 显示人事中心界面
-                    HRCenterScreen(
-                        onNavigateToConfig = { navController.navigate("recruitment_config") },
-                        onNavigateToConfirmation = { navController.navigate("candidate_confirmation/0") },
-                        onNavigateToHistory = { navController.navigate("recruitment_history") },
-                        onNavigateBack = { showHRCenter = false }
-                    )
-                } else {
+
                     when (selectedTab) {
                         0 -> CompanyOverviewContent(
-                        companyName = companyName,
-                        founder = founder,
-                        allEmployees = allEmployees
-                    )
+                            companyName = companyName,
+                            founder = founder,
+                            allEmployees = allEmployees
+                        )
                         1 -> HRCenterEmployeeManagement(
                             employees = allEmployees,
-                            onTrainEmployee = { employee, skillType ->
-                                // 创始人不能被培训（技能已经是满级）
-                                if (employee.id != 0) {
-                                    // 执行培训逻辑
-                                    val index = allEmployees.indexOfFirst { it.id == employee.id }
-                                    if (index != -1) {
-                                        val updatedEmployee = when (skillType) {
-                                            "开发" -> employee.copy(skillDevelopment = minOf(100, employee.skillDevelopment + 10))
-                                            "设计" -> employee.copy(skillDesign = minOf(100, employee.skillDesign + 10))
-                                            "美工" -> employee.copy(skillArt = minOf(100, employee.skillArt + 10))
-                                            "音乐" -> employee.copy(skillMusic = minOf(100, employee.skillMusic + 10))
-                                            "服务" -> employee.copy(skillService = minOf(100, employee.skillService + 10))
-                                            else -> employee
-                                        }
-                                        allEmployees[index] = updatedEmployee
-                                    }
-                                }
-                            },
-                            onDismissEmployee = { employee ->
-                                // 创始人不能被解雇
-                                if (employee.id != 0) {
-                                    allEmployees.removeAll { it.id == employee.id }
-                                }
-                            },
-                            onNavigateToHRCenter = { showHRCenter = true }
+                            onTrainEmployee = onTrainEmployee,
+                            onDismissEmployee = onDismissEmployee
                         )
                         2 -> ProjectManagementWrapper(
                             games = games,
@@ -1126,7 +1030,6 @@ fun GameScreen(
                         )
                         // 其他标签页内容可以在这里添加
                     }
-                }
             }
             
             // 底部导航栏 - 使用优化版本（字体加粗+黑色）
@@ -1180,6 +1083,8 @@ fun GameScreen(
                 }
             }
         }
+        
+
     }
 }
 
@@ -1220,106 +1125,104 @@ fun TopInfoBar(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-        // 左边区域：公司LOGO和名字（垂直排列）
-        Column(
-            modifier = Modifier.weight(1f),
-            horizontalAlignment = Alignment.Start,
-            verticalArrangement = Arrangement.Center
-        ) {
-            // 公司LOGO在上
-            Text(
-                text = selectedLogo,
-                fontSize = 18.sp
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            // 公司名字在下
-            Text(
-                text = companyName,
-                color = Color.White,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-        
-        // 中间区域：日期和游戏速度
-        Column(
-            modifier = Modifier.weight(1.5f),
-            horizontalAlignment = Alignment.Start
-        ) {
-            // 日期和游戏速度下拉选择
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // 左边区域：公司LOGO和名字（垂直排列）
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.Start,
+                verticalArrangement = Arrangement.Center
             ) {
-                // 日期
+                // 公司LOGO在上
                 Text(
-                    text = "第${year}年${month}月${day}日",
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
+                    text = selectedLogo,
+                    fontSize = 18.sp
                 )
-                
-                // 游戏速度下拉选择
-                GameSpeedDropdown(
-                    currentSpeed = gameSpeed,
-                    isPaused = isPaused,
-                    onSpeedChange = onSpeedChange,
-                    onPauseToggle = onPauseToggle
-                )
-            }
-        }
-        
-        // 右边区域：资金、粉丝和设置按钮
-        Column(
-            modifier = Modifier.weight(1f),
-            horizontalAlignment = Alignment.End
-        ) {
-            // 资金
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+                Spacer(modifier = Modifier.height(2.dp))
+                // 公司名字在下
                 Text(
-                    text = "💰",
-                    fontSize = 12.sp
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "¥${formatMoney(money)}",
+                    text = companyName,
                     color = Color.White,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
             
-            Spacer(modifier = Modifier.height(4.dp))
-            
-            // 粉丝和设置按钮
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // 中间区域：日期和游戏速度
+            Column(
+                modifier = Modifier.weight(1.5f),
+                horizontalAlignment = Alignment.Start
             ) {
-                // 粉丝
+                // 日期和游戏速度下拉选择
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // 日期
+                    Text(
+                        text = "第${year}年${month}月${day}日",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    
+                    // 游戏速度下拉选择
+                    GameSpeedDropdown(
+                        currentSpeed = gameSpeed,
+                        isPaused = isPaused,
+                        onSpeedChange = onSpeedChange,
+                        onPauseToggle = onPauseToggle
+                    )
+                }
+            }
+            
+            // 右边区域：资金、粉丝和设置按钮
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.End
+            ) {
+                // 资金
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "👥",
+                        text = "💰",
                         fontSize = 12.sp
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = formatMoney(fans.toLong()),
+                        text = "¥${formatMoney(money)}",
                         color = Color.White,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
                 
-
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                // 粉丝和设置按钮
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // 粉丝
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "👥",
+                            fontSize = 12.sp
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = formatMoney(fans.toLong()),
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
         }
     }
-}
 }
 
 @Composable
@@ -1507,41 +1410,82 @@ fun CompanyInfoCard(
 
 @Composable
 fun EmployeeManagementContent(
-    onNavigateToRecruitment: () -> Unit = {},
+    onNavigateToHRCenter: () -> Unit = {},
     founder: Founder? = null,
     allEmployees: MutableList<Employee> = mutableListOf()
 ) {
-
-    
-    // 使用增强版员工管理界面
-    EmployeeManagementEnhanced(
-        employees = allEmployees,
-        onTrainEmployee = { employee, skillType ->
-            // 创始人不能被培训（技能已经是满级）
-            if (employee.id != 0) {
-                // 执行培训逻辑
-                val index = allEmployees.indexOfFirst { it.id == employee.id }
-                if (index != -1) {
-                    val updatedEmployee = when (skillType) {
-                        "开发" -> employee.copy(skillDevelopment = minOf(100, employee.skillDevelopment + 10))
-                        "设计" -> employee.copy(skillDesign = minOf(100, employee.skillDesign + 10))
-                        "美工" -> employee.copy(skillArt = minOf(100, employee.skillArt + 10))
-                        "音乐" -> employee.copy(skillMusic = minOf(100, employee.skillMusic + 10))
-                        "服务" -> employee.copy(skillService = minOf(100, employee.skillService + 10))
-                        else -> employee
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        // 员工统计卡片
+        EmployeeStatsCard(employees = allEmployees)
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // 人事中心按钮
+        Button(
+            onClick = onNavigateToHRCenter,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF3B82F6)
+            ),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "人事中心",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "人事中心",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // 员工列表
+        EmployeeList(
+            employees = allEmployees,
+            onTrainEmployee = { employee, skillType ->
+                // 创始人不能被培训（技能已经是满级）
+                if (employee.id != 0) {
+                    // 执行培训逻辑
+                    val index = allEmployees.indexOfFirst { it.id == employee.id }
+                    if (index != -1) {
+                        val updatedEmployee = when (skillType) {
+                            "开发" -> employee.copy(skillDevelopment = minOf(100, employee.skillDevelopment + 10))
+                            "设计" -> employee.copy(skillDesign = minOf(100, employee.skillDesign + 10))
+                            "美工" -> employee.copy(skillArt = minOf(100, employee.skillArt + 10))
+                            "音乐" -> employee.copy(skillMusic = minOf(100, employee.skillMusic + 10))
+                            "服务" -> employee.copy(skillService = minOf(100, employee.skillService + 10))
+                            else -> employee
+                        }
+                        allEmployees[index] = updatedEmployee
                     }
-                    allEmployees[index] = updatedEmployee
+                }
+            },
+            onDismissEmployee = { employee ->
+                // 创始人不能被解雇
+                if (employee.id != 0) {
+                    allEmployees.removeAll { it.id == employee.id }
                 }
             }
-        },
-        onDismissEmployee = { employee ->
-            // 创始人不能被解雇
-            if (employee.id != 0) {
-                allEmployees.removeAll { it.id == employee.id }
-            }
-        },
-        onNavigateToRecruitment = onNavigateToRecruitment
-    )
+        )
+    }
 }
 
 
@@ -2009,31 +1953,24 @@ fun BottomNavigationBar(
             )
             
             BottomNavItem(
-                icon = "🎯",
-                label = "招聘中心",
+                icon = "🎮",
+                label = "项目管理",
                 isSelected = selectedTab == 2,
                 onClick = { onTabSelected(2) }
             )
             
             BottomNavItem(
-                icon = "🎮",
-                label = "项目管理",
+                icon = "📊",
+                label = "市场分析",
                 isSelected = selectedTab == 3,
                 onClick = { onTabSelected(3) }
             )
             
             BottomNavItem(
-                icon = "📊",
-                label = "市场分析",
-                isSelected = selectedTab == 4,
-                onClick = { onTabSelected(4) }
-            )
-            
-            BottomNavItem(
                 icon = "⚙️",
                 label = "设置",
-                isSelected = selectedTab == 5,
-                onClick = { onTabSelected(5) }
+                isSelected = selectedTab == 4,
+                onClick = { onTabSelected(4) }
             )
         }
     }
@@ -4396,67 +4333,7 @@ fun InGameSettingsContent(
     }
 }
 
-@Composable
-fun RecruitmentCenterContent(
-    candidateManager: CandidateManager,
-    onBack: () -> Unit = {},
-    onHireCandidate: (Candidate, CandidateManager) -> Unit = { _, _ -> }
-) {
-    val candidates = candidateManager.candidates
-    
-    Column(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        // 返回按钮
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(
-                onClick = onBack,
-                modifier = Modifier
-                    .background(
-                        color = Color.White.copy(alpha = 0.1f),
-                        shape = RoundedCornerShape(8.dp)
-                    )
-            ) {
-                Icon(
-                    imageVector = Icons.Default.ArrowBack,
-                    contentDescription = "返回",
-                    tint = Color.White
-                )
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = "招聘中心",
-                color = Color.White,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-        
-        // 招聘中心内容
-        RecruitmentCenter(
-            candidates = candidates,
-            onHireCandidate = { candidate ->
-                // 调用传入的回调函数，处理招聘逻辑
-                onHireCandidate(candidate, candidateManager)
-            },
-            onRefreshCandidates = {
-                // 计算当前可用候选人数量，如果少于5个则生成足够的候选人使总数达到5个
-                val currentAvailableCount = candidateManager.getAvailableCandidatesCount()
-                val maxCandidates = 5
-                val needToGenerate = maxOf(0, maxCandidates - currentAvailableCount)
-                repeat(needToGenerate) {
-                    candidateManager.addCandidate(candidateManager.generateRandomCandidate())
-                }
-            },
-            currentMoney = 100000 // TODO: 从游戏状态获取实际资金
-        )
-    }
-}
+
 
 @Composable
 fun PrivacyPolicyDialog(onAgree: () -> Unit) {

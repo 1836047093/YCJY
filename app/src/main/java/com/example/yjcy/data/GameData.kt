@@ -4,6 +4,15 @@ import com.example.yjcy.ui.GameTheme
 import com.example.yjcy.ui.Platform
 import com.example.yjcy.ui.BusinessModel
 
+// 员工排序枚举
+enum class EmployeeSortBy {
+    NAME,        // 按姓名排序
+    POSITION,    // 按职位排序
+    SALARY,      // 按薪资排序
+    SKILL_LEVEL, // 按技能等级排序
+    HIRE_DATE    // 按入职时间排序
+}
+
 // 创始人职业枚举
 enum class FounderProfession(val displayName: String, val icon: String, val specialtySkill: String) {
     PROGRAMMER("程序员", "💻", "开发"),
