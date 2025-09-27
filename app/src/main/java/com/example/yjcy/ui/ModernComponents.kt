@@ -8,9 +8,11 @@ import androidx.compose.foundation.shape.*
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.*
@@ -22,9 +24,9 @@ import androidx.compose.ui.unit.*
 @Composable
 fun ModernButton(
     text: String,
-    icon: String? = null,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    icon: String? = null,
     enabled: Boolean = true,
     colors: ButtonColors = ButtonDefaults.buttonColors(
         containerColor = Color(0xFFF59E0B).copy(alpha = 0.3f)
@@ -68,8 +70,8 @@ fun ModernButton(
 fun SearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
-    placeholder: String = "搜索...",
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    placeholder: String = "搜索..."
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
     
@@ -171,16 +173,15 @@ fun GradientBackground(
     }
 }
 
-@OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun AnimatedCounter(
     count: Int,
     label: String,
     icon: String,
-    color: Color = Color.White,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    color: Color = Color.White
 ) {
-    var animatedCount by remember { mutableStateOf(0) }
+    var animatedCount by remember { mutableIntStateOf(0) }
     
     LaunchedEffect(count) {
         animatedCount = count
@@ -299,8 +300,8 @@ fun StatCard(
     title: String,
     value: String,
     icon: String,
-    color: Color = Color(0xFFF59E0B),
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    color: Color = Color(0xFFF59E0B)
 ) {
     ModernCard(
         modifier = modifier,
@@ -369,10 +370,10 @@ fun ProgressBar(
 @Composable
 fun InfoChip(
     text: String,
+    modifier: Modifier = Modifier,
     icon: String? = null,
     backgroundColor: Color = Color.White.copy(alpha = 0.1f),
-    textColor: Color = Color.White,
-    modifier: Modifier = Modifier
+    textColor: Color = Color.White
 ) {
     Surface(
         modifier = modifier,
@@ -408,9 +409,9 @@ fun InfoChip(
 @Composable
 fun SectionHeader(
     title: String,
+    modifier: Modifier = Modifier,
     subtitle: String? = null,
-    icon: String? = null,
-    modifier: Modifier = Modifier
+    icon: String? = null
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -451,7 +452,7 @@ fun FloatingActionButton(
     modifier: Modifier = Modifier,
     backgroundColor: Color = Color(0xFFF59E0B)
 ) {
-    androidx.compose.material3.FloatingActionButton(
+    FloatingActionButton(
         onClick = onClick,
         modifier = modifier,
         containerColor = backgroundColor,
@@ -462,17 +463,5 @@ fun FloatingActionButton(
             fontSize = 24.sp,
             color = Color.White
         )
-    }
-}
-
-// 获取职位图标的辅助函数
-fun getPositionIcon(position: String): String {
-    return when (position) {
-        "程序员" -> "💻"
-        "美术师" -> "🎨"
-        "策划师" -> "📋"
-        "音效师" -> "🎵"
-        "客服" -> "📞"
-        else -> "👤"
     }
 }

@@ -1,9 +1,8 @@
 package com.example.yjcy.data
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import java.util.UUID
 import kotlinx.coroutines.flow.asStateFlow
-import java.util.*
+import java.util.UUID
 
 /**
  * 分配管理服务 - 负责协调各种分配算法引擎，提供统一的分配接口
@@ -361,8 +360,6 @@ data class AssignmentResult(
         fun failure(message: String) = AssignmentResult(false, null, message)
     }
 }
-
-
 
 /**
  * 分配建议

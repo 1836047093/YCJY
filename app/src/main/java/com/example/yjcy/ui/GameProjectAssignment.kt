@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.yjcy.data.*
-import com.example.yjcy.ui.OneClickAssignmentButton
+
 
 // Game类已在MainActivity.kt中定义，避免重复定义
 
@@ -162,7 +162,7 @@ fun EnhancedGameProjectCard(
                 Spacer(modifier = Modifier.height(4.dp))
                 
                 LinearProgressIndicator(
-                    progress = game.developmentProgress,
+                    progress = { game.developmentProgress },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(6.dp)
@@ -175,11 +175,20 @@ fun EnhancedGameProjectCard(
             Spacer(modifier = Modifier.height(16.dp))
             
             // 一键分配员工按钮
-            OneClickAssignmentButton(
+            Button(
                 onClick = { showAssignmentDialog = true },
                 modifier = Modifier.fillMaxWidth(),
-                text = if (game.assignedEmployees.isEmpty()) "👥 分配员工" else "👥 重新分配员工"
-            )
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF10B981)
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    text = if (game.assignedEmployees.isEmpty()) "👥 分配员工" else "👥 重新分配员工",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
     

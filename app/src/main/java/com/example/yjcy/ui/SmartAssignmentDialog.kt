@@ -9,7 +9,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -107,8 +113,8 @@ private fun SmartAssignmentContent(
             AnimatedContent(
                 targetState = currentStep,
                 transitionSpec = {
-                    slideInHorizontally { width -> width } + fadeIn() with
-                            slideOutHorizontally { width -> -width } + fadeOut()
+                    slideInHorizontally { width -> width } + fadeIn() togetherWith
+                        slideOutHorizontally { width -> -width } + fadeOut()
                 },
                 label = "dialog_content",
                 modifier = Modifier.weight(1f)
@@ -129,9 +135,9 @@ private fun SmartAssignmentContent(
                     AssignmentStep.PREVIEW -> {
                         AssignmentPreviewContent(
                             strategy = selectedStrategy,
-                            projects = projects,
-                            employees = employees,
-                            previewPlan = previewPlan,
+                            _projects = projects,
+                            _employees = employees,
+                            _previewPlan = previewPlan,
                             onConfirmClick = {
                                 onAssignmentConfirmed(selectedStrategy)
                                 onDismiss()
@@ -167,7 +173,7 @@ private fun AssignmentDialogHeader(
                     modifier = Modifier.size(40.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.ArrowBack,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "返回",
                         tint = Color(0xFF475569)
                     )
@@ -247,7 +253,7 @@ private fun StrategySelectionContent(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(AssignmentStrategy.values()) { strategy ->
+            items(AssignmentStrategy.entries) { strategy ->
                 StrategyCard(
                     strategy = strategy,
                     isSelected = strategy == selectedStrategy,
@@ -281,7 +287,7 @@ private fun StrategySelectionContent(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Icon(
-                    imageVector = Icons.Default.ArrowForward,
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(20.dp)
@@ -345,7 +351,7 @@ private fun AssignmentOverviewCard(
  */
 @Composable
 private fun OverviewItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     title: String,
     value: String,
     color: Color
@@ -476,9 +482,9 @@ private fun StrategyCard(
 @Composable
 private fun AssignmentPreviewContent(
     strategy: AssignmentStrategy,
-    projects: List<Project>,
-    employees: List<Employee>,
-    previewPlan: AssignmentPlan?,
+    @Suppress("UNUSED_PARAMETER") _projects: List<Project>,
+    @Suppress("UNUSED_PARAMETER") _employees: List<Employee>,
+    @Suppress("UNUSED_PARAMETER") _previewPlan: AssignmentPlan?,
     onConfirmClick: () -> Unit
 ) {
     Column(

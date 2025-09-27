@@ -15,7 +15,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.ui.window.Dialog
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -290,7 +290,7 @@ fun AnimatedThemeGrid(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(GameTheme.values().toList()) { theme ->
+        items(GameTheme.entries.toList()) { theme ->
             AnimatedThemeCard(
                 theme = theme,
                 isSelected = selectedTheme == theme,
@@ -309,7 +309,7 @@ fun SuperEnhancedGameDevelopmentDialog(
     onDismiss: () -> Unit,
     onGameCreated: (Game) -> Unit
 ) {
-    var currentStep by remember { mutableStateOf(0) }
+    var currentStep by remember { mutableIntStateOf(0) }
     var gameName by remember { mutableStateOf("") }
     var selectedTheme by remember { mutableStateOf<GameTheme?>(null) }
     var selectedPlatforms by remember { mutableStateOf(setOf<Platform>()) }
@@ -546,13 +546,13 @@ fun EnhancedGameDevelopmentDialog(
     onDismiss: () -> Unit,
     onGameCreated: (Game) -> Unit
 ) {
-    var currentStep by remember { mutableStateOf(0) }
+    var currentStep by remember { mutableIntStateOf(0) }
     var gameName by remember { mutableStateOf("") }
     var selectedTheme by remember { mutableStateOf<GameTheme?>(null) }
     var selectedPlatforms by remember { mutableStateOf(setOf<Platform>()) }
     var selectedBusinessModel by remember { mutableStateOf<BusinessModel?>(null) }
     
-    androidx.compose.ui.window.Dialog(
+    Dialog(
         onDismissRequest = onDismiss
     ) {
         Card(
@@ -628,7 +628,7 @@ fun EnhancedGameDevelopmentDialog(
                             colors = ButtonDefaults.outlinedButtonColors(
                                 contentColor = Color.White
                             ),
-                            border = androidx.compose.foundation.BorderStroke(
+                            border = BorderStroke(
                                 width = 1.dp,
                                 color = Color.White.copy(alpha = 0.5f)
                             )
@@ -862,7 +862,7 @@ fun ThemeGrid(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(GameTheme.values().toList()) { theme ->
+        items(GameTheme.entries.toList()) { theme ->
             ThemeCard(
                 theme = theme,
                 isSelected = selectedTheme == theme,
@@ -1030,7 +1030,7 @@ fun PlatformGrid(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(Platform.values().toList()) { platform ->
+        items(Platform.entries.toList()) { platform ->
             PlatformCard(
                 platform = platform,
                 isSelected = selectedPlatforms.contains(platform),
@@ -1129,7 +1129,7 @@ fun PlatformAndBusinessModelStep(
         
         Spacer(modifier = Modifier.height(8.dp))
         
-        BusinessModel.values().forEach { model ->
+        BusinessModel.entries.forEach { model ->
             Card(
                 modifier = Modifier
                     .fillMaxWidth()

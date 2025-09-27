@@ -2,6 +2,7 @@ package com.example.yjcy.test
 
 import com.example.yjcy.data.*
 import com.example.yjcy.ui.*
+import java.util.Locale
 
 /**
  * 增强分配功能测试类
@@ -291,9 +292,9 @@ class PerformanceTest {
             Game(
                 id = "project$i",
                 name = "测试项目$i",
-                theme = GameTheme.values().random(),
+                theme = GameTheme.entries.random(),
                 platforms = listOf(Platform.MOBILE),
-                businessModel = BusinessModel.values().random(),
+                businessModel = BusinessModel.entries.random(),
                 assignedEmployees = emptyList()
             )
         }
@@ -325,7 +326,7 @@ class PerformanceTest {
         println("项目数量: ${projects.size}")
         println("员工数量: ${employees.size}")
         println("执行时间: ${endTime - startTime}ms")
-        println("分配成功率: ${String.format("%.1f", result.assignments.count { it.value.isNotEmpty() }.toDouble() / projects.size * 100)}%")
+        println("分配成功率: ${String.format(Locale.getDefault(), "%.1f", result.assignments.count { it.value.isNotEmpty() }.toDouble() / projects.size * 100)}%")
         println("平均匹配度: 85.0%")
     }
 }

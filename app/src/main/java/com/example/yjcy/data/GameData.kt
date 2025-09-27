@@ -158,25 +158,3 @@ data class SaveData(
     val games: List<Game> = emptyList(),
     val saveTime: Long = System.currentTimeMillis()
 )
-
-// 市场分析相关数据类
-data class Competitor(
-    val id: String,
-    val name: String,
-    val icon: String,
-    val annualRevenue: Long,
-    val fanCount: Int,
-    val marketValue: Long
-)
-
-enum class TrendDirection {
-    UP, DOWN, STABLE
-}
-
-data class GameThemeTrend(
-    val theme: String,
-    val icon: String,
-    val hotIndex: Float,
-    val marketShare: Float,
-    val trend: TrendDirection
-)

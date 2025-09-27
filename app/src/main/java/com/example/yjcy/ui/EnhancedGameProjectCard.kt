@@ -1,13 +1,19 @@
 package com.example.yjcy.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Assignment
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
+import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,7 +35,6 @@ import com.example.yjcy.ui.BusinessModel
 fun EnhancedGameProjectCard(
     game: Game,
     availableEmployees: List<Employee>,
-    allProjects: List<Game>,
     onEmployeeAssigned: (Game, List<Employee>) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -202,7 +207,7 @@ fun EnhancedGameProjectCard(
                     Spacer(modifier = Modifier.height(4.dp))
                     
                     LinearProgressIndicator(
-                        progress = progress,
+                        progress = { progress },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(6.dp),

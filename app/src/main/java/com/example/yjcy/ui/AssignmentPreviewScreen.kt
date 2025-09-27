@@ -8,11 +8,12 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,7 +25,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.yjcy.data.*
 import kotlin.math.roundToInt
 
 /**
@@ -94,11 +94,7 @@ fun AssignmentPreviewScreen(
                     )
                 }
                 PreviewTab.STATISTICS -> {
-                    StatisticsTabContent(
-                        assignmentPlan = assignmentPlan,
-                        projects = projects,
-                        employees = employees
-                    )
+                    StatisticsTabContent()
                 }
             }
         }
@@ -187,7 +183,7 @@ private fun PreviewTabRow(
             .padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        PreviewTab.values().forEach { tab ->
+        PreviewTab.entries.forEach { tab ->
             PreviewTabItem(
                 tab = tab,
                 isSelected = tab == selectedTab,
@@ -502,7 +498,7 @@ private fun MetricRow(
         Spacer(modifier = Modifier.height(8.dp))
         
         LinearProgressIndicator(
-            progress = progress,
+            progress = { progress },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(6.dp)
@@ -548,10 +544,7 @@ private fun ProjectAssignmentOverview(
                 
                 ProjectOverviewItem(
                     project = project,
-                    assignedCount = projectAssignments.size,
-                    employees = employees.filter { employee ->
-                        projectAssignments.any { it.employeeId == employee.id }
-                    }
+                    assignedCount = projectAssignments.size
                 )
                 
                 if (project != projects.last()) {
@@ -568,8 +561,7 @@ private fun ProjectAssignmentOverview(
 @Composable
 private fun ProjectOverviewItem(
     project: Project,
-    assignedCount: Int,
-    employees: List<Employee>
+    assignedCount: Int
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -726,11 +718,7 @@ private fun AssignmentDetailCard(
  * 统计标签内容
  */
 @Composable
-private fun StatisticsTabContent(
-    assignmentPlan: AssignmentPlan,
-    projects: List<Project>,
-    employees: List<Employee>
-) {
+private fun StatisticsTabContent() {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
