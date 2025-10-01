@@ -14,8 +14,11 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
-import androidx.compose.ui.window.Dialog
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,8 +31,82 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import kotlin.math.PI
 import kotlin.math.sin
+
+// 项目显示类型枚举
+enum class ProjectDisplayType(val displayName: String) {
+    CURRENT("当前项目"),
+    RELEASED("已发售")
+}
+
+@Composable
+fun ProjectTypeDropdown(
+    selectedType: ProjectDisplayType,
+    onTypeSelected: (ProjectDisplayType) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    
+    Box {
+        Card(
+            modifier = Modifier
+                .clickable { expanded = true },
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF4F46E5).copy(alpha = 0.3f)
+            ),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = selectedType.displayName,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Icon(
+                    imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = "展开下拉菜单",
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+        
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.background(
+                Color(0xFF1E1B4B),
+                RoundedCornerShape(8.dp)
+            )
+        ) {
+            ProjectDisplayType.values().forEach { type ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = type.displayName,
+                            color = if (type == selectedType) Color(0xFF60A5FA) else Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = if (type == selectedType) FontWeight.Bold else FontWeight.Normal
+                        )
+                    },
+                    onClick = {
+                        onTypeSelected(type)
+                        expanded = false
+                    },
+                    modifier = Modifier.background(
+                        if (type == selectedType) Color(0xFF3B82F6).copy(alpha = 0.2f) else Color.Transparent
+                    )
+                )
+            }
+        }
+    }
+}
 
 
 /**
@@ -40,9 +117,31 @@ fun EnhancedProjectManagementContent(
     games: List<Game> = emptyList(),
     onGamesUpdate: (List<Game>) -> Unit = {},
     founder: Founder? = null,
-    availableEmployees: List<Employee> = founder?.let { listOf(it.toEmployee()) } ?: getDefaultEmployees()
+    availableEmployees: List<Employee> = founder?.let { listOf(it.toEmployee()) } ?: getDefaultEmployees(),
+    refreshTrigger: Int = 0  // 新增：用于触发UI刷新
 ) {
     var showGameDevelopmentDialog by remember { mutableStateOf(false) }
+    var selectedProjectType by remember { mutableStateOf(ProjectDisplayType.CURRENT) }
+    
+    // 根据选择的项目类型过滤游戏列表
+    val filteredGames = remember(games, selectedProjectType) {
+        when (selectedProjectType) {
+            ProjectDisplayType.CURRENT -> games.filter { 
+                it.releaseStatus in listOf(
+                    GameReleaseStatus.DEVELOPMENT,
+                    GameReleaseStatus.READY_FOR_RELEASE,
+                    GameReleaseStatus.PRICE_SETTING
+                )
+            }
+            ProjectDisplayType.RELEASED -> games.filter {
+                it.releaseStatus in listOf(
+                    GameReleaseStatus.RELEASED,
+                    GameReleaseStatus.RATED,
+                    GameReleaseStatus.REMOVED_FROM_MARKET
+                )
+            }
+        }
+    }
     
     Column(
         modifier = Modifier
@@ -100,38 +199,49 @@ fun EnhancedProjectManagementContent(
         
         Spacer(modifier = Modifier.height(24.dp))
         
-        // 当前项目列表
+        // 项目列表标题行
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "当前项目",
+                text = selectedProjectType.displayName,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White
             )
             
-            // 可用员工统计
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF3B82F6).copy(alpha = 0.3f)
-                ),
-                shape = RoundedCornerShape(8.dp)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    text = "👥 可用员工: ${availableEmployees.size}人",
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                // 项目类型下拉选择框
+                ProjectTypeDropdown(
+                    selectedType = selectedProjectType,
+                    onTypeSelected = { selectedProjectType = it }
                 )
+                
+                // 可用员工统计
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF3B82F6).copy(alpha = 0.3f)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "👥 可用员工: ${availableEmployees.size}人",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
             }
         }
         
         Spacer(modifier = Modifier.height(12.dp))
         
-        if (games.isEmpty()) {
+        if (filteredGames.isEmpty()) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -155,12 +265,18 @@ fun EnhancedProjectManagementContent(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "暂无进行中的项目",
+                            text = when (selectedProjectType) {
+                                ProjectDisplayType.CURRENT -> "暂无进行中的项目"
+                                ProjectDisplayType.RELEASED -> "暂无已发售的游戏"
+                            },
                             color = Color.White.copy(alpha = 0.7f),
                             fontSize = 16.sp
                         )
                         Text(
-                            text = "点击上方按钮开始开发新游戏",
+                            text = when (selectedProjectType) {
+                                ProjectDisplayType.CURRENT -> "点击上方按钮开始开发新游戏"
+                                ProjectDisplayType.RELEASED -> "完成游戏开发并发售后将在此显示"
+                            },
                             color = Color.White.copy(alpha = 0.5f),
                             fontSize = 14.sp
                         )
@@ -171,7 +287,7 @@ fun EnhancedProjectManagementContent(
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(games) { game ->
+                items(filteredGames) { game ->
                     EnhancedGameProjectCard(
                         game = game,
                         availableEmployees = availableEmployees,
@@ -185,7 +301,19 @@ fun EnhancedProjectManagementContent(
                                 }
                             }
                             onGamesUpdate(updatedGames)
-                        }
+                        },
+                        onGameUpdate = { updatedGame ->
+                            // 通用游戏更新回调，支持下架等操作
+                            val updatedGames = games.map { existingGame ->
+                                if (existingGame.id == updatedGame.id) {
+                                    updatedGame
+                                } else {
+                                    existingGame
+                                }
+                            }
+                            onGamesUpdate(updatedGames)
+                        },
+                        refreshTrigger = refreshTrigger
                     )
                 }
             }
@@ -1129,7 +1257,7 @@ fun PlatformAndBusinessModelStep(
         
         Spacer(modifier = Modifier.height(8.dp))
         
-        BusinessModel.entries.forEach { model ->
+        listOf(BusinessModel.SINGLE_PLAYER, BusinessModel.ONLINE_GAME).forEach { model ->
             Card(
                 modifier = Modifier
                     .fillMaxWidth()

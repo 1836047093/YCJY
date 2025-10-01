@@ -1,5 +1,7 @@
 package com.example.yjcy.ui
 
+import com.example.yjcy.data.SkillConstants
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.yjcy.data.Employee
+import com.example.yjcy.ui.components.TalentMarketDialog
 import kotlin.random.Random
 
 @Composable
@@ -28,10 +31,12 @@ fun EmployeeManagementContent(
     allEmployees: List<Employee>,
     onEmployeesUpdate: (List<Employee>) -> Unit,
     money: Long,
-    onMoneyUpdate: (Long) -> Unit
+    onMoneyUpdate: (Long) -> Unit,
+    onNavigateToTalentMarket: () -> Unit = {}
 ) {
     var showTrainingDialog by remember { mutableStateOf(false) }
     var showFireDialog by remember { mutableStateOf(false) }
+    var showTalentMarketDialog by remember { mutableStateOf(false) }
     var selectedEmployee by remember { mutableStateOf<Employee?>(null) }
     
     Column(
@@ -116,6 +121,35 @@ fun EmployeeManagementContent(
             }
         }
         
+        // 人才市场入口按钮
+        Button(
+            onClick = { showTalentMarketDialog = true },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF10B981)
+            ),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "🎯",
+                    fontSize = 18.sp,
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+                Text(
+                    text = "人才市场",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+        }
+        
         // 员工列表
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -147,11 +181,11 @@ fun EmployeeManagementContent(
                     if (emp.id == selectedEmployee!!.id) {
                         val skillBoost = Random.nextInt(1, 3)
                         emp.copy(
-                            skillDevelopment = minOf(5, emp.skillDevelopment + skillBoost),
-                            skillDesign = minOf(5, emp.skillDesign + skillBoost),
-                            skillArt = minOf(5, emp.skillArt + skillBoost),
-                            skillMusic = minOf(5, emp.skillMusic + skillBoost),
-                            skillService = minOf(5, emp.skillService + skillBoost)
+                            skillDevelopment = minOf(SkillConstants.MAX_SKILL_LEVEL, emp.skillDevelopment + skillBoost),
+                            skillDesign = minOf(SkillConstants.MAX_SKILL_LEVEL, emp.skillDesign + skillBoost),
+                            skillArt = minOf(SkillConstants.MAX_SKILL_LEVEL, emp.skillArt + skillBoost),
+                            skillMusic = minOf(SkillConstants.MAX_SKILL_LEVEL, emp.skillMusic + skillBoost),
+                            skillService = minOf(SkillConstants.MAX_SKILL_LEVEL, emp.skillService + skillBoost)
                         )
                     } else emp
                 }
@@ -180,6 +214,43 @@ fun EmployeeManagementContent(
             onDismiss = {
                 showFireDialog = false
                 selectedEmployee = null
+            }
+        )
+    }
+    
+    // 人才市场弹出式对话框
+    if (showTalentMarketDialog) {
+        TalentMarketDialog(
+            saveData = com.example.yjcy.data.SaveData(
+                money = money,
+                allEmployees = allEmployees
+            ),
+            onDismiss = { showTalentMarketDialog = false },
+            onRecruitCandidate = { candidate ->
+                // 招聘候选人的逻辑
+                val newEmployee = Employee(
+                    id = (allEmployees.maxOfOrNull { it.id } ?: 0) + 1,
+                    name = candidate.name,
+                    position = candidate.position,
+                    skillDevelopment = candidate.skillDevelopment,
+                    skillDesign = candidate.skillDesign,
+                    skillArt = candidate.skillArt,
+                    skillMusic = candidate.skillMusic,
+                    skillService = candidate.skillService,
+                    salary = candidate.expectedSalary,
+                    experience = candidate.experience
+                )
+                
+                // 添加新员工到列表
+                val updatedEmployees = allEmployees.toMutableList()
+                updatedEmployees.add(newEmployee)
+                onEmployeesUpdate(updatedEmployees)
+                
+                // 扣除招聘费用
+                val recruitmentCost = candidate.expectedSalary * 2
+                onMoneyUpdate(money - recruitmentCost)
+                
+                showTalentMarketDialog = false
             }
         )
     }
@@ -218,9 +289,10 @@ fun EmployeeCard(
                         color = Color.White
                     )
                     Text(
-                        text = "技能: ${employee.skillDevelopment + employee.skillDesign + employee.skillArt + employee.skillMusic + employee.skillService}",
+                        text = "${employee.getSpecialtySkillType()}技能：${employee.getSpecialtySkillLevel()}级",
                         fontSize = 14.sp,
-                        color = Color.White.copy(alpha = 0.8f)
+                        color = Color.White.copy(alpha = 0.8f),
+                        modifier = Modifier.padding(bottom = 8.dp)
                     )
                     Text(
                         text = "薪资: ¥${employee.salary}/月",

@@ -29,7 +29,8 @@ fun ProjectManagementWrapper(
     games: List<Game> = emptyList(),
     onGamesUpdate: (List<Game>) -> Unit = {},
     founder: Founder? = null,
-    allEmployees: List<Employee> = emptyList()
+    allEmployees: List<Employee> = emptyList(),
+    refreshTrigger: Int = 0  // 新增：用于触发UI刷新
 ) {
     // 直接使用员工分配功能的项目管理
     EnhancedProjectManagementContent(
@@ -38,6 +39,7 @@ fun ProjectManagementWrapper(
                     games = games,
                     onGamesUpdate = { updatedGames ->
                         onGamesUpdate(updatedGames)
-                    }
+                    },
+                    refreshTrigger = refreshTrigger
     )
 }

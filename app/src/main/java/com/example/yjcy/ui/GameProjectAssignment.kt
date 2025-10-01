@@ -399,7 +399,7 @@ fun EmployeeSelectionCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "主技能: ${employee.getPrimarySkillValue()}",
+                        text = "${employee.getSpecialtySkillType()}技能：${employee.getSpecialtySkillLevel()}级",
                         color = Color.White.copy(alpha = 0.8f),
                         fontSize = 12.sp
                     )

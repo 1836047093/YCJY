@@ -1,17 +1,17 @@
 package com.example.yjcy.ui
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.Assignment
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.automirrored.filled.Assignment
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.runtime.*
@@ -25,7 +25,10 @@ import androidx.compose.ui.unit.sp
 import com.example.yjcy.data.EnhancedAssignmentResult
 import com.example.yjcy.data.Game
 import com.example.yjcy.data.Employee
+import com.example.yjcy.data.GameReleaseStatus
+import com.example.yjcy.data.RevenueManager
 import com.example.yjcy.ui.BusinessModel
+import com.example.yjcy.utils.formatMoneyWithDecimals
 
 /**
  * 增强版游戏项目卡片
@@ -36,9 +39,21 @@ fun EnhancedGameProjectCard(
     game: Game,
     availableEmployees: List<Employee>,
     onEmployeeAssigned: (Game, List<Employee>) -> Unit,
-    modifier: Modifier = Modifier
+    onGameUpdate: (Game) -> Unit = {},
+    modifier: Modifier = Modifier,
+    refreshTrigger: Int = 0  // 新增：用于触发UI刷新的参数
 ) {
-    var showOriginalDialog by remember { mutableStateOf(false) }
+    var showRevenueDialog by remember { mutableStateOf(false) }
+    
+    // 检查游戏是否已发售
+    val isReleased = game.releaseStatus == GameReleaseStatus.RELEASED || game.releaseStatus == GameReleaseStatus.RATED
+    
+    // 当 refreshTrigger 改变时，强制重新获取收益数据
+    val gameRevenue by remember(game.id, refreshTrigger) {
+        derivedStateOf { 
+            if (isReleased) RevenueManager.getGameRevenue(game.id) else null
+        }
+    }
     
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -134,8 +149,8 @@ fun EnhancedGameProjectCard(
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            // 已分配员工信息
-            if (game.assignedEmployees.isNotEmpty()) {
+            // 已分配员工信息（仅对开发中的游戏显示）
+            if (!isReleased && game.assignedEmployees.isNotEmpty()) {
                 Text(
                     text = "已分配员工 (${game.assignedEmployees.size}人):",
                     color = Color.White.copy(alpha = 0.9f),
@@ -153,9 +168,9 @@ fun EnhancedGameProjectCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Person,
+                            imageVector = Icons.AutoMirrored.Filled.Assignment,
                             contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.7f),
+                            tint = Color(0xFFF59E0B),
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -166,7 +181,7 @@ fun EnhancedGameProjectCard(
                         )
                         Spacer(modifier = Modifier.weight(1f))
                         Text(
-                            text = "技能: ${employee.getPrimarySkillValue()}",
+                            text = "${employee.getSpecialtySkillType()}技能：${employee.getSpecialtySkillLevel()}级",
                             color = Color.White.copy(alpha = 0.6f),
                             fontSize = 12.sp
                         )
@@ -184,8 +199,17 @@ fun EnhancedGameProjectCard(
                 
                 Spacer(modifier = Modifier.height(12.dp))
                 
-                // 开发进度
-                val progress = (game.assignedEmployees.size * 0.2f).coerceAtMost(1.0f)
+                // 开发进度 - 与实际逻辑保持一致（仅对开发中的游戏显示）
+                // 计算员工技能总和
+                val totalSkillPoints = game.assignedEmployees.sumOf { employee ->
+                    employee.skillDevelopment + employee.skillDesign +
+                    employee.skillArt + employee.skillMusic + employee.skillService
+                }
+
+                // 基础进度增长：每天3%，根据员工技能调整
+                val skillMultiplier = (totalSkillPoints / 25f).coerceAtLeast(0.1f)
+                val actualProgress = game.developmentProgress
+
                 Column {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -198,7 +222,7 @@ fun EnhancedGameProjectCard(
                             fontWeight = FontWeight.Medium
                         )
                         Text(
-                            text = "${(progress * 100).toInt()}%",
+                            text = "${(actualProgress * 100).toInt()}%",
                             color = Color.White.copy(alpha = 0.8f),
                             fontSize = 14.sp
                         )
@@ -207,80 +231,187 @@ fun EnhancedGameProjectCard(
                     Spacer(modifier = Modifier.height(4.dp))
                     
                     LinearProgressIndicator(
-                        progress = { progress },
+                        progress = { actualProgress },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(6.dp),
                         color = Color(0xFF10B981),
                         trackColor = Color.White.copy(alpha = 0.2f)
                     )
+                    
+                    // 显示技能效率提示
+                    if (game.assignedEmployees.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "技能效率: ${skillMultiplier.toInt()}x (技能点: $totalSkillPoints)",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 10.sp
+                        )
+                    }
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
             }
             
-            // 分配按钮区域 - 新增智能分配选项
+            // 收益信息显示区域（仅对已发售游戏）
+            gameRevenue?.let { revenue ->
+                val statistics = remember(revenue) {
+                    RevenueManager.calculateStatistics(revenue)
+                }
+                
+                // 收益概览卡片
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF10B981).copy(alpha = 0.1f)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Text(
+                            text = "💰 收益概览",
+                            color = Color(0xFF10B981),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        // 收益统计行
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(
+                                    text = "总收益",
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    fontSize = 12.sp
+                                )
+                                Text(
+                                    text = "¥${formatMoneyWithDecimals(statistics.totalRevenue)}",
+                                    color = Color(0xFF10B981),
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            
+                            Column {
+                                Text(
+                                    text = "总销量",
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    fontSize = 12.sp
+                                )
+                                Text(
+                                    text = "${formatMoneyWithDecimals(statistics.totalSales.toDouble())}份",
+                                    color = Color.White,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            
+                            Column {
+                                Text(
+                                    text = "在售状态",
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    fontSize = 12.sp
+                                )
+                                Text(
+                                    text = if (revenue.isActive) "在售" else "已下架",
+                                    color = if (revenue.isActive) Color(0xFF10B981) else Color(0xFFF59E0B),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+            
+            // 按钮区域
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // 智能分配按钮（新功能）
-                EnhancedOneClickAssignmentButton(
-                    projects = listOf(game),
-                    employees = availableEmployees,
-                    onAssignmentComplete = { result ->
-                        // 处理智能分配结果
-                        result.assignments.forEach { (projectName, employees) ->
-                            if (projectName == game.name) {
-                                onEmployeeAssigned(game, employees)
+                // 如果游戏已发售，显示收益按钮
+                if (isReleased) {
+                    Button(
+                        onClick = { showRevenueDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF10B981)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.TrendingUp,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "📊 查看详细收益报告",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                } else {
+                    // 开发中的游戏显示分配按钮
+                    // 智能分配按钮（新功能）
+                    EnhancedOneClickAssignmentButton(
+                        projects = listOf(game),
+                        employees = availableEmployees,
+                        onAssignmentComplete = { result ->
+                            // 处理智能分配结果
+                            result.assignments.forEach { (projectId, employees) ->
+                                if (projectId == game.id) {
+                                    onEmployeeAssigned(game, employees)
+                                }
                             }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    text = if (game.assignedEmployees.isEmpty()) 
-                        "🎯 智能分配最佳员工" else "🎯 重新智能分配"
-                )
-                
-                // 原有的手动分配按钮
-                OutlinedButton(
-                    onClick = { showOriginalDialog = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color.White.copy(alpha = 0.8f)
-                    ),
-                    border = BorderStroke(
-                        width = 1.dp,
-                        color = Color.White.copy(alpha = 0.3f)
-                    ),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Group,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
+                        },
+                        modifier = Modifier.fillMaxWidth(),
                         text = if (game.assignedEmployees.isEmpty()) 
-                            "手动选择员工" else "手动重新分配",
-                        fontSize = 14.sp
+                            "一键分配员工" else "重新分配员工"
                     )
                 }
             }
         }
     }
     
-    // 原有的员工分配对话框
-    if (showOriginalDialog) {
-        EmployeeAssignmentDialog(
-            game = game,
-            availableEmployees = availableEmployees,
-            onDismiss = { showOriginalDialog = false },
-            onAssignEmployees = { selectedEmployees ->
-                onEmployeeAssigned(game, selectedEmployees)
-                showOriginalDialog = false
-            }
-        )
+    // 显示收益对话框
+    if (showRevenueDialog) {
+        gameRevenue?.let { revenue ->
+            GameRevenueDialog(
+                gameRevenue = revenue,
+                onDismiss = { showRevenueDialog = false },
+                onRemoveFromMarket = { gameId ->
+                    // 处理下架游戏逻辑
+                    RevenueManager.removeGameFromMarket(gameId)
+                    // 更新游戏状态为下架
+                    val updatedGame = game.copy(
+                        releaseStatus = GameReleaseStatus.REMOVED_FROM_MARKET
+                    )
+                    onGameUpdate(updatedGame)
+                    showRevenueDialog = false
+                },
+                onRelistGame = { gameId ->
+                    // 处理重新上架游戏逻辑
+                    RevenueManager.relistGame(gameId)
+                    // 更新游戏状态为重新上架
+                    val updatedGame = game.copy(
+                        releaseStatus = GameReleaseStatus.RELEASED
+                    )
+                    onGameUpdate(updatedGame)
+                    showRevenueDialog = false
+                }
+            )
+        }
     }
 }
 
@@ -344,7 +475,7 @@ fun BatchEnhancedAssignmentCard(
                 StatCard(
                     title = "待分配项目",
                     value = projects.count { it.assignedEmployees.isEmpty() }.toString(),
-                    icon = Icons.Default.Assignment,
+                    icon = Icons.AutoMirrored.Filled.Assignment,
                     color = Color(0xFFF59E0B)
                 )
                 

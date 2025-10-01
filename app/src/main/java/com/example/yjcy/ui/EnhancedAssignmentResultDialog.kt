@@ -308,7 +308,7 @@ private fun ProjectAssignmentCard(
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     Text(
-                        text = "技能: ${employee.getTotalSkillPoints()}",
+                        text = "${employee.getSpecialtySkillType()}技能：${employee.getSpecialtySkillLevel()}级",
                         fontSize = 12.sp,
                         color = Color.White.copy(alpha = 0.7f)
                     )
@@ -380,7 +380,7 @@ private fun UnassignedEmployeesCard(unassignedEmployees: List<Employee>) {
             
             unassignedEmployees.forEach { employee ->
                 Text(
-                    text = "• ${employee.name}(${employee.position}) - 技能: ${employee.getTotalSkillPoints()}",
+                    text = "• ${employee.name}(${employee.position}) - ${employee.getSpecialtySkillType()}技能：${employee.getSpecialtySkillLevel()}级",
                     fontSize = 14.sp,
                     color = Color.White.copy(alpha = 0.9f),
                     modifier = Modifier.padding(vertical = 2.dp)

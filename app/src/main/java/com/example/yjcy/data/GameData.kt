@@ -22,6 +22,16 @@ enum class FounderProfession(val displayName: String, val icon: String, val spec
     CUSTOMER_SERVICE("客服", "📞", "服务")
 }
 
+// 游戏发售状态枚举
+enum class GameReleaseStatus {
+    DEVELOPMENT,      // 开发中
+    READY_FOR_RELEASE, // 准备发售
+    PRICE_SETTING,    // 价格设置中
+    RELEASED,         // 已发售
+    RATED,           // 已评分
+    REMOVED_FROM_MARKET // 已下架
+}
+
 // 员工数据类
 data class Employee(
     val id: Int,
@@ -113,18 +123,18 @@ data class Employee(
 data class Founder(
     val name: String,
     val profession: FounderProfession,
-    val skillLevel: Int = 5 // 固定为5级
+    val skillLevel: Int = SkillConstants.FOUNDER_SKILL_LEVEL // 使用常量定义
 ) {
     fun toEmployee(): Employee {
         return Employee(
             id = 0, // 特殊ID标识创始人
             name = name,
             position = profession.displayName,
-            skillDevelopment = if (profession.specialtySkill == "开发") 5 else 0,
-            skillDesign = if (profession.specialtySkill == "设计") 5 else 0,
-            skillArt = if (profession.specialtySkill == "美工") 5 else 0,
-            skillMusic = if (profession.specialtySkill == "音乐") 5 else 0,
-            skillService = if (profession.specialtySkill == "服务") 5 else 0,
+            skillDevelopment = if (profession.specialtySkill == "开发") SkillConstants.FOUNDER_SKILL_LEVEL else 0,
+            skillDesign = if (profession.specialtySkill == "设计") SkillConstants.FOUNDER_SKILL_LEVEL else 0,
+            skillArt = if (profession.specialtySkill == "美工") SkillConstants.FOUNDER_SKILL_LEVEL else 0,
+            skillMusic = if (profession.specialtySkill == "音乐") SkillConstants.FOUNDER_SKILL_LEVEL else 0,
+            skillService = if (profession.specialtySkill == "服务") SkillConstants.FOUNDER_SKILL_LEVEL else 0,
             salary = 0, // 创始人无薪资
             isFounder = true
         )
@@ -140,8 +150,52 @@ data class Game(
     val businessModel: BusinessModel,
     val developmentProgress: Float = 0f,
     val isCompleted: Boolean = false,
+    val releaseStatus: GameReleaseStatus = GameReleaseStatus.DEVELOPMENT, // 新增：发售状态
+    val releasePrice: Float? = null, // 新增：发售价格
     val revenue: Long = 0L,
-    val assignedEmployees: List<Employee> = emptyList() // 新增：已分配的员工列表
+    val rating: Float? = null, // 游戏评分
+    val gameRating: GameRating? = null, // 新增：详细评分信息
+    val assignedEmployees: List<Employee> = emptyList() // 已分配的员工列表
+)
+
+// 游戏评分相关数据类
+data class GameRating(
+    val gameId: String,
+    val finalScore: Float, // 最终评分 (0-10)
+    val baseScore: Float = 5.0f, // 基础分
+    val skillBonus: Float, // 技能加成
+    val skillContributions: List<SkillContribution>, // 技能贡献详情
+    val calculatedAt: Long = System.currentTimeMillis()
+)
+
+data class SkillContribution(
+    val employeeId: Int,
+    val employeeName: String,
+    val skillType: String, // 主要技能类型
+    val skillLevel: Int, // 技能等级
+    val contribution: Float // 对评分的贡献值 (skillLevel / 2)
+)
+
+// 价格推荐相关数据类
+data class PriceRecommendation(
+    val gameId: String,
+    val recommendedPrice: Float, // 建议价格
+    val priceRange: PriceRange, // 价格区间
+    val marketAnalysis: String, // 市场分析
+    val confidence: Float = 0.8f // 推荐置信度
+)
+
+data class PriceRange(
+    val minPrice: Float, // 最低建议价格
+    val maxPrice: Float, // 最高建议价格
+    val optimalPrice: Float // 最优价格
+)
+
+// 市场因素数据类
+data class MarketFactors(
+    val platformMultipliers: Map<Platform, Float>, // 平台价格系数
+    val themePopularity: Map<GameTheme, Float>, // 主题受欢迎度
+    val businessModelFactors: Map<BusinessModel, Float> // 商业模式因素
 )
 
 // 存档数据类

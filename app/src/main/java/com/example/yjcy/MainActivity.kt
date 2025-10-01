@@ -1,117 +1,92 @@
 package com.example.yjcy
 
-
-
-import android.os.Bundle
-import android.util.Log
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.EaseInOut
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.core.net.toUri
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-
-
-
-
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-
-
-
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
-
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.shape.CircleShape
-
-
-
-
-
-
-import com.example.yjcy.ui.theme.YjcyTheme
-
-import com.example.yjcy.data.SaveData
-import com.example.yjcy.data.Game
-
-
-
-
-
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.geometry.Offset
-
-
-
-import com.example.yjcy.data.Founder
-import com.google.gson.Gson
-import androidx.compose.animation.core.animateFloatAsState
-
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.tween
-
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.foundation.Canvas
-import kotlin.math.sin
-import androidx.compose.animation.core.EaseInOut
-import androidx.compose.animation.core.FastOutSlowInEasing
-
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import kotlin.random.Random
-
-import androidx.compose.foundation.border
-import androidx.compose.ui.draw.shadow
-import androidx.compose.animation.animateContentSize
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.platform.LocalContext
-import android.content.Intent
-import androidx.core.net.toUri
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
-import android.widget.Toast
-import androidx.compose.ui.window.Dialog
-import java.util.Locale
-import androidx.compose.foundation.BorderStroke
-
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
-import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.hoverable
-import androidx.compose.animation.core.LinearEasing
-import kotlinx.coroutines.delay
-import androidx.compose.ui.draw.alpha
 import com.example.yjcy.data.Employee
+import com.example.yjcy.data.Founder
 import com.example.yjcy.data.FounderProfession
-
-
-import androidx.compose.ui.draw.clip
-import com.example.yjcy.ui.ProjectManagementWrapper
+import com.example.yjcy.data.Game
+import com.example.yjcy.data.GameRatingCalculator
+import com.example.yjcy.data.GameReleaseStatus
+import com.example.yjcy.data.PriceRecommendationEngine
+import com.example.yjcy.data.RevenueManager
+import com.example.yjcy.data.SaveData
+import com.example.yjcy.data.SkillConstants
 import com.example.yjcy.ui.EmployeeManagementContent
+import com.example.yjcy.ui.GameRatingDialog
+import com.example.yjcy.ui.GameReleaseDialog
+import com.example.yjcy.ui.ProjectManagementWrapper
+import com.example.yjcy.ui.theme.YjcyTheme
+import com.example.yjcy.utils.formatMoney
+import com.google.gson.Gson
 import dagger.hilt.android.AndroidEntryPoint
+import java.util.Locale
+import kotlin.math.sin
+import kotlin.random.Random
+import kotlinx.coroutines.delay
 
 
 
@@ -133,6 +108,17 @@ fun formatMoney(amount: Long): String {
 
 // 全局变量存储当前加载的存档数据
 var currentLoadedSaveData: SaveData? = null
+
+// 增强版资金格式化函数，支持保留两位小数
+fun formatMoneyWithDecimals(amount: Double): String {
+    return when {
+        amount >= 1_000_000_000_000.0 -> String.format("%.2fT", amount / 1_000_000_000_000.0)
+        amount >= 1_000_000_000.0 -> String.format("%.2fB", amount / 1_000_000_000.0)
+        amount >= 1_000_000.0 -> String.format("%.2fM", amount / 1_000_000.0)
+        amount >= 1_000.0 -> String.format("%.2fK", amount / 1_000.0)
+        else -> String.format("%.2f", amount)
+    }
+}
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -747,6 +733,13 @@ fun GameScreen(
     var showMessage by remember { mutableStateOf(false) }
     var messageText by remember { mutableStateOf("") }
     
+    // 游戏发售相关状态
+    var showReleaseDialog by remember { mutableStateOf(false) }
+    var showRatingDialog by remember { mutableStateOf(false) }
+    var pendingReleaseGame by remember { mutableStateOf<Game?>(null) }
+    var revenueRefreshTrigger by remember { mutableStateOf(0) } // 用于触发收益数据刷新
+    var pendingRatingGame by remember { mutableStateOf<Game?>(null) }
+    
     // 员工状态管理 - 提升到GameScreen级别
     val allEmployees = remember { mutableStateListOf<Employee>() }
     
@@ -818,11 +811,11 @@ fun GameScreen(
             val index = allEmployees.indexOfFirst { it.id == employee.id }
             if (index != -1) {
                 val updatedEmployee = when (skillType) {
-                    "开发" -> employee.copy(skillDevelopment = minOf(100, employee.skillDevelopment + 10))
-                    "设计" -> employee.copy(skillDesign = minOf(100, employee.skillDesign + 10))
-                    "美工" -> employee.copy(skillArt = minOf(100, employee.skillArt + 10))
-                    "音乐" -> employee.copy(skillMusic = minOf(100, employee.skillMusic + 10))
-                    "服务" -> employee.copy(skillService = minOf(100, employee.skillService + 10))
+                    "开发" -> employee.copy(skillDevelopment = minOf(SkillConstants.MAX_SKILL_LEVEL, employee.skillDevelopment + 1))
+                    "设计" -> employee.copy(skillDesign = minOf(SkillConstants.MAX_SKILL_LEVEL, employee.skillDesign + 1))
+                    "美工" -> employee.copy(skillArt = minOf(SkillConstants.MAX_SKILL_LEVEL, employee.skillArt + 1))
+                    "音乐" -> employee.copy(skillMusic = minOf(SkillConstants.MAX_SKILL_LEVEL, employee.skillMusic + 1))
+                    "服务" -> employee.copy(skillService = minOf(SkillConstants.MAX_SKILL_LEVEL, employee.skillService + 1))
                     else -> employee
                 }
                 allEmployees[index] = updatedEmployee
@@ -867,22 +860,51 @@ fun GameScreen(
                         employee.skillArt + employee.skillMusic + employee.skillService
                     }
                     
-                    // 基础进度增长：每天0.1%，根据员工技能调整
-                    val baseProgress = 0.001f // 0.1%
+                    // 基础进度增长：每天3%，根据员工技能调整
+                    val baseProgress = 0.03f // 3%
                     val skillMultiplier = (totalSkillPoints / 25f).coerceAtLeast(0.1f)
                     val progressIncrease = baseProgress * skillMultiplier
                     
                     val newProgress = (game.developmentProgress + progressIncrease).coerceAtMost(1.0f)
                     val isCompleted = newProgress >= 1.0f
                     
-                    game.copy(
-                        developmentProgress = newProgress,
-                        isCompleted = isCompleted
-                    )
+                    // 如果游戏刚完成，触发发售流程
+                    val updatedGame = if (isCompleted && !game.isCompleted) {
+                        val gameRating = GameRatingCalculator.calculateRating(game)
+                        val completedGame = game.copy(
+                            developmentProgress = newProgress,
+                            isCompleted = isCompleted,
+                            rating = gameRating.finalScore,
+                            gameRating = gameRating
+                        )
+                        
+                        // 触发发售价格设置对话框
+                        pendingReleaseGame = completedGame
+                        showReleaseDialog = true
+                        
+                        completedGame
+                    } else {
+                        game.copy(
+                            developmentProgress = newProgress,
+                            isCompleted = isCompleted
+                        )
+                    }
+                    
+                    updatedGame
                 } else {
                     game
                 }
             }
+            
+            // 为已发售的游戏添加每日收益
+            games.filter { it.releaseStatus == GameReleaseStatus.RELEASED || it.releaseStatus == GameReleaseStatus.RATED }
+                .forEach { releasedGame ->
+                    val dailyRevenue = RevenueManager.addDailyRevenueForGame(releasedGame.id)
+                    money += dailyRevenue.toLong()
+                }
+            
+            // 触发收益数据刷新
+            revenueRefreshTrigger++
         }
     }
     
@@ -943,7 +965,8 @@ fun GameScreen(
                             games = games,
                             onGamesUpdate = { updatedGames -> games = updatedGames },
                             founder = founder,
-                            allEmployees = allEmployees
+                            allEmployees = allEmployees,
+                            refreshTrigger = revenueRefreshTrigger
                         )
                         3 -> InGameSettingsContent(
                             navController = navController,
@@ -1010,6 +1033,77 @@ fun GameScreen(
                     }
                 }
             }
+        }
+        
+        // 游戏发售价格设置对话框
+        if (showReleaseDialog && pendingReleaseGame != null) {
+            GameReleaseDialog(
+                game = pendingReleaseGame!!,
+                onDismiss = {
+                    showReleaseDialog = false
+                    pendingReleaseGame = null
+                },
+                onConfirmRelease = { price ->
+                    // 更新游戏状态为已发售
+                    games = games.map { existingGame ->
+                        if (existingGame.id == pendingReleaseGame!!.id) {
+                            val releasedGame = existingGame.copy(
+                                releaseStatus = GameReleaseStatus.RELEASED,
+                                releasePrice = price
+                            )
+                            
+                            // 为已发售游戏初始化收益数据（空数据，等待日常循环累加）
+                            RevenueManager.generateRevenueData(
+                                gameId = releasedGame.id,
+                                gameName = releasedGame.name,
+                                releasePrice = price.toDouble(),
+                                daysOnMarket = 0 // 初始化为空，让日常循环来累加收益
+                            )
+                            
+                            releasedGame
+                        } else {
+                            existingGame
+                        }
+                    }
+                    
+                    // 关闭发售对话框，显示评分对话框
+                    showReleaseDialog = false
+                    pendingRatingGame = pendingReleaseGame
+                    pendingReleaseGame = null
+                    showRatingDialog = true
+                }
+            )
+        }
+        
+        // 游戏评分展示对话框
+        if (showRatingDialog && pendingRatingGame != null) {
+            GameRatingDialog(
+                gameRating = pendingRatingGame!!.gameRating!!,
+                gameName = pendingRatingGame!!.name,
+                onDismiss = {
+                    // 评分对话框关闭时，更新游戏状态为已评分
+                    games = games.map { existingGame ->
+                        if (existingGame.id == pendingRatingGame!!.id) {
+                            val ratedGame = existingGame.copy(
+                                releaseStatus = GameReleaseStatus.RATED
+                            )
+                            
+                            // 根据评分更新收益数据
+                            RevenueManager.updateRevenueBasedOnRating(
+                                gameId = ratedGame.id,
+                                rating = ratedGame.gameRating?.finalScore ?: 5.0f
+                            )
+                            
+                            ratedGame
+                        } else {
+                            existingGame
+                        }
+                    }
+                    
+                    showRatingDialog = false
+                    pendingRatingGame = null
+                }
+            )
         }
     }
 }
@@ -1196,7 +1290,7 @@ fun CompanyOverviewContent(
                         "姓名" to founder.name,
                         "职业" to "${founder.profession.icon} ${founder.profession.displayName}",
                         "专属技能" to founder.profession.specialtySkill,
-                        "技能等级" to "${founder.profession.specialtySkill} Lv.5"
+                        "技能等级" to "${founder.profession.specialtySkill} Lv.${founder.toEmployee().getSpecialtySkillLevel()}"
                     )
                 )
             }
@@ -1873,6 +1967,7 @@ object ResponsiveLayoutSystem {
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun getLayoutConfig(): ResponsiveLayoutSystem.LayoutConfig {
     val context = LocalContext.current
@@ -1937,10 +2032,9 @@ class SaveManager(context: Context) {
     
     fun saveGame(slotIndex: Int, saveData: SaveData) {
         val json = gson.toJson(saveData)
-        sharedPreferences.edit().apply {
-            putString("save_slot_$slotIndex", json)
-            apply()
-        }
+        sharedPreferences.edit()
+            .putString("save_slot_$slotIndex", json)
+            .apply()
     }
     
     fun loadGame(slotIndex: Int): SaveData? {
@@ -1957,10 +2051,9 @@ class SaveManager(context: Context) {
     }
     
     fun deleteSave(slotIndex: Int) {
-        sharedPreferences.edit().apply {
-            remove("save_slot_$slotIndex")
-            apply()
-        }
+        sharedPreferences.edit()
+            .remove("save_slot_$slotIndex")
+            .apply()
     }
     
     fun getAllSaves(): Map<Int, SaveData?> {
