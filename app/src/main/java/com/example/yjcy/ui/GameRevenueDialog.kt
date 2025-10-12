@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -49,11 +50,12 @@ fun GameRevenueDialog(
     gameRevenue: GameRevenue,
     onDismiss: () -> Unit,
     onRemoveFromMarket: (String) -> Unit,
-    onRelistGame: (String) -> Unit
+    onRelistGame: (String) -> Unit,
+    onStartUpdate: (String) -> Unit = {}
 ) {
     var showConfirmDialog by remember { mutableStateOf(false) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
     val statistics = RevenueManager.calculateStatistics(gameRevenue)
-    val chartData = RevenueManager.getSalesDataForChart(gameRevenue, 7)
     
     Dialog(
         onDismissRequest = onDismiss,
@@ -87,7 +89,7 @@ fun GameRevenueDialog(
                 ) {
                     Column {
                         Text(
-                            text = "收益报告",
+                            text = "收入报告",
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
@@ -120,15 +122,7 @@ fun GameRevenueDialog(
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // 核心统计卡片
-                    item {
-                        CoreStatisticsCard(statistics = statistics, gameRevenue = gameRevenue)
-                    }
-                    
-                    // 销量趋势图表
-                    item {
-                        SalesTrendChart(chartData = chartData)
-                    }
+                    // 移除核心数据卡片
                     
                     // 详细统计信息
                     item {
@@ -145,7 +139,8 @@ fun GameRevenueDialog(
                         ActionButtonsCard(
                             gameRevenue = gameRevenue,
                             onRemoveFromMarket = { showConfirmDialog = true },
-                            onRelistGame = { onRelistGame(gameRevenue.gameId) }
+                            onRelistGame = { onRelistGame(gameRevenue.gameId) },
+                            onShowUpdateDialog = { showUpdateDialog = true }
                         )
                     }
                 }
@@ -162,6 +157,18 @@ fun GameRevenueDialog(
                 showConfirmDialog = false
             },
             onDismiss = { showConfirmDialog = false }
+        )
+    }
+
+    if (showUpdateDialog) {
+        UpdateFeatureDialog(
+            onDismiss = { showUpdateDialog = false },
+            onConfirm = { features ->
+                RevenueManager.createUpdateTask(gameRevenue.gameId, features)
+                showUpdateDialog = false
+                // 通知外层开始更新（例如关闭此弹窗，回到项目界面以分配员工）
+                onStartUpdate(gameRevenue.gameId)
+            }
         )
     }
 }
@@ -184,6 +191,47 @@ fun StatusIndicator(isActive: Boolean) {
             fontWeight = FontWeight.Medium
         )
     }
+}
+
+@Composable
+fun UpdateFeatureDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (List<String>) -> Unit
+) {
+    val options = listOf("新人物", "新地图", "新坐骑", "新活动")
+    val selected = remember { mutableStateListOf<String>() }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("选择更新内容", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                options.forEach { item ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(text = item)
+                        Checkbox(
+                            checked = selected.contains(item),
+                            onCheckedChange = { checked ->
+                                if (checked) selected.add(item) else selected.remove(item)
+                            }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(selected.toList()) }) {
+                Text("开始更新")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        },
+        shape = RoundedCornerShape(16.dp)
+    )
 }
 
 @Composable
@@ -409,17 +457,10 @@ fun DetailedStatisticsCard(statistics: com.example.yjcy.data.RevenueStatistics) 
             Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                DetailStatRow("总收益", "¥${formatMoneyWithDecimals(statistics.totalRevenue)}")
+                DetailStatRow("总收入", "¥${formatMoneyWithDecimals(statistics.totalRevenue)}")
                 DetailStatRow("总销量", "${formatMoneyWithDecimals(statistics.totalSales.toDouble())}份")
-                DetailStatRow("平均每日收益", "¥${formatMoneyWithDecimals(statistics.averageDailyRevenue)}")
-                DetailStatRow("平均每日销量", "${formatMoneyWithDecimals(statistics.averageDailySales.toDouble())}份")
                 DetailStatRow("单日最高销量", "${formatMoneyWithDecimals(statistics.peakDailySales.toDouble())}份")
-                DetailStatRow("单日最高收益", "¥${formatMoneyWithDecimals(statistics.peakDailyRevenue)}")
-                DetailStatRow(
-                    "收益增长率", 
-                    String.format("%.1f%%", statistics.revenueGrowthRate),
-                    valueColor = if (statistics.revenueGrowthRate >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
-                )
+                DetailStatRow("单日最高收入", "¥${formatMoneyWithDecimals(statistics.peakDailyRevenue)}")
             }
         }
     }
@@ -475,7 +516,11 @@ fun GameInfoCard(gameRevenue: GameRevenue) {
             ) {
                 DetailStatRow("游戏名称", gameRevenue.gameName)
                 DetailStatRow("发售价格", NumberFormat.getCurrencyInstance(Locale.getDefault()).format(gameRevenue.releasePrice))
-                DetailStatRow("发售日期", SimpleDateFormat("yyyy年MM月dd日", Locale.getDefault()).format(gameRevenue.releaseDate))
+                // 改为显示游戏内日期
+                DetailStatRow(
+                    "发售日期",
+                    "第${gameRevenue.releaseYear}年${gameRevenue.releaseMonth}月${gameRevenue.releaseDay}日"
+                )
                 DetailStatRow("当前状态", if (gameRevenue.isActive) "在售中" else "已下架")
             }
         }
@@ -486,7 +531,8 @@ fun GameInfoCard(gameRevenue: GameRevenue) {
 fun ActionButtonsCard(
     gameRevenue: GameRevenue,
     onRemoveFromMarket: () -> Unit,
-    onRelistGame: () -> Unit
+    onRelistGame: () -> Unit,
+    onShowUpdateDialog: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -508,6 +554,28 @@ fun ActionButtonsCard(
             Spacer(modifier = Modifier.height(16.dp))
             
             if (gameRevenue.isActive) {
+                // 新增：游戏更新按钮（先展示成本与次数）
+                val updateCost = remember(gameRevenue.updateCount) {
+                    RevenueManager.calculateUpdateCost(gameRevenue.gameId)
+                }
+                Button(
+                    onClick = onShowUpdateDialog,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "游戏更新",
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("游戏更新（+5%销量） - 费用 ¥${String.format("%.2f", updateCost)} / 已更新 ${gameRevenue.updateCount} 次", fontWeight = FontWeight.Medium)
+                }
                 Button(
                     onClick = onRemoveFromMarket,
                     modifier = Modifier.fillMaxWidth(),

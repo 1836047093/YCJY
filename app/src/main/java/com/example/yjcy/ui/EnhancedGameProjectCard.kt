@@ -41,17 +41,24 @@ fun EnhancedGameProjectCard(
     onEmployeeAssigned: (Game, List<Employee>) -> Unit,
     onGameUpdate: (Game) -> Unit = {},
     modifier: Modifier = Modifier,
-    refreshTrigger: Int = 0  // 新增：用于触发UI刷新的参数
+    refreshTrigger: Int = 0,  // 新增：用于触发UI刷新的参数
+    onSwitchToCurrentProjects: (() -> Unit)? = null
 ) {
     var showRevenueDialog by remember { mutableStateOf(false) }
     
     // 检查游戏是否已发售
     val isReleased = game.releaseStatus == GameReleaseStatus.RELEASED || game.releaseStatus == GameReleaseStatus.RATED
     
+    // 检查游戏是否已下架
+    val isRemoved = game.releaseStatus == GameReleaseStatus.REMOVED_FROM_MARKET
+    
+    // 检查是否正在开发中（未发售也未下架）
+    val isDeveloping = !isReleased && !isRemoved
+    
     // 当 refreshTrigger 改变时，强制重新获取收益数据
     val gameRevenue by remember(game.id, refreshTrigger) {
         derivedStateOf { 
-            if (isReleased) RevenueManager.getGameRevenue(game.id) else null
+            if (isReleased || isRemoved) RevenueManager.getGameRevenue(game.id) else null
         }
     }
     
@@ -115,34 +122,36 @@ fun EnhancedGameProjectCard(
                     }
                 }
                 
-                // 项目状态指示器
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (game.assignedEmployees.isNotEmpty()) 
-                            Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFFF59E0B).copy(alpha = 0.2f)
-                    ),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                // 项目状态指示器（仅对开发中的游戏显示）
+                if (isDeveloping) {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (game.assignedEmployees.isNotEmpty()) 
+                                Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFFF59E0B).copy(alpha = 0.2f)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
-                        Icon(
-                            imageVector = if (game.assignedEmployees.isNotEmpty()) 
-                                Icons.Default.CheckCircle else Icons.Default.Schedule,
-                            contentDescription = null,
-                            tint = if (game.assignedEmployees.isNotEmpty()) 
-                                Color(0xFF10B981) else Color(0xFFF59E0B),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = if (game.assignedEmployees.isNotEmpty()) "进行中" else "待分配",
-                            color = if (game.assignedEmployees.isNotEmpty()) 
-                                Color(0xFF10B981) else Color(0xFFF59E0B),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
+                        Row(
+                            modifier = Modifier.padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (game.assignedEmployees.isNotEmpty()) 
+                                    Icons.Default.CheckCircle else Icons.Default.Schedule,
+                                contentDescription = null,
+                                tint = if (game.assignedEmployees.isNotEmpty()) 
+                                    Color(0xFF10B981) else Color(0xFFF59E0B),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (game.assignedEmployees.isNotEmpty()) "进行中" else "待分配",
+                                color = if (game.assignedEmployees.isNotEmpty()) 
+                                    Color(0xFF10B981) else Color(0xFFF59E0B),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
                 }
             }
@@ -150,7 +159,7 @@ fun EnhancedGameProjectCard(
             Spacer(modifier = Modifier.height(16.dp))
             
             // 已分配员工信息（仅对开发中的游戏显示）
-            if (!isReleased && game.assignedEmployees.isNotEmpty()) {
+            if (isDeveloping && game.assignedEmployees.isNotEmpty()) {
                 Text(
                     text = "已分配员工 (${game.assignedEmployees.size}人):",
                     color = Color.White.copy(alpha = 0.9f),
@@ -339,8 +348,8 @@ fun EnhancedGameProjectCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // 如果游戏已发售，显示收益按钮
-                if (isReleased) {
+                // 如果游戏已发售或已下架，显示收益按钮
+                if (isReleased || isRemoved) {
                     Button(
                         onClick = { showRevenueDialog = true },
                         modifier = Modifier.fillMaxWidth(),
@@ -361,7 +370,7 @@ fun EnhancedGameProjectCard(
                             fontWeight = FontWeight.Medium
                         )
                     }
-                } else {
+                } else if (isDeveloping) {
                     // 开发中的游戏显示分配按钮
                     // 智能分配按钮（新功能）
                     EnhancedOneClickAssignmentButton(
@@ -409,6 +418,12 @@ fun EnhancedGameProjectCard(
                     )
                     onGameUpdate(updatedGame)
                     showRevenueDialog = false
+                },
+                onStartUpdate = {
+                    // 关闭收益弹窗，回到项目卡片界面，便于分配员工
+                    showRevenueDialog = false
+                    // 如果当前是“已发售”列表，切换到“当前项目”列表
+                    onSwitchToCurrentProjects?.invoke()
                 }
             )
         }

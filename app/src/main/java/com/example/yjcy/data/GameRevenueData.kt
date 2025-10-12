@@ -37,6 +37,15 @@ data class RevenueStatistics(
 )
 
 /**
+ * 游戏更新任务
+ */
+data class GameUpdateTask(
+    val features: List<String>,
+    val requiredPoints: Int,
+    val progressPoints: Int = 0
+)
+
+/**
  * 游戏收益主数据类
  */
 data class GameRevenue(
@@ -44,9 +53,17 @@ data class GameRevenue(
     val gameName: String,
     val releaseDate: Date,
     val releasePrice: Double,
+    // 新增：游戏内发售日期（与系统日期区分）
+    val releaseYear: Int = 1,
+    val releaseMonth: Int = 1,
+    val releaseDay: Int = 1,
     val isActive: Boolean = true,
     val dailySalesList: List<DailySales> = emptyList(),
-    val statistics: RevenueStatistics? = null
+    val statistics: RevenueStatistics? = null,
+    val updateTask: GameUpdateTask? = null,
+    // 新增：更新次数与销量累计倍数（每次更新+5%）
+    val updateCount: Int = 0,
+    val cumulativeSalesMultiplier: Double = 1.0
 ) {
     /**
      * 获取总收益
@@ -97,7 +114,15 @@ object RevenueManager {
     /**
      * 为游戏生成模拟收益数据
      */
-    fun generateRevenueData(gameId: String, gameName: String, releasePrice: Double, daysOnMarket: Int = 30): GameRevenue {
+    fun generateRevenueData(
+        gameId: String,
+        gameName: String,
+        releasePrice: Double,
+        daysOnMarket: Int = 30,
+        releaseYear: Int = 1,
+        releaseMonth: Int = 1,
+        releaseDay: Int = 1
+    ): GameRevenue {
         val calendar = Calendar.getInstance()
         calendar.add(Calendar.DAY_OF_YEAR, -daysOnMarket)
         val releaseDate = calendar.time
@@ -137,11 +162,85 @@ object RevenueManager {
             gameName = gameName,
             releaseDate = releaseDate,
             releasePrice = releasePrice,
+            releaseYear = releaseYear,
+            releaseMonth = releaseMonth,
+            releaseDay = releaseDay,
             dailySalesList = dailySalesList
         )
         
         gameRevenueMap[gameId] = gameRevenue
         return gameRevenue
+    }
+
+    /**
+     * 计算下一次更新成本（随更新次数递增）
+     * 规则：基础价为首发价的20%，每次更新成本在上次基础上×(1 + 0.15)
+     * 也可理解为 base * (1.15^updateCount)
+     */
+    fun calculateUpdateCost(gameId: String): Double {
+        val gameRevenue = gameRevenueMap[gameId] ?: return 0.0
+        // 基础价固定为 50,000，后续每次在此基础上递增
+        val base = 50_000.0
+        val factor = Math.pow(1.15, gameRevenue.updateCount.toDouble())
+        return base * factor
+    }
+
+    /**
+     * 应用一次游戏更新：销量整体提高5%，记录更新次数，并插入当日“更新热度”提升
+     */
+    fun applyGameUpdate(gameId: String): Boolean {
+        val current = gameRevenueMap[gameId] ?: return false
+        val newMultiplier = current.cumulativeSalesMultiplier * 1.05
+
+        // 将“即时应用”改为：若存在更新任务且未完成，则不生效；完成时批量应用
+        if (current.updateTask != null && current.updateTask.progressPoints < current.updateTask.requiredPoints) {
+            return false
+        }
+
+        // 批量提升历史销量
+        val ratio = newMultiplier / current.cumulativeSalesMultiplier
+        val adjustedDaily = current.dailySalesList.map { d ->
+            val newSales = (d.sales * ratio).toInt().coerceAtLeast(1)
+            val newRevenue = newSales * current.releasePrice
+            d.copy(sales = newSales, revenue = newRevenue)
+        }
+
+        gameRevenueMap[gameId] = current.copy(
+            dailySalesList = adjustedDaily,
+            updateTask = null,
+            updateCount = current.updateCount + 1,
+            cumulativeSalesMultiplier = newMultiplier
+        )
+        return true
+    }
+
+    /**
+     * 创建一条更新任务
+     */
+    fun createUpdateTask(gameId: String, features: List<String>): GameUpdateTask? {
+        val current = gameRevenueMap[gameId] ?: return null
+        if (current.updateTask != null) return current.updateTask
+        // 简单估算：每个特性 100 进度点
+        val required = (features.size * 100).coerceAtLeast(100)
+        val task = GameUpdateTask(features = features, requiredPoints = required)
+        gameRevenueMap[gameId] = current.copy(updateTask = task)
+        return task
+    }
+
+    /**
+     * 由外部（例如员工开发）推进更新任务的进度
+     */
+    fun progressUpdateTask(gameId: String, points: Int): Boolean {
+        val current = gameRevenueMap[gameId] ?: return false
+        val task = current.updateTask ?: return false
+        val newPoints = (task.progressPoints + points).coerceAtMost(task.requiredPoints)
+        val newTask = task.copy(progressPoints = newPoints)
+        gameRevenueMap[gameId] = current.copy(updateTask = newTask)
+        // 任务完成时应用收益侧更新
+        if (newPoints >= task.requiredPoints) {
+            applyGameUpdate(gameId)
+        }
+        return true
     }
     
     /**

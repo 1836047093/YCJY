@@ -168,6 +168,71 @@ class TalentMarketService {
     fun refreshCandidates(count: Int = 20): List<TalentCandidate> {
         return generateCandidates(count)
     }
+    
+    /**
+     * 为特定岗位生成候选人
+     * 用于岗位发布系统
+     */
+    fun generateCandidateForPosition(
+        position: String,
+        minSkillLevel: Int = 1,
+        salaryRange: IntRange = 3000..50000
+    ): TalentCandidate {
+        val skills = generateSkillsForPosition(position, minSkillLevel)
+        val maxSkill = skills.maxOf { it }
+        
+        // 根据技能等级和薪资范围生成合理的薪资期望
+        val baseSalary = SALARY_BASE[maxSkill] ?: 3000
+        val targetSalary = (salaryRange.first + salaryRange.last) / 2
+        val salary = (baseSalary * 0.7 + targetSalary * 0.3).toInt()
+            .coerceIn(salaryRange.first, salaryRange.last)
+        
+        // 添加一些随机波动
+        val finalSalary = salary + Random.nextInt(-500, 1000)
+        
+        return TalentCandidate(
+            id = "candidate_${System.currentTimeMillis()}_${Random.nextInt(1000)}",
+            name = CANDIDATE_NAMES.random(),
+            position = position,
+            skillDevelopment = skills[0],
+            skillDesign = skills[1],
+            skillArt = skills[2],
+            skillMusic = skills[3],
+            skillService = skills[4],
+            expectedSalary = finalSalary.coerceIn(salaryRange.first, salaryRange.last),
+            experience = Random.nextInt(0, 60)
+        )
+    }
+    
+    /**
+     * 为特定岗位生成技能分布（带最低技能等级要求）
+     */
+    private fun generateSkillsForPosition(position: String, minSkillLevel: Int): List<Int> {
+        // 初始化所有技能为0或1级
+        val skills = MutableList(5) { Random.nextInt(0, 2) }
+        
+        // 根据职位设置专属技能，确保达到最低等级要求
+        when (position) {
+            "程序员" -> {
+                skills[0] = Random.nextInt(minSkillLevel, 6).coerceAtMost(5)
+            }
+            "策划师" -> {
+                skills[1] = Random.nextInt(minSkillLevel, 6).coerceAtMost(5)
+            }
+            "美术师" -> {
+                skills[2] = Random.nextInt(minSkillLevel, 6).coerceAtMost(5)
+            }
+            "音效师" -> {
+                skills[3] = Random.nextInt(minSkillLevel, 6).coerceAtMost(5)
+            }
+            "客服" -> {
+                skills[4] = Random.nextInt(minSkillLevel, 6).coerceAtMost(5)
+            }
+        }
+        
+        // 确保技能等级在有效范围内
+        return skills.map { SkillConstants.clampSkillLevel(it) }
+    }
 }
 
 /**

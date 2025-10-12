@@ -15,6 +15,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -747,6 +748,31 @@ fun GameScreen(
     val founder = remember(founderName, founderProfession) {
         Founder(name = founderName, profession = founderProfession)
     }
+
+    // 如果是从存档进入，初始化已发售游戏的收益数据（避免收益概览为空、按钮无响应）
+    LaunchedEffect(saveData) {
+        if (saveData != null) {
+            saveData.games
+                .filter { it.releaseStatus == GameReleaseStatus.RELEASED || it.releaseStatus == GameReleaseStatus.RATED }
+                .forEach { releasedGame ->
+                    val exists = RevenueManager.getGameRevenue(releasedGame.id)
+                    if (exists == null) {
+                        val price = releasedGame.releasePrice?.toDouble() ?: 0.0
+                        RevenueManager.generateRevenueData(
+                            gameId = releasedGame.id,
+                            gameName = releasedGame.name,
+                            releasePrice = price,
+                            daysOnMarket = 0,
+                            releaseYear = currentYear,
+                            releaseMonth = currentMonth,
+                            releaseDay = currentDay
+                        )
+                    }
+                }
+            // 触发一次UI刷新以显示已初始化的收益
+            revenueRefreshTrigger++
+        }
+    }
     
     // 初始化员工列表 - 将创始人转换为员工并添加到列表开头
     LaunchedEffect(founder) {
@@ -896,11 +922,15 @@ fun GameScreen(
                 }
             }
             
-            // 为已发售的游戏添加每日收益
+            // 为已发售的游戏添加每日收益，并推进更新任务
             games.filter { it.releaseStatus == GameReleaseStatus.RELEASED || it.releaseStatus == GameReleaseStatus.RATED }
                 .forEach { releasedGame ->
                     val dailyRevenue = RevenueManager.addDailyRevenueForGame(releasedGame.id)
                     money += dailyRevenue.toLong()
+
+                    // 若存在更新任务，根据已分配员工数量推进进度
+                    val employeePoints = (releasedGame.assignedEmployees.size * 20).coerceAtLeast(10)
+                    RevenueManager.progressUpdateTask(releasedGame.id, employeePoints)
                 }
             
             // 触发收益数据刷新
@@ -1057,7 +1087,10 @@ fun GameScreen(
                                 gameId = releasedGame.id,
                                 gameName = releasedGame.name,
                                 releasePrice = price.toDouble(),
-                                daysOnMarket = 0 // 初始化为空，让日常循环来累加收益
+                                daysOnMarket = 0, // 初始化为空，让日常循环来累加收益
+                                releaseYear = currentYear,
+                                releaseMonth = currentMonth,
+                                releaseDay = currentDay
                             )
                             
                             releasedGame
@@ -1206,8 +1239,16 @@ fun TopInfoBar(
                         fontSize = 12.sp
                     )
                     Spacer(modifier = Modifier.width(4.dp))
+                    // 金额采用滚动动画并保留两位小数
+                    val animatedMoney = remember { Animatable(money.toFloat()) }
+                    LaunchedEffect(money) {
+                        animatedMoney.animateTo(
+                            targetValue = money.toFloat(),
+                            animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing)
+                        )
+                    }
                     Text(
-                        text = "¥${formatMoney(money)}",
+                        text = "¥${formatMoneyWithDecimals(animatedMoney.value.toDouble())}",
                         color = Color.White,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
@@ -2179,6 +2220,112 @@ fun InGameSettingsContent(
     
     // 保存游戏对话框
     if (showSaveDialog) {
+        var showOverwriteConfirmDialog by remember { mutableStateOf(false) }
+        var selectedSlotNumber by remember { mutableStateOf(0) }
+        var selectedExistingSave by remember { mutableStateOf<SaveData?>(null) }
+        
+        // 覆盖确认对话框
+        if (showOverwriteConfirmDialog && selectedExistingSave != null) {
+            AlertDialog(
+                onDismissRequest = { 
+                    showOverwriteConfirmDialog = false
+                    selectedSlotNumber = 0
+                    selectedExistingSave = null
+                },
+                title = {
+                    Text(
+                        text = "覆盖存档确认",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Column {
+                        Text(
+                            text = "存档位 $selectedSlotNumber 已有存档数据，确定要覆盖吗？",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 16.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "公司: ${selectedExistingSave!!.companyName}",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = "时间: ${selectedExistingSave!!.currentYear}年${selectedExistingSave!!.currentMonth}月${selectedExistingSave!!.currentDay}日",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = "资金: ¥${formatMoney(selectedExistingSave!!.money)} | 粉丝: ${formatMoney(selectedExistingSave!!.fans.toLong())}",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 14.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "此操作将覆盖原有存档数据，无法撤销！",
+                            color = Color(0xFFEF4444),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val saveData = SaveData(
+                                companyName = companyName,
+                                founderName = founderName,
+                                money = money,
+                                fans = fans,
+                                currentYear = currentYear,
+                                currentMonth = currentMonth,
+                                currentDay = currentDay,
+                                games = games,
+                                saveTime = System.currentTimeMillis()
+                            )
+                            saveManager.saveGame(selectedSlotNumber, saveData)
+                            showSaveDialog = false
+                            showOverwriteConfirmDialog = false
+                            selectedSlotNumber = 0
+                            selectedExistingSave = null
+                            // 显示保存成功提示
+                            Toast.makeText(context, "游戏已保存到存档位 $selectedSlotNumber", Toast.LENGTH_SHORT).show()
+                            // 如果需要在保存后返回主菜单
+                            if (shouldReturnToMenuAfterSave) {
+                                shouldReturnToMenuAfterSave = false
+                                navController.navigate("main_menu")
+                            }
+                        }
+                    ) {
+                        Text(
+                            text = "确认覆盖",
+                            color = Color(0xFFEF4444)
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { 
+                            showOverwriteConfirmDialog = false
+                            selectedSlotNumber = 0
+                            selectedExistingSave = null
+                        }
+                    ) {
+                        Text(
+                            text = "取消",
+                            color = Color.White
+                        )
+                    }
+                },
+                containerColor = Color(0xFF1F2937),
+                titleContentColor = Color.White,
+                textContentColor = Color.White
+            )
+        }
+        
+        // 主保存对话框
         AlertDialog(
             onDismissRequest = { showSaveDialog = false },
             title = {
@@ -2205,25 +2352,33 @@ fun InGameSettingsContent(
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
                                 .clickable {
-                                    val saveData = SaveData(
-                                        companyName = companyName,
-                                        founderName = founderName,
-                                        money = money,
-                                        fans = fans,
-                                        currentYear = currentYear,
-                                        currentMonth = currentMonth,
-                                        currentDay = currentDay,
-                                        games = games,
-                                        saveTime = System.currentTimeMillis()
-                                    )
-                                    saveManager.saveGame(slotNumber, saveData)
-                                    showSaveDialog = false
-                                    // 显示保存成功提示
-                                    Toast.makeText(context, "游戏已保存到存档位 $slotNumber", Toast.LENGTH_SHORT).show()
-                                    // 如果需要在保存后返回主菜单
-                                    if (shouldReturnToMenuAfterSave) {
-                                        shouldReturnToMenuAfterSave = false
-                                        navController.navigate("main_menu")
+                                    if (existingSave != null) {
+                                        // 有存档，显示覆盖确认对话框
+                                        selectedSlotNumber = slotNumber
+                                        selectedExistingSave = existingSave
+                                        showOverwriteConfirmDialog = true
+                                    } else {
+                                        // 空存档，直接保存
+                                        val saveData = SaveData(
+                                            companyName = companyName,
+                                            founderName = founderName,
+                                            money = money,
+                                            fans = fans,
+                                            currentYear = currentYear,
+                                            currentMonth = currentMonth,
+                                            currentDay = currentDay,
+                                            games = games,
+                                            saveTime = System.currentTimeMillis()
+                                        )
+                                        saveManager.saveGame(slotNumber, saveData)
+                                        showSaveDialog = false
+                                        // 显示保存成功提示
+                                        Toast.makeText(context, "游戏已保存到存档位 $slotNumber", Toast.LENGTH_SHORT).show()
+                                        // 如果需要在保存后返回主菜单
+                                        if (shouldReturnToMenuAfterSave) {
+                                            shouldReturnToMenuAfterSave = false
+                                            navController.navigate("main_menu")
+                                        }
                                     }
                                 },
                             colors = CardDefaults.cardColors(

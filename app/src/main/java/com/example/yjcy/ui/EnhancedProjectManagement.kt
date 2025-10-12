@@ -38,7 +38,8 @@ import kotlin.math.sin
 // 项目显示类型枚举
 enum class ProjectDisplayType(val displayName: String) {
     CURRENT("当前项目"),
-    RELEASED("已发售")
+    RELEASED("已发售"),
+    REMOVED("已下架")
 }
 
 @Composable
@@ -118,7 +119,8 @@ fun EnhancedProjectManagementContent(
     onGamesUpdate: (List<Game>) -> Unit = {},
     founder: Founder? = null,
     availableEmployees: List<Employee> = founder?.let { listOf(it.toEmployee()) } ?: getDefaultEmployees(),
-    refreshTrigger: Int = 0  // 新增：用于触发UI刷新
+    refreshTrigger: Int = 0,  // 新增：用于触发UI刷新
+    onSwitchToCurrentProjects: (() -> Unit)? = null
 ) {
     var showGameDevelopmentDialog by remember { mutableStateOf(false) }
     var selectedProjectType by remember { mutableStateOf(ProjectDisplayType.CURRENT) }
@@ -136,9 +138,11 @@ fun EnhancedProjectManagementContent(
             ProjectDisplayType.RELEASED -> games.filter {
                 it.releaseStatus in listOf(
                     GameReleaseStatus.RELEASED,
-                    GameReleaseStatus.RATED,
-                    GameReleaseStatus.REMOVED_FROM_MARKET
+                    GameReleaseStatus.RATED
                 )
+            }
+            ProjectDisplayType.REMOVED -> games.filter {
+                it.releaseStatus == GameReleaseStatus.REMOVED_FROM_MARKET
             }
         }
     }
@@ -268,6 +272,7 @@ fun EnhancedProjectManagementContent(
                             text = when (selectedProjectType) {
                                 ProjectDisplayType.CURRENT -> "暂无进行中的项目"
                                 ProjectDisplayType.RELEASED -> "暂无已发售的游戏"
+                                ProjectDisplayType.REMOVED -> "暂无已下架的游戏"
                             },
                             color = Color.White.copy(alpha = 0.7f),
                             fontSize = 16.sp
@@ -276,6 +281,7 @@ fun EnhancedProjectManagementContent(
                             text = when (selectedProjectType) {
                                 ProjectDisplayType.CURRENT -> "点击上方按钮开始开发新游戏"
                                 ProjectDisplayType.RELEASED -> "完成游戏开发并发售后将在此显示"
+                                ProjectDisplayType.REMOVED -> "下架的游戏将在此显示"
                             },
                             color = Color.White.copy(alpha = 0.5f),
                             fontSize = 14.sp
@@ -313,7 +319,11 @@ fun EnhancedProjectManagementContent(
                             }
                             onGamesUpdate(updatedGames)
                         },
-                        refreshTrigger = refreshTrigger
+                        refreshTrigger = refreshTrigger,
+                        onSwitchToCurrentProjects = {
+                            selectedProjectType = ProjectDisplayType.CURRENT
+                            onSwitchToCurrentProjects?.invoke()
+                        }
                     )
                 }
             }
