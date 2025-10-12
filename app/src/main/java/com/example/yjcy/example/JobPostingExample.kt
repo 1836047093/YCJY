@@ -37,14 +37,11 @@ fun EmployeeManagementExample(saveData: SaveData) {
                     newId = saveData.allEmployees.size + 1
                 )
                 
-                // 扣除招聘费用
-                val recruitmentCost = calculateRecruitmentCost(candidate)
-                saveData.money -= recruitmentCost
-                
-                // 添加到员工列表
-                saveData.allEmployees = saveData.allEmployees + newEmployee
-                
-                println("成功雇佣: ${candidate.name}")
+                // 扣除招聘费用（这里需要在调用处更新SaveData）
+                // 注意：由于SaveData是不可变的，需要在外部处理更新
+                // 这里仅作示例，实际使用需要通过ViewModel或State管理
+                println("招聘成功: ${candidate.name}")
+                println("提示：需要在外部更新SaveData（使用copy()方法）")
             }
         )
     }

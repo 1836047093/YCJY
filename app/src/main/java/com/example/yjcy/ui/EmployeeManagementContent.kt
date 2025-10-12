@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.yjcy.data.Employee
-import com.example.yjcy.ui.components.TalentMarketDialog
+import com.example.yjcy.ui.components.NewTalentMarketDialog
 import kotlin.random.Random
 
 @Composable
@@ -223,9 +223,9 @@ fun EmployeeManagementContent(
         )
     }
     
-    // 人才市场弹出式对话框
+    // 新版人才市场（岗位发布系统）弹出式对话框
     if (showTalentMarketDialog) {
-        TalentMarketDialog(
+        NewTalentMarketDialog(
             saveData = com.example.yjcy.data.SaveData(
                 money = money,
                 allEmployees = allEmployees
