@@ -130,20 +130,6 @@ fun NewTalentMarketDialog(
                                 )
                             }
                             
-                            // 刷新按钮
-                            IconButton(
-                                onClick = {
-                                    jobPostingService.generateApplicantsForActiveJobs(1)
-                                    jobPostings = jobPostingService.getAllJobPostings()
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Refresh,
-                                    contentDescription = "刷新应聘者",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                            
                             // 关闭按钮
                             IconButton(onClick = onDismiss) {
                                 Icon(
@@ -343,7 +329,10 @@ fun NewTalentMarketDialog(
                 jobPostings = jobPostingService.getAllJobPostings()
             },
             onApplicantHired = { candidate ->
+                // 雇佣员工
                 onRecruitCandidate(candidate)
+                // 刷新岗位列表
+                jobPostings = jobPostingService.getAllJobPostings()
             }
         )
     }

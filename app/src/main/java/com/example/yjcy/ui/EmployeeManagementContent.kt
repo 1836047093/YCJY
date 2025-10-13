@@ -45,16 +45,18 @@ fun EmployeeManagementContent(
     var filterType by remember { mutableStateOf("全部") }
     val listState = rememberLazyListState()
     
-    // 过滤员工列表
-    val filteredEmployees = remember(allEmployees, filterType) {
-        allEmployees.filter { employee ->
-            when (filterType) {
-                "程序员" -> employee.position == "程序员"
-                "策划师" -> employee.position == "策划师"
-                "美术师" -> employee.position == "美术师"
-                "音效师" -> employee.position == "音效师"
-                "客服" -> employee.position == "客服"
-                else -> true
+    // 过滤员工列表 - 使用 derivedStateOf 以正确响应 mutableStateListOf 的变化
+    val filteredEmployees by remember {
+        derivedStateOf {
+            allEmployees.filter { employee ->
+                when (filterType) {
+                    "程序员" -> employee.position == "程序员"
+                    "策划师" -> employee.position == "策划师"
+                    "美术师" -> employee.position == "美术师"
+                    "音效师" -> employee.position == "音效师"
+                    "客服" -> employee.position == "客服"
+                    else -> true
+                }
             }
         }
     }
@@ -255,7 +257,8 @@ fun EmployeeManagementContent(
                 val recruitmentCost = candidate.expectedSalary * 2
                 onMoneyUpdate(money - recruitmentCost)
                 
-                showTalentMarketDialog = false
+                // 不要立即关闭对话框，让用户可以继续招聘
+                // showTalentMarketDialog = false
             }
         )
     }
