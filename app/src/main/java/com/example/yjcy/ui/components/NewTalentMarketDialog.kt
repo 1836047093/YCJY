@@ -21,6 +21,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.example.yjcy.data.*
 import com.example.yjcy.service.JobPostingService
 import com.example.yjcy.service.RecruitmentService
+import com.example.yjcy.ui.BadgeBox
 
 /**
  * 人才市场对话框 - 岗位发布系统版本
@@ -32,7 +33,9 @@ fun NewTalentMarketDialog(
     saveData: SaveData,
     onDismiss: () -> Unit,
     onRecruitCandidate: (TalentCandidate) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    jobPostingRefreshTrigger: Int = 0, // 用于触发应聘者数据刷新
+    onNavigateToEmployeeManagement: () -> Unit = {} // 导航到员工管理
 ) {
     val jobPostingService = remember { JobPostingService.getInstance() }
     val recruitmentService = remember { RecruitmentService() }
@@ -42,12 +45,17 @@ fun NewTalentMarketDialog(
     var showJobPostingDialog by remember { mutableStateOf(false) }
     var selectedJob by remember { mutableStateOf<JobPosting?>(null) }
     var showApplicantDialog by remember { mutableStateOf(false) }
+    var pendingApplicantsCount by remember { mutableStateOf(jobPostingService.getTotalPendingApplicants()) }
     
-    // 模拟时间推进，生成应聘者
-    LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(1000)
-        jobPostingService.generateApplicantsForActiveJobs(1)
+    // 监听刷新触发器，实时更新岗位数据
+    LaunchedEffect(jobPostingRefreshTrigger) {
         jobPostings = jobPostingService.getAllJobPostings()
+        pendingApplicantsCount = jobPostingService.getTotalPendingApplicants()
+    }
+    
+    // 当岗位列表更新时，同步更新待处理应聘者数量
+    LaunchedEffect(jobPostings) {
+        pendingApplicantsCount = jobPostingService.getTotalPendingApplicants()
     }
     
     Dialog(
@@ -119,7 +127,7 @@ fun NewTalentMarketDialog(
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            // 发布岗位按钮
+                            // 发布岗位按钮（不显示红点）
                             IconButton(
                                 onClick = { showJobPostingDialog = true }
                             ) {
@@ -190,8 +198,6 @@ fun NewTalentMarketDialog(
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     // 统计信息
-                    val totalPending = jobPostingService.getTotalPendingApplicants()
-                    
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(
@@ -218,7 +224,7 @@ fun NewTalentMarketDialog(
                             )
                             StatItem(
                                 label = "待处理应聘",
-                                value = totalPending.toString(),
+                                value = pendingApplicantsCount.toString(),
                                 icon = "👥"
                             )
                             Divider(
@@ -327,12 +333,14 @@ fun NewTalentMarketDialog(
                 showApplicantDialog = false
                 selectedJob = null
                 jobPostings = jobPostingService.getAllJobPostings()
+                pendingApplicantsCount = jobPostingService.getTotalPendingApplicants()
             },
             onApplicantHired = { candidate ->
                 // 雇佣员工
                 onRecruitCandidate(candidate)
                 // 刷新岗位列表
                 jobPostings = jobPostingService.getAllJobPostings()
+                pendingApplicantsCount = jobPostingService.getTotalPendingApplicants()
             }
         )
     }
@@ -442,7 +450,7 @@ private fun JobPostingCard(
                     Spacer(modifier = Modifier.height(4.dp))
                     
                     Text(
-                        text = "${jobPosting.requiredSkillType} Lv.${jobPosting.minSkillLevel}+",
+                        text = "${jobPosting.requiredSkillType} Lv.${jobPosting.minSkillLevel}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -486,12 +494,12 @@ private fun JobPostingCard(
                         Text(text = "💰", fontSize = 16.sp)
                         Column {
                             Text(
-                                text = "薪资范围",
+                                text = "薪资待遇",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = "¥${jobPosting.minSalary}-${jobPosting.maxSalary}",
+                                text = "¥${String.format("%,d", jobPosting.minSalary)}",
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Bold
                             )

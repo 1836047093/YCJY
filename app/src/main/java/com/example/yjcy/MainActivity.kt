@@ -76,12 +76,14 @@ import com.example.yjcy.data.PriceRecommendationEngine
 import com.example.yjcy.data.RevenueManager
 import com.example.yjcy.data.SaveData
 import com.example.yjcy.data.SkillConstants
+import com.example.yjcy.ui.BadgeBox
 import com.example.yjcy.ui.EmployeeManagementContent
 import com.example.yjcy.ui.GameRatingDialog
 import com.example.yjcy.ui.GameReleaseDialog
 import com.example.yjcy.ui.ProjectManagementWrapper
 import com.example.yjcy.ui.theme.YjcyTheme
 import com.example.yjcy.utils.formatMoney
+import com.example.yjcy.service.JobPostingService
 import com.google.gson.Gson
 import dagger.hilt.android.AndroidEntryPoint
 import java.util.Locale
@@ -362,11 +364,6 @@ fun MainMenuScreen(navController: NavController) {
                 GameMenuButton(
                     text = "📂 继续游戏",
                     onClick = { navController.navigate("continue") }
-                )
-                
-                GameMenuButton(
-                    text = "🏆 排行榜",
-                    onClick = { navController.navigate("leaderboard") }
                 )
                 
                 GameMenuButton(
@@ -739,10 +736,20 @@ fun GameScreen(
     var showRatingDialog by remember { mutableStateOf(false) }
     var pendingReleaseGame by remember { mutableStateOf<Game?>(null) }
     var revenueRefreshTrigger by remember { mutableStateOf(0) } // 用于触发收益数据刷新
+    var jobPostingRefreshTrigger by remember { mutableStateOf(0) } // 用于触发岗位应聘者数据刷新
     var pendingRatingGame by remember { mutableStateOf<Game?>(null) }
     
     // 员工状态管理 - 提升到GameScreen级别
     val allEmployees = remember { mutableStateListOf<Employee>() }
+    
+    // 获取待处理的应聘者数量
+    val jobPostingService = remember { JobPostingService.getInstance() }
+    var pendingApplicantsCount by remember { mutableIntStateOf(0) }
+    
+    // 监听岗位变化，更新待处理应聘者数量
+    LaunchedEffect(jobPostingRefreshTrigger) {
+        pendingApplicantsCount = jobPostingService.getTotalPendingApplicants()
+    }
     
     // 创建创始人对象
     val founder = remember(founderName, founderProfession) {
@@ -933,8 +940,14 @@ fun GameScreen(
                     RevenueManager.progressUpdateTask(releasedGame.id, employeePoints)
                 }
             
+            // 为活跃岗位生成应聘者
+            com.example.yjcy.service.JobPostingService.getInstance().generateApplicantsForActiveJobs(1)
+            
             // 触发收益数据刷新
             revenueRefreshTrigger++
+            
+            // 触发岗位应聘者数据刷新
+            jobPostingRefreshTrigger++
         }
     }
     
@@ -989,7 +1002,8 @@ fun GameScreen(
                                 allEmployees.addAll(updatedEmployees)
                             },
                             money = money,
-                            onMoneyUpdate = { updatedMoney -> money = updatedMoney }
+                            onMoneyUpdate = { updatedMoney -> money = updatedMoney },
+                            jobPostingRefreshTrigger = jobPostingRefreshTrigger
                         )
                         2 -> ProjectManagementWrapper(
                             games = games,
@@ -1016,7 +1030,8 @@ fun GameScreen(
             // 底部导航栏 - 使用优化版本（字体加粗+黑色）
             EnhancedBottomNavigationBar(
                 selectedTab = selectedTab,
-                onTabSelected = { selectedTab = it }
+                onTabSelected = { selectedTab = it },
+                pendingApplicantsCount = pendingApplicantsCount
             )
         }
         
@@ -1412,7 +1427,8 @@ fun CompanyInfoCard(
 @Composable
 fun EnhancedBottomNavigationBar(
     selectedTab: Int,
-    onTabSelected: (Int) -> Unit
+    onTabSelected: (Int) -> Unit,
+    pendingApplicantsCount: Int = 0 // 待处理应聘者数量
 ) {
     Box(
         modifier = Modifier
@@ -1445,7 +1461,9 @@ fun EnhancedBottomNavigationBar(
                 icon = "👥",
                 label = "员工管理",
                 isSelected = selectedTab == 1,
-                onClick = { onTabSelected(1) }
+                onClick = { onTabSelected(1) },
+                showBadge = pendingApplicantsCount > 0,
+                badgeCount = pendingApplicantsCount
             )
             
             EnhancedBottomNavItem(
@@ -1470,7 +1488,9 @@ fun EnhancedBottomNavItem(
     icon: String,
     label: String,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    showBadge: Boolean = false,
+    badgeCount: Int = 0
 ) {
     val scale by animateFloatAsState(
         targetValue = if (isSelected) 1.1f else 1.0f,
@@ -1488,29 +1508,35 @@ fun EnhancedBottomNavItem(
             .padding(horizontal = 8.dp, vertical = 4.dp)
             .scale(scale)
     ) {
-        Text(
-            text = icon,
-            fontSize = 20.sp,
-            modifier = Modifier
-                .background(
-                    brush = if (isSelected) {
-                        Brush.radialGradient(
-                            colors = listOf(
-                                Color.Black.copy(alpha = 0.6f),
-                                Color.Black.copy(alpha = 0.4f),
-                                Color.Black.copy(alpha = 0.2f)
-                            ),
-                            radius = 40f
-                        )
-                    } else {
-                        Brush.radialGradient(
-                            colors = listOf(Color.Transparent, Color.Transparent)
-                        )
-                    },
-                    shape = RoundedCornerShape(12.dp)
-                )
-                .padding(8.dp)
-        )
+        // 使用BadgeBox包裹图标以显示红点
+        BadgeBox(
+            showBadge = showBadge,
+            badgeCount = badgeCount
+        ) {
+            Text(
+                text = icon,
+                fontSize = 20.sp,
+                modifier = Modifier
+                    .background(
+                        brush = if (isSelected) {
+                            Brush.radialGradient(
+                                colors = listOf(
+                                    Color.Black.copy(alpha = 0.6f),
+                                    Color.Black.copy(alpha = 0.4f),
+                                    Color.Black.copy(alpha = 0.2f)
+                                ),
+                                radius = 40f
+                            )
+                        } else {
+                            Brush.radialGradient(
+                                colors = listOf(Color.Transparent, Color.Transparent)
+                            )
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .padding(8.dp)
+            )
+        }
         Text(
             text = label,
             color = if (isSelected) Color.White else Color.Black, // 选中时为白色，未选中时为黑色

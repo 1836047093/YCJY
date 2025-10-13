@@ -26,7 +26,7 @@ import com.example.yjcy.service.JobPostingService
 
 /**
  * 应聘者管理对话框
- * 显示某个岗位的所有应聘者，支持面试操作
+ * 显示某个岗位的所有应聘者，支持直接雇佣
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,8 +38,6 @@ fun ApplicantManagementDialog(
 ) {
     val jobPostingService = remember { JobPostingService.getInstance() }
     var currentJobPosting by remember { mutableStateOf(jobPosting) }
-    var selectedApplicant by remember { mutableStateOf<JobApplicant?>(null) }
-    var showInterviewDialog by remember { mutableStateOf(false) }
     
     // 定期更新岗位信息
     LaunchedEffect(jobPosting.id) {
@@ -121,14 +119,14 @@ fun ApplicantManagementDialog(
                     ) {
                         StatCard(
                             icon = "📋",
-                            label = "待处理",
+                            label = "待雇佣",
                             value = currentJobPosting.getPendingApplicantsCount().toString(),
                             modifier = Modifier.weight(1f)
                         )
                         StatCard(
                             icon = "✅",
-                            label = "已通过",
-                            value = currentJobPosting.getAcceptedApplicantsCount().toString(),
+                            label = "已雇佣",
+                            value = currentJobPosting.applicants.count { it.status == ApplicantStatus.HIRED }.toString(),
                             modifier = Modifier.weight(1f)
                         )
                         StatCard(
@@ -174,11 +172,13 @@ fun ApplicantManagementDialog(
                             ) { applicant ->
                                 ApplicantCard(
                                     applicant = applicant,
-                                    onInterviewClick = {
-                                        selectedApplicant = applicant
-                                        showInterviewDialog = true
-                                    },
                                     onHireClick = {
+                                        // 先将应聘者标记为已通过，然后再雇佣
+                                        jobPostingService.updateApplicantStatus(
+                                            currentJobPosting.id,
+                                            applicant.id,
+                                            ApplicantStatus.ACCEPTED
+                                        )
                                         val candidate = jobPostingService.hireApplicant(
                                             currentJobPosting.id,
                                             applicant.id
@@ -195,23 +195,6 @@ fun ApplicantManagementDialog(
                 }
             }
         }
-    }
-    
-    // 面试对话框
-    if (showInterviewDialog && selectedApplicant != null) {
-        InterviewDialog(
-            applicant = selectedApplicant!!,
-            jobPosting = currentJobPosting,
-            onDismiss = { 
-                showInterviewDialog = false
-                selectedApplicant = null
-            },
-            onInterviewComplete = { 
-                currentJobPosting = jobPostingService.getJobPosting(currentJobPosting.id) ?: currentJobPosting
-                showInterviewDialog = false
-                selectedApplicant = null
-            }
-        )
     }
 }
 
@@ -264,7 +247,6 @@ private fun StatCard(
 @Composable
 private fun ApplicantCard(
     applicant: JobApplicant,
-    onInterviewClick: () -> Unit,
     onHireClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -276,9 +258,8 @@ private fun ApplicantCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         colors = CardDefaults.cardColors(
             containerColor = when (applicant.status) {
-                ApplicantStatus.ACCEPTED -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                ApplicantStatus.HIRED -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
                 ApplicantStatus.REJECTED -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-                ApplicantStatus.HIRED -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
                 else -> MaterialTheme.colorScheme.surface
             }
         )
@@ -348,28 +329,22 @@ private fun ApplicantCard(
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     color = when (applicant.status) {
-                        ApplicantStatus.PENDING -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f)
-                        ApplicantStatus.REVIEWING -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f)
-                        ApplicantStatus.INTERVIEWING -> MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                        ApplicantStatus.ACCEPTED -> MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                        ApplicantStatus.HIRED -> MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                         ApplicantStatus.REJECTED -> MaterialTheme.colorScheme.error.copy(alpha = 0.3f)
-                        ApplicantStatus.HIRED -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f)
+                        else -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f)
                     }
                 ) {
                     Text(
                         text = when (applicant.status) {
-                            ApplicantStatus.PENDING -> "待处理"
-                            ApplicantStatus.REVIEWING -> "审核中"
-                            ApplicantStatus.INTERVIEWING -> "面试中"
-                            ApplicantStatus.ACCEPTED -> "已通过"
-                            ApplicantStatus.REJECTED -> "已拒绝"
                             ApplicantStatus.HIRED -> "已雇佣"
+                            ApplicantStatus.REJECTED -> "已拒绝"
+                            else -> "待雇佣"
                         },
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = when (applicant.status) {
-                            ApplicantStatus.ACCEPTED -> MaterialTheme.colorScheme.primary
+                            ApplicantStatus.HIRED -> MaterialTheme.colorScheme.primary
                             ApplicantStatus.REJECTED -> MaterialTheme.colorScheme.error
                             else -> MaterialTheme.colorScheme.onSurfaceVariant
                         }
@@ -408,53 +383,6 @@ private fun ApplicantCard(
                 )
             }
             
-            // 面试结果（如果已面试）
-            applicant.interviewScore?.let { score ->
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    ),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "面试评分",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "$score 分",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = when {
-                                    score >= 80 -> MaterialTheme.colorScheme.primary
-                                    score >= 60 -> MaterialTheme.colorScheme.tertiary
-                                    else -> MaterialTheme.colorScheme.error
-                                }
-                            )
-                        }
-                        
-                        applicant.interviewNotes?.let { notes ->
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = notes,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-            
             Spacer(modifier = Modifier.height(12.dp))
             
             // 操作按钮
@@ -463,22 +391,7 @@ private fun ApplicantCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 when (applicant.status) {
-                    ApplicantStatus.PENDING, ApplicantStatus.REVIEWING -> {
-                        Button(
-                            onClick = onInterviewClick,
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.People,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("面试")
-                        }
-                    }
-                    ApplicantStatus.ACCEPTED -> {
+                    ApplicantStatus.PENDING, ApplicantStatus.REVIEWING, ApplicantStatus.ACCEPTED -> {
                         Button(
                             onClick = onHireClick,
                             modifier = Modifier.weight(1f),

@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.yjcy.data.Employee
 import com.example.yjcy.ui.components.NewTalentMarketDialog
+import com.example.yjcy.service.JobPostingService
 import kotlin.random.Random
 
 @Composable
@@ -36,7 +37,8 @@ fun EmployeeManagementContent(
     onEmployeesUpdate: (List<Employee>) -> Unit,
     money: Long,
     onMoneyUpdate: (Long) -> Unit,
-    onNavigateToTalentMarket: () -> Unit = {}
+    onNavigateToTalentMarket: () -> Unit = {},
+    jobPostingRefreshTrigger: Int = 0 // 用于触发应聘者数据刷新
 ) {
     var showTrainingDialog by remember { mutableStateOf(false) }
     var showFireDialog by remember { mutableStateOf(false) }
@@ -44,6 +46,15 @@ fun EmployeeManagementContent(
     var selectedEmployee by remember { mutableStateOf<Employee?>(null) }
     var filterType by remember { mutableStateOf("全部") }
     val listState = rememberLazyListState()
+    
+    // 获取待处理的应聘者数量
+    val jobPostingService = remember { JobPostingService.getInstance() }
+    val pendingApplicantsCount = remember { mutableStateOf(jobPostingService.getTotalPendingApplicants()) }
+    
+    // 刷新应聘者数量 - 监听刷新触发器和对话框打开状态
+    LaunchedEffect(showTalentMarketDialog, jobPostingRefreshTrigger) {
+        pendingApplicantsCount.value = jobPostingService.getTotalPendingApplicants()
+    }
     
     // 过滤员工列表 - 使用 derivedStateOf 以正确响应 mutableStateListOf 的变化
     val filteredEmployees by remember {
@@ -100,16 +111,25 @@ fun EmployeeManagementContent(
                 modifier = Modifier.weight(1f)
             )
             
-            // 人才市场入口按钮
-            ModernButton(
-                text = "人才市场",
-                icon = Icons.Default.PersonAdd,
-                onClick = { showTalentMarketDialog = true },
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF10B981)
+            // 人才市场入口按钮（带红点提示）
+            BadgeBox(
+                showBadge = pendingApplicantsCount.value > 0,
+                badgeCount = null, // 只显示红点，不显示数字
+                modifier = Modifier.weight(1f)
+            ) {
+                ModernButton(
+                    text = "人才市场",
+                    icon = Icons.Default.PersonAdd,
+                    onClick = { 
+                        showTalentMarketDialog = true
+                        pendingApplicantsCount.value = jobPostingService.getTotalPendingApplicants()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF10B981)
+                    )
                 )
-            )
+            }
         }
         
         // 员工列表
@@ -233,6 +253,7 @@ fun EmployeeManagementContent(
                 allEmployees = allEmployees
             ),
             onDismiss = { showTalentMarketDialog = false },
+            jobPostingRefreshTrigger = jobPostingRefreshTrigger,
             onRecruitCandidate = { candidate ->
                 // 招聘候选人的逻辑
                 val newEmployee = Employee(

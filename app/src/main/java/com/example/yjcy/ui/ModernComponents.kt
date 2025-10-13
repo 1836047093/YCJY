@@ -465,3 +465,50 @@ fun FloatingActionButton(
         )
     }
 }
+
+/**
+ * 带红点提示的容器组件
+ * @param showBadge 是否显示红点
+ * @param badgeCount 红点上的数字（可选，如果不传则只显示红点）
+ * @param content 需要包裹的内容
+ */
+@Composable
+fun BadgeBox(
+    showBadge: Boolean,
+    modifier: Modifier = Modifier,
+    badgeCount: Int? = null,
+    badgeColor: Color = Color(0xFFEF4444),
+    content: @Composable BoxScope.() -> Unit
+) {
+    Box(modifier = modifier) {
+        content()
+        
+        if (showBadge) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 4.dp, y = (-4).dp)
+                    .size(if (badgeCount != null && badgeCount > 0) 20.dp else 10.dp)
+                    .background(
+                        color = badgeColor,
+                        shape = CircleShape
+                    )
+                    .border(
+                        width = 2.dp,
+                        color = Color.White,
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                if (badgeCount != null && badgeCount > 0) {
+                    Text(
+                        text = if (badgeCount > 99) "99+" else badgeCount.toString(),
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}

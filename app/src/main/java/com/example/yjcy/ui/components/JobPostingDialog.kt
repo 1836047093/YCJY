@@ -36,17 +36,22 @@ fun JobPostingDialog(
     // 表单状态
     var selectedPosition by remember { mutableStateOf<String?>(null) }
     var minSkillLevel by remember { mutableIntStateOf(1) }
-    var minSalary by remember { mutableIntStateOf(3000) }
-    var maxSalary by remember { mutableIntStateOf(10000) }
+    var salary by remember { mutableIntStateOf(10000) }
     var showPositionDropdown by remember { mutableStateOf(false) }
     
     val positions = FilterCriteria.getAvailablePositions()
     
+    // 根据技能等级计算关键薪资阈值
+    val salaryThreshold = minSkillLevel * 10000
+    
+    // 检查薪资是否低于/高于阈值
+    val isSalaryLow = salary < salaryThreshold
+    val isSalaryHigh = salary > salaryThreshold
+    
     // 验证表单
     val isValid = selectedPosition != null && 
                   minSkillLevel in 1..5 && 
-                  minSalary > 0 && 
-                  maxSalary > minSalary
+                  salary > 0
     
     Dialog(
         onDismissRequest = onDismiss,
@@ -164,7 +169,11 @@ fun JobPostingDialog(
                     (1..5).forEach { level ->
                         FilterChip(
                             selected = minSkillLevel == level,
-                            onClick = { minSkillLevel = level },
+                            onClick = { 
+                                minSkillLevel = level
+                                // 自动调整薪资到阈值，以获得较好的招聘成功率
+                                salary = level * 10000
+                            },
                             label = { Text("Lv.$level") },
                             modifier = Modifier.weight(1f)
                         )
@@ -173,9 +182,9 @@ fun JobPostingDialog(
                 
                 Spacer(modifier = Modifier.height(20.dp))
                 
-                // 薪资范围
+                // 薪资设置
                 Text(
-                    text = "薪资范围",
+                    text = "薪资待遇",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -183,47 +192,95 @@ fun JobPostingDialog(
                 
                 Spacer(modifier = Modifier.height(8.dp))
                 
-                // 最低薪资
-                Text(
-                    text = "最低薪资: ¥$minSalary",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                
-                Slider(
-                    value = minSalary.toFloat(),
-                    onValueChange = { 
-                        minSalary = it.toInt()
-                        // 确保最高薪资大于最低薪资
-                        if (maxSalary <= minSalary) {
-                            maxSalary = minSalary + 1000
+                // 薪资建议提示
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isSalaryLow) {
+                            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                        } else if (isSalaryHigh) {
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                        } else {
+                            MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
                         }
-                    },
-                    valueRange = 3000f..50000f,
-                    steps = 46,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = if (isSalaryLow) "⚠️" else if (isSalaryHigh) "✅" else "💡",
+                                fontSize = 16.sp
+                            )
+                            Column {
+                                Text(
+                                    text = "Lv.$minSkillLevel 关键薪资阈值：¥${String.format("%,d", salaryThreshold)}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSalaryLow) {
+                                        MaterialTheme.colorScheme.error
+                                    } else if (isSalaryHigh) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.tertiary
+                                    }
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "当前薪资：¥${String.format("%,d", salary)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(6.dp))
+                        
+                        if (isSalaryLow) {
+                            Text(
+                                text = "💔 低于阈值，招聘成功率将大大下降！",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        } else if (isSalaryHigh) {
+                            Text(
+                                text = "🎉 高于阈值，招聘成功率将大大增加！",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        } else {
+                            Text(
+                                text = "📊 接近阈值，招聘成功率一般",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
                 
                 Spacer(modifier = Modifier.height(12.dp))
                 
-                // 最高薪资
+                // 薪资设置
                 Text(
-                    text = "最高薪资: ¥$maxSalary",
+                    text = "薪资: ¥${String.format("%,d", salary)}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 
                 Slider(
-                    value = maxSalary.toFloat(),
+                    value = salary.toFloat(),
                     onValueChange = { 
-                        maxSalary = it.toInt()
-                        // 确保最低薪资小于最高薪资
-                        if (minSalary >= maxSalary) {
-                            minSalary = maxSalary - 1000
-                        }
+                        salary = it.toInt()
                     },
-                    valueRange = 3000f..50000f,
-                    steps = 46,
+                    valueRange = 5000f..60000f,
+                    steps = 54,
                     modifier = Modifier.fillMaxWidth()
                 )
                 
@@ -258,13 +315,13 @@ fun JobPostingDialog(
                         Spacer(modifier = Modifier.height(4.dp))
                         
                         Text(
-                            text = "要求: 专属技能 Lv.$minSkillLevel 以上",
+                            text = "要求: 专属技能 Lv.$minSkillLevel",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         
                         Text(
-                            text = "薪资: ¥${minSalary} - ¥${maxSalary}",
+                            text = "薪资: ¥${String.format("%,d", salary)}",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -305,8 +362,8 @@ fun JobPostingDialog(
                                 jobPostingService.createJobPosting(
                                     position = selectedPosition!!,
                                     minSkillLevel = minSkillLevel,
-                                    minSalary = minSalary,
-                                    maxSalary = maxSalary
+                                    minSalary = salary,
+                                    maxSalary = salary
                                 )
                                 onPostingCreated()
                                 onDismiss()

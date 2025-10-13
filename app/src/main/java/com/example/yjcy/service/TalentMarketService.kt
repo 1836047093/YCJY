@@ -206,27 +206,31 @@ class TalentMarketService {
     
     /**
      * 为特定岗位生成技能分布（带最低技能等级要求）
+     * 生成的专属技能等级刚好等于要求等级
      */
     private fun generateSkillsForPosition(position: String, minSkillLevel: Int): List<Int> {
         // 初始化所有技能为0或1级
         val skills = MutableList(5) { Random.nextInt(0, 2) }
         
-        // 根据职位设置专属技能，确保达到最低等级要求
+        // 生成专属技能等级：100%刚好等于最低要求
+        val skillLevel = minSkillLevel
+        
+        // 根据职位设置专属技能
         when (position) {
             "程序员" -> {
-                skills[0] = Random.nextInt(minSkillLevel, 6).coerceAtMost(5)
+                skills[0] = skillLevel
             }
             "策划师" -> {
-                skills[1] = Random.nextInt(minSkillLevel, 6).coerceAtMost(5)
+                skills[1] = skillLevel
             }
             "美术师" -> {
-                skills[2] = Random.nextInt(minSkillLevel, 6).coerceAtMost(5)
+                skills[2] = skillLevel
             }
             "音效师" -> {
-                skills[3] = Random.nextInt(minSkillLevel, 6).coerceAtMost(5)
+                skills[3] = skillLevel
             }
             "客服" -> {
-                skills[4] = Random.nextInt(minSkillLevel, 6).coerceAtMost(5)
+                skills[4] = skillLevel
             }
         }
         

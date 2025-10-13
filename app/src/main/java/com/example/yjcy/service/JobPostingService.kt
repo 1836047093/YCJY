@@ -157,22 +157,46 @@ class JobPostingService {
     
     /**
      * 计算岗位吸引力（0.0-1.0）
+     * 基于薪资与技能等级阈值的关系
+     * 
+     * 规则：
+     * - Lv.1 阈值: 10000，低于大大下降，高于大大增加
+     * - Lv.2 阈值: 20000，低于大大下降，高于大大增加
+     * - 以此类推...
      */
     private fun calculateJobAttractiveness(job: JobPosting): Float {
-        // 基于薪资范围计算吸引力
-        val avgSalary = (job.minSalary + job.maxSalary) / 2
-        val salaryScore = when {
-            avgSalary >= 20000 -> 1.0f
-            avgSalary >= 15000 -> 0.8f
-            avgSalary >= 10000 -> 0.6f
-            avgSalary >= 5000 -> 0.4f
-            else -> 0.2f
+        // 计算该技能等级的关键薪资阈值
+        val salaryThreshold = job.minSkillLevel * 10000
+        
+        // 使用岗位薪资（现在minSalary和maxSalary相同）
+        val salary = job.minSalary
+        
+        // 计算薪资与阈值的比率
+        val salaryRatio = salary.toFloat() / salaryThreshold.toFloat()
+        
+        // 基于薪资比率计算吸引力
+        val attractiveness = when {
+            // 高于阈值 - 大大增加
+            salaryRatio > 1.0f -> {
+                // 高于阈值越多，吸引力越高
+                // 1.0 -> 0.7, 1.2 -> 0.8, 1.5 -> 0.9, 2.0+ -> 1.0
+                val bonus = (salaryRatio - 1.0f) * 0.6f
+                (0.7f + bonus).coerceAtMost(1.0f)
+            }
+            // 接近阈值（90%-100%） - 一般
+            salaryRatio >= 0.9f -> {
+                // 0.9 -> 0.5, 0.95 -> 0.6, 1.0 -> 0.7
+                0.5f + (salaryRatio - 0.9f) * 2.0f
+            }
+            // 低于阈值 - 大大下降
+            else -> {
+                // 低于阈值越多，吸引力越低
+                // 0.9 -> 0.5, 0.7 -> 0.3, 0.5 -> 0.15, 0.3 -> 0.08
+                (salaryRatio * 0.55f).coerceAtLeast(0.05f)
+            }
         }
         
-        // 技能要求越低，吸引力越高
-        val skillScore = (6 - job.minSkillLevel) / 5.0f
-        
-        return (salaryScore + skillScore) / 2.0f
+        return attractiveness.coerceIn(0.0f, 1.0f)
     }
     
     /**

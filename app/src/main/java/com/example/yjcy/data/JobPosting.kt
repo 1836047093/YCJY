@@ -21,7 +21,7 @@ data class JobPosting(
      * 获取岗位描述
      */
     fun getDescription(): String {
-        return "招聘 $position - $requiredSkillType Lv.$minSkillLevel+ - ¥${minSalary}-${maxSalary}"
+        return "招聘 $position - $requiredSkillType Lv.$minSkillLevel - ¥${minSalary}-${maxSalary}"
     }
     
     /**
