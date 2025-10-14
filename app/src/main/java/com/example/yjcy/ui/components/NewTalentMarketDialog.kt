@@ -1,6 +1,5 @@
 package com.example.yjcy.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -20,8 +19,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.yjcy.data.*
 import com.example.yjcy.service.JobPostingService
-import com.example.yjcy.service.RecruitmentService
-import com.example.yjcy.ui.BadgeBox
+import java.util.Locale
 
 /**
  * 人才市场对话框 - 岗位发布系统版本
@@ -34,28 +32,19 @@ fun NewTalentMarketDialog(
     onDismiss: () -> Unit,
     onRecruitCandidate: (TalentCandidate) -> Unit,
     modifier: Modifier = Modifier,
-    jobPostingRefreshTrigger: Int = 0, // 用于触发应聘者数据刷新
-    onNavigateToEmployeeManagement: () -> Unit = {} // 导航到员工管理
+    jobPostingRefreshTrigger: Int = 0 // 用于触发应聘者数据刷新
 ) {
     val jobPostingService = remember { JobPostingService.getInstance() }
-    val recruitmentService = remember { RecruitmentService() }
     
     // 状态管理
-    var jobPostings by remember { mutableStateOf(jobPostingService.getAllJobPostings()) }
+    var jobPostings by remember { mutableStateOf(jobPostingService.getAllJobPostings().filter { it.status != JobPostingStatus.CLOSED }) }
     var showJobPostingDialog by remember { mutableStateOf(false) }
     var selectedJob by remember { mutableStateOf<JobPosting?>(null) }
     var showApplicantDialog by remember { mutableStateOf(false) }
-    var pendingApplicantsCount by remember { mutableStateOf(jobPostingService.getTotalPendingApplicants()) }
     
     // 监听刷新触发器，实时更新岗位数据
     LaunchedEffect(jobPostingRefreshTrigger) {
-        jobPostings = jobPostingService.getAllJobPostings()
-        pendingApplicantsCount = jobPostingService.getTotalPendingApplicants()
-    }
-    
-    // 当岗位列表更新时，同步更新待处理应聘者数量
-    LaunchedEffect(jobPostings) {
-        pendingApplicantsCount = jobPostingService.getTotalPendingApplicants()
+        jobPostings = jobPostingService.getAllJobPostings().filter { it.status != JobPostingStatus.CLOSED }
     }
     
     Dialog(
@@ -187,56 +176,10 @@ fun NewTalentMarketDialog(
                                 )
                             }
                             Text(
-                                text = "¥${String.format("%,d", saveData.money)}",
+                                text = "¥${String.format(Locale.getDefault(), "%,d", saveData.money)}",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    // 统计信息
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(14.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            StatItem(
-                                label = "活跃岗位",
-                                value = jobPostingService.getActiveJobPostings().size.toString(),
-                                icon = "📋"
-                            )
-                            Divider(
-                                modifier = Modifier
-                                    .width(1.dp)
-                                    .height(40.dp),
-                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                            )
-                            StatItem(
-                                label = "待处理应聘",
-                                value = pendingApplicantsCount.toString(),
-                                icon = "👥"
-                            )
-                            Divider(
-                                modifier = Modifier
-                                    .width(1.dp)
-                                    .height(40.dp),
-                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                            )
-                            StatItem(
-                                label = "总岗位",
-                                value = jobPostings.size.toString(),
-                                icon = "📊"
                             )
                         }
                     }
@@ -303,7 +246,7 @@ fun NewTalentMarketDialog(
                                     },
                                     onCloseClick = {
                                         jobPostingService.closeJobPosting(job.id)
-                                        jobPostings = jobPostingService.getAllJobPostings()
+                                        jobPostings = jobPostingService.getAllJobPostings().filter { it.status != JobPostingStatus.CLOSED }
                                     }
                                 )
                             }
@@ -320,7 +263,7 @@ fun NewTalentMarketDialog(
             onDismiss = { showJobPostingDialog = false },
             onPostingCreated = {
                 showJobPostingDialog = false
-                jobPostings = jobPostingService.getAllJobPostings()
+                jobPostings = jobPostingService.getAllJobPostings().filter { it.status != JobPostingStatus.CLOSED }
             }
         )
     }
@@ -332,47 +275,14 @@ fun NewTalentMarketDialog(
             onDismiss = { 
                 showApplicantDialog = false
                 selectedJob = null
-                jobPostings = jobPostingService.getAllJobPostings()
-                pendingApplicantsCount = jobPostingService.getTotalPendingApplicants()
+                jobPostings = jobPostingService.getAllJobPostings().filter { it.status != JobPostingStatus.CLOSED }
             },
             onApplicantHired = { candidate ->
                 // 雇佣员工
                 onRecruitCandidate(candidate)
                 // 刷新岗位列表
-                jobPostings = jobPostingService.getAllJobPostings()
-                pendingApplicantsCount = jobPostingService.getTotalPendingApplicants()
+                jobPostings = jobPostingService.getAllJobPostings().filter { it.status != JobPostingStatus.CLOSED }
             }
-        )
-    }
-}
-
-/**
- * 统计项组件
- */
-@Composable
-private fun StatItem(
-    label: String,
-    value: String,
-    icon: String
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = icon,
-            fontSize = 24.sp
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }
@@ -471,7 +381,7 @@ private fun JobPostingCard(
             
             Spacer(modifier = Modifier.height(12.dp))
             
-            Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             
             Spacer(modifier = Modifier.height(12.dp))
             
@@ -499,7 +409,7 @@ private fun JobPostingCard(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = "¥${String.format("%,d", jobPosting.minSalary)}",
+                                text = "¥${String.format(Locale.getDefault(), "%,d", jobPosting.minSalary)}",
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Bold
                             )

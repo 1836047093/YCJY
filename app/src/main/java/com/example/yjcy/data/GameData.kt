@@ -155,8 +155,30 @@ data class Game(
     val revenue: Long = 0L,
     val rating: Float? = null, // 游戏评分
     val gameRating: GameRating? = null, // 新增：详细评分信息
-    val assignedEmployees: List<Employee> = emptyList() // 已分配的员工列表
-)
+    val assignedEmployees: List<Employee> = emptyList(), // 已分配的员工列表
+    val monetizationItems: List<MonetizationItem> = emptyList(), // 付费内容列表（仅网络游戏）
+    val developmentCost: Long = 0L // 新增：开发成本（用于废弃时返还80%）
+) {
+    /**
+     * 计算游戏开发成本
+     * 基于主题、平台数量、商业模式计算
+     */
+    fun calculateDevelopmentCost(): Long {
+        // 基础成本
+        var cost = 50000L
+        
+        // 平台数量影响成本
+        cost += platforms.size * 20000L
+        
+        // 商业模式影响成本
+        cost += when (businessModel) {
+            BusinessModel.SINGLE_PLAYER -> 30000L
+            BusinessModel.ONLINE_GAME -> 80000L
+        }
+        
+        return cost
+    }
+}
 
 // 游戏评分相关数据类
 data class GameRating(
@@ -196,6 +218,27 @@ data class MarketFactors(
     val platformMultipliers: Map<Platform, Float>, // 平台价格系数
     val themePopularity: Map<GameTheme, Float>, // 主题受欢迎度
     val businessModelFactors: Map<BusinessModel, Float> // 商业模式因素
+)
+
+// 付费内容推荐数据类（网络游戏专用）
+data class MonetizationRecommendation(
+    val gameId: String,
+    val itemPrices: ItemPriceRecommendation, // 道具价格建议
+    val vipPrices: VipPriceRecommendation, // VIP价格建议
+    val marketAnalysis: String, // 市场分析
+    val confidence: Float = 0.8f // 推荐置信度
+)
+
+data class ItemPriceRecommendation(
+    val lowTier: Float, // 低档道具价格 (如小额消费道具)
+    val midTier: Float, // 中档道具价格 (如礼包、皮肤)
+    val highTier: Float // 高档道具价格 (如稀有道具)
+)
+
+data class VipPriceRecommendation(
+    val monthly: Float, // 月卡价格
+    val seasonal: Float, // 季卡价格
+    val yearly: Float // 年卡价格
 )
 
 // 存档数据类

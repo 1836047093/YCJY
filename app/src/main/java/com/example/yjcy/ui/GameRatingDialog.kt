@@ -246,28 +246,6 @@ fun GameRatingDialog(
                 }
                 
                 item {
-                    // 员工贡献标题
-                    Text(
-                        text = "👥 员工贡献详情",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1E3A8A),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-                
-                // 员工贡献列表
-                items(gameRating.skillContributions) { contribution ->
-                    EmployeeContributionCard(
-                        contribution = contribution,
-                        animationProgress = animationProgress
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-                
-                item {
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     // 关闭按钮

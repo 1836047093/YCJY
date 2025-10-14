@@ -120,7 +120,9 @@ fun EnhancedProjectManagementContent(
     founder: Founder? = null,
     availableEmployees: List<Employee> = founder?.let { listOf(it.toEmployee()) } ?: getDefaultEmployees(),
     refreshTrigger: Int = 0,  // 新增：用于触发UI刷新
-    onSwitchToCurrentProjects: (() -> Unit)? = null
+    onSwitchToCurrentProjects: (() -> Unit)? = null,
+    onReleaseGame: ((Game) -> Unit)? = null,  // 新增：发售游戏回调
+    onAbandonGame: ((Game) -> Unit)? = null  // 新增：废弃游戏回调
 ) {
     var showGameDevelopmentDialog by remember { mutableStateOf(false) }
     var selectedProjectType by remember { mutableStateOf(ProjectDisplayType.CURRENT) }
@@ -323,7 +325,9 @@ fun EnhancedProjectManagementContent(
                         onSwitchToCurrentProjects = {
                             selectedProjectType = ProjectDisplayType.CURRENT
                             onSwitchToCurrentProjects?.invoke()
-                        }
+                        },
+                        onReleaseGame = onReleaseGame,
+                        onAbandonGame = onAbandonGame
                     )
                 }
             }
@@ -452,6 +456,11 @@ fun SuperEnhancedGameDevelopmentDialog(
     var selectedTheme by remember { mutableStateOf<GameTheme?>(null) }
     var selectedPlatforms by remember { mutableStateOf(setOf<Platform>()) }
     var selectedBusinessModel by remember { mutableStateOf<BusinessModel?>(null) }
+    var monetizationItems by remember { mutableStateOf<List<com.example.yjcy.data.MonetizationItem>>(emptyList()) }
+    
+    // 计算总步骤数：网络游戏需要额外的付费内容步骤
+    val totalSteps = if (selectedBusinessModel == BusinessModel.ONLINE_GAME) 5 else 4
+    val isLastStep = currentStep == totalSteps - 1
     
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -473,7 +482,7 @@ fun SuperEnhancedGameDevelopmentDialog(
                         .padding(top = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    repeat(4) { index ->
+                    repeat(totalSteps) { index ->
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -515,12 +524,33 @@ fun SuperEnhancedGameDevelopmentDialog(
                         },
                         onBusinessModelSelected = { selectedBusinessModel = it }
                     )
-                    3 -> GameConfirmationStep(
-                        gameName = gameName,
-                        theme = selectedTheme,
-                        platforms = selectedPlatforms.toList(),
-                        businessModel = selectedBusinessModel
-                    )
+                    3 -> {
+                        // 如果是网络游戏，显示付费内容选择
+                        if (selectedBusinessModel == BusinessModel.ONLINE_GAME) {
+                            MonetizationSelectionStep(
+                                selectedTheme = selectedTheme,
+                                monetizationItems = monetizationItems,
+                                onMonetizationItemsChange = { monetizationItems = it }
+                            )
+                        } else {
+                            // 单机游戏直接显示确认页
+                            GameConfirmationStep(
+                                gameName = gameName,
+                                theme = selectedTheme,
+                                platforms = selectedPlatforms.toList(),
+                                businessModel = selectedBusinessModel
+                            )
+                        }
+                    }
+                    4 -> {
+                        // 网络游戏的确认步骤
+                        GameConfirmationStep(
+                            gameName = gameName,
+                            theme = selectedTheme,
+                            platforms = selectedPlatforms.toList(),
+                            businessModel = selectedBusinessModel
+                        )
+                    }
                 }
                 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -558,44 +588,45 @@ fun SuperEnhancedGameDevelopmentDialog(
                 }
                 TextButton(
                     onClick = {
-                        when (currentStep) {
-                            3 -> {
-                                // 创建游戏
-                                if (gameName.isNotBlank() && selectedTheme != null && 
-                                    selectedPlatforms.isNotEmpty() && selectedBusinessModel != null) {
-                                    val newGame = Game(
-                                        id = java.util.UUID.randomUUID().toString(),
-                                        name = gameName,
-                                        theme = selectedTheme!!,
-                                        platforms = selectedPlatforms.toList(),
-                                        businessModel = selectedBusinessModel!!,
-                                        developmentProgress = 0f,
-                                        isCompleted = false,
-                                        revenue = 0L,
-                                        assignedEmployees = emptyList()
-                                    )
-                                    onGameCreated(newGame)
+                        if (isLastStep) {
+                            // 创建游戏
+                            if (gameName.isNotBlank() && selectedTheme != null && 
+                                selectedPlatforms.isNotEmpty() && selectedBusinessModel != null) {
+                                val newGame = Game(
+                                    id = java.util.UUID.randomUUID().toString(),
+                                    name = gameName,
+                                    theme = selectedTheme!!,
+                                    platforms = selectedPlatforms.toList(),
+                                    businessModel = selectedBusinessModel!!,
+                                    developmentProgress = 0f,
+                                    isCompleted = false,
+                                    revenue = 0L,
+                                    assignedEmployees = emptyList(),
+                                    monetizationItems = monetizationItems
+                                ).let { game ->
+                                    // 计算并设置开发成本
+                                    game.copy(developmentCost = game.calculateDevelopmentCost())
                                 }
+                                onGameCreated(newGame)
                             }
-                            else -> currentStep++
+                        } else {
+                            currentStep++
                         }
                     },
                     enabled = when (currentStep) {
                         0 -> gameName.isNotBlank()
                         1 -> selectedTheme != null
                         2 -> selectedPlatforms.isNotEmpty() && selectedBusinessModel != null
-                        3 -> true
-                        else -> false
+                        else -> true // 付费内容可选
                     }
                 ) {
                     Text(
-                        text = if (currentStep == 3) "创建游戏" else "下一步",
+                        text = if (isLastStep) "创建游戏" else "下一步",
                         color = if (when (currentStep) {
                             0 -> gameName.isNotBlank()
                             1 -> selectedTheme != null
                             2 -> selectedPlatforms.isNotEmpty() && selectedBusinessModel != null
-                            3 -> true
-                            else -> false
+                            else -> true
                         }) Color(0xFF10B981) else Color.White.copy(alpha = 0.5f)
                     )
                 }
@@ -806,7 +837,10 @@ fun EnhancedGameDevelopmentDialog(
                                             isCompleted = false,
                                             revenue = 0L,
                                             assignedEmployees = emptyList()
-                                        )
+                                        ).let { game ->
+                                            // 计算并设置开发成本
+                                            game.copy(developmentCost = game.calculateDevelopmentCost())
+                                        }
                                         onGameCreated(newGame)
                                     }
                                 }

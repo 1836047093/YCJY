@@ -739,6 +739,10 @@ fun GameScreen(
     var jobPostingRefreshTrigger by remember { mutableStateOf(0) } // 用于触发岗位应聘者数据刷新
     var pendingRatingGame by remember { mutableStateOf<Game?>(null) }
     
+    // 废弃游戏相关状态
+    var showAbandonDialog by remember { mutableStateOf(false) }
+    var pendingAbandonGame by remember { mutableStateOf<Game?>(null) }
+    
     // 员工状态管理 - 提升到GameScreen级别
     val allEmployees = remember { mutableStateListOf<Employee>() }
     
@@ -908,7 +912,8 @@ fun GameScreen(
                             developmentProgress = newProgress,
                             isCompleted = isCompleted,
                             rating = gameRating.finalScore,
-                            gameRating = gameRating
+                            gameRating = gameRating,
+                            releaseStatus = GameReleaseStatus.READY_FOR_RELEASE
                         )
                         
                         // 触发发售价格设置对话框
@@ -1010,7 +1015,17 @@ fun GameScreen(
                             onGamesUpdate = { updatedGames -> games = updatedGames },
                             founder = founder,
                             allEmployees = allEmployees,
-                            refreshTrigger = revenueRefreshTrigger
+                            refreshTrigger = revenueRefreshTrigger,
+                            onReleaseGame = { game ->
+                                // 触发发售对话框
+                                pendingReleaseGame = game
+                                showReleaseDialog = true
+                            },
+                            onAbandonGame = { game ->
+                                // 触发废弃确认对话框
+                                pendingAbandonGame = game
+                                showAbandonDialog = true
+                            }
                         )
                         3 -> InGameSettingsContent(
                             navController = navController,
@@ -1150,6 +1165,77 @@ fun GameScreen(
                     
                     showRatingDialog = false
                     pendingRatingGame = null
+                }
+            )
+        }
+        
+        // 废弃游戏确认对话框
+        if (showAbandonDialog && pendingAbandonGame != null) {
+            AlertDialog(
+                onDismissRequest = {
+                    showAbandonDialog = false
+                    pendingAbandonGame = null
+                },
+                title = {
+                    Text(
+                        text = "⚠️ 确认废弃项目",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Column {
+                        Text(
+                            text = "确定要废弃项目「${pendingAbandonGame!!.name}」吗？",
+                            fontSize = 14.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "开发成本：${formatMoney(pendingAbandonGame!!.developmentCost)}",
+                            fontSize = 13.sp,
+                            color = Color.Gray
+                        )
+                        Text(
+                            text = "返还金额：${formatMoney((pendingAbandonGame!!.developmentCost * 0.8).toLong())} (80%)",
+                            fontSize = 13.sp,
+                            color = Color(0xFF10B981),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            // 返还80%开发费用
+                            val refund = (pendingAbandonGame!!.developmentCost * 0.8).toLong()
+                            money += refund
+                            
+                            // 从游戏列表中移除
+                            games = games.filter { it.id != pendingAbandonGame!!.id }
+                            
+                            // 显示提示消息
+                            messageText = "已废弃项目「${pendingAbandonGame!!.name}」，返还 ${formatMoney(refund)}"
+                            showMessage = true
+                            
+                            showAbandonDialog = false
+                            pendingAbandonGame = null
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFEF4444)
+                        )
+                    ) {
+                        Text("确认废弃")
+                    }
+                },
+                dismissButton = {
+                    OutlinedButton(
+                        onClick = {
+                            showAbandonDialog = false
+                            pendingAbandonGame = null
+                        }
+                    ) {
+                        Text("取消")
+                    }
                 }
             )
         }
@@ -1511,7 +1597,7 @@ fun EnhancedBottomNavItem(
         // 使用BadgeBox包裹图标以显示红点
         BadgeBox(
             showBadge = showBadge,
-            badgeCount = badgeCount
+            badgeCount = null  // 只显示红点，不显示数字
         ) {
             Text(
                 text = icon,

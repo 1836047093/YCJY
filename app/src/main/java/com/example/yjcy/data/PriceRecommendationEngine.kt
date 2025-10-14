@@ -166,4 +166,93 @@ object PriceRecommendationEngine {
             businessModelFactors = businessModelFactors
         )
     }
+    
+    /**
+     * 计算网络游戏的付费内容推荐价格
+     */
+    fun calculateMonetizationRecommendation(game: Game): MonetizationRecommendation {
+        // 基础道具价格
+        var baseItemPrice = 6.0f
+        
+        // 应用平台系数
+        val platformMultiplier = game.platforms.maxOfOrNull { platformMultipliers[it] ?: 1.0f } ?: 1.0f
+        baseItemPrice *= platformMultiplier
+        
+        // 应用主题受欢迎度系数
+        val themeMultiplier = themePopularity[game.theme] ?: 1.0f
+        baseItemPrice *= themeMultiplier
+        
+        // 道具价格梯度
+        val lowTier = (baseItemPrice * 0.5f).coerceAtLeast(1.0f).roundToNearestOne()
+        val midTier = baseItemPrice.roundToNearestOne()
+        val highTier = (baseItemPrice * 3.0f).roundToNearestFive()
+        
+        // VIP价格梯度
+        val monthlyVip = (baseItemPrice * 4.0f).roundToNearestFive()
+        val seasonalVip = (monthlyVip * 2.5f).roundToNearestFive()
+        val yearlyVip = (monthlyVip * 8.0f).roundToNearestTen()
+        
+        // 生成市场分析
+        val marketAnalysis = generateMonetizationAnalysis(game, platformMultiplier)
+        
+        return MonetizationRecommendation(
+            gameId = game.id,
+            itemPrices = ItemPriceRecommendation(
+                lowTier = lowTier,
+                midTier = midTier,
+                highTier = highTier
+            ),
+            vipPrices = VipPriceRecommendation(
+                monthly = monthlyVip,
+                seasonal = seasonalVip,
+                yearly = yearlyVip
+            ),
+            marketAnalysis = marketAnalysis,
+            confidence = calculateConfidence(game)
+        )
+    }
+    
+    /**
+     * 生成网络游戏付费内容市场分析
+     */
+    private fun generateMonetizationAnalysis(
+        game: Game,
+        platformMultiplier: Float
+    ): String {
+        val analysis = StringBuilder()
+        
+        // 平台分析
+        when {
+            platformMultiplier > 1.2f -> analysis.append("主机平台用户付费率较高，可采用中高价策略。")
+            platformMultiplier < 0.7f -> analysis.append("移动/网页平台用户量大，建议小额高频付费。")
+            else -> analysis.append("PC平台付费能力适中，平衡定价策略。")
+        }
+        
+        // 主题分析
+        when (game.theme) {
+            GameTheme.ACTION -> analysis.append("动作游戏适合皮肤、特效等视觉类付费内容。")
+            GameTheme.RPG -> analysis.append("RPG游戏适合装备、道具等成长类付费内容。")
+            GameTheme.STRATEGY -> analysis.append("策略游戏适合加速、资源等便利类付费内容。")
+            GameTheme.CASUAL -> analysis.append("休闲游戏适合去广告、解锁关卡等功能性付费。")
+            else -> analysis.append("该类型游戏可多元化付费内容设计。")
+        }
+        
+        analysis.append("建议同时提供道具和VIP订阅，满足不同玩家需求。")
+        
+        return analysis.toString()
+    }
+    
+    /**
+     * 将价格四舍五入到最近的1元
+     */
+    private fun Float.roundToNearestOne(): Float {
+        return this.roundToInt().toFloat()
+    }
+    
+    /**
+     * 将价格四舍五入到最近的10元
+     */
+    private fun Float.roundToNearestTen(): Float {
+        return (this / 10.0f).roundToInt() * 10.0f
+    }
 }

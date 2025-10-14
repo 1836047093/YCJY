@@ -42,7 +42,9 @@ fun EnhancedGameProjectCard(
     onGameUpdate: (Game) -> Unit = {},
     modifier: Modifier = Modifier,
     refreshTrigger: Int = 0,  // 新增：用于触发UI刷新的参数
-    onSwitchToCurrentProjects: (() -> Unit)? = null
+    onSwitchToCurrentProjects: (() -> Unit)? = null,
+    onReleaseGame: ((Game) -> Unit)? = null,  // 新增：发售游戏回调
+    onAbandonGame: ((Game) -> Unit)? = null  // 新增：废弃游戏回调
 ) {
     var showRevenueDialog by remember { mutableStateOf(false) }
     
@@ -52,8 +54,11 @@ fun EnhancedGameProjectCard(
     // 检查游戏是否已下架
     val isRemoved = game.releaseStatus == GameReleaseStatus.REMOVED_FROM_MARKET
     
-    // 检查是否正在开发中（未发售也未下架）
-    val isDeveloping = !isReleased && !isRemoved
+    // 检查是否准备发售
+    val isReadyForRelease = game.releaseStatus == GameReleaseStatus.READY_FOR_RELEASE
+    
+    // 检查是否正在开发中（未完成、未发售也未下架）
+    val isDeveloping = !isReleased && !isRemoved && !isReadyForRelease
     
     // 当 refreshTrigger 改变时，强制重新获取收益数据
     val gameRevenue by remember(game.id, refreshTrigger) {
@@ -209,14 +214,6 @@ fun EnhancedGameProjectCard(
                 Spacer(modifier = Modifier.height(12.dp))
                 
                 // 开发进度 - 与实际逻辑保持一致（仅对开发中的游戏显示）
-                // 计算员工技能总和
-                val totalSkillPoints = game.assignedEmployees.sumOf { employee ->
-                    employee.skillDevelopment + employee.skillDesign +
-                    employee.skillArt + employee.skillMusic + employee.skillService
-                }
-
-                // 基础进度增长：每天3%，根据员工技能调整
-                val skillMultiplier = (totalSkillPoints / 25f).coerceAtLeast(0.1f)
                 val actualProgress = game.developmentProgress
 
                 Column {
@@ -247,16 +244,6 @@ fun EnhancedGameProjectCard(
                         color = Color(0xFF10B981),
                         trackColor = Color.White.copy(alpha = 0.2f)
                     )
-                    
-                    // 显示技能效率提示
-                    if (game.assignedEmployees.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "技能效率: ${skillMultiplier.toInt()}x (技能点: $totalSkillPoints)",
-                            color = Color.White.copy(alpha = 0.6f),
-                            fontSize = 10.sp
-                        )
-                    }
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -282,7 +269,7 @@ fun EnhancedGameProjectCard(
                             .padding(16.dp)
                     ) {
                         Text(
-                            text = "💰 收益概览",
+                            text = if (game.businessModel == BusinessModel.ONLINE_GAME) "💰 数据概览" else "💰 收益概览",
                             color = Color(0xFF10B981),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold
@@ -297,12 +284,15 @@ fun EnhancedGameProjectCard(
                         ) {
                             Column {
                                 Text(
-                                    text = "总收益",
+                                    text = if (game.businessModel == BusinessModel.ONLINE_GAME) "总注册" else "总收益",
                                     color = Color.White.copy(alpha = 0.7f),
                                     fontSize = 12.sp
                                 )
                                 Text(
-                                    text = "¥${formatMoneyWithDecimals(statistics.totalRevenue)}",
+                                    text = if (game.businessModel == BusinessModel.ONLINE_GAME) 
+                                        "${formatMoneyWithDecimals(statistics.totalSales.toDouble())}"
+                                    else
+                                        "¥${formatMoneyWithDecimals(statistics.totalRevenue)}",
                                     color = Color(0xFF10B981),
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold
@@ -311,12 +301,15 @@ fun EnhancedGameProjectCard(
                             
                             Column {
                                 Text(
-                                    text = "总销量",
+                                    text = if (game.businessModel == BusinessModel.ONLINE_GAME) "当前在线" else "总销量",
                                     color = Color.White.copy(alpha = 0.7f),
                                     fontSize = 12.sp
                                 )
                                 Text(
-                                    text = "${formatMoneyWithDecimals(statistics.totalSales.toDouble())}份",
+                                    text = if (game.businessModel == BusinessModel.ONLINE_GAME)
+                                        "${(statistics.totalSales * 0.1).toInt()}"
+                                    else
+                                        "${formatMoneyWithDecimals(statistics.totalSales.toDouble())}份",
                                     color = Color.White,
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold
@@ -369,6 +362,51 @@ fun EnhancedGameProjectCard(
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium
                         )
+                    }
+                } else if (isReadyForRelease) {
+                    // 游戏开发完成，准备发售 - 显示发售和废弃两个按钮
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // 废弃项目按钮
+                        OutlinedButton(
+                            onClick = { onAbandonGame?.invoke(game) },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color(0xFFEF4444)
+                            ),
+                            border = BorderStroke(1.dp, Color(0xFFEF4444)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = "🗑️ 废弃",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        
+                        // 发售游戏按钮
+                        Button(
+                            onClick = { onReleaseGame?.invoke(game) },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFF59E0B)
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "发售",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
                 } else if (isDeveloping) {
                     // 开发中的游戏显示分配按钮

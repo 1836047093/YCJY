@@ -256,8 +256,6 @@ private fun ProjectAssignmentCard(
     employees: List<Employee>,
     reasons: List<String>
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -312,40 +310,6 @@ private fun ProjectAssignmentCard(
                         fontSize = 12.sp,
                         color = Color.White.copy(alpha = 0.7f)
                     )
-                }
-            }
-            
-            // 展开/收起分配理由
-            if (reasons.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                TextButton(
-                    onClick = { expanded = !expanded },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = Color(0xFF60A5FA)
-                    )
-                ) {
-                    Text(
-                        text = if (expanded) "收起分配理由" else "查看分配理由",
-                        fontSize = 12.sp
-                    )
-                }
-                
-                if (expanded) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp)
-                    ) {
-                        reasons.forEachIndexed { index, reason ->
-                            Text(
-                                text = "${index + 1}. $reason",
-                                fontSize = 12.sp,
-                                color = Color.White.copy(alpha = 0.8f),
-                                modifier = Modifier.padding(vertical = 2.dp)
-                            )
-                        }
-                    }
                 }
             }
         }
