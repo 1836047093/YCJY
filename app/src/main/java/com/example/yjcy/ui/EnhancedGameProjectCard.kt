@@ -301,13 +301,13 @@ fun EnhancedGameProjectCard(
                             
                             Column {
                                 Text(
-                                    text = if (game.businessModel == BusinessModel.ONLINE_GAME) "当前在线" else "总销量",
+                                    text = if (game.businessModel == BusinessModel.ONLINE_GAME) "总活跃" else "总销量",
                                     color = Color.White.copy(alpha = 0.7f),
                                     fontSize = 12.sp
                                 )
                                 Text(
                                     text = if (game.businessModel == BusinessModel.ONLINE_GAME)
-                                        "${(statistics.totalSales * 0.1).toInt()}"
+                                        "${(statistics.totalSales * 0.4).toInt()}"
                                     else
                                         "${formatMoneyWithDecimals(statistics.totalSales.toDouble())}份",
                                     color = Color.White,
@@ -318,12 +318,16 @@ fun EnhancedGameProjectCard(
                             
                             Column {
                                 Text(
-                                    text = "在售状态",
+                                    text = if (game.businessModel == BusinessModel.ONLINE_GAME) "当前状态" else "在售状态",
                                     color = Color.White.copy(alpha = 0.7f),
                                     fontSize = 12.sp
                                 )
                                 Text(
-                                    text = if (revenue.isActive) "在售" else "已下架",
+                                    text = if (game.businessModel == BusinessModel.ONLINE_GAME) {
+                                        if (revenue.isActive) "运营" else "已下架"
+                                    } else {
+                                        if (revenue.isActive) "在售" else "已下架"
+                                    },
                                     color = if (revenue.isActive) Color(0xFF10B981) else Color(0xFFF59E0B),
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold
@@ -436,6 +440,7 @@ fun EnhancedGameProjectCard(
         gameRevenue?.let { revenue ->
             GameRevenueDialog(
                 gameRevenue = revenue,
+                game = game,
                 onDismiss = { showRevenueDialog = false },
                 onRemoveFromMarket = { gameId ->
                     // 处理下架游戏逻辑
@@ -460,9 +465,15 @@ fun EnhancedGameProjectCard(
                 onStartUpdate = {
                     // 关闭收益弹窗，回到项目卡片界面，便于分配员工
                     showRevenueDialog = false
-                    // 如果当前是“已发售”列表，切换到“当前项目”列表
+                    // 如果当前是"已发售"列表，切换到"当前项目"列表
                     onSwitchToCurrentProjects?.invoke()
-                }
+                },
+                onMonetizationUpdate = { updatedItems ->
+                    // 更新游戏的付费内容配置
+                    val updatedGame = game.copy(monetizationItems = updatedItems)
+                    onGameUpdate(updatedGame)
+                },
+                businessModel = game.businessModel
             )
         }
     }

@@ -46,6 +46,14 @@ data class GameUpdateTask(
 )
 
 /**
+ * 付费内容收入数据
+ */
+data class MonetizationRevenue(
+    val itemType: String,
+    val totalRevenue: Double
+)
+
+/**
  * 游戏收益主数据类
  */
 data class GameRevenue(
@@ -63,7 +71,9 @@ data class GameRevenue(
     val updateTask: GameUpdateTask? = null,
     // 新增：更新次数与销量累计倍数（每次更新+5%）
     val updateCount: Int = 0,
-    val cumulativeSalesMultiplier: Double = 1.0
+    val cumulativeSalesMultiplier: Double = 1.0,
+    // 新增：付费内容收入列表（仅网络游戏）
+    val monetizationRevenues: List<MonetizationRevenue> = emptyList()
 ) {
     /**
      * 获取总收益
@@ -404,7 +414,6 @@ object RevenueManager {
         
         // 如果是第一天（没有历史数据），初始化首日销量
         if (latestSales == null) {
-            val calendar = Calendar.getInstance()
             val firstDayDate = gameRevenue.releaseDate
             
             // 首日销量：根据价格调整

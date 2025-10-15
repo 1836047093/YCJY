@@ -9,6 +9,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -40,21 +41,29 @@ import androidx.compose.ui.window.DialogProperties
 import com.example.yjcy.data.GameRevenue
 import com.example.yjcy.data.RevenueManager
 import com.example.yjcy.data.SalesData
+import com.example.yjcy.data.Game
+import com.example.yjcy.data.MonetizationItem
 import com.example.yjcy.utils.formatMoneyWithDecimals
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 
 @Composable
 fun GameRevenueDialog(
     gameRevenue: GameRevenue,
+    game: Game,
     onDismiss: () -> Unit,
     onRemoveFromMarket: (String) -> Unit,
     onRelistGame: (String) -> Unit,
-    onStartUpdate: (String) -> Unit = {}
+    onStartUpdate: (String) -> Unit = {},
+    onMonetizationUpdate: (List<MonetizationItem>) -> Unit = {},
+    businessModel: BusinessModel
 ) {
     var showConfirmDialog by remember { mutableStateOf(false) }
     var showUpdateDialog by remember { mutableStateOf(false) }
+    var showPaymentSettingsDialog by remember { mutableStateOf(false) }
     val statistics = RevenueManager.calculateStatistics(gameRevenue)
     
     Dialog(
@@ -126,12 +135,12 @@ fun GameRevenueDialog(
                     
                     // 详细统计信息
                     item {
-                        DetailedStatisticsCard(statistics = statistics)
+                        DetailedStatisticsCard(statistics = statistics, gameRevenue = gameRevenue, game = game)
                     }
                     
                     // 游戏信息
                     item {
-                        GameInfoCard(gameRevenue = gameRevenue)
+                        GameInfoCard(gameRevenue = gameRevenue, businessModel = businessModel)
                     }
                     
                     // 操作按钮
@@ -140,7 +149,9 @@ fun GameRevenueDialog(
                             gameRevenue = gameRevenue,
                             onRemoveFromMarket = { showConfirmDialog = true },
                             onRelistGame = { onRelistGame(gameRevenue.gameId) },
-                            onShowUpdateDialog = { showUpdateDialog = true }
+                            onShowUpdateDialog = { showUpdateDialog = true },
+                            onShowPaymentSettings = { showPaymentSettingsDialog = true },
+                            businessModel = businessModel
                         )
                     }
                 }
@@ -168,6 +179,18 @@ fun GameRevenueDialog(
                 showUpdateDialog = false
                 // 通知外层开始更新（例如关闭此弹窗，回到项目界面以分配员工）
                 onStartUpdate(gameRevenue.gameId)
+            }
+        )
+    }
+    
+    // 付费设置对话框
+    if (showPaymentSettingsDialog) {
+        PaymentSettingsDialog(
+            game = game,
+            onDismiss = { showPaymentSettingsDialog = false },
+            onConfirm = { updatedItems ->
+                onMonetizationUpdate(updatedItems)
+                showPaymentSettingsDialog = false
             }
         )
     }
@@ -432,7 +455,7 @@ fun SimpleBarChart(
 }
 
 @Composable
-fun DetailedStatisticsCard(statistics: com.example.yjcy.data.RevenueStatistics) {
+fun DetailedStatisticsCard(statistics: com.example.yjcy.data.RevenueStatistics, gameRevenue: GameRevenue, game: Game) {
     // 移除 currencyFormat，使用自定义格式化函数
     
     Card(
@@ -458,9 +481,64 @@ fun DetailedStatisticsCard(statistics: com.example.yjcy.data.RevenueStatistics) 
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 DetailStatRow("总收入", "¥${formatMoneyWithDecimals(statistics.totalRevenue)}")
-                DetailStatRow("总销量", "${formatMoneyWithDecimals(statistics.totalSales.toDouble())}份")
-                DetailStatRow("单日最高销量", "${formatMoneyWithDecimals(statistics.peakDailySales.toDouble())}份")
                 DetailStatRow("单日最高收入", "¥${formatMoneyWithDecimals(statistics.peakDailyRevenue)}")
+                
+                // 如果是网络游戏，显示付费内容
+                if (game.businessModel == BusinessModel.ONLINE_GAME) {
+                    // 获取所有已开启的付费内容
+                    val enabledItems = game.monetizationItems.filter { it.isEnabled }
+                    
+                    if (enabledItems.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "付费内容",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        
+                        // 为每个已开启的付费内容显示收入
+                        enabledItems.forEach { item ->
+                            // 查找该付费内容的收入记录
+                            val revenue = gameRevenue.monetizationRevenues.find { 
+                                it.itemType == item.type.displayName 
+                            }
+                            
+                            val revenueText = if (revenue != null) {
+                                "¥${formatMoneyWithDecimals(revenue.totalRevenue)}"
+                            } else {
+                                "¥0.00"
+                            }
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = item.type.displayName,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "✓",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFF10B981),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Text(
+                                    text = revenueText,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -491,7 +569,7 @@ fun DetailStatRow(
 }
 
 @Composable
-fun GameInfoCard(gameRevenue: GameRevenue) {
+fun GameInfoCard(gameRevenue: GameRevenue, businessModel: BusinessModel) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -515,13 +593,29 @@ fun GameInfoCard(gameRevenue: GameRevenue) {
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 DetailStatRow("游戏名称", gameRevenue.gameName)
-                DetailStatRow("发售价格", NumberFormat.getCurrencyInstance(Locale.getDefault()).format(gameRevenue.releasePrice))
-                // 改为显示游戏内日期
+                // 网络游戏显示上线日期，单机游戏显示发售价格
+                if (businessModel == BusinessModel.ONLINE_GAME) {
+                    DetailStatRow(
+                        "上线日期",
+                        "第${gameRevenue.releaseYear}年${gameRevenue.releaseMonth}月${gameRevenue.releaseDay}日"
+                    )
+                } else {
+                    DetailStatRow("发售价格", NumberFormat.getCurrencyInstance(Locale.getDefault()).format(gameRevenue.releasePrice))
+                    // 改为显示游戏内日期
+                    DetailStatRow(
+                        "发售日期",
+                        "第${gameRevenue.releaseYear}年${gameRevenue.releaseMonth}月${gameRevenue.releaseDay}日"
+                    )
+                }
+                // 网络游戏显示"运营中"，单机游戏显示"在售中"
                 DetailStatRow(
-                    "发售日期",
-                    "第${gameRevenue.releaseYear}年${gameRevenue.releaseMonth}月${gameRevenue.releaseDay}日"
+                    "当前状态",
+                    if (gameRevenue.isActive) {
+                        if (businessModel == BusinessModel.ONLINE_GAME) "运营中" else "在售中"
+                    } else {
+                        "已下架"
+                    }
                 )
-                DetailStatRow("当前状态", if (gameRevenue.isActive) "在售中" else "已下架")
             }
         }
     }
@@ -532,7 +626,9 @@ fun ActionButtonsCard(
     gameRevenue: GameRevenue,
     onRemoveFromMarket: () -> Unit,
     onRelistGame: () -> Unit,
-    onShowUpdateDialog: () -> Unit
+    onShowUpdateDialog: () -> Unit,
+    onShowPaymentSettings: () -> Unit = {},
+    businessModel: BusinessModel
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -576,6 +672,29 @@ fun ActionButtonsCard(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("游戏更新（+5%销量） - 费用 ¥${String.format("%.2f", updateCost)} / 已更新 ${gameRevenue.updateCount} 次", fontWeight = FontWeight.Medium)
                 }
+                
+                // 新增：付费设置按钮（仅对网络游戏显示）
+                if (businessModel == BusinessModel.ONLINE_GAME) {
+                    Button(
+                        onClick = onShowPaymentSettings,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF8B5CF6)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AttachMoney,
+                            contentDescription = "付费设置",
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("付费设置", fontWeight = FontWeight.Medium)
+                    }
+                }
+                
                 Button(
                     onClick = onRemoveFromMarket,
                     modifier = Modifier.fillMaxWidth(),
@@ -648,4 +767,256 @@ fun ConfirmRemovalDialog(
         },
         shape = RoundedCornerShape(16.dp)
     )
+}
+
+@Composable
+fun PaymentSettingsDialog(
+    game: Game,
+    onDismiss: () -> Unit,
+    onConfirm: (List<MonetizationItem>) -> Unit
+) {
+    var editedItems by remember { mutableStateOf(game.monetizationItems) }
+    
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        )
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .fillMaxHeight(0.8f),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp)
+            ) {
+                // 标题栏
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "💰 付费设置",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = game.name,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "关闭",
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                if (editedItems.isEmpty()) {
+                    // 未选择任何付费内容
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = "😔",
+                                fontSize = 48.sp
+                            )
+                            Text(
+                                text = "未选择任何付费内容",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "在创建游戏时，您可以选择付费内容类型",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                } else {
+                    // 付费内容列表
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(editedItems.size) { index ->
+                            MonetizationItemEditCard(
+                                item = editedItems[index],
+                                onItemChange = { updatedItem ->
+                                    editedItems = editedItems.toMutableList().apply {
+                                        set(index, updatedItem)
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 底部按钮
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("取消")
+                    }
+                    Button(
+                        onClick = { onConfirm(editedItems) },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Text("保存")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MonetizationItemEditCard(
+    item: MonetizationItem,
+    onItemChange: (MonetizationItem) -> Unit
+) {
+    var priceInput by remember { mutableStateOf(item.price?.toString() ?: "") }
+    var isEnabled by remember { mutableStateOf(item.isEnabled) }
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isEnabled) 
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            else
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (isEnabled)
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+            else
+                MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = item.type.displayName,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isEnabled)
+                            MaterialTheme.colorScheme.onSurface
+                        else
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                    Text(
+                        text = item.type.description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+                Switch(
+                    checked = isEnabled,
+                    onCheckedChange = { newEnabled ->
+                        isEnabled = newEnabled
+                        onItemChange(item.copy(isEnabled = newEnabled))
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                )
+            }
+            
+            if (isEnabled) {
+                OutlinedTextField(
+                    value = priceInput,
+                    onValueChange = { newInput ->
+                        priceInput = newInput
+                        val price = newInput.toFloatOrNull()
+                        if (price != null && price >= 0) {
+                            onItemChange(item.copy(price = price, isEnabled = true))
+                        } else if (newInput.isEmpty()) {
+                            onItemChange(item.copy(price = null, isEnabled = true))
+                        }
+                    },
+                    label = { Text("价格 (元)") },
+                    placeholder = { Text("输入价格或留空稍后设置") },
+                    leadingIcon = {
+                        Text(
+                            text = "¥",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    isError = priceInput.isNotEmpty() && priceInput.toFloatOrNull() == null,
+                    supportingText = {
+                        if (priceInput.isNotEmpty() && priceInput.toFloatOrNull() == null) {
+                            Text(
+                                text = "请输入有效的价格",
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        } else if (priceInput.isEmpty()) {
+                            Text(
+                                text = "留空表示稍后设置",
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    singleLine = true
+                )
+            }
+        }
+    }
 }
