@@ -157,7 +157,8 @@ data class Game(
     val gameRating: GameRating? = null, // 新增：详细评分信息
     val assignedEmployees: List<Employee> = emptyList(), // 已分配的员工列表
     val monetizationItems: List<MonetizationItem> = emptyList(), // 付费内容列表（仅网络游戏）
-    val developmentCost: Long = 0L // 新增：开发成本（用于废弃时返还80%）
+    val developmentCost: Long = 0L, // 新增：开发成本（用于废弃时返还80%）
+    val serverInfo: GameServerInfo? = null // 新增：服务器信息（仅网络游戏）
 ) {
     /**
      * 计算游戏开发成本
@@ -180,6 +181,13 @@ data class Game(
     }
 }
 
+// 媒体评测相关数据类
+data class MediaReview(
+    val mediaName: String, // 媒体名称
+    val rating: Float, // 该媒体给出的评分 (0-10)
+    val comment: String // 评价内容
+)
+
 // 游戏评分相关数据类
 data class GameRating(
     val gameId: String,
@@ -187,6 +195,7 @@ data class GameRating(
     val baseScore: Float = 5.0f, // 基础分
     val skillBonus: Float, // 技能加成
     val skillContributions: List<SkillContribution>, // 技能贡献详情
+    val mediaReviews: List<MediaReview> = emptyList(), // 媒体评测列表
     val calculatedAt: Long = System.currentTimeMillis()
 )
 

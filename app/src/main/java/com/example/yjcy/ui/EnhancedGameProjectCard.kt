@@ -44,7 +44,8 @@ fun EnhancedGameProjectCard(
     refreshTrigger: Int = 0,  // 新增：用于触发UI刷新的参数
     onSwitchToCurrentProjects: (() -> Unit)? = null,
     onReleaseGame: ((Game) -> Unit)? = null,  // 新增：发售游戏回调
-    onAbandonGame: ((Game) -> Unit)? = null  // 新增：废弃游戏回调
+    onAbandonGame: ((Game) -> Unit)? = null,  // 新增：废弃游戏回调
+    onPurchaseServer: ((Game, com.example.yjcy.data.ServerType) -> Unit)? = null  // 新增：购买服务器回调
 ) {
     var showRevenueDialog by remember { mutableStateOf(false) }
     
@@ -472,6 +473,10 @@ fun EnhancedGameProjectCard(
                     // 更新游戏的付费内容配置
                     val updatedGame = game.copy(monetizationItems = updatedItems)
                     onGameUpdate(updatedGame)
+                },
+                onPurchaseServer = { serverType ->
+                    // 购买服务器
+                    onPurchaseServer?.invoke(game, serverType)
                 },
                 businessModel = game.businessModel
             )

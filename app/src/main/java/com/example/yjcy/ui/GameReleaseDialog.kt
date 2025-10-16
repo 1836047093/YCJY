@@ -24,6 +24,7 @@ import androidx.compose.ui.window.Dialog
 import com.example.yjcy.data.Game
 import com.example.yjcy.data.PriceRecommendation
 import com.example.yjcy.data.PriceRecommendationEngine
+import com.example.yjcy.data.MonetizationConfig
 import kotlin.math.roundToInt
 
 /**
@@ -40,11 +41,6 @@ fun GameReleaseDialog(
     val priceRecommendation = remember { 
         if (game.businessModel == BusinessModel.SINGLE_PLAYER) {
             PriceRecommendationEngine.calculateRecommendedPrice(game) 
-        } else null
-    }
-    val monetizationRecommendation = remember { 
-        if (game.businessModel == BusinessModel.ONLINE_GAME) {
-            PriceRecommendationEngine.calculateMonetizationRecommendation(game)
         } else null
     }
     
@@ -257,12 +253,17 @@ fun GameReleaseDialog(
                         Spacer(modifier = Modifier.height(20.dp))
                     }
                     
-                    // 市场建议卡片 - 网络游戏
-                    if (game.businessModel == BusinessModel.ONLINE_GAME && monetizationRecommendation != null) {
+                    // 服务器检查（仅网络游戏）
+                    if (game.businessModel == BusinessModel.ONLINE_GAME) {
+                        val hasServer = game.serverInfo != null && game.serverInfo.getActiveServerCount() > 0
+                        
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(
-                                containerColor = Color(0xFFFEF3C7)
+                                containerColor = if (hasServer) 
+                                    Color(0xFF10B981).copy(alpha = 0.2f)
+                                else 
+                                    Color(0xFFFF6B6B).copy(alpha = 0.2f)
                             ),
                             shape = RoundedCornerShape(12.dp)
                         ) {
@@ -274,159 +275,64 @@ fun GameReleaseDialog(
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.TrendingUp,
-                                        contentDescription = "付费建议",
-                                        tint = Color(0xFFF59E0B),
-                                        modifier = Modifier.size(20.dp)
+                                    Text(
+                                        text = if (hasServer) "✅" else "⚠️",
+                                        fontSize = 20.sp
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "💡 付费内容建议",
+                                        text = "🖥️ 服务器状态",
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFF59E0B)
+                                        color = Color.White
                                     )
                                 }
                                 
                                 Spacer(modifier = Modifier.height(12.dp))
                                 
-                                // 道具价格建议
-                                Text(
-                                    text = "道具价格梯度:",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF374151)
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "小额道具",
-                                            fontSize = 12.sp,
-                                            color = Color(0xFF6B7280)
-                                        )
-                                        Text(
-                                            text = "¥${monetizationRecommendation.itemPrices.lowTier.roundToInt()}",
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF10B981)
-                                        )
-                                    }
-                                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(
-                                            text = "中档道具",
-                                            fontSize = 12.sp,
-                                            color = Color(0xFF6B7280)
-                                        )
-                                        Text(
-                                            text = "¥${monetizationRecommendation.itemPrices.midTier.roundToInt()}",
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF10B981)
-                                        )
-                                    }
-                                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-                                        Text(
-                                            text = "高档道具",
-                                            fontSize = 12.sp,
-                                            color = Color(0xFF6B7280)
-                                        )
-                                        Text(
-                                            text = "¥${monetizationRecommendation.itemPrices.highTier.roundToInt()}",
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF10B981)
-                                        )
-                                    }
-                                }
-                                
-                                Spacer(modifier = Modifier.height(12.dp))
-                                
-                                // VIP价格建议
-                                Text(
-                                    text = "VIP订阅价格:",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF374151)
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "月卡",
-                                            fontSize = 12.sp,
-                                            color = Color(0xFF6B7280)
-                                        )
-                                        Text(
-                                            text = "¥${monetizationRecommendation.vipPrices.monthly.roundToInt()}",
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF8B5CF6)
-                                        )
-                                    }
-                                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(
-                                            text = "季卡",
-                                            fontSize = 12.sp,
-                                            color = Color(0xFF6B7280)
-                                        )
-                                        Text(
-                                            text = "¥${monetizationRecommendation.vipPrices.seasonal.roundToInt()}",
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF8B5CF6)
-                                        )
-                                    }
-                                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-                                        Text(
-                                            text = "年卡",
-                                            fontSize = 12.sp,
-                                            color = Color(0xFF6B7280)
-                                        )
-                                        Text(
-                                            text = "¥${monetizationRecommendation.vipPrices.yearly.roundToInt()}",
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF8B5CF6)
-                                        )
-                                    }
-                                }
-                                
-                                Spacer(modifier = Modifier.height(12.dp))
-                                
-                                // 市场分析
-                                Card(
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = Color.White.copy(alpha = 0.7f)
-                                    ),
-                                    shape = RoundedCornerShape(8.dp)
-                                ) {
+                                if (hasServer) {
                                     Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(12.dp)
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Info,
-                                            contentDescription = "分析",
-                                            tint = Color(0xFF6B7280),
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
                                         Text(
-                                            text = monetizationRecommendation.marketAnalysis,
-                                            fontSize = 13.sp,
-                                            color = Color(0xFF374151),
-                                            lineHeight = 18.sp
+                                            text = "已部署服务器:",
+                                            fontSize = 14.sp,
+                                            color = Color.White.copy(alpha = 0.8f)
+                                        )
+                                        Text(
+                                            text = "${game.serverInfo?.getActiveServerCount() ?: 0} 台",
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF10B981)
                                         )
                                     }
+                                    
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "总容量:",
+                                            fontSize = 14.sp,
+                                            color = Color.White.copy(alpha = 0.8f)
+                                        )
+                                        Text(
+                                            text = "${game.serverInfo?.getTotalCapacity() ?: 0}万人",
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF10B981)
+                                        )
+                                    }
+                                } else {
+                                    Text(
+                                        text = "⚠️ 请先购买服务器才能上线游戏！\n\n网络游戏需要服务器来承载玩家。请关闭此对话框，点击游戏卡片的服务器管理按钮购买服务器。",
+                                        fontSize = 13.sp,
+                                        color = Color.White,
+                                        lineHeight = 18.sp
+                                    )
                                 }
                             }
                         }
@@ -526,7 +432,8 @@ fun GameReleaseDialog(
                     val finalPrice = userInputPrice.toFloatOrNull() ?: 0f
                     
                     val canRelease = if (game.businessModel == BusinessModel.ONLINE_GAME) {
-                        true // 网络游戏无需输入价格，直接可以上线
+                        // 网络游戏必须有服务器才能上线
+                        game.serverInfo != null && game.serverInfo.getActiveServerCount() > 0
                     } else {
                         isValidPrice && userInputPrice.isNotEmpty()
                     }

@@ -117,7 +117,7 @@ fun GameRatingDialog(
                     ) {
                         // 圆环进度条
                         CircularProgressIndicator(
-                            progress = (gameRating.finalScore / 10f) * animationProgress,
+                            progress = { (gameRating.finalScore / 10f) * animationProgress },
                             modifier = Modifier.size(180.dp),
                             strokeWidth = 12.dp,
                             color = getRatingColor(gameRating.finalScore),
@@ -172,7 +172,7 @@ fun GameRatingDialog(
                 }
                 
                 item {
-                    // 评分构成详情
+                    // 媒体评测详情
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(
@@ -186,57 +186,19 @@ fun GameRatingDialog(
                                 .padding(16.dp)
                         ) {
                             Text(
-                                text = "📊 评分构成",
+                                text = "📰 媒体评测",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF1E3A8A)
                             )
                             
-                            Spacer(modifier = Modifier.height(16.dp))
-                            
-                            // 基础分
-                            ScoreBreakdownItem(
-                                label = "基础分",
-                                score = gameRating.baseScore,
-                                maxScore = 10f,
-                                color = Color(0xFF6B7280),
-                                animationProgress = animationProgress
-                            )
-                            
                             Spacer(modifier = Modifier.height(12.dp))
                             
-                            // 技能加成
-                            ScoreBreakdownItem(
-                                label = "技能加成",
-                                score = gameRating.skillBonus,
-                                maxScore = 5f,
-                                color = Color(0xFF10B981),
-                                animationProgress = animationProgress
-                            )
-                            
-                            Spacer(modifier = Modifier.height(16.dp))
-                            
-                            Divider(color = Color(0xFFE5E7EB))
-                            
-                            Spacer(modifier = Modifier.height(12.dp))
-                            
-                            // 最终得分
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "最终得分",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF1E3A8A)
-                                )
-                                Text(
-                                    text = String.format("%.1f", gameRating.finalScore * animationProgress),
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = getRatingColor(gameRating.finalScore)
+                            // 显示5家媒体的评测
+                            gameRating.mediaReviews.forEach { review ->
+                                MediaReviewItem(
+                                    review = review,
+                                    animationProgress = animationProgress
                                 )
                             }
                         }
@@ -269,6 +231,61 @@ fun GameRatingDialog(
                 }
             }
         }
+    }
+}
+
+/**
+ * 媒体评测项目组件 - 紧凑版
+ */
+@Composable
+private fun MediaReviewItem(
+    review: com.example.yjcy.data.MediaReview,
+    animationProgress: Float
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top
+    ) {
+        // 媒体名称和评价
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = review.mediaName,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1E3A8A)
+                )
+                Text(
+                    text = "：",
+                    fontSize = 14.sp,
+                    color = Color(0xFF374151),
+                    modifier = Modifier.padding(horizontal = 2.dp)
+                )
+                Text(
+                    text = review.comment,
+                    fontSize = 13.sp,
+                    color = Color(0xFF6B7280),
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.width(12.dp))
+        
+        // 评分显示
+        Text(
+            text = String.format("%.1f", review.rating * animationProgress) + "分",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = getRatingColor(review.rating)
+        )
     }
 }
 
@@ -306,7 +323,7 @@ private fun ScoreBreakdownItem(
         
         // 进度条
         LinearProgressIndicator(
-            progress = (score / maxScore) * animationProgress,
+            progress = { (score / maxScore) * animationProgress },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(6.dp)

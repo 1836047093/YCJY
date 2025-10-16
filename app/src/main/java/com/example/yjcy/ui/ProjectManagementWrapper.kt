@@ -2,6 +2,7 @@ package com.example.yjcy.ui
 
 import com.example.yjcy.data.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.ui.Modifier
@@ -32,8 +33,13 @@ fun ProjectManagementWrapper(
     allEmployees: List<Employee> = emptyList(),
     refreshTrigger: Int = 0,  // 新增：用于触发UI刷新
     onReleaseGame: ((Game) -> Unit)? = null,  // 新增：发售游戏回调
-    onAbandonGame: ((Game) -> Unit)? = null  // 新增：废弃游戏回调
+    onAbandonGame: ((Game) -> Unit)? = null,  // 新增：废弃游戏回调
+    selectedProjectType: ProjectDisplayType = ProjectDisplayType.CURRENT,  // 外部传入的状态
+    onProjectTypeChange: (ProjectDisplayType) -> Unit = {}  // 状态变化回调
 ) {
+    // 移除本地状态管理，改为由外部（MainActivity）管理
+    // 这样可以确保切换标签时状态不会丢失
+    
     // 直接使用员工分配功能的项目管理
     EnhancedProjectManagementContent(
                     founder = founder,
@@ -44,6 +50,8 @@ fun ProjectManagementWrapper(
                     },
                     refreshTrigger = refreshTrigger,
                     onReleaseGame = onReleaseGame,
-                    onAbandonGame = onAbandonGame
+                    onAbandonGame = onAbandonGame,
+                    selectedProjectType = selectedProjectType,
+                    onProjectTypeChange = onProjectTypeChange
     )
 }

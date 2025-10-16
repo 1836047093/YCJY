@@ -35,7 +35,9 @@ object PriceRecommendationEngine {
         GameTheme.RACING to 1.0f,      // 竞速游戏中等
         GameTheme.SPORTS to 0.9f,      // 体育游戏稍低
         GameTheme.CASUAL to 0.8f,      // 休闲游戏较低
-        GameTheme.HORROR to 1.0f       // 恐怖游戏中等
+        GameTheme.HORROR to 1.0f,      // 恐怖游戏中等
+        GameTheme.SHOOTER to 1.3f,     // 射击游戏很受欢迎
+        GameTheme.MOBA to 1.4f         // MOBA游戏非常受欢迎
     )
     
     // 商业模式价格系数
@@ -234,6 +236,8 @@ object PriceRecommendationEngine {
             GameTheme.RPG -> analysis.append("RPG游戏适合装备、道具等成长类付费内容。")
             GameTheme.STRATEGY -> analysis.append("策略游戏适合加速、资源等便利类付费内容。")
             GameTheme.CASUAL -> analysis.append("休闲游戏适合去广告、解锁关卡等功能性付费。")
+            GameTheme.SHOOTER -> analysis.append("射击游戏适合武器皮肤、战斗通行证等付费内容，战利品箱模式表现优异。")
+            GameTheme.MOBA -> analysis.append("MOBA游戏适合英雄角色、皮肤等付费内容，赛季通行证模式极受欢迎。")
             else -> analysis.append("该类型游戏可多元化付费内容设计。")
         }
         

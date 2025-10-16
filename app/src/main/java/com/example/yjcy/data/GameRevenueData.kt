@@ -120,6 +120,10 @@ data class GameRevenue(
  */
 object RevenueManager {
     private val gameRevenueMap = mutableMapOf<String, GameRevenue>()
+    // 存储游戏商业模式和付费内容信息
+    private val gameInfoMap = mutableMapOf<String, Pair<com.example.yjcy.ui.BusinessModel, List<MonetizationItem>>>()
+    // 存储游戏服务器信息
+    private val gameServerMap = mutableMapOf<String, GameServerInfo>()
     
     /**
      * 为游戏生成模拟收益数据
@@ -401,6 +405,13 @@ object RevenueManager {
     }
     
     /**
+     * 更新游戏信息（商业模式和付费内容）
+     */
+    fun updateGameInfo(gameId: String, businessModel: com.example.yjcy.ui.BusinessModel, monetizationItems: List<MonetizationItem>) {
+        gameInfoMap[gameId] = Pair(businessModel, monetizationItems)
+    }
+    
+    /**
      * 为已发售游戏添加新的一天收益数据
      */
     fun addDailyRevenueForGame(gameId: String): Double {
@@ -459,11 +470,78 @@ object RevenueManager {
         
         // 更新游戏收益数据
         val updatedDailySalesList = gameRevenue.dailySalesList + newDailySales
+        
+        // 检查是否为网络游戏，计算付费内容收益
+        val (businessModel, monetizationItems) = gameInfoMap[gameId] 
+            ?: (com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER to emptyList())
+        
+        val monetizationRevenues = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
+            calculateMonetizationRevenues(newSales, monetizationItems)
+        } else {
+            gameRevenue.monetizationRevenues
+        }
+        
+        // 计算付费内容总收益
+        val monetizationTotalRevenue = monetizationRevenues.sumOf { it.totalRevenue }
+        
         gameRevenueMap[gameId] = gameRevenue.copy(
-            dailySalesList = updatedDailySalesList
+            dailySalesList = updatedDailySalesList,
+            monetizationRevenues = monetizationRevenues
         )
         
-        return newRevenue
+        // 返回总收益（销售收益 + 付费内容收益）
+        return newRevenue + monetizationTotalRevenue
+    }
+    
+    /**
+     * 计算网络游戏的付费内容收益
+     * @param activePlayers 当日活跃玩家数
+     * @param monetizationItems 游戏的付费内容列表
+     * @return 付费内容收益列表
+     */
+    private fun calculateMonetizationRevenues(
+        activePlayers: Int,
+        monetizationItems: List<MonetizationItem>
+    ): List<MonetizationRevenue> {
+        // 只计算已启用且设置了价格的付费内容
+        val enabledItems = monetizationItems.filter { it.isEnabled && it.price != null && it.price > 0 }
+        
+        if (enabledItems.isEmpty()) return emptyList()
+        
+        return enabledItems.map { item ->
+            // 根据付费内容类型设置不同的付费率
+            val purchaseRate = when (item.type.displayName) {
+                "皮肤与外观" -> 0.05  // 5%的活跃玩家会购买皮肤
+                "成长加速道具" -> 0.08  // 8%会购买加速道具
+                "稀有装备" -> 0.03  // 3%会购买稀有装备
+                "赛季通行证" -> 0.15  // 15%会购买赛季通行证
+                "强力角色" -> 0.04  // 4%会购买角色
+                "VIP会员" -> 0.10  // 10%会购买VIP
+                "抽卡系统" -> 0.20  // 20%会参与抽卡
+                "扩展包" -> 0.06  // 6%会购买扩展包
+                "资源包" -> 0.12  // 12%会购买资源包
+                "战斗通行证" -> 0.18  // 18%会购买战斗通行证
+                "宠物与坐骑" -> 0.07  // 7%会购买宠物
+                "便利工具" -> 0.09  // 9%会购买工具
+                "专属剧情" -> 0.05  // 5%会购买剧情
+                "建造蓝图" -> 0.08  // 8%会购买蓝图
+                "社交道具" -> 0.06  // 6%会购买社交道具
+                else -> 0.05  // 默认5%
+            }
+            
+            // 计算购买人数（带随机波动）
+            val basebuyers = (activePlayers * purchaseRate).toInt()
+            val fluctuation = Random.nextDouble(0.7, 1.3)
+            val actualBuyers = (basebuyers * fluctuation).toInt().coerceAtLeast(0)
+            
+            // 计算收益
+            val revenue = actualBuyers * (item.price ?: 0f)
+            
+            MonetizationRevenue(
+                itemType = item.type.displayName,
+                totalRevenue = revenue.toDouble()
+            )
+        }
     }
     
     /**
@@ -471,5 +549,103 @@ object RevenueManager {
      */
     fun clearAllData() {
         gameRevenueMap.clear()
+        gameInfoMap.clear()
+        gameServerMap.clear()
+    }
+    
+    // ========== 服务器管理功能 ==========
+    
+    /**
+     * 获取游戏的服务器信息
+     */
+    fun getGameServerInfo(gameId: String): GameServerInfo {
+        return gameServerMap.getOrPut(gameId) {
+            GameServerInfo(gameId = gameId)
+        }
+    }
+    
+    /**
+     * 为游戏购买服务器
+     */
+    fun purchaseServer(
+        gameId: String,
+        serverType: ServerType,
+        currentYear: Int,
+        currentMonth: Int,
+        currentDay: Int
+    ): ServerInstance {
+        val serverInfo = getGameServerInfo(gameId)
+        val newServer = ServerInstance(
+            id = "${gameId}_server_${System.currentTimeMillis()}",
+            type = serverType,
+            purchaseYear = currentYear,
+            purchaseMonth = currentMonth,
+            purchaseDay = currentDay
+        )
+        
+        val updatedServers = serverInfo.servers + newServer
+        gameServerMap[gameId] = serverInfo.copy(servers = updatedServers)
+        
+        return newServer
+    }
+    
+    /**
+     * 为游戏添加服务器（purchaseServer的别名）
+     */
+    fun addServerToGame(
+        gameId: String,
+        serverType: ServerType,
+        purchaseYear: Int,
+        purchaseMonth: Int,
+        purchaseDay: Int
+    ) {
+        purchaseServer(gameId, serverType, purchaseYear, purchaseMonth, purchaseDay)
+    }
+    
+    /**
+     * 停用服务器
+     */
+    fun deactivateServer(gameId: String, serverId: String): Boolean {
+        val serverInfo = gameServerMap[gameId] ?: return false
+        val updatedServers = serverInfo.servers.map { server ->
+            if (server.id == serverId) {
+                server.copy(isActive = false)
+            } else {
+                server
+            }
+        }
+        gameServerMap[gameId] = serverInfo.copy(servers = updatedServers)
+        return true
+    }
+    
+    /**
+     * 激活服务器
+     */
+    fun activateServer(gameId: String, serverId: String): Boolean {
+        val serverInfo = gameServerMap[gameId] ?: return false
+        val updatedServers = serverInfo.servers.map { server ->
+            if (server.id == serverId) {
+                server.copy(isActive = true)
+            } else {
+                server
+            }
+        }
+        gameServerMap[gameId] = serverInfo.copy(servers = updatedServers)
+        return true
+    }
+    
+    /**
+     * 检查服务器容量是否足够
+     */
+    fun hasEnoughServerCapacity(gameId: String, requiredCapacity: Int): Boolean {
+        val serverInfo = gameServerMap[gameId] ?: return false
+        return serverInfo.getTotalCapacity() >= requiredCapacity
+    }
+    
+    /**
+     * 更新游戏服务器信息
+     */
+    fun updateGameServerInfo(gameId: String, serverInfo: GameServerInfo) {
+        gameServerMap[gameId] = serverInfo
     }
 }

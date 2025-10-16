@@ -21,6 +21,9 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.SaverScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,6 +44,12 @@ enum class ProjectDisplayType(val displayName: String) {
     RELEASED("已发售"),
     REMOVED("已下架")
 }
+
+// 为 ProjectDisplayType 创建自定义 Saver
+val ProjectDisplayTypeSaver = Saver<ProjectDisplayType, String>(
+    save = { it.name },
+    restore = { name -> ProjectDisplayType.valueOf(name) }
+)
 
 @Composable
 fun ProjectTypeDropdown(
@@ -122,10 +131,11 @@ fun EnhancedProjectManagementContent(
     refreshTrigger: Int = 0,  // 新增：用于触发UI刷新
     onSwitchToCurrentProjects: (() -> Unit)? = null,
     onReleaseGame: ((Game) -> Unit)? = null,  // 新增：发售游戏回调
-    onAbandonGame: ((Game) -> Unit)? = null  // 新增：废弃游戏回调
+    onAbandonGame: ((Game) -> Unit)? = null,  // 新增：废弃游戏回调
+    selectedProjectType: ProjectDisplayType = ProjectDisplayType.CURRENT,  // 外部控制的标签页状态
+    onProjectTypeChange: (ProjectDisplayType) -> Unit = {}  // 标签页变化回调
 ) {
     var showGameDevelopmentDialog by remember { mutableStateOf(false) }
-    var selectedProjectType by remember { mutableStateOf(ProjectDisplayType.CURRENT) }
     
     // 根据选择的项目类型过滤游戏列表
     val filteredGames = remember(games, selectedProjectType) {
@@ -225,7 +235,7 @@ fun EnhancedProjectManagementContent(
                 // 项目类型下拉选择框
                 ProjectTypeDropdown(
                     selectedType = selectedProjectType,
-                    onTypeSelected = { selectedProjectType = it }
+                    onTypeSelected = onProjectTypeChange
                 )
                 
                 // 可用员工统计
@@ -323,7 +333,7 @@ fun EnhancedProjectManagementContent(
                         },
                         refreshTrigger = refreshTrigger,
                         onSwitchToCurrentProjects = {
-                            selectedProjectType = ProjectDisplayType.CURRENT
+                            onProjectTypeChange(ProjectDisplayType.CURRENT)
                             onSwitchToCurrentProjects?.invoke()
                         },
                         onReleaseGame = onReleaseGame,

@@ -118,6 +118,20 @@ object MonetizationConfig {
                 MonetizationItemType.GROWTH_BOOST,
                 MonetizationItemType.DLC_CONTENT
             )
+            GameTheme.SHOOTER -> listOf(
+                MonetizationItemType.WEAPON_SKINS,
+                MonetizationItemType.BATTLE_PASS,
+                MonetizationItemType.LOOT_BOXES,
+                MonetizationItemType.SKINS_APPEARANCE,
+                MonetizationItemType.SEASON_PASS
+            )
+            GameTheme.MOBA -> listOf(
+                MonetizationItemType.POWERFUL_CHARACTERS,
+                MonetizationItemType.SKINS_APPEARANCE,
+                MonetizationItemType.BATTLE_PASS,
+                MonetizationItemType.SEASON_PASS,
+                MonetizationItemType.LOOT_BOXES
+            )
         }
     }
 }

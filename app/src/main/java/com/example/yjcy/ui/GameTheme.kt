@@ -10,5 +10,7 @@ enum class GameTheme(val displayName: String, val icon: String) {
     RACING("竞速", "🏎️"),
     SPORTS("体育", "⚽"),
     HORROR("恐怖", "👻"),
-    CASUAL("休闲", "🎲")
+    CASUAL("休闲", "🎲"),
+    SHOOTER("射击", "🔫"),
+    MOBA("MOBA", "🎮")
 }

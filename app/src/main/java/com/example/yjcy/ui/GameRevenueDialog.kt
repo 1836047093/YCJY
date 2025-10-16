@@ -43,6 +43,8 @@ import com.example.yjcy.data.RevenueManager
 import com.example.yjcy.data.SalesData
 import com.example.yjcy.data.Game
 import com.example.yjcy.data.MonetizationItem
+import com.example.yjcy.data.ServerType
+import com.example.yjcy.data.GameServerInfo
 import com.example.yjcy.utils.formatMoneyWithDecimals
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -59,11 +61,13 @@ fun GameRevenueDialog(
     onRelistGame: (String) -> Unit,
     onStartUpdate: (String) -> Unit = {},
     onMonetizationUpdate: (List<MonetizationItem>) -> Unit = {},
+    onPurchaseServer: (ServerType) -> Unit = {},
     businessModel: BusinessModel
 ) {
     var showConfirmDialog by remember { mutableStateOf(false) }
     var showUpdateDialog by remember { mutableStateOf(false) }
     var showPaymentSettingsDialog by remember { mutableStateOf(false) }
+    var showServerManagementDialog by remember { mutableStateOf(false) }
     val statistics = RevenueManager.calculateStatistics(gameRevenue)
     
     Dialog(
@@ -112,7 +116,7 @@ fun GameRevenueDialog(
                     
                     Row {
                         // 游戏状态指示器
-                        StatusIndicator(isActive = gameRevenue.isActive)
+                        StatusIndicator(isActive = gameRevenue.isActive, businessModel = businessModel)
                         
                         Spacer(modifier = Modifier.width(8.dp))
                         
@@ -151,6 +155,7 @@ fun GameRevenueDialog(
                             onRelistGame = { onRelistGame(gameRevenue.gameId) },
                             onShowUpdateDialog = { showUpdateDialog = true },
                             onShowPaymentSettings = { showPaymentSettingsDialog = true },
+                            onShowServerManagement = { showServerManagementDialog = true },
                             businessModel = businessModel
                         )
                     }
@@ -194,12 +199,28 @@ fun GameRevenueDialog(
             }
         )
     }
+    
+    // 服务器管理对话框
+    if (showServerManagementDialog) {
+        ServerManagementDialog(
+            game = game,
+            onDismiss = { showServerManagementDialog = false },
+            onPurchaseServer = { serverType ->
+                onPurchaseServer(serverType)
+                showServerManagementDialog = false
+            }
+        )
+    }
 }
 
 @Composable
-fun StatusIndicator(isActive: Boolean) {
+fun StatusIndicator(isActive: Boolean, businessModel: BusinessModel = BusinessModel.SINGLE_PLAYER) {
     val color = if (isActive) Color(0xFF4CAF50) else Color(0xFFF44336)
-    val text = if (isActive) "在售" else "已下架"
+    val text = if (isActive) {
+        if (businessModel == BusinessModel.ONLINE_GAME) "运营中" else "在售"
+    } else {
+        "已下架"
+    }
     
     Surface(
         shape = RoundedCornerShape(12.dp),
@@ -521,12 +542,13 @@ fun DetailedStatisticsCard(statistics: com.example.yjcy.data.RevenueStatistics, 
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                     )
-                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    // 显示付费内容价格
                                     Text(
-                                        text = "✓",
+                                        text = if (item.price != null) "¥${formatMoneyWithDecimals(item.price.toDouble())}" else "未设置",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = Color(0xFF10B981),
-                                        fontWeight = FontWeight.Bold
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                        fontWeight = FontWeight.Normal
                                     )
                                 }
                                 Text(
@@ -628,6 +650,7 @@ fun ActionButtonsCard(
     onRelistGame: () -> Unit,
     onShowUpdateDialog: () -> Unit,
     onShowPaymentSettings: () -> Unit = {},
+    onShowServerManagement: () -> Unit = {},
     businessModel: BusinessModel
 ) {
     Card(
@@ -692,6 +715,22 @@ fun ActionButtonsCard(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("付费设置", fontWeight = FontWeight.Medium)
+                    }
+                    
+                    // 服务器管理按钮（仅对网络游戏显示）
+                    Button(
+                        onClick = onShowServerManagement,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF3B82F6)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("🖥️", fontSize = 20.sp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("服务器管理", fontWeight = FontWeight.Medium)
                     }
                 }
                 
@@ -1016,6 +1055,314 @@ fun MonetizationItemEditCard(
                     shape = RoundedCornerShape(8.dp),
                     singleLine = true
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun ServerManagementDialog(
+    game: Game,
+    onDismiss: () -> Unit,
+    onPurchaseServer: (ServerType) -> Unit
+) {
+    val serverInfo = remember { RevenueManager.getGameServerInfo(game.id) }
+    
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        )
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.95f)
+                .fillMaxHeight(0.85f),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp)
+            ) {
+                // 标题栏
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "🖥️ 服务器管理",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = game.name,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "关闭",
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 服务器概览卡片
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                    ),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            text = "当前服务器状况",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            ServerStatItem(
+                                label = "总容量",
+                                value = "${serverInfo.getTotalCapacity()}万人",
+                                icon = "📊"
+                            )
+                            ServerStatItem(
+                                label = "服务器数",
+                                value = "${serverInfo.getActiveServerCount()}台",
+                                icon = "🖥️"
+                            )
+                            ServerStatItem(
+                                label = "总投入",
+                                value = "¥${formatMoneyWithDecimals(serverInfo.getTotalCost().toDouble())}",
+                                icon = "💰"
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 已有服务器列表
+                if (serverInfo.servers.isNotEmpty()) {
+                    Text(
+                        text = "已购买的服务器",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(serverInfo.servers.size) { index ->
+                            val server = serverInfo.servers[index]
+                            ServerItemCard(server = server)
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+                
+                // 购买服务器区域
+                Text(
+                    text = "购买新服务器",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(if (serverInfo.servers.isEmpty()) 1f else 0.5f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(ServerType.values().size) { index ->
+                        val serverType = ServerType.values()[index]
+                        PurchaseServerCard(
+                            serverType = serverType,
+                            onPurchase = { onPurchaseServer(serverType) }
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 关闭按钮
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("关闭")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ServerStatItem(label: String, value: String, icon: String) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = icon,
+            fontSize = 32.sp
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+        )
+    }
+}
+
+@Composable
+fun ServerItemCard(server: com.example.yjcy.data.ServerInstance) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (server.isActive)
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+            else
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = server.type.displayName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "容量: ${server.type.capacity}万人",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                Text(
+                    text = "购买时间: 第${server.purchaseYear}年${server.purchaseMonth}月${server.purchaseDay}日",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                )
+            }
+            
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = if (server.isActive) Color(0xFF4CAF50) else Color(0xFF9E9E9E),
+                modifier = Modifier.padding(start = 8.dp)
+            ) {
+                Text(
+                    text = if (server.isActive) "运行中" else "已停用",
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun PurchaseServerCard(
+    serverType: ServerType,
+    onPurchase: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = serverType.displayName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = serverType.description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "容量: ${serverType.capacity}万",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "费用: ¥${formatMoneyWithDecimals(serverType.cost.toDouble())}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+            
+            Button(
+                onClick = onPurchase,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                ),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.padding(start = 8.dp)
+            ) {
+                Text("购买", fontWeight = FontWeight.Medium)
             }
         }
     }

@@ -81,9 +81,12 @@ import com.example.yjcy.ui.EmployeeManagementContent
 import com.example.yjcy.ui.GameRatingDialog
 import com.example.yjcy.ui.GameReleaseDialog
 import com.example.yjcy.ui.ProjectManagementWrapper
+import com.example.yjcy.ui.ProjectDisplayType
+import com.example.yjcy.ui.ServerManagementContent
 import com.example.yjcy.ui.theme.YjcyTheme
 import com.example.yjcy.utils.formatMoney
 import com.example.yjcy.service.JobPostingService
+import com.example.yjcy.data.ServerType
 import com.google.gson.Gson
 import dagger.hilt.android.AndroidEntryPoint
 import java.util.Locale
@@ -722,6 +725,9 @@ fun GameScreen(
     var gameSpeed by remember { mutableIntStateOf(1) }
     var selectedTab by remember { mutableIntStateOf(0) }
     var isPaused by remember { mutableStateOf(false) }
+    
+    // 项目管理界面的显示类型状态（使用 remember 保持在内存中）
+    var selectedProjectType by remember { mutableStateOf(ProjectDisplayType.CURRENT) }
     var companyName by remember { mutableStateOf(saveData?.companyName ?: initialCompanyName) }
     var founderName by remember { mutableStateOf(saveData?.founderName ?: initialFounderName) }
     var founderProfession by remember { mutableStateOf(saveData?.founderProfession ?: try { FounderProfession.valueOf(initialFounderProfession) } catch (_: IllegalArgumentException) { FounderProfession.PROGRAMMER }) }
@@ -777,6 +783,12 @@ fun GameScreen(
                             releaseYear = currentYear,
                             releaseMonth = currentMonth,
                             releaseDay = currentDay
+                        )
+                        // 初始化游戏信息（商业模式和付费内容）
+                        RevenueManager.updateGameInfo(
+                            releasedGame.id,
+                            releasedGame.businessModel,
+                            releasedGame.monetizationItems
                         )
                     }
                 }
@@ -937,6 +949,13 @@ fun GameScreen(
             // 为已发售的游戏添加每日收益，并推进更新任务
             games.filter { it.releaseStatus == GameReleaseStatus.RELEASED || it.releaseStatus == GameReleaseStatus.RATED }
                 .forEach { releasedGame ->
+                    // 更新游戏信息（商业模式和付费内容）
+                    RevenueManager.updateGameInfo(
+                        releasedGame.id,
+                        releasedGame.businessModel,
+                        releasedGame.monetizationItems
+                    )
+                    
                     val dailyRevenue = RevenueManager.addDailyRevenueForGame(releasedGame.id)
                     money += dailyRevenue.toLong()
 
@@ -1025,9 +1044,40 @@ fun GameScreen(
                                 // 触发废弃确认对话框
                                 pendingAbandonGame = game
                                 showAbandonDialog = true
-                            }
+                            },
+                            selectedProjectType = selectedProjectType,
+                            onProjectTypeChange = { newType -> selectedProjectType = newType }
                         )
-                        3 -> InGameSettingsContent(
+                        3 -> ServerManagementContent(
+                            games = games,
+                            money = money,
+                            onPurchaseServer = { gameId, serverType ->
+                                // 购买服务器逻辑
+                                val game = games.find { it.id == gameId }
+                                if (game != null && money >= serverType.cost) {
+                                    // 扣除费用
+                                    money -= serverType.cost
+                                    // 添加服务器
+                                    RevenueManager.addServerToGame(
+                                        gameId = gameId,
+                                        serverType = serverType,
+                                        purchaseYear = currentYear,
+                                        purchaseMonth = currentMonth,
+                                        purchaseDay = currentDay
+                                    )
+                                    // 更新游戏列表
+                                    val updatedGame = game.copy(
+                                        serverInfo = RevenueManager.getGameServerInfo(gameId)
+                                    )
+                                    games = games.map { if (it.id == gameId) updatedGame else it }
+                                    // 显示消息
+                                    messageText = "已购买 ${serverType.displayName}，费用 ¥${serverType.cost}"
+                                    showMessage = true
+                                }
+                            },
+                            onMoneyUpdate = { updatedMoney -> money = updatedMoney }
+                        )
+                        4 -> InGameSettingsContent(
                             navController = navController,
                             money = money,
                             fans = fans,
@@ -1121,6 +1171,12 @@ fun GameScreen(
                                 releaseYear = currentYear,
                                 releaseMonth = currentMonth,
                                 releaseDay = currentDay
+                            )
+                            // 初始化游戏信息（商业模式和付费内容）
+                            RevenueManager.updateGameInfo(
+                                releasedGame.id,
+                                releasedGame.businessModel,
+                                releasedGame.monetizationItems
                             )
                             
                             releasedGame
@@ -1560,10 +1616,17 @@ fun EnhancedBottomNavigationBar(
             )
             
             EnhancedBottomNavItem(
-                icon = "⚙️",
-                label = "设置",
+                icon = "🖥️",
+                label = "服务器",
                 isSelected = selectedTab == 3,
                 onClick = { onTabSelected(3) }
+            )
+            
+            EnhancedBottomNavItem(
+                icon = "⚙️",
+                label = "设置",
+                isSelected = selectedTab == 4,
+                onClick = { onTabSelected(4) }
             )
         }
     }
