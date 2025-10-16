@@ -125,6 +125,287 @@ object RevenueManager {
     // 存储游戏服务器信息
     private val gameServerMap = mutableMapOf<String, GameServerInfo>()
     
+    // SharedPreferences用于持久化
+    private var sharedPreferences: android.content.SharedPreferences? = null
+    
+    /**
+     * 初始化RevenueManager，传入Context以支持持久化
+     */
+    fun initialize(context: android.content.Context) {
+        if (sharedPreferences == null) {
+            sharedPreferences = context.getSharedPreferences("revenue_manager", android.content.Context.MODE_PRIVATE)
+            loadServerData()
+            loadRevenueData()
+        }
+    }
+    
+    /**
+     * 保存服务器数据到SharedPreferences
+     */
+    private fun saveServerData() {
+        val prefs = sharedPreferences ?: return
+        val editor = prefs.edit()
+        
+        // 将gameServerMap序列化为JSON字符串
+        val json = serializeServerMap(gameServerMap)
+        editor.putString("server_map", json)
+        editor.apply()
+    }
+    
+    /**
+     * 从SharedPreferences加载服务器数据
+     */
+    private fun loadServerData() {
+        val prefs = sharedPreferences ?: return
+        val json = prefs.getString("server_map", null) ?: return
+        
+        // 反序列化JSON字符串为Map
+        val loadedMap = deserializeServerMap(json)
+        gameServerMap.clear()
+        gameServerMap.putAll(loadedMap)
+    }
+    
+    /**
+     * 序列化服务器Map为JSON字符串
+     */
+    private fun serializeServerMap(map: Map<String, GameServerInfo>): String {
+        val sb = StringBuilder()
+        sb.append("{")
+        map.entries.forEachIndexed { index, entry ->
+            if (index > 0) sb.append(",")
+            sb.append("\"${entry.key}\":")
+            sb.append(serializeGameServerInfo(entry.value))
+        }
+        sb.append("}")
+        return sb.toString()
+    }
+    
+    /**
+     * 序列化GameServerInfo为JSON
+     */
+    private fun serializeGameServerInfo(info: GameServerInfo): String {
+        val sb = StringBuilder()
+        sb.append("{\"gameId\":\"${info.gameId}\",\"servers\":[")
+        info.servers.forEachIndexed { index, server ->
+            if (index > 0) sb.append(",")
+            sb.append("{")
+            sb.append("\"id\":\"${server.id}\",")
+            sb.append("\"type\":\"${server.type.name}\",")
+            sb.append("\"purchaseYear\":${server.purchaseYear},")
+            sb.append("\"purchaseMonth\":${server.purchaseMonth},")
+            sb.append("\"purchaseDay\":${server.purchaseDay},")
+            sb.append("\"isActive\":${server.isActive}")
+            sb.append("}")
+        }
+        sb.append("]}")
+        return sb.toString()
+    }
+    
+    /**
+     * 反序列化JSON字符串为服务器Map
+     */
+    private fun deserializeServerMap(json: String): Map<String, GameServerInfo> {
+        val map = mutableMapOf<String, GameServerInfo>()
+        try {
+            // 简单的JSON解析（生产环境建议使用Gson或Kotlinx.serialization）
+            val jsonObj = json.trim().removeSurrounding("{", "}")
+            if (jsonObj.isEmpty()) return map
+            
+            // 手动解析JSON（简化版）
+            var currentPos = 0
+            while (currentPos < jsonObj.length) {
+                // 找到gameId
+                val keyStart = jsonObj.indexOf("\"", currentPos) + 1
+                val keyEnd = jsonObj.indexOf("\"", keyStart)
+                if (keyStart <= 0 || keyEnd < 0) break
+                
+                val gameId = jsonObj.substring(keyStart, keyEnd)
+                
+                // 找到对应的GameServerInfo对象
+                val objStart = jsonObj.indexOf("{", keyEnd)
+                var braceCount = 1
+                var objEnd = objStart + 1
+                while (braceCount > 0 && objEnd < jsonObj.length) {
+                    when (jsonObj[objEnd]) {
+                        '{' -> braceCount++
+                        '}' -> braceCount--
+                    }
+                    objEnd++
+                }
+                
+                val infoJson = jsonObj.substring(objStart, objEnd)
+                val info = deserializeGameServerInfo(gameId, infoJson)
+                map[gameId] = info
+                
+                currentPos = objEnd
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("RevenueManager", "Failed to deserialize server data", e)
+        }
+        return map
+    }
+    
+    /**
+     * 反序列化GameServerInfo
+     */
+    private fun deserializeGameServerInfo(gameId: String, json: String): GameServerInfo {
+        val servers = mutableListOf<ServerInstance>()
+        
+        try {
+            // 提取servers数组
+            val serversStart = json.indexOf("[")
+            val serversEnd = json.lastIndexOf("]")
+            if (serversStart >= 0 && serversEnd > serversStart) {
+                val serversJson = json.substring(serversStart + 1, serversEnd)
+                
+                // 解析每个server对象
+                var pos = 0
+                while (pos < serversJson.length) {
+                    val objStart = serversJson.indexOf("{", pos)
+                    if (objStart < 0) break
+                    
+                    val objEnd = serversJson.indexOf("}", objStart) + 1
+                    val serverJson = serversJson.substring(objStart, objEnd)
+                    
+                    // 提取字段
+                    val id = extractStringField(serverJson, "id")
+                    val typeName = extractStringField(serverJson, "type")
+                    val purchaseYear = extractIntField(serverJson, "purchaseYear")
+                    val purchaseMonth = extractIntField(serverJson, "purchaseMonth")
+                    val purchaseDay = extractIntField(serverJson, "purchaseDay")
+                    val isActive = extractBooleanField(serverJson, "isActive")
+                    
+                    val serverType = ServerType.valueOf(typeName)
+                    servers.add(
+                        ServerInstance(
+                            id = id,
+                            type = serverType,
+                            purchaseYear = purchaseYear,
+                            purchaseMonth = purchaseMonth,
+                            purchaseDay = purchaseDay,
+                            isActive = isActive
+                        )
+                    )
+                    
+                    pos = objEnd
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("RevenueManager", "Failed to deserialize GameServerInfo", e)
+        }
+        
+        return GameServerInfo(gameId = gameId, servers = servers)
+    }
+    
+    private fun extractStringField(json: String, fieldName: String): String {
+        val pattern = "\"$fieldName\":\"([^\"]*)\""
+        val regex = Regex(pattern)
+        val match = regex.find(json)
+        return match?.groupValues?.get(1) ?: ""
+    }
+    
+    private fun extractIntField(json: String, fieldName: String): Int {
+        val pattern = "\"$fieldName\":(\\d+)"
+        val regex = Regex(pattern)
+        val match = regex.find(json)
+        return match?.groupValues?.get(1)?.toIntOrNull() ?: 0
+    }
+    
+    private fun extractBooleanField(json: String, fieldName: String): Boolean {
+        val pattern = "\"$fieldName\":(true|false)"
+        val regex = Regex(pattern)
+        val match = regex.find(json)
+        return match?.groupValues?.get(1)?.toBoolean() ?: true
+    }
+    
+    /**
+     * 保存收益数据到SharedPreferences
+     */
+    private fun saveRevenueData() {
+        val prefs = sharedPreferences ?: return
+        val editor = prefs.edit()
+        
+        // 保存游戏收益数据（只保存关键字段）
+        val revenueCount = gameRevenueMap.size
+        editor.putInt("revenue_count", revenueCount)
+        
+        gameRevenueMap.entries.forEachIndexed { index, entry ->
+            val revenue = entry.value
+            editor.putString("revenue_${index}_id", revenue.gameId)
+            editor.putString("revenue_${index}_name", revenue.gameName)
+            editor.putFloat("revenue_${index}_price", revenue.releasePrice.toFloat())
+            editor.putBoolean("revenue_${index}_active", revenue.isActive)
+            editor.putInt("revenue_${index}_update_count", revenue.updateCount)
+            editor.putFloat("revenue_${index}_multiplier", revenue.cumulativeSalesMultiplier.toFloat())
+            
+            // 保存每日销量数据（只保存最近30天）
+            val recentDailySales = revenue.dailySalesList.takeLast(30)
+            editor.putInt("revenue_${index}_days", recentDailySales.size)
+            recentDailySales.forEachIndexed { dayIndex, dailySales ->
+                editor.putLong("revenue_${index}_day${dayIndex}_time", dailySales.date.time)
+                editor.putInt("revenue_${index}_day${dayIndex}_sales", dailySales.sales)
+                editor.putFloat("revenue_${index}_day${dayIndex}_revenue", dailySales.revenue.toFloat())
+            }
+        }
+        
+        editor.apply()
+    }
+    
+    /**
+     * 从SharedPreferences加载收益数据
+     */
+    private fun loadRevenueData() {
+        val prefs = sharedPreferences ?: return
+        
+        try {
+            val revenueCount = prefs.getInt("revenue_count", 0)
+            if (revenueCount == 0) return
+            
+            gameRevenueMap.clear()
+            
+            for (i in 0 until revenueCount) {
+                val gameId = prefs.getString("revenue_${i}_id", null) ?: continue
+                val gameName = prefs.getString("revenue_${i}_name", "") ?: ""
+                val releasePrice = prefs.getFloat("revenue_${i}_price", 0f).toDouble()
+                val isActive = prefs.getBoolean("revenue_${i}_active", true)
+                val updateCount = prefs.getInt("revenue_${i}_update_count", 0)
+                val multiplier = prefs.getFloat("revenue_${i}_multiplier", 1.0f).toDouble()
+                
+                // 加载每日销量数据
+                val daysCount = prefs.getInt("revenue_${i}_days", 0)
+                val dailySalesList = mutableListOf<DailySales>()
+                for (dayIndex in 0 until daysCount) {
+                    val time = prefs.getLong("revenue_${i}_day${dayIndex}_time", 0)
+                    val sales = prefs.getInt("revenue_${i}_day${dayIndex}_sales", 0)
+                    val revenue = prefs.getFloat("revenue_${i}_day${dayIndex}_revenue", 0f).toDouble()
+                    
+                    dailySalesList.add(
+                        DailySales(
+                            date = Date(time),
+                            sales = sales,
+                            revenue = revenue
+                        )
+                    )
+                }
+                
+                val gameRevenue = GameRevenue(
+                    gameId = gameId,
+                    gameName = gameName,
+                    releaseDate = if (dailySalesList.isNotEmpty()) dailySalesList.first().date else Date(),
+                    releasePrice = releasePrice,
+                    isActive = isActive,
+                    dailySalesList = dailySalesList,
+                    updateCount = updateCount,
+                    cumulativeSalesMultiplier = multiplier
+                )
+                
+                gameRevenueMap[gameId] = gameRevenue
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("RevenueManager", "Failed to load revenue data", e)
+        }
+    }
+    
     /**
      * 为游戏生成模拟收益数据
      */
@@ -183,6 +464,7 @@ object RevenueManager {
         )
         
         gameRevenueMap[gameId] = gameRevenue
+        saveRevenueData()
         return gameRevenue
     }
 
@@ -225,6 +507,7 @@ object RevenueManager {
             updateCount = current.updateCount + 1,
             cumulativeSalesMultiplier = newMultiplier
         )
+        saveRevenueData()
         return true
     }
 
@@ -238,6 +521,7 @@ object RevenueManager {
         val required = (features.size * 100).coerceAtLeast(100)
         val task = GameUpdateTask(features = features, requiredPoints = required)
         gameRevenueMap[gameId] = current.copy(updateTask = task)
+        saveRevenueData()
         return task
     }
 
@@ -250,6 +534,7 @@ object RevenueManager {
         val newPoints = (task.progressPoints + points).coerceAtMost(task.requiredPoints)
         val newTask = task.copy(progressPoints = newPoints)
         gameRevenueMap[gameId] = current.copy(updateTask = newTask)
+        saveRevenueData()
         // 任务完成时应用收益侧更新
         if (newPoints >= task.requiredPoints) {
             applyGameUpdate(gameId)
@@ -319,6 +604,7 @@ object RevenueManager {
         val gameRevenue = gameRevenueMap[gameId]
         return if (gameRevenue != null) {
             gameRevenueMap[gameId] = gameRevenue.copy(isActive = false)
+            saveRevenueData()
             true
         } else {
             false
@@ -332,6 +618,7 @@ object RevenueManager {
         val gameRevenue = gameRevenueMap[gameId]
         return if (gameRevenue != null) {
             gameRevenueMap[gameId] = gameRevenue.copy(isActive = true)
+            saveRevenueData()
             true
         } else {
             false
@@ -402,6 +689,7 @@ object RevenueManager {
         gameRevenueMap[gameId] = gameRevenue.copy(
             dailySalesList = updatedDailySales
         )
+        saveRevenueData()
     }
     
     /**
@@ -445,6 +733,7 @@ object RevenueManager {
             gameRevenueMap[gameId] = gameRevenue.copy(
                 dailySalesList = listOf(firstDaySales)
             )
+            saveRevenueData()
             
             return firstDayRevenue
         }
@@ -488,6 +777,7 @@ object RevenueManager {
             dailySalesList = updatedDailySalesList,
             monetizationRevenues = monetizationRevenues
         )
+        saveRevenueData()
         
         // 返回总收益（销售收益 + 付费内容收益）
         return newRevenue + monetizationTotalRevenue
@@ -585,6 +875,7 @@ object RevenueManager {
         
         val updatedServers = serverInfo.servers + newServer
         gameServerMap[gameId] = serverInfo.copy(servers = updatedServers)
+        saveServerData()
         
         return newServer
     }
@@ -600,6 +891,7 @@ object RevenueManager {
         purchaseDay: Int
     ) {
         purchaseServer(gameId, serverType, purchaseYear, purchaseMonth, purchaseDay)
+        saveServerData()
     }
     
     /**
@@ -615,6 +907,7 @@ object RevenueManager {
             }
         }
         gameServerMap[gameId] = serverInfo.copy(servers = updatedServers)
+        saveServerData()
         return true
     }
     
@@ -631,6 +924,7 @@ object RevenueManager {
             }
         }
         gameServerMap[gameId] = serverInfo.copy(servers = updatedServers)
+        saveServerData()
         return true
     }
     
@@ -647,5 +941,6 @@ object RevenueManager {
      */
     fun updateGameServerInfo(gameId: String, serverInfo: GameServerInfo) {
         gameServerMap[gameId] = serverInfo
+        saveServerData()
     }
 }

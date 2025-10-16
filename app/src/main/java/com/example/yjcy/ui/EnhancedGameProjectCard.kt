@@ -307,10 +307,16 @@ fun EnhancedGameProjectCard(
                                     fontSize = 12.sp
                                 )
                                 Text(
-                                    text = if (game.businessModel == BusinessModel.ONLINE_GAME)
-                                        "${(statistics.totalSales * 0.4).toInt()}"
-                                    else
-                                        "${formatMoneyWithDecimals(statistics.totalSales.toDouble())}份",
+                                    text = if (game.businessModel == BusinessModel.ONLINE_GAME) {
+                                        val activePlayers = (statistics.totalSales * 0.4).toInt()
+                                        when {
+                                            activePlayers >= 1_000_000 -> "${activePlayers / 1_000_000}M"
+                                            activePlayers >= 1_000 -> "${activePlayers / 1_000}K"
+                                            else -> "$activePlayers"
+                                        }
+                                    } else {
+                                        "${formatMoneyWithDecimals(statistics.totalSales.toDouble())}份"
+                                    },
                                     color = Color.White,
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold

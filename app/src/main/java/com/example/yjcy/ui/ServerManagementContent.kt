@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,11 +30,20 @@ import com.example.yjcy.formatMoneyWithDecimals
 fun ServerManagementContent(
     games: List<Game>,
     money: Long,
-    onPurchaseServer: (String, ServerType) -> Unit, // gameId, serverType
+    onPurchaseServer: (ServerType) -> Unit, // 购买服务器到公共池
     onMoneyUpdate: (Long) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
-    var selectedGame by remember { mutableStateOf<Game?>(null) }
+    var showQuickPurchaseDialog by remember { mutableStateOf(false) }
+    var refreshTrigger by remember { mutableIntStateOf(0) } // 用于强制刷新UI
+    
+    // 定期刷新数据（每3秒）
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(3000)
+            refreshTrigger++
+        }
+    }
     
     // 筛选已上线的网络游戏
     val onlineGames = remember(games) {
@@ -58,8 +68,8 @@ fun ServerManagementContent(
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF1F2937),
-                        Color(0xFF111827)
+                        Color(0xFF1A237E),  // 深蓝色
+                        Color(0xFF4A148C)   // 深紫色
                     )
                 )
             )
@@ -73,7 +83,7 @@ fun ServerManagementContent(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF374151)
+                    containerColor = Color.White.copy(alpha = 0.1f)
                 ),
                 shape = RoundedCornerShape(16.dp)
             ) {
@@ -89,19 +99,84 @@ fun ServerManagementContent(
                     
                     Spacer(modifier = Modifier.height(12.dp))
                     
+                    // 计算总容量和总活跃服务器数（从公共池读取）
+                    val publicPoolId = "SERVER_PUBLIC_POOL"
+                    
+                    val totalCapacity = remember(games, refreshTrigger) {
+                        RevenueManager.getGameServerInfo(publicPoolId).getTotalCapacity()
+                    }
+                    
+                    // 计算总活跃玩家数（所有在线网游）
+                    val totalActivePlayers = remember(onlineGames, refreshTrigger) {
+                        var total = 0
+                        onlineGames.forEach { game ->
+                            val revenue = RevenueManager.getGameRevenue(game.id)
+                            if (revenue != null && revenue.isActive) {
+                                val statistics = RevenueManager.calculateStatistics(revenue)
+                                val totalSales = statistics.totalSales
+                                val activePlayers = (totalSales * 0.4).toInt()
+                                total += activePlayers
+                            }
+                        }
+                        total
+                    }
+                    
+                    // 格式化容量显示（K/M格式）
+                    val formattedCapacity = remember(totalCapacity) {
+                        val capacityInPeople = totalCapacity * 10000 // 万人转为人数
+                        when {
+                            capacityInPeople >= 1_000_000 -> "${capacityInPeople / 1_000_000}M"
+                            capacityInPeople >= 1_000 -> "${capacityInPeople / 1_000}K"
+                            else -> "$capacityInPeople"
+                        }
+                    }
+                    
+                    // 格式化总活跃数（K/M格式）
+                    val formattedActivePlayers = remember(totalActivePlayers) {
+                        when {
+                            totalActivePlayers >= 1_000_000 -> "${totalActivePlayers / 1_000_000}M"
+                            totalActivePlayers >= 1_000 -> "${totalActivePlayers / 1_000}K"
+                            else -> "$totalActivePlayers"
+                        }
+                    }
+                    
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
                         ServerOverviewItem(
-                            label = "网游数量",
-                            value = "${onlineGames.size}",
-                            icon = "🎮"
+                            label = "总容量",
+                            value = formattedCapacity,
+                            icon = "🖥️"
                         )
                         ServerOverviewItem(
-                            label = "资金",
-                            value = "¥${formatMoneyWithDecimals(money.toDouble())}",
-                            icon = "💰"
+                            label = "总活跃数",
+                            value = formattedActivePlayers,
+                            icon = "📊"
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    // 快速购买按钮
+                    Button(
+                        onClick = { showQuickPurchaseDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF10B981)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "购买服务器",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
@@ -162,8 +237,7 @@ fun ServerManagementContent(
                 ) {
                     items(filteredGames) { game ->
                         ServerGameCard(
-                            game = game,
-                            onClick = { selectedGame = game }
+                            game = game
                         )
                     }
                 }
@@ -171,16 +245,16 @@ fun ServerManagementContent(
         }
     }
     
-    // 服务器管理对话框
-    if (selectedGame != null) {
-        ServerManagementDialog(
-            game = selectedGame!!,
+    // 快速购买对话框
+    if (showQuickPurchaseDialog) {
+        QuickPurchaseDialog(
             money = money,
-            onDismiss = { selectedGame = null },
-            onPurchaseServer = { serverType ->
-                onPurchaseServer(selectedGame!!.id, serverType)
+            onDismiss = { showQuickPurchaseDialog = false },
+            onPurchase = { serverType ->
+                onPurchaseServer(serverType)
                 onMoneyUpdate(money - serverType.cost)
-                selectedGame = null
+                refreshTrigger++ // 触发刷新
+                showQuickPurchaseDialog = false
             }
         )
     }
@@ -216,16 +290,39 @@ fun ServerOverviewItem(
 
 @Composable
 fun ServerGameCard(
-    game: Game,
-    onClick: () -> Unit
+    game: Game
 ) {
-    val serverInfo = remember { RevenueManager.getGameServerInfo(game.id) }
+    val gameRevenue = remember { RevenueManager.getGameRevenue(game.id) }
+    
+    // 获取商业模式显示文本
+    val businessModelText = when (game.businessModel) {
+        BusinessModel.ONLINE_GAME -> "网游"
+        BusinessModel.SINGLE_PLAYER -> "单机"
+    }
+    
+    // 计算总利润
+    val totalProfit = remember(gameRevenue) {
+        if (gameRevenue != null) {
+            val statistics = RevenueManager.calculateStatistics(gameRevenue)
+            statistics.totalRevenue
+        } else {
+            0.0
+        }
+    }
+    
+    // 格式化总利润为K/M格式
+    val formattedProfit = remember(totalProfit) {
+        when {
+            totalProfit >= 1_000_000 -> String.format("%.1fM", totalProfit / 1_000_000)
+            totalProfit >= 1_000 -> String.format("%.1fK", totalProfit / 1_000)
+            else -> String.format("%.0f", totalProfit)
+        }
+    }
     
     Card(
         modifier = Modifier.fillMaxWidth(),
-        onClick = onClick,
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF374151)
+            containerColor = Color.White.copy(alpha = 0.1f)
         ),
         shape = RoundedCornerShape(12.dp)
     ) {
@@ -250,25 +347,15 @@ fun ServerGameCard(
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     ServerInfoChip(
-                        icon = "🖥️",
-                        text = "${serverInfo.getActiveServerCount()}台"
-                    )
-                    ServerInfoChip(
-                        icon = "📊",
-                        text = "${serverInfo.getTotalCapacity()}万人"
+                        icon = "🎮",
+                        text = businessModelText
                     )
                     ServerInfoChip(
                         icon = "💰",
-                        text = "¥${formatMoneyWithDecimals(serverInfo.getTotalCost().toDouble())}"
+                        text = "¥$formattedProfit"
                     )
                 }
             }
-            
-            Icon(
-                imageVector = Icons.Default.Search,
-                contentDescription = "查看详情",
-                tint = Color.Gray
-            )
         }
     }
 }
@@ -329,7 +416,7 @@ fun ServerManagementDialog(
                 item {
                     Card(
                         colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFF374151)
+                            containerColor = Color.White.copy(alpha = 0.1f)
                         ),
                         shape = RoundedCornerShape(12.dp)
                     ) {
@@ -388,7 +475,7 @@ fun ServerManagementDialog(
                     )
                 }
                 
-                items(ServerType.values().toList()) { serverType ->
+                items(ServerType.entries) { serverType ->
                     PurchaseServerCard(
                         serverType = serverType,
                         money = money,
@@ -491,7 +578,7 @@ fun PurchaseServerCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF374151)
+            containerColor = Color.White.copy(alpha = 0.1f)
         ),
         shape = RoundedCornerShape(8.dp)
     ) {
@@ -541,4 +628,106 @@ fun PurchaseServerCard(
             }
         }
     }
+}
+
+/**
+ * 快速购买对话框 - 服务器公共池
+ */
+@Composable
+fun QuickPurchaseDialog(
+    money: Long,
+    onDismiss: () -> Unit,
+    onPurchase: (ServerType) -> Unit
+) {
+    var selectedServerType by remember { mutableStateOf(ServerType.BASIC) }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1F2937),
+        title = {
+            Column {
+                Text(
+                    text = "🛒 购买服务器",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "服务器将添加到公共池，供所有网游使用",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+            }
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ServerType.entries.forEach { serverType ->
+                    val canAfford = money >= serverType.cost
+                    
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { if (canAfford) selectedServerType = serverType },
+                        colors = CardDefaults.cardColors(
+                            containerColor = when {
+                                selectedServerType == serverType -> Color(0xFF10B981).copy(alpha = 0.3f)
+                                canAfford -> Color.White.copy(alpha = 0.1f)
+                                else -> Color.Gray.copy(alpha = 0.2f)
+                            }
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = serverType.displayName,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (selectedServerType == serverType) FontWeight.Bold else FontWeight.Normal,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = "容量: ${serverType.capacity}万人",
+                                    fontSize = 11.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                            Text(
+                                text = "月费：¥${formatMoneyWithDecimals(serverType.cost.toDouble())}",
+                                fontSize = 12.sp,
+                                color = if (canAfford) Color(0xFF10B981) else Color(0xFFEF4444),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { 
+                    onPurchase(selectedServerType)
+                },
+                enabled = money >= selectedServerType.cost,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF10B981),
+                    disabledContainerColor = Color.Gray
+                )
+            ) {
+                Text("购买", color = Color.White)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消", color = Color.White)
+            }
+        }
+    )
 }

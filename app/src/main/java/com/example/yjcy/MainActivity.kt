@@ -87,6 +87,7 @@ import com.example.yjcy.ui.theme.YjcyTheme
 import com.example.yjcy.utils.formatMoney
 import com.example.yjcy.service.JobPostingService
 import com.example.yjcy.data.ServerType
+import com.example.yjcy.ui.BusinessModel
 import com.google.gson.Gson
 import dagger.hilt.android.AndroidEntryPoint
 import java.util.Locale
@@ -132,6 +133,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         
         Log.d("MainActivity", "MainActivity onCreate 开始")
+        
+        // 初始化RevenueManager以支持数据持久化
+        com.example.yjcy.data.RevenueManager.initialize(this)
         
         // 增强全屏显示设置
         // enableFullScreenDisplay()  // 临时注释掉以解决闪退问题
@@ -1051,28 +1055,42 @@ fun GameScreen(
                         3 -> ServerManagementContent(
                             games = games,
                             money = money,
-                            onPurchaseServer = { gameId, serverType ->
-                                // 购买服务器逻辑
-                                val game = games.find { it.id == gameId }
-                                if (game != null && money >= serverType.cost) {
+                            onPurchaseServer = { serverType ->
+                                // 购买服务器到公共池
+                                if (money >= serverType.cost) {
                                     // 扣除费用
                                     money -= serverType.cost
-                                    // 添加服务器
+                                    
+                                    // 使用固定的公共池ID存储服务器
+                                    val publicPoolId = "SERVER_PUBLIC_POOL"
                                     RevenueManager.addServerToGame(
-                                        gameId = gameId,
+                                        gameId = publicPoolId,
                                         serverType = serverType,
                                         purchaseYear = currentYear,
                                         purchaseMonth = currentMonth,
                                         purchaseDay = currentDay
                                     )
-                                    // 更新游戏列表
-                                    val updatedGame = game.copy(
-                                        serverInfo = RevenueManager.getGameServerInfo(gameId)
-                                    )
-                                    games = games.map { if (it.id == gameId) updatedGame else it }
-                                    // 显示消息
-                                    messageText = "已购买 ${serverType.displayName}，费用 ¥${serverType.cost}"
-                                    showMessage = true
+                                    
+                                    // 同时为所有现有网游添加服务器
+                                    val onlineGames = games.filter { it.businessModel == BusinessModel.ONLINE_GAME }
+                                    onlineGames.forEach { game ->
+                                        RevenueManager.addServerToGame(
+                                            gameId = game.id,
+                                            serverType = serverType,
+                                            purchaseYear = currentYear,
+                                            purchaseMonth = currentMonth,
+                                            purchaseDay = currentDay
+                                        )
+                                    }
+                                    
+                                    // 更新所有网游的服务器信息
+                                    games = games.map { game ->
+                                        if (game.businessModel == BusinessModel.ONLINE_GAME) {
+                                            game.copy(serverInfo = RevenueManager.getGameServerInfo(game.id))
+                                        } else {
+                                            game
+                                        }
+                                    }
                                 }
                             },
                             onMoneyUpdate = { updatedMoney -> money = updatedMoney }

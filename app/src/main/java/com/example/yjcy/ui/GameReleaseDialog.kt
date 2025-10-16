@@ -255,7 +255,9 @@ fun GameReleaseDialog(
                     
                     // 服务器检查（仅网络游戏）
                     if (game.businessModel == BusinessModel.ONLINE_GAME) {
-                        val hasServer = game.serverInfo != null && game.serverInfo.getActiveServerCount() > 0
+                        // 从公共池检查服务器
+                        val publicPoolId = "SERVER_PUBLIC_POOL"
+                        val hasServer = com.example.yjcy.data.RevenueManager.getGameServerInfo(publicPoolId).getActiveServerCount() > 0
                         
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -291,17 +293,18 @@ fun GameReleaseDialog(
                                 Spacer(modifier = Modifier.height(12.dp))
                                 
                                 if (hasServer) {
+                                    val serverInfo = com.example.yjcy.data.RevenueManager.getGameServerInfo(publicPoolId)
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Text(
-                                            text = "已部署服务器:",
+                                            text = "公共池服务器:",
                                             fontSize = 14.sp,
                                             color = Color.White.copy(alpha = 0.8f)
                                         )
                                         Text(
-                                            text = "${game.serverInfo?.getActiveServerCount() ?: 0} 台",
+                                            text = "${serverInfo.getActiveServerCount()} 台",
                                             fontSize = 14.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color(0xFF10B981)
@@ -320,7 +323,7 @@ fun GameReleaseDialog(
                                             color = Color.White.copy(alpha = 0.8f)
                                         )
                                         Text(
-                                            text = "${game.serverInfo?.getTotalCapacity() ?: 0}万人",
+                                            text = "${serverInfo.getTotalCapacity()}万人",
                                             fontSize = 14.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color(0xFF10B981)
@@ -328,7 +331,7 @@ fun GameReleaseDialog(
                                     }
                                 } else {
                                     Text(
-                                        text = "⚠️ 请先购买服务器才能上线游戏！\n\n网络游戏需要服务器来承载玩家。请关闭此对话框，点击游戏卡片的服务器管理按钮购买服务器。",
+                                        text = "⚠️ 请先购买服务器才能上线游戏！\n\n网络游戏需要服务器来承载玩家。请关闭此对话框，到服务器管理中心购买服务器。",
                                         fontSize = 13.sp,
                                         color = Color.White,
                                         lineHeight = 18.sp
@@ -432,8 +435,9 @@ fun GameReleaseDialog(
                     val finalPrice = userInputPrice.toFloatOrNull() ?: 0f
                     
                     val canRelease = if (game.businessModel == BusinessModel.ONLINE_GAME) {
-                        // 网络游戏必须有服务器才能上线
-                        game.serverInfo != null && game.serverInfo.getActiveServerCount() > 0
+                        // 网络游戏必须有服务器才能上线（从公共池检查）
+                        val publicPoolId = "SERVER_PUBLIC_POOL"
+                        com.example.yjcy.data.RevenueManager.getGameServerInfo(publicPoolId).getActiveServerCount() > 0
                     } else {
                         isValidPrice && userInputPrice.isNotEmpty()
                     }
