@@ -133,9 +133,14 @@ fun EnhancedProjectManagementContent(
     onReleaseGame: ((Game) -> Unit)? = null,  // 新增：发售游戏回调
     onAbandonGame: ((Game) -> Unit)? = null,  // 新增：废弃游戏回调
     selectedProjectType: ProjectDisplayType = ProjectDisplayType.CURRENT,  // 外部控制的标签页状态
-    onProjectTypeChange: (ProjectDisplayType) -> Unit = {}  // 标签页变化回调
+    onProjectTypeChange: (ProjectDisplayType) -> Unit = {},  // 标签页变化回调
+    money: Long = 0L,  // 新增：资金
+    fans: Int = 0,  // 新增：粉丝数
+    onMoneyUpdate: (Long) -> Unit = {},  // 新增：资金更新回调
+    onFansUpdate: (Int) -> Unit = {}  // 新增：粉丝更新回调
 ) {
     var showGameDevelopmentDialog by remember { mutableStateOf(false) }
+    var showPromotionCenterDialog by remember { mutableStateOf(false) }
     
     // 根据选择的项目类型过滤游戏列表
     val filteredGames = remember(games, selectedProjectType) {
@@ -172,14 +177,43 @@ fun EnhancedProjectManagementContent(
             )
             .padding(16.dp)
     ) {
-        // 标题
-        Text(
-            text = "🎮 项目管理",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+        // 标题栏
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "🎮 项目管理",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            
+            // 宣传中心按钮
+            Button(
+                onClick = { showPromotionCenterDialog = true },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFEA580C).copy(alpha = 0.8f)
+                ),
+                shape = RoundedCornerShape(8.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = "📢",
+                    fontSize = 16.sp,
+                    modifier = Modifier.padding(end = 4.dp)
+                )
+                Text(
+                    text = "宣传中心",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White
+                )
+            }
+        }
         
         // 开发新游戏按钮
         Card(
@@ -352,6 +386,18 @@ fun EnhancedProjectManagementContent(
                 onGamesUpdate(games + newGame)
                 showGameDevelopmentDialog = false
             }
+        )
+    }
+    
+    // 宣传中心对话框
+    if (showPromotionCenterDialog) {
+        PromotionCenterDialog(
+            games = games,
+            money = money,
+            fans = fans,
+            onDismiss = { showPromotionCenterDialog = false },
+            onMoneyUpdate = onMoneyUpdate,
+            onFansUpdate = onFansUpdate
         )
     }
 }

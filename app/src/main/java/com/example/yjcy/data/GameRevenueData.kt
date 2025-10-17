@@ -766,12 +766,19 @@ object RevenueManager {
         if (latestSales == null) {
             val firstDayDate = gameRevenue.releaseDate
             
-            // 首日销量：根据价格调整
-            val baseSales = when {
-                gameRevenue.releasePrice <= 30.0 -> Random.nextInt(800, 1200) // 低价游戏
-                gameRevenue.releasePrice <= 100.0 -> Random.nextInt(500, 800) // 中价游戏
-                else -> Random.nextInt(200, 500) // 高价游戏
+            // 首日销量/注册：根据商业模式调整
+            val baseSales = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
+                // 网游：免费游戏，首日注册人数较多
+                Random.nextInt(1000, 2000)
+            } else {
+                // 单机：根据价格调整首日销量
+                when {
+                    gameRevenue.releasePrice <= 30.0 -> Random.nextInt(800, 1200) // 低价游戏
+                    gameRevenue.releasePrice <= 100.0 -> Random.nextInt(500, 800) // 中价游戏
+                    else -> Random.nextInt(200, 500) // 高价游戏
+                }
             }
+            
             val firstDayRevenue = baseSales * gameRevenue.releasePrice
             
             val firstDaySales = DailySales(
@@ -780,21 +787,34 @@ object RevenueManager {
                 revenue = firstDayRevenue
             )
             
-            // 网络游戏：初始化总注册人数
+            // 网络游戏：初始化总注册人数并计算付费内容收益
             val totalRegistered = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
                 baseSales
             } else {
                 gameRevenue.totalRegisteredPlayers
             }
             
+            // 计算首日付费内容收益（仅网游）
+            val monetizationItems = gameInfoMap[gameId]?.second ?: emptyList()
+            var firstDayMonetizationRevenue = 0.0
+            val initialMonetizationRevenues = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
+                val dailyRevenues = calculateMonetizationRevenues(baseSales, monetizationItems)
+                firstDayMonetizationRevenue = dailyRevenues.sumOf { it.totalRevenue }
+                dailyRevenues
+            } else {
+                emptyList()
+            }
+            
             // 更新游戏收益数据
             gameRevenueMap[gameId] = gameRevenue.copy(
                 dailySalesList = listOf(firstDaySales),
-                totalRegisteredPlayers = totalRegistered
+                totalRegisteredPlayers = totalRegistered,
+                monetizationRevenues = initialMonetizationRevenues
             )
             saveRevenueData()
             
-            return firstDayRevenue
+            // 网游返回总收益（销售收益 + 付费内容收益）
+            return firstDayRevenue + firstDayMonetizationRevenue
         }
         
         // 生成新的一天的销量数据（基于前一天的数据，但略有波动）
@@ -803,10 +823,20 @@ object RevenueManager {
         calendar.add(Calendar.DAY_OF_YEAR, 1)
         val newDate = calendar.time
         
-        // 模拟销量衰减：随着时间推移，销量逐渐下降，但有随机波动
-        val decayFactor = 0.98 // 每天衰减2%
-        val fluctuation = Random.nextDouble(0.8, 1.2) // 随机波动
-        val newSales = (latestSales.sales * decayFactor * fluctuation).toInt().coerceAtLeast(1)
+        // 计算新增销量/注册
+        val newSales = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
+            // 网游：基于玩家兴趣值计算新增注册
+            val baseNewRegistrations = (latestSales.sales * 0.05).toInt() // 基础5%增长
+            val interestMultiplier = (gameRevenue.playerInterest / 100.0) // 兴趣值影响
+            val fluctuation = Random.nextDouble(0.8, 1.5) // 随机波动
+            (baseNewRegistrations * interestMultiplier * fluctuation).toInt().coerceAtLeast(10)
+        } else {
+            // 单机：销量衰减模式
+            val decayFactor = 0.98 // 每天衰减2%
+            val fluctuation = Random.nextDouble(0.8, 1.2) // 随机波动
+            (latestSales.sales * decayFactor * fluctuation).toInt().coerceAtLeast(1)
+        }
+        
         val newRevenue = newSales * gameRevenue.releasePrice
         
         // 创建新的每日销量数据
@@ -824,8 +854,9 @@ object RevenueManager {
         
         var dailyMonetizationRevenue = 0.0 // 当日付费内容收益
         val monetizationRevenues = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
-            // 计算当天的付费内容收益
-            val dailyRevenues = calculateMonetizationRevenues(newSales, monetizationItems)
+            // 计算当天的付费内容收益 - 使用总注册玩家数而不是当日新增
+            val totalActivePlayers = gameRevenue.totalRegisteredPlayers + newSales
+            val dailyRevenues = calculateMonetizationRevenues(totalActivePlayers, monetizationItems)
             dailyMonetizationRevenue = dailyRevenues.sumOf { it.totalRevenue }
             
             // 将当天的收益累加到之前的累计收益上
@@ -853,9 +884,17 @@ object RevenueManager {
         // 使用当日付费内容收益（不是累计值）
         val monetizationTotalRevenue = dailyMonetizationRevenue
         
+        // 网游：更新总注册人数（累加每日新增）
+        val newTotalRegisteredPlayers = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
+            gameRevenue.totalRegisteredPlayers + newSales
+        } else {
+            gameRevenue.totalRegisteredPlayers
+        }
+        
         gameRevenueMap[gameId] = gameRevenue.copy(
             dailySalesList = updatedDailySalesList,
-            monetizationRevenues = monetizationRevenues
+            monetizationRevenues = monetizationRevenues,
+            totalRegisteredPlayers = newTotalRegisteredPlayers
         )
         saveRevenueData()
         
@@ -1156,9 +1195,8 @@ object RevenueManager {
         
         if (businessModel != com.example.yjcy.ui.BusinessModel.ONLINE_GAME) return 0
         
-        // 基础活跃玩家 = 总销量 * 40%（作为注册玩家基数）
-        val statistics = calculateStatistics(gameRevenue)
-        val baseActivePlayers = (statistics.totalSales * 0.4).toInt()
+        // 基础活跃玩家 = 总注册人数 * 40%（注册玩家中40%保持活跃）
+        val baseActivePlayers = (gameRevenue.totalRegisteredPlayers * 0.4).toInt()
         
         // 根据兴趣值调整活跃玩家数
         val interestMultiplier = calculateActivePlayerMultiplier(gameRevenue.playerInterest)

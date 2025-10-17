@@ -595,6 +595,12 @@ fun EnhancedGameProjectCard(
                     // 更新游戏的付费内容配置
                     val updatedGame = game.copy(monetizationItems = updatedItems)
                     onGameUpdate(updatedGame)
+                    // 同步更新 RevenueManager 中的游戏信息
+                    RevenueManager.updateGameInfo(
+                        game.id,
+                        game.businessModel,
+                        updatedItems
+                    )
                 },
                 onPurchaseServer = { serverType ->
                     // 购买服务器

@@ -82,6 +82,7 @@ import com.example.yjcy.ui.GameRatingDialog
 import com.example.yjcy.ui.GameReleaseDialog
 import com.example.yjcy.ui.ProjectManagementWrapper
 import com.example.yjcy.ui.ProjectDisplayType
+import com.example.yjcy.ui.PromotionCenterContent
 import com.example.yjcy.ui.ServerManagementContent
 import com.example.yjcy.ui.theme.YjcyTheme
 import com.example.yjcy.utils.formatMoney
@@ -1063,7 +1064,11 @@ fun GameScreen(
                                 showAbandonDialog = true
                             },
                             selectedProjectType = selectedProjectType,
-                            onProjectTypeChange = { newType -> selectedProjectType = newType }
+                            onProjectTypeChange = { newType -> selectedProjectType = newType },
+                            money = money,
+                            fans = fans,
+                            onMoneyUpdate = { updatedMoney -> money = updatedMoney },
+                            onFansUpdate = { updatedFans -> fans = updatedFans }
                         )
                         3 -> ServerManagementContent(
                             games = games,

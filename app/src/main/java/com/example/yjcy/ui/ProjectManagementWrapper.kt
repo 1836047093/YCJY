@@ -35,7 +35,11 @@ fun ProjectManagementWrapper(
     onReleaseGame: ((Game) -> Unit)? = null,  // 新增：发售游戏回调
     onAbandonGame: ((Game) -> Unit)? = null,  // 新增：废弃游戏回调
     selectedProjectType: ProjectDisplayType = ProjectDisplayType.CURRENT,  // 外部传入的状态
-    onProjectTypeChange: (ProjectDisplayType) -> Unit = {}  // 状态变化回调
+    onProjectTypeChange: (ProjectDisplayType) -> Unit = {},  // 状态变化回调
+    money: Long = 0L,  // 新增：资金
+    fans: Int = 0,  // 新增：粉丝数
+    onMoneyUpdate: (Long) -> Unit = {},  // 新增：资金更新回调
+    onFansUpdate: (Int) -> Unit = {}  // 新增：粉丝更新回调
 ) {
     // 移除本地状态管理，改为由外部（MainActivity）管理
     // 这样可以确保切换标签时状态不会丢失
@@ -52,6 +56,10 @@ fun ProjectManagementWrapper(
                     onReleaseGame = onReleaseGame,
                     onAbandonGame = onAbandonGame,
                     selectedProjectType = selectedProjectType,
-                    onProjectTypeChange = onProjectTypeChange
+                    onProjectTypeChange = onProjectTypeChange,
+                    money = money,
+                    fans = fans,
+                    onMoneyUpdate = onMoneyUpdate,
+                    onFansUpdate = onFansUpdate
     )
 }
