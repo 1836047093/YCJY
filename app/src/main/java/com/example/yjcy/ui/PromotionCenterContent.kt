@@ -29,14 +29,18 @@ fun PromotionCenterContent(
     money: Long,
     fans: Int,
     onMoneyUpdate: (Long) -> Unit,
-    onFansUpdate: (Int) -> Unit
+    onFansUpdate: (Int) -> Unit,
+    onGamesUpdate: (List<Game>) -> Unit
 ) {
     var selectedGame by remember { mutableStateOf<Game?>(null) }
     var showPromotionDialog by remember { mutableStateOf(false) }
     
-    // 筛选已上线的游戏（包括单机和网游）
+    // 筛选可宣传的游戏（开发中、准备发售、已上线等）
     val releasedGames = remember(games) {
         games.filter { 
+            it.releaseStatus == GameReleaseStatus.DEVELOPMENT ||
+            it.releaseStatus == GameReleaseStatus.READY_FOR_RELEASE ||
+            it.releaseStatus == GameReleaseStatus.PRICE_SETTING ||
             it.releaseStatus == GameReleaseStatus.RELEASED || 
             it.releaseStatus == GameReleaseStatus.RATED
         }
@@ -123,7 +127,7 @@ fun PromotionCenterContent(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "暂无已发售的游戏",
+                            text = "暂无营销",
                             fontSize = 16.sp,
                             color = Color.Gray
                         )
@@ -150,8 +154,13 @@ fun PromotionCenterContent(
     
     // 宣传对话框
     if (showPromotionDialog && selectedGame != null) {
+        // 获取最新的游戏数据（支持实时更新）
+        val currentGame = remember(games, selectedGame) {
+            games.find { it.id == selectedGame!!.id } ?: selectedGame!!
+        }
+        
         PromotionTypeDialog(
-            game = selectedGame!!,
+            game = currentGame,
             money = money,
             onDismiss = { 
                 showPromotionDialog = false
@@ -161,8 +170,20 @@ fun PromotionCenterContent(
                 onMoneyUpdate(money - promotionType.cost)
                 onFansUpdate(fans + promotionType.fansGain)
                 
-                showPromotionDialog = false
-                selectedGame = null
+                // 更新游戏的宣传指数
+                val updatedGames = games.map { game ->
+                    if (game.id == selectedGame!!.id) {
+                        val newPromotionIndex = (game.promotionIndex + promotionType.promotionIndexGain).coerceAtMost(1.0f)
+                        game.copy(promotionIndex = newPromotionIndex)
+                    } else {
+                        game
+                    }
+                }
+                onGamesUpdate(updatedGames)
+                
+                // 不再关闭对话框，允许连续宣传
+                // showPromotionDialog = false
+                // selectedGame = null
             }
         )
     }
@@ -295,6 +316,7 @@ enum class PromotionType(
     val description: String,
     val cost: Long,
     val fansGain: Int,
+    val promotionIndexGain: Float, // 宣传指数增益（0-1之间）
     val icon: String
 ) {
     SOCIAL_MEDIA(
@@ -302,6 +324,7 @@ enum class PromotionType(
         description = "在各大社交平台发布游戏内容",
         cost = 10000L,
         fansGain = 500,
+        promotionIndexGain = 0.05f,
         icon = "📱"
     ),
     VIDEO_AD(
@@ -309,6 +332,7 @@ enum class PromotionType(
         description = "制作精美的游戏宣传视频",
         cost = 50000L,
         fansGain = 2000,
+        promotionIndexGain = 0.10f,
         icon = "🎬"
     ),
     GAME_EXPO(
@@ -316,6 +340,7 @@ enum class PromotionType(
         description = "参加游戏展会展示作品",
         cost = 100000L,
         fansGain = 5000,
+        promotionIndexGain = 0.15f,
         icon = "🎪"
     ),
     TV_COMMERCIAL(
@@ -323,6 +348,7 @@ enum class PromotionType(
         description = "在电视黄金时段投放广告",
         cost = 500000L,
         fansGain = 20000,
+        promotionIndexGain = 0.25f,
         icon = "📺"
     ),
     CELEBRITY_ENDORSEMENT(
@@ -330,6 +356,7 @@ enum class PromotionType(
         description = "邀请知名人士为游戏代言",
         cost = 1000000L,
         fansGain = 50000,
+        promotionIndexGain = 0.40f,
         icon = "⭐"
     )
 }
@@ -344,14 +371,18 @@ fun PromotionCenterDialog(
     fans: Int,
     onDismiss: () -> Unit,
     onMoneyUpdate: (Long) -> Unit,
-    onFansUpdate: (Int) -> Unit
+    onFansUpdate: (Int) -> Unit,
+    onGamesUpdate: (List<Game>) -> Unit
 ) {
     var selectedGame by remember { mutableStateOf<Game?>(null) }
     var showPromotionTypeDialog by remember { mutableStateOf(false) }
     
-    // 筛选已上线的游戏
+    // 筛选可宣传的游戏（开发中、准备发售、已上线等）
     val releasedGames = remember(games) {
         games.filter { 
+            it.releaseStatus == GameReleaseStatus.DEVELOPMENT ||
+            it.releaseStatus == GameReleaseStatus.READY_FOR_RELEASE ||
+            it.releaseStatus == GameReleaseStatus.PRICE_SETTING ||
             it.releaseStatus == GameReleaseStatus.RELEASED || 
             it.releaseStatus == GameReleaseStatus.RATED
         }
@@ -390,7 +421,7 @@ fun PromotionCenterDialog(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "暂无已发售的游戏",
+                            text = "暂无营销",
                             fontSize = 14.sp,
                             color = Color.Gray
                         )
@@ -468,8 +499,13 @@ fun PromotionCenterDialog(
     
     // 宣传类型选择对话框
     if (showPromotionTypeDialog && selectedGame != null) {
+        // 获取最新的游戏数据（支持实时更新）
+        val currentGame = remember(games, selectedGame) {
+            games.find { it.id == selectedGame!!.id } ?: selectedGame!!
+        }
+        
         PromotionTypeDialog(
-            game = selectedGame!!,
+            game = currentGame,
             money = money,
             onDismiss = { 
                 showPromotionTypeDialog = false
@@ -479,9 +515,21 @@ fun PromotionCenterDialog(
                 onMoneyUpdate(money - promotionType.cost)
                 onFansUpdate(fans + promotionType.fansGain)
                 
-                showPromotionTypeDialog = false
-                selectedGame = null
-                onDismiss()
+                // 更新游戏的宣传指数
+                val updatedGames = games.map { game ->
+                    if (game.id == selectedGame!!.id) {
+                        val newPromotionIndex = (game.promotionIndex + promotionType.promotionIndexGain).coerceAtMost(1.0f)
+                        game.copy(promotionIndex = newPromotionIndex)
+                    } else {
+                        game
+                    }
+                }
+                onGamesUpdate(updatedGames)
+                
+                // 不再关闭对话框，允许连续宣传
+                // showPromotionTypeDialog = false
+                // selectedGame = null
+                // onDismiss()
             }
         )
     }
@@ -507,11 +555,28 @@ fun PromotionTypeDialog(
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
-                Text(
-                    text = game.name,
-                    fontSize = 14.sp,
-                    color = Color.Gray
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = game.name,
+                        fontSize = 14.sp,
+                        color = Color.White
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = Color(0xFFEAB308).copy(alpha = 0.3f)
+                    ) {
+                        Text(
+                            text = "宣传指数：${(game.promotionIndex * 100).toInt()}%",
+                            fontSize = 12.sp,
+                            color = Color(0xFFEAB308),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
             }
         },
         text = {
@@ -579,6 +644,12 @@ fun PromotionTypeDialog(
                                     color = Color(0xFF3B82F6),
                                     fontWeight = FontWeight.Medium
                                 )
+                                Text(
+                                    text = "宣传指数：+${(promotionType.promotionIndexGain * 100).toInt()}%",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFEAB308),
+                                    fontWeight = FontWeight.Medium
+                                )
                             }
                         }
                     }
@@ -586,17 +657,32 @@ fun PromotionTypeDialog(
             }
         },
         confirmButton = {
-            Button(
-                onClick = { 
-                    onPromote(selectedType)
-                },
-                enabled = money >= selectedType.cost,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF10B981),
-                    disabledContainerColor = Color.Gray
-                )
+            val isMaxPromotion = game.promotionIndex >= 1.0f
+            val canPromote = money >= selectedType.cost && !isMaxPromotion
+            
+            Column(
+                horizontalAlignment = Alignment.End
             ) {
-                Text("开始宣传", color = Color.White)
+                if (isMaxPromotion) {
+                    Text(
+                        text = "宣传指数已达最大值",
+                        fontSize = 11.sp,
+                        color = Color(0xFFEAB308),
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                }
+                Button(
+                    onClick = { 
+                        onPromote(selectedType)
+                    },
+                    enabled = canPromote,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF10B981),
+                        disabledContainerColor = Color.Gray
+                    )
+                ) {
+                    Text("开始宣传", color = Color.White)
+                }
             }
         },
         dismissButton = {

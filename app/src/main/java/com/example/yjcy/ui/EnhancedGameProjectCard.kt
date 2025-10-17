@@ -83,12 +83,12 @@ fun EnhancedGameProjectCard(
                 .padding(20.dp)
         ) {
             // 项目标题和基本信息
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // 游戏名字和状态标签在同一行
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Text(
                         text = game.name,
                         color = Color.White,
@@ -96,69 +96,88 @@ fun EnhancedGameProjectCard(
                         fontWeight = FontWeight.Bold
                     )
                     
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "${game.theme.displayName} • ${game.platforms.joinToString(", ") { it.displayName }}",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 14.sp
-                        )
-                        
+                    // 项目状态指示器（仅对开发中的游戏显示）
+                    if (isDeveloping) {
                         Card(
                             colors = CardDefaults.cardColors(
-                                containerColor = when (game.businessModel) {
-                                    BusinessModel.SINGLE_PLAYER -> Color(0xFF8B5CF6)
-                                    BusinessModel.ONLINE_GAME -> Color(0xFF10B981)
-                                }.copy(alpha = 0.2f)
+                                containerColor = if (game.assignedEmployees.isNotEmpty()) 
+                                    Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFFF59E0B).copy(alpha = 0.2f)
                             ),
-                            shape = RoundedCornerShape(4.dp)
+                            shape = RoundedCornerShape(8.dp)
                         ) {
-                            Text(
-                                text = game.businessModel.displayName,
-                                color = when (game.businessModel) {
-                                    BusinessModel.SINGLE_PLAYER -> Color(0xFF8B5CF6)
-                                    BusinessModel.ONLINE_GAME -> Color(0xFF10B981)
-                                },
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (game.assignedEmployees.isNotEmpty()) 
+                                        Icons.Default.CheckCircle else Icons.Default.Schedule,
+                                    contentDescription = null,
+                                    tint = if (game.assignedEmployees.isNotEmpty()) 
+                                        Color(0xFF10B981) else Color(0xFFF59E0B),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = if (game.assignedEmployees.isNotEmpty()) "进行中" else "待分配",
+                                    color = if (game.assignedEmployees.isNotEmpty()) 
+                                        Color(0xFF10B981) else Color(0xFFF59E0B),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
                     }
                 }
                 
-                // 项目状态指示器（仅对开发中的游戏显示）
-                if (isDeveloping) {
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // 游戏信息标签
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${game.theme.displayName} • ${game.platforms.joinToString(", ") { it.displayName }}",
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 14.sp
+                    )
+                    
                     Card(
                         colors = CardDefaults.cardColors(
-                            containerColor = if (game.assignedEmployees.isNotEmpty()) 
-                                Color(0xFF10B981).copy(alpha = 0.2f) else Color(0xFFF59E0B).copy(alpha = 0.2f)
+                            containerColor = when (game.businessModel) {
+                                BusinessModel.SINGLE_PLAYER -> Color(0xFF8B5CF6)
+                                BusinessModel.ONLINE_GAME -> Color(0xFF10B981)
+                            }.copy(alpha = 0.2f)
                         ),
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(4.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = if (game.assignedEmployees.isNotEmpty()) 
-                                    Icons.Default.CheckCircle else Icons.Default.Schedule,
-                                contentDescription = null,
-                                tint = if (game.assignedEmployees.isNotEmpty()) 
-                                    Color(0xFF10B981) else Color(0xFFF59E0B),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = if (game.assignedEmployees.isNotEmpty()) "进行中" else "待分配",
-                                color = if (game.assignedEmployees.isNotEmpty()) 
-                                    Color(0xFF10B981) else Color(0xFFF59E0B),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
+                        Text(
+                            text = game.businessModel.displayName,
+                            color = when (game.businessModel) {
+                                BusinessModel.SINGLE_PLAYER -> Color(0xFF8B5CF6)
+                                BusinessModel.ONLINE_GAME -> Color(0xFF10B981)
+                            },
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                    
+                    // 宣传指数显示
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFF59E0B).copy(alpha = 0.2f)
+                        ),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = "宣传指数：${(game.promotionIndex * 100).toInt()}%",
+                            color = Color(0xFFF59E0B),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
                     }
                 }
             }
@@ -746,3 +765,277 @@ private fun StatCard(
         }
     }
 }
+
+/**
+ * 游戏宣传对话框
+ */
+@Composable
+fun GamePromotionDialog(
+    game: Game,
+    money: Long,
+    onDismiss: () -> Unit,
+    onPromote: (Int) -> Unit // 宣传投入金额
+) {
+    var investmentAmount by remember { mutableIntStateOf(0) }
+    var selectedOption by remember { mutableIntStateOf(0) } // 0=小规模, 1=中等规模, 2=大规模
+    
+    // 宣传选项配置
+    val promotionOptions = listOf(
+        PromotionOption("小规模宣传", 50000, 0.2f, "社交媒体、论坛推广"),
+        PromotionOption("中等规模宣传", 150000, 0.4f, "游戏展会、媒体评测"),
+        PromotionOption("大规模宣传", 500000, 0.8f, "电视广告、网络推广、明星代言")
+    )
+    
+    // 当前宣传指数
+    val currentIndex = (game.promotionIndex * 100).toInt()
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1F2937),
+        title = {
+            Column {
+                Text(
+                    text = "📢 游戏宣传",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = game.name,
+                    fontSize = 14.sp,
+                    color = Color.Gray
+                )
+            }
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // 当前宣传指数显示
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFFF59E0B).copy(alpha = 0.2f)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "当前宣传指数",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "$currentIndex%",
+                                color = Color(0xFFF59E0B),
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        // 进度条
+                        LinearProgressIndicator(
+                            progress = { game.promotionIndex },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp),
+                            color = Color(0xFFF59E0B),
+                            trackColor = Color.White.copy(alpha = 0.2f)
+                        )
+                    }
+                }
+                
+                // 说明文字
+                Text(
+                    text = "提升宣传指数可以增加游戏的首发销量或注册数",
+                    color = Color.Gray,
+                    fontSize = 12.sp
+                )
+                
+                // 宣传选项
+                promotionOptions.forEachIndexed { index, option ->
+                    val canAfford = money >= option.cost
+                    val newIndex = minOf(100, currentIndex + (option.indexIncrease * 100).toInt())
+                    
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { 
+                            if (canAfford && currentIndex < 100) {
+                                selectedOption = index
+                                investmentAmount = option.cost
+                            }
+                        },
+                        colors = CardDefaults.cardColors(
+                            containerColor = when {
+                                currentIndex >= 100 -> Color.Gray.copy(alpha = 0.2f)
+                                selectedOption == index -> Color(0xFFF59E0B).copy(alpha = 0.3f)
+                                canAfford -> Color.White.copy(alpha = 0.1f)
+                                else -> Color.Gray.copy(alpha = 0.2f)
+                            }
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = option.name,
+                                        fontSize = 14.sp,
+                                        fontWeight = if (selectedOption == index) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (currentIndex >= 100 || !canAfford) Color.Gray else Color.White
+                                    )
+                                    Text(
+                                        text = option.description,
+                                        fontSize = 11.sp,
+                                        color = Color.Gray
+                                    )
+                                }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(
+                                        text = "¥${formatMoneyWithDecimals(option.cost.toDouble())}",
+                                        fontSize = 13.sp,
+                                        color = if (canAfford) Color(0xFF10B981) else Color(0xFFEF4444),
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        text = "+${(option.indexIncrease * 100).toInt()}%",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFFF59E0B)
+                                    )
+                                }
+                            }
+                            
+                            // 显示预期结果
+                            if (selectedOption == index && currentIndex < 100) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "预期指数：",
+                                        fontSize = 12.sp,
+                                        color = Color.Gray
+                                    )
+                                    Text(
+                                        text = "$currentIndex% → $newIndex%",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF10B981),
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // 效果说明
+                if (currentIndex < 100) {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF3B82F6).copy(alpha = 0.1f)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "💡",
+                                fontSize = 20.sp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "宣传指数达到100%时效果最佳！\n单机游戏：提升首发销量\n网络游戏：提升首发总注册",
+                                color = Color.White.copy(alpha = 0.8f),
+                                fontSize = 11.sp,
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
+                } else {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF10B981).copy(alpha = 0.1f)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "✅",
+                                fontSize = 20.sp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "宣传指数已达到100%，无需继续投入！",
+                                color = Color(0xFF10B981),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { 
+                    onPromote(investmentAmount)
+                    onDismiss()
+                },
+                enabled = investmentAmount > 0 && money >= investmentAmount && currentIndex < 100,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFF59E0B),
+                    disabledContainerColor = Color.Gray
+                )
+            ) {
+                Text("确认宣传", color = Color.White)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消", color = Color.White)
+            }
+        }
+    )
+}
+
+/**
+ * 宣传选项数据类
+ */
+data class PromotionOption(
+    val name: String,
+    val cost: Int,
+    val indexIncrease: Float, // 增加的宣传指数（0-1）
+    val description: String
+)

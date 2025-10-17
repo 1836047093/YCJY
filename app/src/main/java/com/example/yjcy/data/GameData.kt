@@ -158,7 +158,8 @@ data class Game(
     val assignedEmployees: List<Employee> = emptyList(), // 已分配的员工列表
     val monetizationItems: List<MonetizationItem> = emptyList(), // 付费内容列表（仅网络游戏）
     val developmentCost: Long = 0L, // 新增：开发成本（用于废弃时返还80%）
-    val serverInfo: GameServerInfo? = null // 新增：服务器信息（仅网络游戏）
+    val serverInfo: GameServerInfo? = null, // 新增：服务器信息（仅网络游戏）
+    val promotionIndex: Float = 0f // 新增：宣传指数（0-1，表示0%-100%）
 ) {
     /**
      * 计算游戏开发成本

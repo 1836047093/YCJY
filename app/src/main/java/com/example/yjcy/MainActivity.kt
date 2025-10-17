@@ -794,7 +794,8 @@ fun GameScreen(
                             daysOnMarket = 0,
                             releaseYear = currentYear,
                             releaseMonth = currentMonth,
-                            releaseDay = currentDay
+                            releaseDay = currentDay,
+                            promotionIndex = releasedGame.promotionIndex
                         )
                         // 初始化游戏信息（商业模式和付费内容）
                         RevenueManager.updateGameInfo(
@@ -973,7 +974,9 @@ fun GameScreen(
                         releasedGame.monetizationItems
                     )
                     
-                    val dailyRevenue = RevenueManager.addDailyRevenueForGame(releasedGame.id)
+                    // 传入游戏评分和粉丝数，影响网络游戏的注册数
+                    val gameRating = releasedGame.gameRating?.finalScore
+                    val dailyRevenue = RevenueManager.addDailyRevenueForGame(releasedGame.id, gameRating, fans)
                     money += dailyRevenue.toLong()
 
                     // 若存在更新任务，根据已分配员工数量推进进度
@@ -1206,7 +1209,8 @@ fun GameScreen(
                                 daysOnMarket = 0, // 初始化为空，让日常循环来累加收益
                                 releaseYear = currentYear,
                                 releaseMonth = currentMonth,
-                                releaseDay = currentDay
+                                releaseDay = currentDay,
+                                promotionIndex = releasedGame.promotionIndex
                             )
                             // 初始化游戏信息（商业模式和付费内容）
                             RevenueManager.updateGameInfo(
@@ -1285,17 +1289,28 @@ fun GameScreen(
                             fontSize = 14.sp
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "开发成本：${formatMoney(pendingAbandonGame!!.developmentCost)}",
-                            fontSize = 13.sp,
-                            color = Color.Gray
-                        )
-                        Text(
-                            text = "返还金额：${formatMoney((pendingAbandonGame!!.developmentCost * 0.8).toLong())} (80%)",
-                            fontSize = 13.sp,
-                            color = Color(0xFF10B981),
-                            fontWeight = FontWeight.Medium
-                        )
+                        
+                        // 如果是开发中的游戏，显示不同的提示
+                        if (pendingAbandonGame!!.releaseStatus == GameReleaseStatus.DEVELOPMENT) {
+                            Text(
+                                text = "游戏还在开发阶段，废弃不会产生任何费用",
+                                fontSize = 13.sp,
+                                color = Color(0xFF10B981),
+                                fontWeight = FontWeight.Medium
+                            )
+                        } else {
+                            Text(
+                                text = "开发成本：${formatMoney(pendingAbandonGame!!.developmentCost)}",
+                                fontSize = 13.sp,
+                                color = Color.Gray
+                            )
+                            Text(
+                                text = "返还金额：${formatMoney((pendingAbandonGame!!.developmentCost * 0.8).toLong())} (80%)",
+                                fontSize = 13.sp,
+                                color = Color(0xFF10B981),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
                 },
                 confirmButton = {

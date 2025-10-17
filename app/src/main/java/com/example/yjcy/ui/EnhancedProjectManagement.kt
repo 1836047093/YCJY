@@ -397,7 +397,8 @@ fun EnhancedProjectManagementContent(
             fans = fans,
             onDismiss = { showPromotionCenterDialog = false },
             onMoneyUpdate = onMoneyUpdate,
-            onFansUpdate = onFansUpdate
+            onFansUpdate = onFansUpdate,
+            onGamesUpdate = onGamesUpdate
         )
     }
 }
@@ -660,8 +661,8 @@ fun SuperEnhancedGameDevelopmentDialog(
                                     assignedEmployees = emptyList(),
                                     monetizationItems = monetizationItems
                                 ).let { game ->
-                                    // 计算并设置开发成本
-                                    game.copy(developmentCost = game.calculateDevelopmentCost())
+                                    // 开发阶段不产生成本，保持为0
+                                    game.copy(developmentCost = 0L)
                                 }
                                 onGameCreated(newGame)
                             }
@@ -894,8 +895,8 @@ fun EnhancedGameDevelopmentDialog(
                                             revenue = 0L,
                                             assignedEmployees = emptyList()
                                         ).let { game ->
-                                            // 计算并设置开发成本
-                                            game.copy(developmentCost = game.calculateDevelopmentCost())
+                                            // 开发阶段不产生成本，保持为0
+                                            game.copy(developmentCost = 0L)
                                         }
                                         onGameCreated(newGame)
                                     }

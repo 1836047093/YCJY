@@ -422,7 +422,8 @@ object RevenueManager {
         daysOnMarket: Int = 30,
         releaseYear: Int = 1,
         releaseMonth: Int = 1,
-        releaseDay: Int = 1
+        releaseDay: Int = 1,
+        promotionIndex: Float = 0f  // 新增：宣传指数（0-1）
     ): GameRevenue {
         val calendar = Calendar.getInstance()
         calendar.add(Calendar.DAY_OF_YEAR, -daysOnMarket)
@@ -437,7 +438,14 @@ object RevenueManager {
             
             // 模拟销量衰减：首日最高，然后逐渐下降，偶有波动
             val baseSales = when {
-                i == 0 -> Random.nextInt(800, 1200) // 首日销量
+                i == 0 -> {
+                    // 首日销量/注册，应用宣传指数提升
+                    val baseValue = Random.nextInt(800, 1200)
+                    // 宣传指数100%时，首发销量/注册提升50%
+                    // 低于100%也有提升，但效果没有10 0%多
+                    val promotionBonus = 1f + (promotionIndex * 0.5f)
+                    (baseValue * promotionBonus).toInt()
+                }
                 i <= 7 -> Random.nextInt(300, 600) // 首周
                 i <= 14 -> Random.nextInt(150, 350) // 第二周
                 else -> Random.nextInt(50, 200) // 后续
@@ -743,8 +751,11 @@ object RevenueManager {
     
     /**
      * 为已发售游戏添加新的一天收益数据
+     * @param gameId 游戏ID
+     * @param gameRating 游戏评分（0-10），用于计算注册数加成
+     * @param fanCount 公司粉丝数，用于计算注册数加成
      */
-    fun addDailyRevenueForGame(gameId: String): Double {
+    fun addDailyRevenueForGame(gameId: String, gameRating: Float? = null, fanCount: Int = 0): Double {
         val gameRevenue = gameRevenueMap[gameId] ?: return 0.0
         
         // 如果游戏已下架，则不产生收益
@@ -769,7 +780,11 @@ object RevenueManager {
             // 首日销量/注册：根据商业模式调整
             val baseSales = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
                 // 网游：免费游戏，首日注册人数较多
-                Random.nextInt(1000, 2000)
+                val baseRegistrations = Random.nextInt(1000, 2000)
+                // 根据游戏评分添加加成
+                val withRatingBonus = applyRatingBonus(baseRegistrations, gameRating)
+                // 根据粉丝数量添加加成
+                applyFansBonus(withRatingBonus, fanCount)
             } else {
                 // 单机：根据价格调整首日销量
                 when {
@@ -829,7 +844,11 @@ object RevenueManager {
             val baseNewRegistrations = (latestSales.sales * 0.05).toInt() // 基础5%增长
             val interestMultiplier = (gameRevenue.playerInterest / 100.0) // 兴趣值影响
             val fluctuation = Random.nextDouble(0.8, 1.5) // 随机波动
-            (baseNewRegistrations * interestMultiplier * fluctuation).toInt().coerceAtLeast(10)
+            val registrationsBeforeBonus = (baseNewRegistrations * interestMultiplier * fluctuation).toInt().coerceAtLeast(10)
+            // 根据游戏评分添加加成
+            val withRatingBonus = applyRatingBonus(registrationsBeforeBonus, gameRating)
+            // 根据粉丝数量添加加成
+            applyFansBonus(withRatingBonus, fanCount)
         } else {
             // 单机：销量衰减模式
             val decayFactor = 0.98 // 每天衰减2%
@@ -1181,6 +1200,65 @@ object RevenueManager {
             lastInterestDecayDay = newDaysSinceLaunch
         )
         saveRevenueData()
+    }
+    
+    /**
+     * 根据游戏评分计算注册数加成
+     * @param baseRegistrations 基础注册数
+     * @param gameRating 游戏评分（0-10）
+     * @return 应用加成后的注册数
+     */
+    private fun applyRatingBonus(baseRegistrations: Int, gameRating: Float?): Int {
+        if (gameRating == null) return baseRegistrations
+        
+        return when {
+            gameRating >= 8.0f -> {
+                // 评分 >= 8：极大幅度提升（+80%）
+                (baseRegistrations * 1.8).toInt()
+            }
+            gameRating > 5.0f -> {
+                // 评分 5-8：小幅度提升（+30%）
+                (baseRegistrations * 1.3).toInt()
+            }
+            else -> baseRegistrations // 评分 <= 5：无加成
+        }
+    }
+    
+    /**
+     * 根据粉丝数量计算注册数加成（分段递减）
+     * @param baseRegistrations 基础注册数
+     * @param fanCount 粉丝数量
+     * @return 应用加成后的注册数
+     */
+    private fun applyFansBonus(baseRegistrations: Int, fanCount: Int): Int {
+        if (fanCount <= 0) return baseRegistrations
+        
+        // 计算粉丝加成百分比（分段递减）
+        val bonusPercent = when {
+            fanCount <= 10000 -> {
+                // 0-10K 粉丝：每1K粉丝 +2%（最多 +20%）
+                (fanCount / 1000) * 2.0
+            }
+            fanCount <= 50000 -> {
+                // 10K-50K 粉丝：前10K给20%，后续每1K粉丝 +1%（最多额外 +40%）
+                val base = 20.0
+                val extra = ((fanCount - 10000) / 1000) * 1.0
+                base + extra
+            }
+            fanCount <= 100000 -> {
+                // 50K-100K 粉丝：前50K给60%，后续每1K粉丝 +0.5%（最多额外 +25%）
+                val base = 60.0
+                val extra = ((fanCount - 50000) / 1000) * 0.5
+                base + extra
+            }
+            else -> {
+                // 100K+ 粉丝：封顶在 +85%
+                85.0
+            }
+        }
+        
+        val multiplier = 1.0 + (bonusPercent / 100.0)
+        return (baseRegistrations * multiplier).toInt()
     }
     
     /**
