@@ -73,7 +73,13 @@ data class GameRevenue(
     val updateCount: Int = 0,
     val cumulativeSalesMultiplier: Double = 1.0,
     // 新增：付费内容收入列表（仅网络游戏）
-    val monetizationRevenues: List<MonetizationRevenue> = emptyList()
+    val monetizationRevenues: List<MonetizationRevenue> = emptyList(),
+    // 新增：玩家兴趣值系统（仅网络游戏）
+    val playerInterest: Double = 100.0, // 玩家兴趣值 0-100
+    val totalRegisteredPlayers: Int = 0, // 总注册人数
+    val lifecycleProgress: Double = 0.0, // 生命周期进度 0-100%
+    val daysSinceLaunch: Int = 0, // 上线天数
+    val lastInterestDecayDay: Int = 0 // 上次兴趣值衰减的天数
 ) {
     /**
      * 获取总收益
@@ -483,6 +489,7 @@ object RevenueManager {
 
     /**
      * 应用一次游戏更新：销量整体提高5%，记录更新次数，并插入当日“更新热度”提升
+     * 网络游戏：恢复玩家兴趣值，增加总注册人数
      */
     fun applyGameUpdate(gameId: String): Boolean {
         val current = gameRevenueMap[gameId] ?: return false
@@ -501,11 +508,30 @@ object RevenueManager {
             d.copy(sales = newSales, revenue = newRevenue)
         }
 
+        // 检查是否为网络游戏，恢复玩家兴趣值
+        val (businessModel, _) = gameInfoMap[gameId] 
+            ?: (com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER to emptyList())
+        
+        var newPlayerInterest = current.playerInterest
+        var newTotalRegisteredPlayers = current.totalRegisteredPlayers
+        
+        if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
+            // 恢复玩家兴趣值（根据生命周期阶段）
+            newPlayerInterest = recoverInterestAfterUpdate(current.playerInterest, current.lifecycleProgress)
+            
+            // 更新带来新玩家：增加10-20%的总注册人数
+            val newPlayersRatio = Random.nextDouble(0.1, 0.2)
+            val newPlayers = (current.totalRegisteredPlayers * newPlayersRatio).toInt()
+            newTotalRegisteredPlayers = current.totalRegisteredPlayers + newPlayers
+        }
+
         gameRevenueMap[gameId] = current.copy(
             dailySalesList = adjustedDaily,
             updateTask = null,
             updateCount = current.updateCount + 1,
-            cumulativeSalesMultiplier = newMultiplier
+            cumulativeSalesMultiplier = newMultiplier,
+            playerInterest = newPlayerInterest,
+            totalRegisteredPlayers = newTotalRegisteredPlayers
         )
         saveRevenueData()
         return true
@@ -568,12 +594,28 @@ object RevenueManager {
             )
         }
         
-        val totalRevenue = dailySales.sumOf { it.revenue }
+        // 基础销售收入
+        val baseSalesRevenue = dailySales.sumOf { it.revenue }
+        
+        // 付费内容总收入（网络游戏）
+        val monetizationTotalRevenue = gameRevenue.monetizationRevenues.sumOf { it.totalRevenue }
+        
+        // 总收入 = 游戏销售收入 + 付费内容收入
+        val totalRevenue = baseSalesRevenue + monetizationTotalRevenue
+        
         val totalSales = dailySales.sumOf { it.sales }
+        
+        // 平均每日收入也要包含付费内容
         val averageDailyRevenue = totalRevenue / dailySales.size
         val averageDailySales = totalSales / dailySales.size
         val peakDailySales = dailySales.maxOf { it.sales }
-        val peakDailyRevenue = dailySales.maxOf { it.revenue }
+        
+        // 单日最高收入：游戏销售 + 当日付费内容收入（简化处理，使用日均值）
+        val dailyMonetizationAvg = if (dailySales.isNotEmpty()) {
+            monetizationTotalRevenue / dailySales.size
+        } else 0.0
+        val peakDailyRevenue = dailySales.maxOf { it.revenue } + dailyMonetizationAvg
+        
         val daysOnMarket = dailySales.size
         
         // 计算收益增长率（最近7天vs前7天）
@@ -708,6 +750,15 @@ object RevenueManager {
         // 如果游戏已下架，则不产生收益
         if (!gameRevenue.isActive) return 0.0
         
+        // 检查是否为网络游戏
+        val (businessModel, _) = gameInfoMap[gameId] 
+            ?: (com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER to emptyList())
+        
+        // 如果是网络游戏，更新兴趣值和生命周期
+        if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
+            updateOnlineGameInterest(gameId)
+        }
+        
         // 获取最新的销量数据作为参考
         val latestSales = gameRevenue.dailySalesList.lastOrNull()
         
@@ -729,9 +780,17 @@ object RevenueManager {
                 revenue = firstDayRevenue
             )
             
+            // 网络游戏：初始化总注册人数
+            val totalRegistered = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
+                baseSales
+            } else {
+                gameRevenue.totalRegisteredPlayers
+            }
+            
             // 更新游戏收益数据
             gameRevenueMap[gameId] = gameRevenue.copy(
-                dailySalesList = listOf(firstDaySales)
+                dailySalesList = listOf(firstDaySales),
+                totalRegisteredPlayers = totalRegistered
             )
             saveRevenueData()
             
@@ -760,18 +819,39 @@ object RevenueManager {
         // 更新游戏收益数据
         val updatedDailySalesList = gameRevenue.dailySalesList + newDailySales
         
-        // 检查是否为网络游戏，计算付费内容收益
-        val (businessModel, monetizationItems) = gameInfoMap[gameId] 
-            ?: (com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER to emptyList())
+        // 获取付费内容配置
+        val monetizationItems = gameInfoMap[gameId]?.second ?: emptyList()
         
+        var dailyMonetizationRevenue = 0.0 // 当日付费内容收益
         val monetizationRevenues = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
-            calculateMonetizationRevenues(newSales, monetizationItems)
+            // 计算当天的付费内容收益
+            val dailyRevenues = calculateMonetizationRevenues(newSales, monetizationItems)
+            dailyMonetizationRevenue = dailyRevenues.sumOf { it.totalRevenue }
+            
+            // 将当天的收益累加到之前的累计收益上
+            val existingRevenues = gameRevenue.monetizationRevenues
+            if (existingRevenues.isEmpty()) {
+                // 第一天，直接使用当天收益
+                dailyRevenues
+            } else {
+                // 后续天数，累加收益
+                dailyRevenues.map { daily ->
+                    val existing = existingRevenues.find { it.itemType == daily.itemType }
+                    if (existing != null) {
+                        // 累加：旧的累计收益 + 当天收益
+                        daily.copy(totalRevenue = existing.totalRevenue + daily.totalRevenue)
+                    } else {
+                        // 新增的付费内容
+                        daily
+                    }
+                }
+            }
         } else {
             gameRevenue.monetizationRevenues
         }
         
-        // 计算付费内容总收益
-        val monetizationTotalRevenue = monetizationRevenues.sumOf { it.totalRevenue }
+        // 使用当日付费内容收益（不是累计值）
+        val monetizationTotalRevenue = dailyMonetizationRevenue
         
         gameRevenueMap[gameId] = gameRevenue.copy(
             dailySalesList = updatedDailySalesList,
@@ -835,12 +915,16 @@ object RevenueManager {
     }
     
     /**
-     * 清除所有收益数据（用于测试）
+     * 清除所有收益数据（用于新游戏）
      */
     fun clearAllData() {
         gameRevenueMap.clear()
         gameInfoMap.clear()
         gameServerMap.clear()
+        
+        // 清除持久化数据
+        val prefs = sharedPreferences ?: return
+        prefs.edit().clear().apply()
     }
     
     // ========== 服务器管理功能 ==========
@@ -943,4 +1027,143 @@ object RevenueManager {
         gameServerMap[gameId] = serverInfo
         saveServerData()
     }
+    
+    /**
+     * 计算所有服务器的总月费
+     */
+    fun calculateTotalMonthlyServerCost(): Long {
+        var totalCost = 0L
+        gameServerMap.entries.forEach { (gameId, serverInfo) ->
+            // 排除公共池，避免重复计费（公共池的服务器已经分配到各个游戏中）
+            if (gameId != "SERVER_PUBLIC_POOL") {
+                serverInfo.servers.forEach { server ->
+                    if (server.isActive) {
+                        totalCost += server.type.cost
+                    }
+                }
+            }
+        }
+        return totalCost
+    }
+    
+    /**
+     * 计算网络游戏的生命周期进度 (0-100%)
+     * 基于上线天数和预设的生命周期总天数
+     */
+    fun calculateLifecycleProgress(daysSinceLaunch: Int): Double {
+        // 定义网络游戏的标准生命周期为365天（1年）
+        val totalLifecycleDays = 365
+        val progress = (daysSinceLaunch.toDouble() / totalLifecycleDays) * 100.0
+        return progress.coerceIn(0.0, 100.0)
+    }
+    
+    /**
+     * 计算玩家兴趣值衰减
+     * @param currentInterest 当前兴趣值
+     * @param lifecycleProgress 生命周期进度 (0-100%)
+     * @return 衰减后的兴趣值
+     */
+    fun calculateInterestDecay(currentInterest: Double, lifecycleProgress: Double): Double {
+        // 根据生命周期阶段确定衰减率
+        val decayRate = when {
+            lifecycleProgress < 30.0 -> 0.3  // 成长期：每天衰减0.3%
+            lifecycleProgress < 70.0 -> 0.5  // 成熟期：每天衰减0.5%
+            lifecycleProgress < 90.0 -> 1.0  // 衰退期：每天衰减1.0%
+            else -> 1.5                      // 末期：每天衰减1.5%
+        }
+        
+        val newInterest = currentInterest - decayRate
+        return newInterest.coerceIn(0.0, 100.0)
+    }
+    
+    /**
+     * 更新游戏后恢复玩家兴趣值
+     * @param currentInterest 当前兴趣值
+     * @param lifecycleProgress 生命周期进度
+     * @return 新的兴趣值
+     */
+    fun recoverInterestAfterUpdate(currentInterest: Double, lifecycleProgress: Double): Double {
+        // 根据生命周期阶段确定恢复量
+        val recoveryAmount = when {
+            lifecycleProgress < 30.0 -> 25.0  // 成长期：恢复25%
+            lifecycleProgress < 70.0 -> 15.0  // 成熟期：恢复15%
+            lifecycleProgress < 90.0 -> 8.0   // 衰退期：恢复8%
+            else -> 0.0                       // 末期：无法恢复
+        }
+        
+        val newInterest = currentInterest + recoveryAmount
+        return newInterest.coerceIn(0.0, 100.0)
+    }
+    
+    /**
+     * 根据兴趣值计算活跃玩家倍数
+     * @param playerInterest 玩家兴趣值 (0-100)
+     * @return 活跃玩家倍数 (0.0-1.0)
+     */
+    fun calculateActivePlayerMultiplier(playerInterest: Double): Double {
+        return when {
+            playerInterest >= 70.0 -> 1.0         // 正常状态
+            playerInterest >= 50.0 -> 0.7         // 小幅下降
+            playerInterest >= 30.0 -> 0.4         // 大幅下降
+            else -> 0.2                           // 严重下降
+        }
+    }
+    
+    /**
+     * 更新网络游戏的玩家兴趣值和生命周期
+     * 每天调用一次
+     */
+    fun updateOnlineGameInterest(gameId: String) {
+        val gameRevenue = gameRevenueMap[gameId] ?: return
+        
+        // 只处理网络游戏
+        val (businessModel, _) = gameInfoMap[gameId] ?: return
+        if (businessModel != com.example.yjcy.ui.BusinessModel.ONLINE_GAME) return
+        
+        // 增加上线天数
+        val newDaysSinceLaunch = gameRevenue.daysSinceLaunch + 1
+        
+        // 计算生命周期进度
+        val newLifecycleProgress = calculateLifecycleProgress(newDaysSinceLaunch)
+        
+        // 每天衰减兴趣值（避免重复衰减）
+        val shouldDecay = gameRevenue.lastInterestDecayDay < newDaysSinceLaunch
+        val newInterest = if (shouldDecay) {
+            calculateInterestDecay(gameRevenue.playerInterest, newLifecycleProgress)
+        } else {
+            gameRevenue.playerInterest
+        }
+        
+        // 更新游戏数据
+        gameRevenueMap[gameId] = gameRevenue.copy(
+            daysSinceLaunch = newDaysSinceLaunch,
+            lifecycleProgress = newLifecycleProgress,
+            playerInterest = newInterest,
+            lastInterestDecayDay = newDaysSinceLaunch
+        )
+        saveRevenueData()
+    }
+    
+    /**
+     * 获取当前活跃玩家数（考虑兴趣值影响）
+     */
+    fun getActivePlayers(gameId: String): Int {
+        val gameRevenue = gameRevenueMap[gameId] ?: return 0
+        
+        // 检查是否为网络游戏
+        val (businessModel, _) = gameInfoMap[gameId] 
+            ?: (com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER to emptyList())
+        
+        if (businessModel != com.example.yjcy.ui.BusinessModel.ONLINE_GAME) return 0
+        
+        // 基础活跃玩家 = 总销量 * 40%（作为注册玩家基数）
+        val statistics = calculateStatistics(gameRevenue)
+        val baseActivePlayers = (statistics.totalSales * 0.4).toInt()
+        
+        // 根据兴趣值调整活跃玩家数
+        val interestMultiplier = calculateActivePlayerMultiplier(gameRevenue.playerInterest)
+        
+        return (baseActivePlayers * interestMultiplier).toInt()
+    }
+    
 }

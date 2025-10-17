@@ -1,5 +1,6 @@
 package com.example.yjcy.ui
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -279,66 +280,181 @@ fun EnhancedGameProjectCard(
                         Spacer(modifier = Modifier.height(12.dp))
                         
                         // 收益统计行
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Text(
-                                    text = if (game.businessModel == BusinessModel.ONLINE_GAME) "总注册" else "总收益",
-                                    color = Color.White.copy(alpha = 0.7f),
-                                    fontSize = 12.sp
-                                )
-                                Text(
-                                    text = if (game.businessModel == BusinessModel.ONLINE_GAME) 
-                                        "${formatMoneyWithDecimals(statistics.totalSales.toDouble())}"
-                                    else
-                                        "¥${formatMoneyWithDecimals(statistics.totalRevenue)}",
-                                    color = Color(0xFF10B981),
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            
-                            Column {
-                                Text(
-                                    text = if (game.businessModel == BusinessModel.ONLINE_GAME) "总活跃" else "总销量",
-                                    color = Color.White.copy(alpha = 0.7f),
-                                    fontSize = 12.sp
-                                )
-                                Text(
-                                    text = if (game.businessModel == BusinessModel.ONLINE_GAME) {
-                                        val activePlayers = (statistics.totalSales * 0.4).toInt()
-                                        when {
-                                            activePlayers >= 1_000_000 -> "${activePlayers / 1_000_000}M"
-                                            activePlayers >= 1_000 -> "${activePlayers / 1_000}K"
-                                            else -> "$activePlayers"
+                        if (game.businessModel == BusinessModel.ONLINE_GAME) {
+                            // 网络游戏：显示4列（总注册、总活跃、当前状态、玩家兴趣）
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                // 总注册
+                                Column {
+                                    Text(
+                                        text = "总注册",
+                                        color = Color.White.copy(alpha = 0.7f),
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        text = "${formatMoneyWithDecimals(statistics.totalSales.toDouble())}",
+                                        color = Color(0xFF10B981),
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                
+                                // 总活跃（带趋势箭头）
+                                Column {
+                                    Text(
+                                        text = "总活跃",
+                                        color = Color.White.copy(alpha = 0.7f),
+                                        fontSize = 12.sp
+                                    )
+                                    
+                                    val activePlayers = RevenueManager.getActivePlayers(game.id)
+                                    val playerInterest = revenue.playerInterest
+                                    
+                                    // 根据兴趣值确定趋势
+                                    val trendIcon = when {
+                                        playerInterest >= 70.0 -> "" // 正常，不显示箭头
+                                        playerInterest >= 50.0 -> "↘" // 小幅下降
+                                        else -> "↓" // 大幅下降
+                                    }
+                                    
+                                    val trendColor = when {
+                                        playerInterest >= 70.0 -> Color.Green
+                                        playerInterest >= 50.0 -> Color(0xFFFFA500) // 橙色
+                                        else -> Color.Red
+                                    }
+                                    
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = when {
+                                                activePlayers >= 1_000_000 -> "${activePlayers / 1_000_000}M"
+                                                activePlayers >= 1_000 -> "${activePlayers / 1_000}K"
+                                                else -> "$activePlayers"
+                                            },
+                                            color = Color.White,
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        
+                                        if (trendIcon.isNotEmpty()) {
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            // 添加动画效果
+                                            val infiniteTransition = rememberInfiniteTransition(label = "trend_animation")
+                                            val animatedOffset by infiniteTransition.animateFloat(
+                                                initialValue = 0f,
+                                                targetValue = if (playerInterest < 50.0) 6f else 3f,
+                                                animationSpec = infiniteRepeatable(
+                                                    animation = tween(
+                                                        durationMillis = if (playerInterest < 50.0) 600 else 1000,
+                                                        easing = FastOutSlowInEasing
+                                                    ),
+                                                    repeatMode = RepeatMode.Reverse
+                                                ),
+                                                label = "trend_offset"
+                                            )
+                                            
+                                            Box(
+                                                modifier = Modifier.offset(y = animatedOffset.dp)
+                                            ) {
+                                                Text(
+                                                    text = trendIcon,
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = trendColor
+                                                )
+                                            }
                                         }
-                                    } else {
-                                        "${formatMoneyWithDecimals(statistics.totalSales.toDouble())}份"
-                                    },
-                                    color = Color.White,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                    }
+                                }
+                                
+                                // 当前状态（运营/已下架）
+                                Column {
+                                    Text(
+                                        text = "当前状态",
+                                        color = Color.White.copy(alpha = 0.7f),
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        text = if (revenue.isActive) "运营" else "已下架",
+                                        color = if (revenue.isActive) Color(0xFF10B981) else Color(0xFFF59E0B),
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                
+                                // 玩家兴趣（新增指标）
+                                Column {
+                                    Text(
+                                        text = "玩家兴趣",
+                                        color = Color.White.copy(alpha = 0.7f),
+                                        fontSize = 12.sp
+                                    )
+                                    
+                                    val interestPercentage = String.format("%.0f%%", revenue.playerInterest)
+                                    val interestColor = when {
+                                        revenue.playerInterest >= 70.0 -> Color(0xFF10B981) // 绿色
+                                        revenue.playerInterest >= 50.0 -> Color(0xFFFFA500) // 橙色
+                                        else -> Color(0xFFEF4444) // 红色
+                                    }
+                                    
+                                    Text(
+                                        text = interestPercentage,
+                                        color = interestColor,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
-                            
-                            Column {
-                                Text(
-                                    text = if (game.businessModel == BusinessModel.ONLINE_GAME) "当前状态" else "在售状态",
-                                    color = Color.White.copy(alpha = 0.7f),
-                                    fontSize = 12.sp
-                                )
-                                Text(
-                                    text = if (game.businessModel == BusinessModel.ONLINE_GAME) {
-                                        if (revenue.isActive) "运营" else "已下架"
-                                    } else {
-                                        if (revenue.isActive) "在售" else "已下架"
-                                    },
-                                    color = if (revenue.isActive) Color(0xFF10B981) else Color(0xFFF59E0B),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                        } else {
+                            // 单机游戏：显示3列（总收益、总销量、在售状态）
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "总收益",
+                                        color = Color.White.copy(alpha = 0.7f),
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        text = "¥${formatMoneyWithDecimals(statistics.totalRevenue)}",
+                                        color = Color(0xFF10B981),
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                
+                                Column {
+                                    Text(
+                                        text = "总销量",
+                                        color = Color.White.copy(alpha = 0.7f),
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        text = "${formatMoneyWithDecimals(statistics.totalSales.toDouble())}份",
+                                        color = Color.White,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                
+                                Column {
+                                    Text(
+                                        text = "在售状态",
+                                        color = Color.White.copy(alpha = 0.7f),
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        text = if (revenue.isActive) "在售" else "已下架",
+                                        color = if (revenue.isActive) Color(0xFF10B981) else Color(0xFFF59E0B),
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
                     }

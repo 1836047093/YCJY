@@ -741,6 +741,13 @@ fun GameScreen(
     var showMessage by remember { mutableStateOf(false) }
     var messageText by remember { mutableStateOf("") }
     
+    // 如果是新游戏，清除RevenueManager的旧数据
+    LaunchedEffect(saveData) {
+        if (saveData == null) {
+            RevenueManager.clearAllData()
+        }
+    }
+    
     // 游戏发售相关状态
     var showReleaseDialog by remember { mutableStateOf(false) }
     var showRatingDialog by remember { mutableStateOf(false) }
@@ -898,6 +905,11 @@ fun GameScreen(
             if (currentDay > 30) {
                 currentDay = 1
                 currentMonth++
+                
+                // 月结算：扣除服务器月费
+                val monthlyServerCost = RevenueManager.calculateTotalMonthlyServerCost()
+                money -= monthlyServerCost
+                
                 if (currentMonth > 12) {
                     currentMonth = 1
                     currentYear++
@@ -1021,7 +1033,8 @@ fun GameScreen(
                         0 -> CompanyOverviewContent(
                             companyName = companyName,
                             founder = founder,
-                            allEmployees = allEmployees
+                            allEmployees = allEmployees,
+                            games = games
                         )
                         1 -> EmployeeManagementContent(
                             allEmployees = allEmployees,
@@ -1236,6 +1249,9 @@ fun GameScreen(
                             existingGame
                         }
                     }
+                    
+                    // 自动切换到"已发售"界面，方便玩家查看新发售的游戏
+                    selectedProjectType = ProjectDisplayType.RELEASED
                     
                     showRatingDialog = false
                     pendingRatingGame = null
@@ -1463,8 +1479,11 @@ fun TopInfoBar(
 fun CompanyOverviewContent(
     companyName: String = "我的游戏公司",
     founder: Founder? = null,
-    allEmployees: List<Employee> = emptyList()
+    allEmployees: List<Employee> = emptyList(),
+    games: List<Game> = emptyList()
 ) {
+    var showSecretaryBubble by remember { mutableStateOf(false) }
+    
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1478,12 +1497,101 @@ fun CompanyOverviewContent(
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-            Text(
-                text = "🏢 公司概览",
-                color = Color.White,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            )
+            // 标题栏与秘书头像
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "🏢 公司概览",
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                
+                // 秘书头像和气泡
+                Row(
+                    modifier = Modifier.wrapContentWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    // 气泡对话框（带尾巴）
+                    if (showSecretaryBubble) {
+                        Box(
+                            modifier = Modifier
+                                .padding(end = 8.dp)
+                                .widthIn(max = 180.dp)
+                        ) {
+                            // 气泡主体
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        color = Color(0xFFE5E7EB),
+                                        shape = RoundedCornerShape(16.dp)
+                                    )
+                                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                            ) {
+                                Text(
+                                    text = "老板，您好！👋",
+                                    color = Color(0xFF1F2937),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            
+                            // 气泡尾巴（三角形指示器，指向右侧头像）
+                            Canvas(
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .offset(x = 8.dp)
+                                    .size(8.dp, 12.dp)
+                            ) {
+                                val trianglePath = androidx.compose.ui.graphics.Path().apply {
+                                    moveTo(0f, 0f)
+                                    lineTo(size.width, size.height / 2)
+                                    lineTo(0f, size.height)
+                                    close()
+                                }
+                                drawPath(
+                                    path = trianglePath,
+                                    color = Color(0xFFE5E7EB)
+                                )
+                            }
+                        }
+                    }
+                    
+                    // 秘书头像和标签
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(
+                                    color = Color(0xFFF59E0B).copy(alpha = 0.3f),
+                                    shape = CircleShape
+                                )
+                                .border(2.dp, Color(0xFFF59E0B), CircleShape)
+                                .clickable { showSecretaryBubble = !showSecretaryBubble }
+                                .padding(4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "👩‍💼",
+                                fontSize = 24.sp
+                            )
+                        }
+                        Text(
+                            text = "秘书",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                }
+            }
             
             Spacer(modifier = Modifier.height(20.dp))
             
@@ -1513,17 +1621,59 @@ fun CompanyOverviewContent(
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            // 员工信息
-            val employeesByProfession = allEmployees.groupBy { it.position }
+            // 财务状况
+            val releasedGames = games.filter { 
+                it.releaseStatus == GameReleaseStatus.RELEASED || 
+                it.releaseStatus == GameReleaseStatus.RATED 
+            }
+            
+            // 计算单机游戏总收入
+            var singlePlayerRevenue = 0.0
+            releasedGames.filter { it.businessModel == BusinessModel.SINGLE_PLAYER }.forEach { game ->
+                val revenue = RevenueManager.getGameRevenue(game.id)
+                if (revenue != null) {
+                    val statistics = RevenueManager.calculateStatistics(revenue)
+                    singlePlayerRevenue += statistics.totalRevenue
+                }
+            }
+            
+            // 计算网游总收入
+            var onlineGameRevenue = 0.0
+            releasedGames.filter { it.businessModel == BusinessModel.ONLINE_GAME }.forEach { game ->
+                val revenue = RevenueManager.getGameRevenue(game.id)
+                if (revenue != null) {
+                    val statistics = RevenueManager.calculateStatistics(revenue)
+                    onlineGameRevenue += statistics.totalRevenue
+                }
+            }
+            
+            // 计算上个月总收入（简化：取最近30天的收入）
+            var lastMonthRevenue = 0.0
+            releasedGames.forEach { game ->
+                val revenue = RevenueManager.getGameRevenue(game.id)
+                if (revenue != null && revenue.dailySalesList.isNotEmpty()) {
+                    val recentDays = revenue.dailySalesList.takeLast(30)
+                    lastMonthRevenue += recentDays.sumOf { it.revenue }
+                }
+            }
+            
+            // 计算去年总收入（简化：取最近365天的收入）
+            var lastYearRevenue = 0.0
+            releasedGames.forEach { game ->
+                val revenue = RevenueManager.getGameRevenue(game.id)
+                if (revenue != null && revenue.dailySalesList.isNotEmpty()) {
+                    val recentDays = revenue.dailySalesList.takeLast(365)
+                    lastYearRevenue += recentDays.sumOf { it.revenue }
+                }
+            }
+            
             CompanyInfoCard(
-                title = "团队状况",
+                title = "财务状况",
                 items = listOf(
-                    "员工总数" to "${allEmployees.size}人",
-                    "程序员" to "${employeesByProfession["程序员"]?.size ?: 0}人",
-                    "美术师" to "${employeesByProfession["美术师"]?.size ?: 0}人",
-                    "策划师" to "${employeesByProfession["策划师"]?.size ?: 0}人",
-                    "客服" to "${employeesByProfession["客服"]?.size ?: 0}人",
-                    "音效师" to "${employeesByProfession["音效师"]?.size ?: 0}人"
+                    "单机收入" to "¥${formatMoneyWithDecimals(singlePlayerRevenue)}",
+                    "网游收入" to "¥${formatMoneyWithDecimals(onlineGameRevenue)}",
+                    "上个月总收入" to "¥${formatMoneyWithDecimals(lastMonthRevenue)}",
+                    "去年总收入" to "¥${formatMoneyWithDecimals(lastYearRevenue)}"
                 )
             )
         }

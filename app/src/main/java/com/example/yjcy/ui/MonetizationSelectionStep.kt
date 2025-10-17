@@ -35,6 +35,17 @@ fun MonetizationSelectionStep(
     val recommendedItems = remember(selectedTheme) {
         selectedTheme?.let { MonetizationConfig.getRecommendedItems(it) } ?: emptyList()
     }
+    
+    // 初始化所有推荐的付费内容
+    LaunchedEffect(recommendedItems) {
+        if (recommendedItems.isNotEmpty() && monetizationItems.isEmpty()) {
+            // 将所有推荐的付费内容添加到列表中
+            val initialItems = recommendedItems.map { itemType ->
+                MonetizationItem(type = itemType, isEnabled = true)
+            }
+            onMonetizationItemsChange(initialItems)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -71,27 +82,25 @@ fun MonetizationSelectionStep(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(recommendedItems) { itemType ->
-                    // 确保所有推荐项都在列表中
+                    // 从列表中查找对应的付费内容项
                     val existingItem = monetizationItems.find { it.type == itemType }
-                        ?: MonetizationItem(type = itemType, isEnabled = true).also { newItem ->
-                            // 自动添加到列表
-                            onMonetizationItemsChange(monetizationItems + newItem)
-                        }
                     
-                    MonetizationItemCard(
-                        itemType = itemType,
-                        monetizationItem = existingItem,
-                        onPriceChange = { price ->
-                            val updatedItems = monetizationItems.map { item ->
-                                if (item.type == itemType) {
-                                    item.copy(price = price)
-                                } else {
-                                    item
+                    if (existingItem != null) {
+                        MonetizationItemCard(
+                            itemType = itemType,
+                            monetizationItem = existingItem,
+                            onPriceChange = { price ->
+                                val updatedItems = monetizationItems.map { item ->
+                                    if (item.type == itemType) {
+                                        item.copy(price = price)
+                                    } else {
+                                        item
+                                    }
                                 }
+                                onMonetizationItemsChange(updatedItems)
                             }
-                            onMonetizationItemsChange(updatedItems)
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }
@@ -116,7 +125,6 @@ fun MonetizationItemCard(
     monetizationItem: MonetizationItem?,
     onPriceChange: (Float?) -> Unit
 ) {
-    val isEnabled = true  // 始终启用
     var priceText by remember(monetizationItem?.price) {
         mutableStateOf(monetizationItem?.price?.toInt()?.toString() ?: "")
     }
@@ -198,65 +206,147 @@ fun MonetizationItemCard(
                         }
                     } else {
                         // 价格输入框
-                        OutlinedTextField(
-                            value = priceText,
-                            onValueChange = { priceText = it },
-                            modifier = Modifier.weight(1f),
-                            placeholder = { Text("输入价格", fontSize = 13.sp) },
-                            leadingIcon = {
-                                Text(
-                                    "¥",
-                                    fontSize = 14.sp,
-                                    color = Color(0xFF10B981)
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = priceText,
+                                    onValueChange = { priceText = it },
+                                    modifier = Modifier.weight(1f),
+                                    placeholder = { Text("输入价格", fontSize = 13.sp) },
+                                    leadingIcon = {
+                                        Text(
+                                            "¥",
+                                            fontSize = 14.sp,
+                                            color = Color(0xFF10B981)
+                                        )
+                                    },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(6.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = Color.White,
+                                        unfocusedTextColor = Color.White,
+                                        focusedBorderColor = Color(0xFF10B981),
+                                        unfocusedBorderColor = Color.White.copy(alpha = 0.3f),
+                                        cursorColor = Color.White
+                                    ),
+                                    textStyle = LocalTextStyle.current.copy(fontSize = 13.sp)
                                 )
-                            },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            shape = RoundedCornerShape(6.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedBorderColor = Color(0xFF10B981),
-                                unfocusedBorderColor = Color.White.copy(alpha = 0.3f),
-                                cursorColor = Color.White
-                            ),
-                            textStyle = LocalTextStyle.current.copy(fontSize = 13.sp)
-                        )
-                        
-                        IconButton(
-                            onClick = {
-                                val price = priceText.toFloatOrNull()
-                                if (price != null && price > 0) {
-                                    onPriceChange(price)
+                                
+                                IconButton(
+                                    onClick = {
+                                        val price = priceText.toFloatOrNull()
+                                        if (price != null && price >= 6f && price <= 648f) {
+                                            onPriceChange(price)
+                                            showPriceInput = false
+                                        }
+                                    },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "确认",
+                                        tint = Color(0xFF10B981),
+                                        modifier = Modifier.size(20.dp)
+                                    )
                                 }
-                                showPriceInput = false
-                            },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = "确认",
-                                tint = Color(0xFF10B981),
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        
-                        IconButton(
-                            onClick = {
-                                priceText = monetizationItem?.price?.toInt()?.toString() ?: ""
-                                showPriceInput = false
-                            },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "取消",
-                                tint = Color.White.copy(alpha = 0.7f),
-                                modifier = Modifier.size(18.dp)
-                            )
+                                
+                                IconButton(
+                                    onClick = {
+                                        priceText = monetizationItem?.price?.toInt()?.toString() ?: ""
+                                        showPriceInput = false
+                                    },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "取消",
+                                        tint = Color.White.copy(alpha = 0.7f),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            
+                            // 快捷价格选择按钮
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = "快捷选择",
+                                    fontSize = 11.sp,
+                                    color = Color.White.copy(alpha = 0.5f)
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    listOf(6, 18, 30, 68).forEach { price ->
+                                        QuickPriceButton(
+                                            price = price,
+                                            onClick = {
+                                                priceText = price.toString()
+                                                onPriceChange(price.toFloat())
+                                                showPriceInput = false
+                                            },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    listOf(128, 198, 328, 648).forEach { price ->
+                                        QuickPriceButton(
+                                            price = price,
+                                            onClick = {
+                                                priceText = price.toString()
+                                                onPriceChange(price.toFloat())
+                                                showPriceInput = false
+                                            },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
         }
+    }
+}
+
+/**
+ * 快捷价格按钮
+ */
+@Composable
+fun QuickPriceButton(
+    price: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier.height(32.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color(0xFF10B981).copy(alpha = 0.2f),
+            contentColor = Color(0xFF10B981)
+        ),
+        shape = RoundedCornerShape(6.dp),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = "¥$price",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium
+        )
     }
 }

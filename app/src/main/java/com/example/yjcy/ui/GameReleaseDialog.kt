@@ -331,7 +331,7 @@ fun GameReleaseDialog(
                                     }
                                 } else {
                                     Text(
-                                        text = "⚠️ 请先购买服务器才能上线游戏！\n\n网络游戏需要服务器来承载玩家。请关闭此对话框，到服务器管理中心购买服务器。",
+                                        text = "目前暂无服务器可用，请到服务器中心购买服务器",
                                         fontSize = 13.sp,
                                         color = Color.White,
                                         lineHeight = 18.sp

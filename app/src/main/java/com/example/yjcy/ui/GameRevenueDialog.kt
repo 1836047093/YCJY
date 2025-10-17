@@ -502,7 +502,6 @@ fun DetailedStatisticsCard(statistics: com.example.yjcy.data.RevenueStatistics, 
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 DetailStatRow("总收入", "¥${formatMoneyWithDecimals(statistics.totalRevenue)}")
-                DetailStatRow("单日最高收入", "¥${formatMoneyWithDecimals(statistics.peakDailyRevenue)}")
                 
                 // 如果是网络游戏，显示付费内容
                 if (game.businessModel == BusinessModel.ONLINE_GAME) {
@@ -955,23 +954,16 @@ fun MonetizationItemEditCard(
     onItemChange: (MonetizationItem) -> Unit
 ) {
     var priceInput by remember { mutableStateOf(item.price?.toString() ?: "") }
-    var isEnabled by remember { mutableStateOf(item.isEnabled) }
     
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isEnabled) 
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-            else
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
         ),
         border = BorderStroke(
             width = 1.dp,
-            color = if (isEnabled)
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-            else
-                MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
         )
     ) {
         Column(
@@ -980,47 +972,30 @@ fun MonetizationItemEditCard(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = item.type.displayName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isEnabled)
-                            MaterialTheme.colorScheme.onSurface
-                        else
-                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                    )
-                    Text(
-                        text = item.type.description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-                }
-                Switch(
-                    checked = isEnabled,
-                    onCheckedChange = { newEnabled ->
-                        isEnabled = newEnabled
-                        onItemChange(item.copy(isEnabled = newEnabled))
-                    },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = MaterialTheme.colorScheme.primary,
-                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
-                    )
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = item.type.displayName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = item.type.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
             }
             
-            if (isEnabled) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 OutlinedTextField(
                     value = priceInput,
                     onValueChange = { newInput ->
                         priceInput = newInput
                         val price = newInput.toFloatOrNull()
-                        if (price != null && price >= 0) {
+                        if (price != null && price >= 6f && price <= 648f) {
                             onItemChange(item.copy(price = price, isEnabled = true))
                         } else if (newInput.isEmpty()) {
                             onItemChange(item.copy(price = null, isEnabled = true))
@@ -1037,16 +1012,31 @@ fun MonetizationItemEditCard(
                         )
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    isError = priceInput.isNotEmpty() && priceInput.toFloatOrNull() == null,
+                    isError = priceInput.isNotEmpty() && (priceInput.toFloatOrNull() == null || priceInput.toFloatOrNull()!! < 6f || priceInput.toFloatOrNull()!! > 648f),
                     supportingText = {
-                        if (priceInput.isNotEmpty() && priceInput.toFloatOrNull() == null) {
+                        if (priceInput.isNotEmpty()) {
+                            val price = priceInput.toFloatOrNull()
+                            when {
+                                price == null -> Text(
+                                    text = "请输入有效的价格",
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                                price < 6f -> Text(
+                                    text = "最低价格为 ¥6",
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                                price > 648f -> Text(
+                                    text = "最高价格为 ¥648",
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                                else -> Text(
+                                    text = "价格有效",
+                                    color = Color(0xFF4CAF50)
+                                )
+                            }
+                        } else {
                             Text(
-                                text = "请输入有效的价格",
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        } else if (priceInput.isEmpty()) {
-                            Text(
-                                text = "留空表示稍后设置",
+                                text = "留空表示稍后设置 | 价格范围：¥6 - ¥648",
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
                         }
@@ -1055,6 +1045,48 @@ fun MonetizationItemEditCard(
                     shape = RoundedCornerShape(8.dp),
                     singleLine = true
                 )
+                
+                // 快捷价格选择
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "快捷选择",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(6, 18, 30, 68).forEach { price ->
+                            QuickPriceChip(
+                                price = price,
+                                onClick = {
+                                    priceInput = price.toString()
+                                    onItemChange(item.copy(price = price.toFloat(), isEnabled = true))
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(128, 198, 328, 648).forEach { price ->
+                            QuickPriceChip(
+                                price = price,
+                                onClick = {
+                                    priceInput = price.toString()
+                                    onItemChange(item.copy(price = price.toFloat(), isEnabled = true))
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -1366,4 +1398,32 @@ fun PurchaseServerCard(
             }
         }
     }
+}
+
+/**
+ * 快捷价格选择按钮（用于付费设置对话框）
+ */
+@Composable
+fun QuickPriceChip(
+    price: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    FilterChip(
+        selected = false,
+        onClick = onClick,
+        label = {
+            Text(
+                text = "¥$price",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
+            )
+        },
+        modifier = modifier,
+        shape = RoundedCornerShape(8.dp),
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+            labelColor = MaterialTheme.colorScheme.primary
+        )
+    )
 }
