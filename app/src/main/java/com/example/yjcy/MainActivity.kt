@@ -974,9 +974,16 @@ fun GameScreen(
                         releasedGame.monetizationItems
                     )
                     
-                    // 传入游戏评分和粉丝数，影响网络游戏的注册数
+                    // 传入游戏评分、粉丝数和当前日期，影响网络游戏的注册数和兴趣值衰减
                     val gameRating = releasedGame.gameRating?.finalScore
-                    val dailyRevenue = RevenueManager.addDailyRevenueForGame(releasedGame.id, gameRating, fans)
+                    val dailyRevenue = RevenueManager.addDailyRevenueForGame(
+                        gameId = releasedGame.id, 
+                        gameRating = gameRating, 
+                        fanCount = fans,
+                        currentYear = currentYear,
+                        currentMonth = currentMonth,
+                        currentDay = currentDay
+                    )
                     money += dailyRevenue.toLong()
 
                     // 若存在更新任务，根据已分配员工数量推进进度

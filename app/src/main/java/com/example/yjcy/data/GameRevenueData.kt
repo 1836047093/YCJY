@@ -754,8 +754,18 @@ object RevenueManager {
      * @param gameId 游戏ID
      * @param gameRating 游戏评分（0-10），用于计算注册数加成
      * @param fanCount 公司粉丝数，用于计算注册数加成
+     * @param currentYear 当前游戏内年份
+     * @param currentMonth 当前游戏内月份
+     * @param currentDay 当前游戏内日期
      */
-    fun addDailyRevenueForGame(gameId: String, gameRating: Float? = null, fanCount: Int = 0): Double {
+    fun addDailyRevenueForGame(
+        gameId: String, 
+        gameRating: Float? = null, 
+        fanCount: Int = 0,
+        currentYear: Int = 1,
+        currentMonth: Int = 1,
+        currentDay: Int = 1
+    ): Double {
         val gameRevenue = gameRevenueMap[gameId] ?: return 0.0
         
         // 如果游戏已下架，则不产生收益
@@ -767,6 +777,25 @@ object RevenueManager {
         
         // 如果是网络游戏，更新兴趣值和生命周期
         if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
+            // 修复旧存档：如果daysSinceLaunch为0，根据上线日期计算实际天数
+            if (gameRevenue.daysSinceLaunch == 0) {
+                val actualDays = calculateDaysSinceLaunch(
+                    gameRevenue.releaseYear,
+                    gameRevenue.releaseMonth,
+                    gameRevenue.releaseDay,
+                    currentYear,
+                    currentMonth,
+                    currentDay
+                )
+                // 初始化天数和兴趣值
+                gameRevenueMap[gameId] = gameRevenue.copy(
+                    daysSinceLaunch = actualDays,
+                    lifecycleProgress = calculateLifecycleProgress(actualDays),
+                    playerInterest = calculateInitialInterest(actualDays),
+                    lastInterestDecayDay = actualDays
+                )
+                saveRevenueData()
+            }
             updateOnlineGameInterest(gameId)
         }
         
@@ -813,7 +842,9 @@ object RevenueManager {
             val monetizationItems = gameInfoMap[gameId]?.second ?: emptyList()
             var firstDayMonetizationRevenue = 0.0
             val initialMonetizationRevenues = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
-                val dailyRevenues = calculateMonetizationRevenues(baseSales, monetizationItems)
+                // 首日活跃玩家 = 注册人数 * 40%（新游戏兴趣值默认100%）
+                val firstDayActivePlayers = (baseSales * 0.4).toInt()
+                val dailyRevenues = calculateMonetizationRevenues(firstDayActivePlayers, monetizationItems)
                 firstDayMonetizationRevenue = dailyRevenues.sumOf { it.totalRevenue }
                 dailyRevenues
             } else {
@@ -873,9 +904,13 @@ object RevenueManager {
         
         var dailyMonetizationRevenue = 0.0 // 当日付费内容收益
         val monetizationRevenues = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
-            // 计算当天的付费内容收益 - 使用总注册玩家数而不是当日新增
-            val totalActivePlayers = gameRevenue.totalRegisteredPlayers + newSales
-            val dailyRevenues = calculateMonetizationRevenues(totalActivePlayers, monetizationItems)
+            // 计算当天的付费内容收益 - 使用活跃玩家数（总注册*40%*兴趣值影响）
+            val totalRegistered = gameRevenue.totalRegisteredPlayers + newSales
+            val baseActivePlayers = (totalRegistered * 0.4).toInt()
+            val interestMultiplier = calculateActivePlayerMultiplier(gameRevenue.playerInterest)
+            val actualActivePlayers = (baseActivePlayers * interestMultiplier).toInt()
+            
+            val dailyRevenues = calculateMonetizationRevenues(actualActivePlayers, monetizationItems)
             dailyMonetizationRevenue = dailyRevenues.sumOf { it.totalRevenue }
             
             // 将当天的收益累加到之前的累计收益上
@@ -937,24 +972,24 @@ object RevenueManager {
         if (enabledItems.isEmpty()) return emptyList()
         
         return enabledItems.map { item ->
-            // 根据付费内容类型设置不同的付费率
+            // 根据付费内容类型设置不同的付费率（已调整为更真实的数值）
             val purchaseRate = when (item.type.displayName) {
-                "皮肤与外观" -> 0.05  // 5%的活跃玩家会购买皮肤
-                "成长加速道具" -> 0.08  // 8%会购买加速道具
-                "稀有装备" -> 0.03  // 3%会购买稀有装备
-                "赛季通行证" -> 0.15  // 15%会购买赛季通行证
-                "强力角色" -> 0.04  // 4%会购买角色
-                "VIP会员" -> 0.10  // 10%会购买VIP
-                "抽卡系统" -> 0.20  // 20%会参与抽卡
-                "扩展包" -> 0.06  // 6%会购买扩展包
-                "资源包" -> 0.12  // 12%会购买资源包
-                "战斗通行证" -> 0.18  // 18%会购买战斗通行证
-                "宠物与坐骑" -> 0.07  // 7%会购买宠物
-                "便利工具" -> 0.09  // 9%会购买工具
-                "专属剧情" -> 0.05  // 5%会购买剧情
-                "建造蓝图" -> 0.08  // 8%会购买蓝图
-                "社交道具" -> 0.06  // 6%会购买社交道具
-                else -> 0.05  // 默认5%
+                "皮肤与外观" -> 0.005  // 0.5%的活跃玩家会购买皮肤
+                "成长加速道具" -> 0.008  // 0.8%会购买加速道具
+                "稀有装备" -> 0.003  // 0.3%会购买稀有装备
+                "赛季通行证" -> 0.015  // 1.5%会购买赛季通行证
+                "强力角色" -> 0.004  // 0.4%会购买角色
+                "VIP会员" -> 0.010  // 1.0%会购买VIP
+                "抽卡系统" -> 0.020  // 2.0%会参与抽卡
+                "扩展包" -> 0.006  // 0.6%会购买扩展包
+                "资源包" -> 0.012  // 1.2%会购买资源包
+                "战斗通行证" -> 0.018  // 1.8%会购买战斗通行证
+                "宠物与坐骑" -> 0.007  // 0.7%会购买宠物
+                "便利工具" -> 0.009  // 0.9%会购买工具
+                "专属剧情" -> 0.005  // 0.5%会购买剧情
+                "建造蓝图" -> 0.008  // 0.8%会购买蓝图
+                "社交道具" -> 0.006  // 0.6%会购买社交道具
+                else -> 0.005  // 默认0.5%
             }
             
             // 计算购买人数（带随机波动）
@@ -1165,6 +1200,50 @@ object RevenueManager {
             playerInterest >= 30.0 -> 0.4         // 大幅下降
             else -> 0.2                           // 严重下降
         }
+    }
+    
+    /**
+     * 计算游戏上线天数
+     * @param releaseYear 上线年份
+     * @param releaseMonth 上线月份
+     * @param releaseDay 上线日期
+     * @param currentYear 当前年份
+     * @param currentMonth 当前月份
+     * @param currentDay 当前日期
+     * @return 上线天数
+     */
+    private fun calculateDaysSinceLaunch(
+        releaseYear: Int,
+        releaseMonth: Int,
+        releaseDay: Int,
+        currentYear: Int,
+        currentMonth: Int,
+        currentDay: Int
+    ): Int {
+        // 简化计算：每年365天，每月30天
+        val yearDays = (currentYear - releaseYear) * 365
+        val monthDays = (currentMonth - releaseMonth) * 30
+        val dayDiff = currentDay - releaseDay
+        
+        val totalDays = yearDays + monthDays + dayDiff
+        return totalDays.coerceAtLeast(0)
+    }
+    
+    /**
+     * 根据实际上线天数计算初始兴趣值（考虑自然衰减）
+     * @param daysSinceLaunch 实际上线天数
+     * @return 当前应有的兴趣值
+     */
+    private fun calculateInitialInterest(daysSinceLaunch: Int): Double {
+        // 从100%开始，模拟每天的自然衰减
+        var interest = 100.0
+        
+        for (day in 1..daysSinceLaunch) {
+            val progress = calculateLifecycleProgress(day)
+            interest = calculateInterestDecay(interest, progress)
+        }
+        
+        return interest.coerceIn(0.0, 100.0)
     }
     
     /**
