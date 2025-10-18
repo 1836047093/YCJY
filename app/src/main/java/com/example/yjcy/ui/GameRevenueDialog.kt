@@ -1,12 +1,7 @@
 package com.example.yjcy.ui
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
@@ -29,6 +24,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -63,6 +59,7 @@ fun GameRevenueDialog(
     onStartUpdate: (String) -> Unit = {},
     onMonetizationUpdate: (List<MonetizationItem>) -> Unit = {},
     onPurchaseServer: (ServerType) -> Unit = {},
+    onAutoUpdateToggle: (Boolean) -> Unit = {},
     businessModel: BusinessModel
 ) {
     var showConfirmDialog by remember { mutableStateOf(false) }
@@ -86,7 +83,7 @@ fun GameRevenueDialog(
                 .padding(16.dp),
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
+                containerColor = Color(0xFF1E293B) // 深灰蓝色护眼背景
             ),
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
         ) {
@@ -106,12 +103,12 @@ fun GameRevenueDialog(
                             text = "收入报告",
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            color = Color.White
                         )
                         Text(
                             text = gameRevenue.gameName,
                             style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            color = Color.White.copy(alpha = 0.7f)
                         )
                     }
                     
@@ -125,7 +122,7 @@ fun GameRevenueDialog(
                             Icon(
                                 Icons.Default.Close,
                                 contentDescription = "关闭",
-                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                tint = Color.White.copy(alpha = 0.7f)
                             )
                         }
                     }
@@ -152,11 +149,13 @@ fun GameRevenueDialog(
                     item {
                         ActionButtonsCard(
                             gameRevenue = gameRevenue,
+                            game = game,
                             onRemoveFromMarket = { showConfirmDialog = true },
                             onRelistGame = { onRelistGame(gameRevenue.gameId) },
                             onShowUpdateDialog = { showUpdateDialog = true },
                             onShowPaymentSettings = { showPaymentSettingsDialog = true },
                             onShowServerManagement = { showServerManagementDialog = true },
+                            onAutoUpdateToggle = onAutoUpdateToggle,
                             businessModel = businessModel
                         )
                     }
@@ -539,7 +538,7 @@ fun DetailedStatisticsCard(statistics: com.example.yjcy.data.RevenueStatistics, 
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
+            containerColor = Color(0xFF2D3748) // 深灰色卡片背景
         ),
         shape = RoundedCornerShape(16.dp)
     ) {
@@ -550,7 +549,7 @@ fun DetailedStatisticsCard(statistics: com.example.yjcy.data.RevenueStatistics, 
                 text = "详细统计",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.secondary
+                color = Color(0xFF94A3B8) // 浅蓝灰色
             )
             
             Spacer(modifier = Modifier.height(16.dp))
@@ -571,7 +570,7 @@ fun DetailedStatisticsCard(statistics: com.example.yjcy.data.RevenueStatistics, 
                             text = "付费内容",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                            color = Color.White.copy(alpha = 0.8f)
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         
@@ -596,14 +595,14 @@ fun DetailedStatisticsCard(statistics: com.example.yjcy.data.RevenueStatistics, 
                                     Text(
                                         text = item.type.displayName,
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                        color = Color.White.copy(alpha = 0.6f)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     // 显示付费内容价格
                                     Text(
                                         text = if (item.price != null) "¥${formatMoneyWithDecimals(item.price.toDouble())}" else "未设置",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                        color = Color.White.copy(alpha = 0.4f),
                                         fontWeight = FontWeight.Normal
                                     )
                                 }
@@ -611,7 +610,7 @@ fun DetailedStatisticsCard(statistics: com.example.yjcy.data.RevenueStatistics, 
                                     text = revenueText,
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    color = Color.White
                                 )
                             }
                         }
@@ -626,7 +625,7 @@ fun DetailedStatisticsCard(statistics: com.example.yjcy.data.RevenueStatistics, 
 fun DetailStatRow(
     label: String, 
     value: String, 
-    valueColor: Color = MaterialTheme.colorScheme.onSurface
+    valueColor: Color = Color.White
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -635,7 +634,7 @@ fun DetailStatRow(
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            color = Color.White.copy(alpha = 0.6f)
         )
         Text(
             text = value,
@@ -651,7 +650,7 @@ fun GameInfoCard(gameRevenue: GameRevenue, businessModel: BusinessModel) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
+            containerColor = Color(0xFF2D3748) // 深灰色卡片背景
         ),
         shape = RoundedCornerShape(16.dp)
     ) {
@@ -662,7 +661,7 @@ fun GameInfoCard(gameRevenue: GameRevenue, businessModel: BusinessModel) {
                 text = "游戏信息",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.tertiary
+                color = Color(0xFF94A3B8) // 浅蓝灰色
             )
             
             Spacer(modifier = Modifier.height(16.dp))
@@ -702,17 +701,19 @@ fun GameInfoCard(gameRevenue: GameRevenue, businessModel: BusinessModel) {
 @Composable
 fun ActionButtonsCard(
     gameRevenue: GameRevenue,
+    game: Game,
     onRemoveFromMarket: () -> Unit,
     onRelistGame: () -> Unit,
     onShowUpdateDialog: () -> Unit,
     onShowPaymentSettings: () -> Unit = {},
     onShowServerManagement: () -> Unit = {},
+    onAutoUpdateToggle: (Boolean) -> Unit = {},
     businessModel: BusinessModel
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.1f)
+            containerColor = Color(0xFF2D3748) // 深灰色卡片背景
         ),
         shape = RoundedCornerShape(16.dp)
     ) {
@@ -723,13 +724,13 @@ fun ActionButtonsCard(
                 text = "游戏管理",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.error
+                color = Color(0xFFEF4444) // 红色
             )
             
             Spacer(modifier = Modifier.height(16.dp))
             
             if (gameRevenue.isActive) {
-                // 游戏更新按钮
+                // 游戏更新按钮（集成自动更新开关）
                 Button(
                     onClick = onShowUpdateDialog,
                     modifier = Modifier
@@ -738,15 +739,67 @@ fun ActionButtonsCard(
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
                     ),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = "游戏更新",
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("游戏更新", fontWeight = FontWeight.Medium)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 左侧：图标和"游戏更新"文字
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "游戏更新",
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text("游戏更新", fontWeight = FontWeight.Medium)
+                        }
+                        
+                        // 右侧：自动更新开关（带文字）
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (game.autoUpdate) 
+                                Color(0xFF10B981).copy(alpha = 0.2f) 
+                            else 
+                                Color(0xFFEF4444).copy(alpha = 0.2f),
+                            border = BorderStroke(
+                                1.dp, 
+                                if (game.autoUpdate) Color(0xFF10B981) else Color(0xFFEF4444)
+                            )
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)
+                            ) {
+                                Text(
+                                    text = "自动更新",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (game.autoUpdate) Color(0xFF10B981) else Color(0xFFEF4444)
+                                )
+                                Switch(
+                                    checked = game.autoUpdate,
+                                    onCheckedChange = { enabled ->
+                                        onAutoUpdateToggle(enabled)
+                                    },
+                                    modifier = Modifier.scale(0.8f),
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color(0xFF10B981),
+                                        checkedTrackColor = Color(0xFF10B981).copy(alpha = 0.5f),
+                                        uncheckedThumbColor = Color.White.copy(alpha = 0.8f),
+                                        uncheckedTrackColor = Color(0xFFEF4444).copy(alpha = 0.4f),
+                                        uncheckedBorderColor = Color(0xFFEF4444).copy(alpha = 0.5f)
+                                    )
+                                )
+                            }
+                        }
+                    }
                 }
                 
                 // 新增：付费设置按钮（仅对网络游戏显示）

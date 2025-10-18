@@ -86,8 +86,10 @@ import com.example.yjcy.ui.PromotionCenterContent
 import com.example.yjcy.ui.ServerManagementContent
 import com.example.yjcy.ui.theme.YjcyTheme
 import com.example.yjcy.utils.formatMoney
+import com.example.yjcy.utils.formatMoneyWithDecimals
 import com.example.yjcy.service.JobPostingService
 import com.example.yjcy.data.ServerType
+import com.example.yjcy.data.getUpdateContentName
 import com.example.yjcy.ui.BusinessModel
 import com.google.gson.Gson
 import dagger.hilt.android.AndroidEntryPoint
@@ -99,34 +101,8 @@ import kotlinx.coroutines.delay
 
 
 
-
-
-
-
-// 资金格式化函数
-fun formatMoney(amount: Long): String {
-    return when {
-        amount >= 1_000_000_000_000L -> "${amount / 1_000_000_000_000L}T"
-        amount >= 1_000_000_000L -> "${amount / 1_000_000_000L}B"
-        amount >= 1_000_000L -> "${amount / 1_000_000L}M"
-        amount >= 1_000L -> "${amount / 1_000L}K"
-        else -> amount.toString()
-    }
-}
-
 // 全局变量存储当前加载的存档数据
 var currentLoadedSaveData: SaveData? = null
-
-// 增强版资金格式化函数，支持保留两位小数
-fun formatMoneyWithDecimals(amount: Double): String {
-    return when {
-        amount >= 1_000_000_000_000.0 -> String.format("%.2fT", amount / 1_000_000_000_000.0)
-        amount >= 1_000_000_000.0 -> String.format("%.2fB", amount / 1_000_000_000.0)
-        amount >= 1_000_000.0 -> String.format("%.2fM", amount / 1_000_000.0)
-        amount >= 1_000.0 -> String.format("%.2fK", amount / 1_000.0)
-        else -> String.format("%.2f", amount)
-    }
-}
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -732,7 +708,7 @@ fun GameScreen(
     var isPaused by remember { mutableStateOf(false) }
     
     // 项目管理界面的显示类型状态（使用 remember 保持在内存中）
-    var selectedProjectType by remember { mutableStateOf(ProjectDisplayType.CURRENT) }
+    var selectedProjectType by remember { mutableStateOf(ProjectDisplayType.DEVELOPING) }
     var companyName by remember { mutableStateOf(saveData?.companyName ?: initialCompanyName) }
     var founderName by remember { mutableStateOf(saveData?.founderName ?: initialFounderName) }
     var founderProfession by remember { mutableStateOf(saveData?.founderProfession ?: try { FounderProfession.valueOf(initialFounderProfession) } catch (_: IllegalArgumentException) { FounderProfession.PROGRAMMER }) }
@@ -988,7 +964,33 @@ fun GameScreen(
 
                     // 若存在更新任务，根据已分配员工数量推进进度
                     val employeePoints = (releasedGame.assignedEmployees.size * 20).coerceAtLeast(10)
-                    RevenueManager.progressUpdateTask(releasedGame.id, employeePoints)
+                    val updateJustCompleted = RevenueManager.progressUpdateTask(releasedGame.id, employeePoints)
+                    
+                    // 如果更新刚刚完成，版本号+0.1
+                    if (updateJustCompleted) {
+                        val updatedGame = releasedGame.copy(
+                            version = releasedGame.version + 0.1f,
+                            assignedEmployees = emptyList() // 清空分配的员工
+                        )
+                        games = games.map { if (it.id == updatedGame.id) updatedGame else it }
+                        
+                        // 如果开启了自动更新，自动创建下一次更新任务
+                        if (releasedGame.autoUpdate) {
+                            println("【自动更新】游戏《${releasedGame.name}》的更新已自动发布！版本升级至 V${String.format("%.1f", updatedGame.version)}")
+                            
+                            // 根据游戏已启用的付费内容生成更新选项
+                            val autoUpdateFeatures = releasedGame.monetizationItems
+                                .filter { it.isEnabled }
+                                .map { it.type.getUpdateContentName() }
+                                .distinct()
+                            
+                            // 如果有可用的更新内容，自动创建新的更新任务
+                            if (autoUpdateFeatures.isNotEmpty()) {
+                                RevenueManager.createUpdateTask(releasedGame.id, autoUpdateFeatures)
+                                println("【自动更新】已自动创建下一次更新任务，共${autoUpdateFeatures.size}项内容")
+                            }
+                        }
+                    }
                 }
             
             // 为活跃岗位生成应聘者

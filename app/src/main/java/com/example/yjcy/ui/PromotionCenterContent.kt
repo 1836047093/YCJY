@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.yjcy.data.Game
 import com.example.yjcy.data.GameReleaseStatus
-import com.example.yjcy.formatMoneyWithDecimals
+import com.example.yjcy.utils.formatMoneyWithDecimals
 
 /**
  * 宣传中心页面内容

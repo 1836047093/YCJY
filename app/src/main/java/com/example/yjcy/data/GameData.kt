@@ -159,7 +159,9 @@ data class Game(
     val monetizationItems: List<MonetizationItem> = emptyList(), // 付费内容列表（仅网络游戏）
     val developmentCost: Long = 0L, // 新增：开发成本（用于废弃时返还80%）
     val serverInfo: GameServerInfo? = null, // 新增：服务器信息（仅网络游戏）
-    val promotionIndex: Float = 0f // 新增：宣传指数（0-1，表示0%-100%）
+    val promotionIndex: Float = 0f, // 新增：宣传指数（0-1，表示0%-100%）
+    val autoUpdate: Boolean = false, // 新增：自动更新开关（开启后更新完成会自动发布）
+    val version: Float = 1.0f // 新增：游戏版本号，每次更新+0.1
 ) {
     /**
      * 计算游戏开发成本

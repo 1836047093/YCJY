@@ -21,7 +21,7 @@ import com.example.yjcy.data.Game
 import com.example.yjcy.data.GameReleaseStatus
 import com.example.yjcy.data.RevenueManager
 import com.example.yjcy.data.ServerType
-import com.example.yjcy.formatMoneyWithDecimals
+import com.example.yjcy.utils.formatMoneyWithDecimals
 
 /**
  * 服务器管理页面内容
@@ -45,8 +45,8 @@ fun ServerManagementContent(
         }
     }
     
-    // 筛选已上线的网络游戏
-    val onlineGames = remember(games) {
+    // 筛选已上线的网络游戏（包括正在更新的游戏）
+    val onlineGames = remember(games, refreshTrigger) {
         games.filter { 
             it.businessModel == BusinessModel.ONLINE_GAME && 
             (it.releaseStatus == GameReleaseStatus.RELEASED || it.releaseStatus == GameReleaseStatus.RATED)

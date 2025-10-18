@@ -40,7 +40,8 @@ import kotlin.math.sin
 
 // 项目显示类型枚举
 enum class ProjectDisplayType(val displayName: String) {
-    CURRENT("当前项目"),
+    DEVELOPING("正在开发"),
+    UPDATING("正在更新"),
     RELEASED("已发售"),
     REMOVED("已下架")
 }
@@ -132,7 +133,7 @@ fun EnhancedProjectManagementContent(
     onSwitchToCurrentProjects: (() -> Unit)? = null,
     onReleaseGame: ((Game) -> Unit)? = null,  // 新增：发售游戏回调
     onAbandonGame: ((Game) -> Unit)? = null,  // 新增：废弃游戏回调
-    selectedProjectType: ProjectDisplayType = ProjectDisplayType.CURRENT,  // 外部控制的标签页状态
+    selectedProjectType: ProjectDisplayType = ProjectDisplayType.DEVELOPING,  // 外部控制的标签页状态
     onProjectTypeChange: (ProjectDisplayType) -> Unit = {},  // 标签页变化回调
     money: Long = 0L,  // 新增：资金
     fans: Int = 0,  // 新增：粉丝数
@@ -145,43 +146,34 @@ fun EnhancedProjectManagementContent(
     // 根据选择的项目类型过滤游戏列表
     val filteredGames = remember(games, selectedProjectType, refreshTrigger) {
         when (selectedProjectType) {
-            ProjectDisplayType.CURRENT -> games.filter { game ->
+            ProjectDisplayType.DEVELOPING -> games.filter { game ->
                 // 开发中、准备发售、价格设置中的游戏
-                val isDevelopingOrReady = game.releaseStatus in listOf(
+                game.releaseStatus in listOf(
                     GameReleaseStatus.DEVELOPMENT,
                     GameReleaseStatus.READY_FOR_RELEASE,
                     GameReleaseStatus.PRICE_SETTING
                 )
-                
+            }
+            ProjectDisplayType.UPDATING -> games.filter { game ->
                 // 已发售但有进行中更新任务的游戏
-                val hasActiveUpdateTask = if (game.releaseStatus in listOf(
+                val isReleased = game.releaseStatus in listOf(
                     GameReleaseStatus.RELEASED,
                     GameReleaseStatus.RATED
-                )) {
+                )
+                if (isReleased) {
                     val gameRevenue = RevenueManager.getGameRevenue(game.id)
                     val updateTask = gameRevenue?.updateTask
                     updateTask != null && updateTask.progressPoints < updateTask.requiredPoints
                 } else {
                     false
                 }
-                
-                isDevelopingOrReady || hasActiveUpdateTask
             }
             ProjectDisplayType.RELEASED -> games.filter { game ->
-                val isReleased = game.releaseStatus in listOf(
+                // 所有已发售的游戏，包括正在更新的游戏
+                game.releaseStatus in listOf(
                     GameReleaseStatus.RELEASED,
                     GameReleaseStatus.RATED
                 )
-                
-                // 排除正在进行更新的游戏（它们应该在"当前项目"中）
-                if (isReleased) {
-                    val gameRevenue = RevenueManager.getGameRevenue(game.id)
-                    val updateTask = gameRevenue?.updateTask
-                    val hasActiveUpdateTask = updateTask != null && updateTask.progressPoints < updateTask.requiredPoints
-                    isReleased && !hasActiveUpdateTask
-                } else {
-                    false
-                }
             }
             ProjectDisplayType.REMOVED -> games.filter {
                 it.releaseStatus == GameReleaseStatus.REMOVED_FROM_MARKET
@@ -341,7 +333,8 @@ fun EnhancedProjectManagementContent(
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = when (selectedProjectType) {
-                                ProjectDisplayType.CURRENT -> "暂无进行中的项目"
+                                ProjectDisplayType.DEVELOPING -> "暂无正在开发的项目"
+                                ProjectDisplayType.UPDATING -> "暂无正在更新的游戏"
                                 ProjectDisplayType.RELEASED -> "暂无已发售的游戏"
                                 ProjectDisplayType.REMOVED -> "暂无已下架的游戏"
                             },
@@ -350,7 +343,8 @@ fun EnhancedProjectManagementContent(
                         )
                         Text(
                             text = when (selectedProjectType) {
-                                ProjectDisplayType.CURRENT -> "点击上方按钮开始开发新游戏"
+                                ProjectDisplayType.DEVELOPING -> "点击上方按钮开始开发新游戏"
+                                ProjectDisplayType.UPDATING -> "已发售游戏开始更新后将在此显示"
                                 ProjectDisplayType.RELEASED -> "完成游戏开发并发售后将在此显示"
                                 ProjectDisplayType.REMOVED -> "下架的游戏将在此显示"
                             },
@@ -392,11 +386,12 @@ fun EnhancedProjectManagementContent(
                         },
                         refreshTrigger = refreshTrigger,
                         onSwitchToCurrentProjects = {
-                            onProjectTypeChange(ProjectDisplayType.CURRENT)
+                            onProjectTypeChange(ProjectDisplayType.UPDATING)
                             onSwitchToCurrentProjects?.invoke()
                         },
                         onReleaseGame = onReleaseGame,
-                        onAbandonGame = onAbandonGame
+                        onAbandonGame = onAbandonGame,
+                        showDataOverview = selectedProjectType != ProjectDisplayType.UPDATING  // 正在更新标签页不显示数据概览
                     )
                 }
             }

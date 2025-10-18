@@ -50,7 +50,8 @@ fun EnhancedGameProjectCard(
     onSwitchToCurrentProjects: (() -> Unit)? = null,
     onReleaseGame: ((Game) -> Unit)? = null,  // 新增：发售游戏回调
     onAbandonGame: ((Game) -> Unit)? = null,  // 新增：废弃游戏回调
-    onPurchaseServer: ((Game, com.example.yjcy.data.ServerType) -> Unit)? = null  // 新增：购买服务器回调
+    onPurchaseServer: ((Game, com.example.yjcy.data.ServerType) -> Unit)? = null,  // 新增：购买服务器回调
+    showDataOverview: Boolean = true  // 新增：是否显示数据概览（正在更新标签页设为false）
 ) {
     var showRevenueDialog by remember { mutableStateOf(false) }
     
@@ -136,12 +137,11 @@ fun EnhancedGameProjectCard(
                                 )
                             }
                         }
-                    } else if (hasActiveUpdateTask) {
-                        // 有更新任务的游戏
+                    } else if (isReleased) {
+                        // 已发售的游戏显示版本号
                         Card(
                             colors = CardDefaults.cardColors(
-                                containerColor = if (game.assignedEmployees.isNotEmpty()) 
-                                    Color(0xFF3B82F6).copy(alpha = 0.2f) else Color(0xFFF59E0B).copy(alpha = 0.2f)
+                                containerColor = Color(0xFF8B5CF6).copy(alpha = 0.2f)
                             ),
                             shape = RoundedCornerShape(8.dp)
                         ) {
@@ -151,16 +151,42 @@ fun EnhancedGameProjectCard(
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Text(
-                                    text = "🔄",
+                                    text = "📦",
                                     fontSize = 12.sp
                                 )
                                 Text(
-                                    text = if (game.assignedEmployees.isNotEmpty()) "更新中" else "待分配",
-                                    color = if (game.assignedEmployees.isNotEmpty()) 
-                                        Color(0xFF3B82F6) else Color(0xFFF59E0B),
+                                    text = "版本V${String.format("%.1f", game.version)}",
+                                    color = Color(0xFF8B5CF6),
                                     fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.Bold
                                 )
+                            }
+                        }
+                        
+                        // 显示更新状态
+                        if (hasActiveUpdateTask) {
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = Color(0xFF3B82F6).copy(alpha = 0.2f)
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text(
+                                        text = "🔄",
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        text = "正在更新",
+                                        color = Color(0xFF3B82F6),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
                     }
@@ -220,8 +246,8 @@ fun EnhancedGameProjectCard(
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            // 更新内容列表（仅对有更新任务的游戏显示）
-            if (hasActiveUpdateTask) {
+            // 更新内容列表（仅在正在更新标签页显示）
+            if (hasActiveUpdateTask && !showDataOverview) {
                 updateTask?.let { task ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -290,8 +316,8 @@ fun EnhancedGameProjectCard(
                 }
             }
             
-            // 已分配员工信息（对开发中和更新中的游戏显示）
-            if ((isDeveloping || hasActiveUpdateTask) && game.assignedEmployees.isNotEmpty()) {
+            // 已分配员工信息（开发中始终显示，更新中仅在正在更新标签页显示）
+            if ((isDeveloping || (hasActiveUpdateTask && !showDataOverview)) && game.assignedEmployees.isNotEmpty()) {
                 Text(
                     text = "已分配员工 (${game.assignedEmployees.size}人):",
                     color = Color.White.copy(alpha = 0.9f),
@@ -339,7 +365,10 @@ fun EnhancedGameProjectCard(
                 }
                 
                 Spacer(modifier = Modifier.height(12.dp))
-                
+            }
+            
+            // 进度显示：开发进度或更新进度（开发中或更新中都显示）
+            if ((isDeveloping && game.assignedEmployees.isNotEmpty()) || (hasActiveUpdateTask && !showDataOverview)) {
                 // 进度显示：开发进度或更新进度
                 val actualProgress = if (hasActiveUpdateTask) {
                     // 更新任务进度
@@ -478,8 +507,8 @@ fun EnhancedGameProjectCard(
                 Spacer(modifier = Modifier.height(16.dp))
             }
             
-            // 收益信息显示区域（仅对已发售游戏，且没有进行中的更新任务）
-            if (!hasActiveUpdateTask) {
+            // 收益信息显示区域（根据 showDataOverview 参数控制）
+            if (showDataOverview) {
                 gameRevenue?.let { revenue ->
                     val statistics = remember(revenue) {
                         RevenueManager.calculateStatistics(revenue)
@@ -487,28 +516,28 @@ fun EnhancedGameProjectCard(
                     
                     // 收益概览卡片
                     Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFF10B981).copy(alpha = 0.1f)
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF10B981).copy(alpha = 0.1f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text(
-                            text = if (game.businessModel == BusinessModel.ONLINE_GAME) "💰 数据概览" else "💰 收益概览",
-                            color = Color(0xFF10B981),
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        
-                        Spacer(modifier = Modifier.height(12.dp))
-                        
-                        // 收益统计行
-                        if (game.businessModel == BusinessModel.ONLINE_GAME) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Text(
+                                text = if (game.businessModel == BusinessModel.ONLINE_GAME) "💰 数据概览" else "💰 收益概览",
+                                color = Color(0xFF10B981),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
+                            // 收益统计行
+                            if (game.businessModel == BusinessModel.ONLINE_GAME) {
                             // 网络游戏：显示4列（总注册、总活跃、当前状态、玩家兴趣）
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -614,7 +643,9 @@ fun EnhancedGameProjectCard(
                                 }
                                 
                                 // 玩家兴趣（新增指标）
-                                Column {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
                                     Text(
                                         text = "玩家兴趣",
                                         color = Color.White.copy(alpha = 0.7f),
@@ -686,10 +717,10 @@ fun EnhancedGameProjectCard(
                             }
                         }
                     }
-                }
-                
+                    
                     Spacer(modifier = Modifier.height(12.dp))
                 }
+            }
             }
             
             // 按钮区域
@@ -697,26 +728,8 @@ fun EnhancedGameProjectCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // 有更新任务的游戏：显示分配按钮和收益按钮
-                if (hasActiveUpdateTask) {
-                    // 智能分配按钮
-                    EnhancedOneClickAssignmentButton(
-                        projects = listOf(game),
-                        employees = availableEmployees,
-                        onAssignmentComplete = { result ->
-                            // 处理智能分配结果
-                            result.assignments.forEach { (projectId, employees) ->
-                                if (projectId == game.id) {
-                                    onEmployeeAssigned(game, employees)
-                                }
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        text = if (game.assignedEmployees.isEmpty()) 
-                            "一键分配员工" else "重新分配员工"
-                    )
-                    
-                    // 查看收益按钮
+                // 已发售或已下架的游戏：只显示收益按钮（即使有更新任务）
+                if (isReleased || isRemoved) {
                     Button(
                         onClick = { showRevenueDialog = true },
                         modifier = Modifier.fillMaxWidth(),
@@ -737,26 +750,24 @@ fun EnhancedGameProjectCard(
                             fontWeight = FontWeight.Medium
                         )
                     }
-                } else if (isReleased || isRemoved) {
-                    // 已发售或已下架但没有更新任务，只显示收益按钮
-                    Button(
-                        onClick = { showRevenueDialog = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF10B981)
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.TrendingUp,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "📊 查看详细收益报告",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium
+                } else if (hasActiveUpdateTask) {
+                    // 有更新任务的游戏
+                    // 智能分配按钮（仅在正在更新标签页显示）
+                    if (!showDataOverview) {
+                        EnhancedOneClickAssignmentButton(
+                            projects = listOf(game),
+                            employees = availableEmployees,
+                            onAssignmentComplete = { result ->
+                                // 处理智能分配结果
+                                result.assignments.forEach { (projectId, employees) ->
+                                    if (projectId == game.id) {
+                                        onEmployeeAssigned(game, employees)
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            text = if (game.assignedEmployees.isEmpty()) 
+                                "一键分配员工" else "重新分配员工"
                         )
                     }
                 } else if (isReadyForRelease) {
@@ -857,8 +868,7 @@ fun EnhancedGameProjectCard(
                 onStartUpdate = {
                     // 关闭收益弹窗，回到项目卡片界面，便于分配员工
                     showRevenueDialog = false
-                    // 如果当前是"已发售"列表，切换到"当前项目"列表
-                    onSwitchToCurrentProjects?.invoke()
+                    // 不再自动跳转到"当前项目"列表
                 },
                 onMonetizationUpdate = { updatedItems ->
                     // 更新游戏的付费内容配置
@@ -874,6 +884,11 @@ fun EnhancedGameProjectCard(
                 onPurchaseServer = { serverType ->
                     // 购买服务器
                     onPurchaseServer?.invoke(game, serverType)
+                },
+                onAutoUpdateToggle = { enabled ->
+                    // 更新自动更新开关状态
+                    val updatedGame = game.copy(autoUpdate = enabled)
+                    onGameUpdate(updatedGame)
                 },
                 businessModel = game.businessModel
             )

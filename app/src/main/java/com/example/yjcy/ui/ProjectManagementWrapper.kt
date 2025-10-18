@@ -34,7 +34,7 @@ fun ProjectManagementWrapper(
     refreshTrigger: Int = 0,  // 新增：用于触发UI刷新
     onReleaseGame: ((Game) -> Unit)? = null,  // 新增：发售游戏回调
     onAbandonGame: ((Game) -> Unit)? = null,  // 新增：废弃游戏回调
-    selectedProjectType: ProjectDisplayType = ProjectDisplayType.CURRENT,  // 外部传入的状态
+    selectedProjectType: ProjectDisplayType = ProjectDisplayType.DEVELOPING,  // 外部传入的状态
     onProjectTypeChange: (ProjectDisplayType) -> Unit = {},  // 状态变化回调
     money: Long = 0L,  // 新增：资金
     fans: Int = 0,  // 新增：粉丝数
@@ -53,6 +53,10 @@ fun ProjectManagementWrapper(
                         onGamesUpdate(updatedGames)
                     },
                     refreshTrigger = refreshTrigger,
+                    onSwitchToCurrentProjects = {
+                        // 当从"已发售"点击更新时，自动切换到"正在更新"标签页
+                        onProjectTypeChange(ProjectDisplayType.UPDATING)
+                    },
                     onReleaseGame = onReleaseGame,
                     onAbandonGame = onAbandonGame,
                     selectedProjectType = selectedProjectType,
