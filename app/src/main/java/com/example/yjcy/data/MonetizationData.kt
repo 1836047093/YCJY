@@ -54,6 +54,35 @@ data class MonetizationItem(
 )
 
 /**
+ * 付费内容类型对应的更新内容名称
+ */
+fun MonetizationItemType.getUpdateContentName(): String {
+    return when (this) {
+        MonetizationItemType.SKINS_APPEARANCE -> "新皮肤"
+        MonetizationItemType.GROWTH_BOOST -> "新道具"
+        MonetizationItemType.RARE_EQUIPMENT -> "新装备"
+        MonetizationItemType.SEASON_PASS -> "新赛季"
+        MonetizationItemType.POWERFUL_CHARACTERS -> "新角色"
+        MonetizationItemType.EXPANSION_PACK -> "新扩展包"
+        MonetizationItemType.VIP_MEMBERSHIP -> "VIP特权更新"
+        MonetizationItemType.GACHA_SYSTEM -> "新卡池"
+        MonetizationItemType.PREMIUM_UNITS -> "新单位"
+        MonetizationItemType.RESOURCE_PACK -> "新资源包"
+        MonetizationItemType.PLAYER_CARDS -> "新球员卡"
+        MonetizationItemType.TEAM_CUSTOMIZATION -> "新定制内容"
+        MonetizationItemType.PREMIUM_VEHICLES -> "新载具"
+        MonetizationItemType.TRACK_PACK -> "新赛道"
+        MonetizationItemType.DLC_CONTENT -> "新DLC"
+        MonetizationItemType.COSMETIC_ITEMS -> "新装饰"
+        MonetizationItemType.WEAPON_SKINS -> "新武器皮肤"
+        MonetizationItemType.BATTLE_PASS -> "新战斗通行证"
+        MonetizationItemType.LOOT_BOXES -> "新宝箱"
+        MonetizationItemType.STORY_CHAPTERS -> "新剧情"
+        MonetizationItemType.SPECIAL_ITEMS -> "新特殊道具"
+    }
+}
+
+/**
  * 根据游戏主题获取推荐的付费内容类型
  */
 object MonetizationConfig {

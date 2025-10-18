@@ -143,20 +143,45 @@ fun EnhancedProjectManagementContent(
     var showPromotionCenterDialog by remember { mutableStateOf(false) }
     
     // 根据选择的项目类型过滤游戏列表
-    val filteredGames = remember(games, selectedProjectType) {
+    val filteredGames = remember(games, selectedProjectType, refreshTrigger) {
         when (selectedProjectType) {
-            ProjectDisplayType.CURRENT -> games.filter { 
-                it.releaseStatus in listOf(
+            ProjectDisplayType.CURRENT -> games.filter { game ->
+                // 开发中、准备发售、价格设置中的游戏
+                val isDevelopingOrReady = game.releaseStatus in listOf(
                     GameReleaseStatus.DEVELOPMENT,
                     GameReleaseStatus.READY_FOR_RELEASE,
                     GameReleaseStatus.PRICE_SETTING
                 )
+                
+                // 已发售但有进行中更新任务的游戏
+                val hasActiveUpdateTask = if (game.releaseStatus in listOf(
+                    GameReleaseStatus.RELEASED,
+                    GameReleaseStatus.RATED
+                )) {
+                    val gameRevenue = RevenueManager.getGameRevenue(game.id)
+                    val updateTask = gameRevenue?.updateTask
+                    updateTask != null && updateTask.progressPoints < updateTask.requiredPoints
+                } else {
+                    false
+                }
+                
+                isDevelopingOrReady || hasActiveUpdateTask
             }
-            ProjectDisplayType.RELEASED -> games.filter {
-                it.releaseStatus in listOf(
+            ProjectDisplayType.RELEASED -> games.filter { game ->
+                val isReleased = game.releaseStatus in listOf(
                     GameReleaseStatus.RELEASED,
                     GameReleaseStatus.RATED
                 )
+                
+                // 排除正在进行更新的游戏（它们应该在"当前项目"中）
+                if (isReleased) {
+                    val gameRevenue = RevenueManager.getGameRevenue(game.id)
+                    val updateTask = gameRevenue?.updateTask
+                    val hasActiveUpdateTask = updateTask != null && updateTask.progressPoints < updateTask.requiredPoints
+                    isReleased && !hasActiveUpdateTask
+                } else {
+                    false
+                }
             }
             ProjectDisplayType.REMOVED -> games.filter {
                 it.releaseStatus == GameReleaseStatus.REMOVED_FROM_MARKET

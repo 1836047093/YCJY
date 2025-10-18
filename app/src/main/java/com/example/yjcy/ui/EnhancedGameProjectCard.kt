@@ -2,7 +2,10 @@ package com.example.yjcy.ui
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -18,6 +21,7 @@ import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -69,6 +73,10 @@ fun EnhancedGameProjectCard(
         }
     }
     
+    // 检查是否有进行中的更新任务
+    val updateTask = gameRevenue?.updateTask
+    val hasActiveUpdateTask = updateTask != null && updateTask.progressPoints < updateTask.requiredPoints
+    
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -96,8 +104,9 @@ fun EnhancedGameProjectCard(
                         fontWeight = FontWeight.Bold
                     )
                     
-                    // 项目状态指示器（仅对开发中的游戏显示）
+                    // 项目状态指示器
                     if (isDeveloping) {
+                        // 开发中的游戏
                         Card(
                             colors = CardDefaults.cardColors(
                                 containerColor = if (game.assignedEmployees.isNotEmpty()) 
@@ -122,6 +131,33 @@ fun EnhancedGameProjectCard(
                                     text = if (game.assignedEmployees.isNotEmpty()) "进行中" else "待分配",
                                     color = if (game.assignedEmployees.isNotEmpty()) 
                                         Color(0xFF10B981) else Color(0xFFF59E0B),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    } else if (hasActiveUpdateTask) {
+                        // 有更新任务的游戏
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (game.assignedEmployees.isNotEmpty()) 
+                                    Color(0xFF3B82F6).copy(alpha = 0.2f) else Color(0xFFF59E0B).copy(alpha = 0.2f)
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = "🔄",
+                                    fontSize = 12.sp
+                                )
+                                Text(
+                                    text = if (game.assignedEmployees.isNotEmpty()) "更新中" else "待分配",
+                                    color = if (game.assignedEmployees.isNotEmpty()) 
+                                        Color(0xFF3B82F6) else Color(0xFFF59E0B),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium
                                 )
@@ -184,8 +220,78 @@ fun EnhancedGameProjectCard(
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            // 已分配员工信息（仅对开发中的游戏显示）
-            if (isDeveloping && game.assignedEmployees.isNotEmpty()) {
+            // 更新内容列表（仅对有更新任务的游戏显示）
+            if (hasActiveUpdateTask) {
+                updateTask?.let { task ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF3B82F6).copy(alpha = 0.1f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "🔄 更新内容",
+                                    color = Color(0xFF3B82F6),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                task.features.forEach { feature ->
+                                    Card(
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = Color(0xFF3B82F6).copy(alpha = 0.2f)
+                                        ),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Text(
+                                                text = "•",
+                                                color = Color(0xFF3B82F6),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                text = feature,
+                                                color = Color.White.copy(alpha = 0.9f),
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+            }
+            
+            // 已分配员工信息（对开发中和更新中的游戏显示）
+            if ((isDeveloping || hasActiveUpdateTask) && game.assignedEmployees.isNotEmpty()) {
                 Text(
                     text = "已分配员工 (${game.assignedEmployees.size}人):",
                     color = Color.White.copy(alpha = 0.9f),
@@ -234,50 +340,153 @@ fun EnhancedGameProjectCard(
                 
                 Spacer(modifier = Modifier.height(12.dp))
                 
-                // 开发进度 - 与实际逻辑保持一致（仅对开发中的游戏显示）
-                val actualProgress = game.developmentProgress
+                // 进度显示：开发进度或更新进度
+                val actualProgress = if (hasActiveUpdateTask) {
+                    // 更新任务进度
+                    updateTask?.let { it.progressPoints.toFloat() / it.requiredPoints.toFloat() } ?: 0f
+                } else {
+                    // 开发进度
+                    game.developmentProgress
+                }
+                
+                // 添加进度动画
+                val animatedProgress by animateFloatAsState(
+                    targetValue = actualProgress,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessLow
+                    ),
+                    label = "progress_animation"
+                )
 
                 Column {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "开发进度",
-                            color = Color.White.copy(alpha = 0.9f),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = "${(actualProgress * 100).toInt()}%",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 14.sp
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = if (hasActiveUpdateTask) "更新进度" else "开发进度",
+                                color = Color.White.copy(alpha = 0.9f),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            
+                            // 更新任务特征显示
+                            if (hasActiveUpdateTask) {
+                                updateTask?.let { task ->
+                                    Text(
+                                        text = "· ${task.features.size}项内容",
+                                        color = Color(0xFF3B82F6),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                        
+                        // 百分比标签样式
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (hasActiveUpdateTask) 
+                                    Color(0xFF3B82F6).copy(alpha = 0.2f) else Color(0xFF10B981).copy(alpha = 0.2f)
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = "${(animatedProgress * 100).toInt()}%",
+                                color = if (hasActiveUpdateTask) Color(0xFF3B82F6) else Color(0xFF10B981),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
                     }
                     
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     
-                    LinearProgressIndicator(
-                        progress = { actualProgress },
+                    // 自定义进度条样式
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(6.dp),
-                        color = Color(0xFF10B981),
-                        trackColor = Color.White.copy(alpha = 0.2f)
-                    )
+                            .height(12.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color.White.copy(alpha = 0.15f))
+                    ) {
+                        // 渐变进度条
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(animatedProgress)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(
+                                    Brush.horizontalGradient(
+                                        colors = if (hasActiveUpdateTask) listOf(
+                                            Color(0xFF3B82F6),
+                                            Color(0xFF2563EB),
+                                            Color(0xFF1D4ED8)
+                                        ) else listOf(
+                                            Color(0xFF10B981),
+                                            Color(0xFF059669),
+                                            Color(0xFF047857)
+                                        )
+                                    )
+                                )
+                        )
+                        
+                        // 动态高光效果
+                        val infiniteTransition = rememberInfiniteTransition(label = "shimmer")
+                        val shimmerOffset by infiniteTransition.animateFloat(
+                            initialValue = -1f,
+                            targetValue = 1f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(
+                                    durationMillis = 2000,
+                                    easing = LinearEasing
+                                ),
+                                repeatMode = RepeatMode.Restart
+                            ),
+                            label = "shimmer_offset"
+                        )
+                        
+                        if (animatedProgress > 0f && animatedProgress < 1f) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(animatedProgress)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            colors = listOf(
+                                                Color.White.copy(alpha = 0f),
+                                                Color.White.copy(alpha = 0.3f),
+                                                Color.White.copy(alpha = 0f)
+                                            ),
+                                            startX = shimmerOffset * 1000f,
+                                            endX = shimmerOffset * 1000f + 200f
+                                        )
+                                    )
+                            )
+                        }
+                    }
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
             }
             
-            // 收益信息显示区域（仅对已发售游戏）
-            gameRevenue?.let { revenue ->
-                val statistics = remember(revenue) {
-                    RevenueManager.calculateStatistics(revenue)
-                }
-                
-                // 收益概览卡片
-                Card(
+            // 收益信息显示区域（仅对已发售游戏，且没有进行中的更新任务）
+            if (!hasActiveUpdateTask) {
+                gameRevenue?.let { revenue ->
+                    val statistics = remember(revenue) {
+                        RevenueManager.calculateStatistics(revenue)
+                    }
+                    
+                    // 收益概览卡片
+                    Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
                         containerColor = Color(0xFF10B981).copy(alpha = 0.1f)
@@ -479,7 +688,8 @@ fun EnhancedGameProjectCard(
                     }
                 }
                 
-                Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
             }
             
             // 按钮区域
@@ -487,8 +697,48 @@ fun EnhancedGameProjectCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // 如果游戏已发售或已下架，显示收益按钮
-                if (isReleased || isRemoved) {
+                // 有更新任务的游戏：显示分配按钮和收益按钮
+                if (hasActiveUpdateTask) {
+                    // 智能分配按钮
+                    EnhancedOneClickAssignmentButton(
+                        projects = listOf(game),
+                        employees = availableEmployees,
+                        onAssignmentComplete = { result ->
+                            // 处理智能分配结果
+                            result.assignments.forEach { (projectId, employees) ->
+                                if (projectId == game.id) {
+                                    onEmployeeAssigned(game, employees)
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        text = if (game.assignedEmployees.isEmpty()) 
+                            "一键分配员工" else "重新分配员工"
+                    )
+                    
+                    // 查看收益按钮
+                    Button(
+                        onClick = { showRevenueDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF10B981)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.TrendingUp,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "📊 查看详细收益报告",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                } else if (isReleased || isRemoved) {
+                    // 已发售或已下架但没有更新任务，只显示收益按钮
                     Button(
                         onClick = { showRevenueDialog = true },
                         modifier = Modifier.fillMaxWidth(),

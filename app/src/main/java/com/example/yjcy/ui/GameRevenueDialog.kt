@@ -45,6 +45,7 @@ import com.example.yjcy.data.Game
 import com.example.yjcy.data.MonetizationItem
 import com.example.yjcy.data.ServerType
 import com.example.yjcy.data.GameServerInfo
+import com.example.yjcy.data.getUpdateContentName
 import com.example.yjcy.utils.formatMoneyWithDecimals
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -178,6 +179,7 @@ fun GameRevenueDialog(
 
     if (showUpdateDialog) {
         UpdateFeatureDialog(
+            game = game,
             onDismiss = { showUpdateDialog = false },
             onConfirm = { features ->
                 RevenueManager.createUpdateTask(gameRevenue.gameId, features)
@@ -239,35 +241,90 @@ fun StatusIndicator(isActive: Boolean, businessModel: BusinessModel = BusinessMo
 
 @Composable
 fun UpdateFeatureDialog(
+    game: Game,
     onDismiss: () -> Unit,
     onConfirm: (List<String>) -> Unit
 ) {
-    val options = listOf("新人物", "新地图", "新坐骑", "新活动")
+    // 根据游戏的付费内容生成更新选项
+    val options = remember(game) {
+        game.monetizationItems
+            .filter { it.isEnabled }
+            .map { it.type.getUpdateContentName() }
+            .distinct()
+    }
+    
     val selected = remember { mutableStateListOf<String>() }
+    val allSelected = selected.size == options.size && options.isNotEmpty()
+    
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("选择更新内容", fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                options.forEach { item ->
+                // 全选/反选按钮
+                if (options.isNotEmpty()) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(text = item)
+                        Text(
+                            text = if (allSelected) "反选" else "全选",
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                         Checkbox(
-                            checked = selected.contains(item),
+                            checked = allSelected,
                             onCheckedChange = { checked ->
-                                if (checked) selected.add(item) else selected.remove(item)
+                                if (checked) {
+                                    selected.clear()
+                                    selected.addAll(options)
+                                } else {
+                                    selected.clear()
+                                }
                             }
                         )
+                    }
+                    
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                    )
+                }
+                
+                // 更新内容选项
+                if (options.isEmpty()) {
+                    Text(
+                        text = "暂无可用的更新内容\n请先在付费设置中启用付费内容",
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                } else {
+                    options.forEach { item ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(text = item)
+                            Checkbox(
+                                checked = selected.contains(item),
+                                onCheckedChange = { checked ->
+                                    if (checked) selected.add(item) else selected.remove(item)
+                                }
+                            )
+                        }
                     }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(selected.toList()) }) {
+            TextButton(
+                onClick = { onConfirm(selected.toList()) },
+                enabled = selected.isNotEmpty()
+            ) {
                 Text("开始更新")
             }
         },
@@ -672,10 +729,7 @@ fun ActionButtonsCard(
             Spacer(modifier = Modifier.height(16.dp))
             
             if (gameRevenue.isActive) {
-                // 新增：游戏更新按钮（先展示成本与次数）
-                val updateCost = remember(gameRevenue.updateCount) {
-                    RevenueManager.calculateUpdateCost(gameRevenue.gameId)
-                }
+                // 游戏更新按钮
                 Button(
                     onClick = onShowUpdateDialog,
                     modifier = Modifier
@@ -692,7 +746,7 @@ fun ActionButtonsCard(
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("游戏更新（+5%销量） - 费用 ¥${String.format("%.2f", updateCost)} / 已更新 ${gameRevenue.updateCount} 次", fontWeight = FontWeight.Medium)
+                    Text("游戏更新", fontWeight = FontWeight.Medium)
                 }
                 
                 // 新增：付费设置按钮（仅对网络游戏显示）
@@ -714,22 +768,6 @@ fun ActionButtonsCard(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("付费设置", fontWeight = FontWeight.Medium)
-                    }
-                    
-                    // 服务器管理按钮（仅对网络游戏显示）
-                    Button(
-                        onClick = onShowServerManagement,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF3B82F6)
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("🖥️", fontSize = 20.sp)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("服务器管理", fontWeight = FontWeight.Medium)
                     }
                 }
                 

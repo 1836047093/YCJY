@@ -299,7 +299,7 @@ fun GameReleaseDialog(
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Text(
-                                            text = "公共池服务器:",
+                                            text = "服务器数量:",
                                             fontSize = 14.sp,
                                             color = Color.White.copy(alpha = 0.8f)
                                         )
