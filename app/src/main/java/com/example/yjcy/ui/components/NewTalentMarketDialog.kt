@@ -270,6 +270,7 @@ fun NewTalentMarketDialog(
     if (showApplicantDialog && selectedJob != null) {
         ApplicantManagementDialog(
             jobPosting = selectedJob!!,
+            saveData = saveData,
             onDismiss = { 
                 showApplicantDialog = false
                 selectedJob = null

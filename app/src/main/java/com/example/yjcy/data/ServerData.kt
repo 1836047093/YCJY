@@ -24,7 +24,10 @@ data class ServerInstance(
     val purchaseYear: Int,
     val purchaseMonth: Int,
     val purchaseDay: Int,
-    val isActive: Boolean = true
+    val isActive: Boolean = true,
+    val lastBillingYear: Int = purchaseYear,   // 上次扣费年份
+    val lastBillingMonth: Int = purchaseMonth, // 上次扣费月份
+    val lastBillingDay: Int = purchaseDay      // 上次扣费日期
 ) {
     /**
      * 获取服务器总容量（万人）

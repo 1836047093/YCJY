@@ -168,34 +168,36 @@ fun ModernEmployeeCard(
                             )
                         }
                         
-                        // 操作按钮
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            ModernButton(
-                                text = "培训",
-                                icon = "⭐",
-                                onClick = { showTrainingDialog = true },
-                                enabled = true,
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF2196F3)
+                        // 操作按钮（创始人不显示培训和解雇按钮）
+                        if (!employee.isFounder) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                ModernButton(
+                                    text = "培训",
+                                    icon = "⭐",
+                                    onClick = { showTrainingDialog = true },
+                                    enabled = true,
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF2196F3)
+                                    )
                                 )
-                            )
-                            
-                            ModernButton(
-                                text = "解雇",
-                                icon = "🗑️",
-                                onClick = { onDismissEmployee(employee) },
-                                enabled = true,
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFFF44336)
+                                
+                                ModernButton(
+                                    text = "解雇",
+                                    icon = "🗑️",
+                                    onClick = { onDismissEmployee(employee) },
+                                    enabled = true,
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFFF44336)
+                                    )
                                 )
-                            )
+                            }
                         }
                     }
                 }

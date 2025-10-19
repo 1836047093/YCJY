@@ -54,7 +54,10 @@ class RecruitmentService {
      */
     fun recruitCandidate(
         candidate: TalentCandidate,
-        saveData: SaveData
+        saveData: SaveData,
+        currentYear: Int,
+        currentMonth: Int,
+        currentDay: Int
     ): RecruitmentResult {
         val recruitmentFee = calculateRecruitmentFee(candidate)
         
@@ -82,7 +85,12 @@ class RecruitmentService {
         val newEmployeeId = generateNewEmployeeId(saveData.allEmployees)
         
         // 转换候选人为员工
-        val newEmployee = candidate.toEmployee(newEmployeeId)
+        val newEmployee = candidate.toEmployee(
+            newEmployeeId,
+            currentYear,
+            currentMonth,
+            currentDay
+        )
         
         // 添加员工到游戏数据
         val updatedEmployees = saveData.allEmployees + newEmployee
@@ -133,7 +141,7 @@ class RecruitmentService {
      */
     fun getMaxEmployeeCount(): Int {
         // 默认员工数量限制
-        return 15
+        return 30
     }
     
     /**

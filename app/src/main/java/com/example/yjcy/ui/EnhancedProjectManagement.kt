@@ -530,6 +530,8 @@ fun SuperEnhancedGameDevelopmentDialog(
 ) {
     var currentStep by remember { mutableIntStateOf(0) }
     var gameName by remember { mutableStateOf("") }
+    var isGameNameValid by remember { mutableStateOf(true) }
+    var gameNameError by remember { mutableStateOf("") }
     var selectedTheme by remember { mutableStateOf<GameTheme?>(null) }
     var selectedPlatforms by remember { mutableStateOf(setOf<Platform>()) }
     var selectedBusinessModel by remember { mutableStateOf<BusinessModel?>(null) }
@@ -583,7 +585,29 @@ fun SuperEnhancedGameDevelopmentDialog(
                 when (currentStep) {
                     0 -> GameNameInputStep(
                         gameName = gameName,
-                        onGameNameChange = { gameName = it }
+                        onGameNameChange = { newValue ->
+                            gameName = newValue
+                            when {
+                                newValue.isEmpty() -> {
+                                    isGameNameValid = true
+                                    gameNameError = ""
+                                }
+                                newValue.length > 20 -> {
+                                    isGameNameValid = false
+                                    gameNameError = "游戏名最多20个字符"
+                                }
+                                com.example.yjcy.utils.SensitiveWordFilter.containsSensitiveGameName(newValue) -> {
+                                    isGameNameValid = false
+                                    gameNameError = "存在敏感词汇，请换个游戏名"
+                                }
+                                else -> {
+                                    isGameNameValid = true
+                                    gameNameError = ""
+                                }
+                            }
+                        },
+                        isGameNameValid = isGameNameValid,
+                        gameNameError = gameNameError
                     )
                     1 -> EnhancedGameThemeSelectionStep(
                         selectedTheme = selectedTheme,
@@ -691,7 +715,7 @@ fun SuperEnhancedGameDevelopmentDialog(
                         }
                     },
                     enabled = when (currentStep) {
-                        0 -> gameName.isNotBlank()
+                        0 -> gameName.isNotBlank() && isGameNameValid
                         1 -> selectedTheme != null
                         2 -> selectedPlatforms.isNotEmpty() && selectedBusinessModel != null
                         else -> true // 付费内容可选
@@ -700,7 +724,7 @@ fun SuperEnhancedGameDevelopmentDialog(
                     Text(
                         text = if (isLastStep) "创建游戏" else "下一步",
                         color = if (when (currentStep) {
-                            0 -> gameName.isNotBlank()
+                            0 -> gameName.isNotBlank() && isGameNameValid
                             1 -> selectedTheme != null
                             2 -> selectedPlatforms.isNotEmpty() && selectedBusinessModel != null
                             else -> true
@@ -794,6 +818,8 @@ fun EnhancedGameDevelopmentDialog(
 ) {
     var currentStep by remember { mutableIntStateOf(0) }
     var gameName by remember { mutableStateOf("") }
+    var isGameNameValid by remember { mutableStateOf(true) }
+    var gameNameError by remember { mutableStateOf("") }
     var selectedTheme by remember { mutableStateOf<GameTheme?>(null) }
     var selectedPlatforms by remember { mutableStateOf(setOf<Platform>()) }
     var selectedBusinessModel by remember { mutableStateOf<BusinessModel?>(null) }
@@ -835,7 +861,29 @@ fun EnhancedGameDevelopmentDialog(
                 when (currentStep) {
                     0 -> GameNameInputStep(
                         gameName = gameName,
-                        onGameNameChange = { gameName = it }
+                        onGameNameChange = { newValue ->
+                            gameName = newValue
+                            when {
+                                newValue.isEmpty() -> {
+                                    isGameNameValid = true
+                                    gameNameError = ""
+                                }
+                                newValue.length > 20 -> {
+                                    isGameNameValid = false
+                                    gameNameError = "游戏名最多20个字符"
+                                }
+                                com.example.yjcy.utils.SensitiveWordFilter.containsSensitiveGameName(newValue) -> {
+                                    isGameNameValid = false
+                                    gameNameError = "存在敏感词汇，请换个游戏名"
+                                }
+                                else -> {
+                                    isGameNameValid = true
+                                    gameNameError = ""
+                                }
+                            }
+                        },
+                        isGameNameValid = isGameNameValid,
+                        gameNameError = gameNameError
                     )
                     1 -> GameThemeSelectionStep(
                         selectedTheme = selectedTheme,
@@ -925,7 +973,7 @@ fun EnhancedGameDevelopmentDialog(
                             }
                         },
                         enabled = when (currentStep) {
-                            0 -> gameName.isNotBlank()
+                            0 -> gameName.isNotBlank() && isGameNameValid
                             1 -> selectedTheme != null
                             2 -> selectedPlatforms.isNotEmpty() && selectedBusinessModel != null
                             3 -> true
@@ -957,7 +1005,9 @@ fun getDefaultEmployees(): List<Employee> {
 @Composable
 fun GameNameInputStep(
     gameName: String,
-    onGameNameChange: (String) -> Unit
+    onGameNameChange: (String) -> Unit,
+    isGameNameValid: Boolean = true,
+    gameNameError: String = ""
 ) {
     Column {
         Text(
@@ -970,6 +1020,7 @@ fun GameNameInputStep(
         OutlinedTextField(
             value = gameName,
             onValueChange = onGameNameChange,
+            isError = !isGameNameValid,
             placeholder = {
                 Text(
                     text = "例如：超级冒险",
@@ -977,14 +1028,24 @@ fun GameNameInputStep(
                 )
             },
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF10B981),
-                unfocusedBorderColor = Color.White.copy(alpha = 0.3f),
+                focusedBorderColor = if (isGameNameValid) Color(0xFF10B981) else Color.Red,
+                unfocusedBorderColor = if (isGameNameValid) Color.White.copy(alpha = 0.3f) else Color.Red,
                 focusedTextColor = Color.White,
                 unfocusedTextColor = Color.White,
-                cursorColor = Color(0xFF10B981)
+                cursorColor = Color(0xFF10B981),
+                errorBorderColor = Color.Red
             ),
             modifier = Modifier.fillMaxWidth()
         )
+        
+        if (!isGameNameValid && gameNameError.isNotEmpty()) {
+            Text(
+                text = gameNameError,
+                color = Color.Red,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
     }
 }
 

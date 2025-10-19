@@ -32,10 +32,15 @@ import com.example.yjcy.service.JobPostingService
 @Composable
 fun ApplicantManagementDialog(
     jobPosting: JobPosting,
+    saveData: SaveData,
     onDismiss: () -> Unit,
     onApplicantHired: (TalentCandidate) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // 员工人数上限
+    val maxEmployees = 30
+    val currentEmployeeCount = saveData.allEmployees.size
+    val isEmployeeFull = currentEmployeeCount >= maxEmployees
     val jobPostingService = remember { JobPostingService.getInstance() }
     var currentJobPosting by remember { mutableStateOf(jobPosting) }
     
@@ -137,10 +142,113 @@ fun ApplicantManagementDialog(
                         )
                     }
                     
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    // 员工数量信息卡片
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isEmployeeFull) {
+                                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                            } else {
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                            }
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Group,
+                                    contentDescription = null,
+                                    tint = if (isEmployeeFull) {
+                                        MaterialTheme.colorScheme.error
+                                    } else {
+                                        MaterialTheme.colorScheme.primary
+                                    },
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = "当前员工总数",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (isEmployeeFull) {
+                                        MaterialTheme.colorScheme.error
+                                    } else {
+                                        MaterialTheme.colorScheme.primary
+                                    }
+                                )
+                            }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = "$currentEmployeeCount",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isEmployeeFull) {
+                                        MaterialTheme.colorScheme.error
+                                    } else {
+                                        MaterialTheme.colorScheme.primary
+                                    }
+                                )
+                                Text(
+                                    text = "/ $maxEmployees",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                    
+                    // 员工已满提示
+                    if (isEmployeeFull) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = "⚠️ 员工人数已达上限（${maxEmployees}人），无法继续雇佣！",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    }
+                    
                     Spacer(modifier = Modifier.height(16.dp))
                     
-                    // 应聘者列表
-                    if (currentJobPosting.applicants.isEmpty()) {
+                    // 应聘者列表（过滤掉已雇佣的）
+                    val pendingApplicants = currentJobPosting.applicants.filter { it.status != ApplicantStatus.HIRED }
+                    
+                    if (pendingApplicants.isEmpty()) {
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
@@ -150,12 +258,20 @@ fun ApplicantManagementDialog(
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Text(
-                                    text = "🔍 暂无应聘者",
+                                    text = if (currentJobPosting.applicants.isEmpty()) {
+                                        "🔍 暂无应聘者"
+                                    } else {
+                                        "✅ 所有应聘者已处理完毕"
+                                    },
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Medium
                                 )
                                 Text(
-                                    text = "随着时间推进，会有人才来应聘",
+                                    text = if (currentJobPosting.applicants.isEmpty()) {
+                                        "随着时间推进，会有人才来应聘"
+                                    } else {
+                                        "已成功雇佣的应聘者不再显示"
+                                    },
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -167,12 +283,19 @@ fun ApplicantManagementDialog(
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             items(
-                                items = currentJobPosting.applicants,
+                                items = pendingApplicants,
                                 key = { it.id }
                             ) { applicant ->
                                 ApplicantCard(
                                     applicant = applicant,
+                                    isEmployeeFull = isEmployeeFull,
                                     onHireClick = {
+                                        // 检查员工人数是否已满
+                                        if (isEmployeeFull) {
+                                            // 不执行雇佣操作
+                                            return@ApplicantCard
+                                        }
+                                        
                                         // 先将应聘者标记为已通过，然后再雇佣
                                         jobPostingService.updateApplicantStatus(
                                             currentJobPosting.id,
@@ -247,6 +370,7 @@ private fun StatCard(
 @Composable
 private fun ApplicantCard(
     applicant: JobApplicant,
+    isEmployeeFull: Boolean = false,
     onHireClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -354,7 +478,7 @@ private fun ApplicantCard(
             
             Spacer(modifier = Modifier.height(12.dp))
             
-            Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             
             Spacer(modifier = Modifier.height(12.dp))
             
@@ -395,15 +519,20 @@ private fun ApplicantCard(
                         Button(
                             onClick = onHireClick,
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp)
+                            shape = RoundedCornerShape(10.dp),
+                            enabled = !isEmployeeFull,
+                            colors = ButtonDefaults.buttonColors(
+                                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         ) {
                             Icon(
-                                imageVector = Icons.Default.CheckCircle,
+                                imageVector = if (isEmployeeFull) Icons.Default.Block else Icons.Default.CheckCircle,
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("雇佣")
+                            Text(if (isEmployeeFull) "已满员" else "雇佣")
                         }
                     }
                     ApplicantStatus.REJECTED -> {

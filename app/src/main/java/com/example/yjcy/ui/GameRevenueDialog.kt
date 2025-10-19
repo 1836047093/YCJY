@@ -1210,7 +1210,9 @@ fun ServerManagementDialog(
     onDismiss: () -> Unit,
     onPurchaseServer: (ServerType) -> Unit
 ) {
-    val serverInfo = remember { RevenueManager.getGameServerInfo(game.id) }
+    // 显示公共池的服务器信息（所有游戏共享）
+    val publicPoolId = "SERVER_PUBLIC_POOL"
+    val serverInfo = remember { RevenueManager.getGameServerInfo(publicPoolId) }
     
     Dialog(
         onDismissRequest = onDismiss,

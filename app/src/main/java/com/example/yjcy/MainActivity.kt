@@ -36,6 +36,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -118,6 +121,9 @@ class MainActivity : ComponentActivity() {
         // 初始化RevenueManager以支持数据持久化
         RevenueManager.initialize(this)
         
+        // 启动时检查并修复服务器扣费（针对旧存档的一次性迁移）
+        Log.d("MainActivity", "检查服务器扣费状态...")
+        
         // 先启用边到边显示
         enableEdgeToEdge()
         
@@ -128,9 +134,15 @@ class MainActivity : ComponentActivity() {
         val sharedPreferences = getSharedPreferences("privacy_settings", MODE_PRIVATE)
         val hasAgreedPrivacy = sharedPreferences.getBoolean("privacy_agreed", false)
         
-        // 如果用户已同意隐私政策，则初始化SDK
+        // 如果用户已同意隐私政策，则初始化SDK并检查更新
         if (hasAgreedPrivacy) {
             (application as? YjcyApplication)?.initTapSDKIfNeeded()
+            
+            // 延迟500ms后检查更新，确保SDK完全初始化
+            android.os.Handler(mainLooper).postDelayed({
+                Log.d("MainActivity", "开始检查TapTap更新...")
+                com.example.yjcy.taptap.TapUpdateManager.checkForceUpdate()
+            }, 500)
         } else {
             Log.d("MainActivity", "用户未同意隐私政策，等待用户同意后再初始化SDK")
         }
@@ -526,6 +538,18 @@ fun MainMenuScreen(navController: NavController) {
     ) {
         // 背景粒子动画
         ParticleBackground()
+        
+        // 左上角版本号
+        Text(
+            text = "V1.5",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            color = Color.White.copy(alpha = 0.7f),
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(16.dp)
+        )
+        
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -706,7 +730,8 @@ data class Particle(
 fun GameMenuButton(
     text: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
@@ -715,23 +740,34 @@ fun GameMenuButton(
         label = "button_scale"
     )
     
-    // 橙色渐变背景
-    val buttonGradient = Brush.horizontalGradient(
-        colors = listOf(
-            Color(0xFFF59E0B), // 橙色
-            Color(0xFFEA580C)  // 深橙色
+    // 橙色渐变背景，禁用时变灰
+    val buttonGradient = if (enabled) {
+        Brush.horizontalGradient(
+            colors = listOf(
+                Color(0xFFF59E0B), // 橙色
+                Color(0xFFEA580C)  // 深橙色
+            )
         )
-    )
+    } else {
+        Brush.horizontalGradient(
+            colors = listOf(
+                Color.Gray.copy(alpha = 0.5f),
+                Color.Gray.copy(alpha = 0.4f)
+            )
+        )
+    }
     
     Button(
         onClick = onClick,
+        enabled = enabled,
         modifier = modifier
             .width(280.dp)
             .height(56.dp)
             .scale(scale),
         shape = RoundedCornerShape(28.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = Color.Transparent
+            containerColor = Color.Transparent,
+            disabledContainerColor = Color.Transparent
         ),
         contentPadding = PaddingValues(0.dp)
     ) {
@@ -761,6 +797,7 @@ fun GameSetupScreen(navController: NavController) {
     var selectedLogo by remember { mutableStateOf("🎮") }
     var selectedProfession by remember { mutableStateOf<FounderProfession?>(null) }
     var isCompanyNameValid by remember { mutableStateOf(true) }
+    var companyNameError by remember { mutableStateOf("") }
     
     val logoOptions = listOf("🎮", "🏢", "💼", "🚀", "⭐", "🎯")
     
@@ -804,11 +841,28 @@ fun GameSetupScreen(navController: NavController) {
                 OutlinedTextField(
                     value = companyName,
                     onValueChange = { newValue ->
-                        if (newValue.length <= 5 && newValue.all { it.isLetterOrDigit() }) {
-                            companyName = newValue
-                            isCompanyNameValid = true
-                        } else {
-                            isCompanyNameValid = false
+                        companyName = newValue
+                        when {
+                            newValue.isEmpty() -> {
+                                isCompanyNameValid = true
+                                companyNameError = ""
+                            }
+                            newValue.length > 5 -> {
+                                isCompanyNameValid = false
+                                companyNameError = "公司名最多5个字符"
+                            }
+                            !newValue.all { it.isLetterOrDigit() } -> {
+                                isCompanyNameValid = false
+                                companyNameError = "只能输入字符和数字"
+                            }
+                            com.example.yjcy.utils.SensitiveWordFilter.containsSensitiveCompanyName(newValue) -> {
+                                isCompanyNameValid = false
+                                companyNameError = "存在敏感词汇，请换个公司名"
+                            }
+                            else -> {
+                                isCompanyNameValid = true
+                                companyNameError = ""
+                            }
                         }
                     },
                     isError = !isCompanyNameValid,
@@ -822,9 +876,9 @@ fun GameSetupScreen(navController: NavController) {
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
-                if (!isCompanyNameValid) {
+                if (!isCompanyNameValid && companyNameError.isNotEmpty()) {
                     Text(
-                        text = "只能输入最多5个字符和数字",
+                        text = companyNameError,
                         color = Color.Red,
                         fontSize = 12.sp,
                         modifier = Modifier.padding(top = 4.dp)
@@ -973,6 +1027,7 @@ fun GameSetupScreen(navController: NavController) {
                             navController.navigate("game/$companyName/$founderName/$selectedLogo/${selectedProfession!!.name}")
                         }
                     },
+                    enabled = companyName.isNotEmpty() && founderName.isNotEmpty() && selectedProfession != null && isCompanyNameValid,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -1035,6 +1090,12 @@ fun GameScreen(
     // 退出游戏确认对话框状态
     var showExitDialog by remember { mutableStateOf(false) }
     
+    // 破产对话框状态
+    var showBankruptcyDialog by remember { mutableStateOf(false) }
+    
+    // 显示设置界面状态
+    var showSettings by remember { mutableStateOf(false) }
+    
     // 员工状态管理 - 提升到GameScreen级别
     val allEmployees = remember { mutableStateListOf<Employee>() }
     
@@ -1096,53 +1157,10 @@ fun GameScreen(
                 allEmployees.addAll(saveData.allEmployees)
             } else {
                 // 新游戏：将创始人转换为员工
-                val founderAsEmployee = Employee(
-                    id = 0,
-                    name = founder.name,
-                    position = when (founder.profession) {
-                        FounderProfession.PROGRAMMER -> "程序员"
-                        FounderProfession.DESIGNER -> "策划师"
-                        FounderProfession.ARTIST -> "美术师"
-                        FounderProfession.SOUND_ENGINEER -> "音效师"
-                        FounderProfession.CUSTOMER_SERVICE -> "客服"
-                    },
-                    salary = 0,
-                    skillDevelopment = when (founder.profession) {
-                        FounderProfession.PROGRAMMER -> 5
-                        FounderProfession.DESIGNER -> 2
-                        FounderProfession.ARTIST -> 1
-                        FounderProfession.SOUND_ENGINEER -> 1
-                        FounderProfession.CUSTOMER_SERVICE -> 1
-                    },
-                    skillDesign = when (founder.profession) {
-                        FounderProfession.PROGRAMMER -> 2
-                        FounderProfession.DESIGNER -> 5
-                        FounderProfession.ARTIST -> 2
-                        FounderProfession.SOUND_ENGINEER -> 1
-                        FounderProfession.CUSTOMER_SERVICE -> 1
-                    },
-                    skillArt = when (founder.profession) {
-                        FounderProfession.PROGRAMMER -> 1
-                        FounderProfession.DESIGNER -> 2
-                        FounderProfession.ARTIST -> 5
-                        FounderProfession.SOUND_ENGINEER -> 2
-                        FounderProfession.CUSTOMER_SERVICE -> 1
-                    },
-                    skillMusic = when (founder.profession) {
-                        FounderProfession.PROGRAMMER -> 1
-                        FounderProfession.DESIGNER -> 1
-                        FounderProfession.ARTIST -> 2
-                        FounderProfession.SOUND_ENGINEER -> 5
-                        FounderProfession.CUSTOMER_SERVICE -> 1
-                    },
-                    skillService = when (founder.profession) {
-                        FounderProfession.PROGRAMMER -> 2
-                        FounderProfession.DESIGNER -> 2
-                        FounderProfession.ARTIST -> 1
-                        FounderProfession.SOUND_ENGINEER -> 1
-                        FounderProfession.CUSTOMER_SERVICE -> 5
-                    },
-                    isFounder = true
+                val founderAsEmployee = founder.toEmployee(
+                    hireYear = 1,
+                    hireMonth = 1,
+                    hireDay = 1
                 )
                 allEmployees.add(founderAsEmployee)
             }
@@ -1177,10 +1195,45 @@ fun GameScreen(
             if (currentDay > 30) {
                 currentDay = 1
                 currentMonth++
+            }
+            
+            // 每日检查：扣除到期服务器的月费（按购买日期每30天计费）
+            Log.d("MainActivity", "准备调用服务器扣费检查... 当前日期: ${currentYear}年${currentMonth}月${currentDay}日")
+            val moneyBefore = money
+            val serverBillingCost = RevenueManager.checkAndBillServers(
+                currentYear = currentYear,
+                currentMonth = currentMonth,
+                currentDay = currentDay
+            )
+            Log.d("MainActivity", "服务器扣费检查完成，返回金额: ¥$serverBillingCost")
+            if (serverBillingCost > 0) {
+                money -= serverBillingCost
+                Log.d("MainActivity", "💰 服务器计费: -¥$serverBillingCost (扣费前:¥$moneyBefore -> 扣费后:¥$money)")
+            }
+            
+            if (currentDay == 1) {
                 
-                // 月结算：扣除服务器月费
-                val monthlyServerCost = RevenueManager.calculateTotalMonthlyServerCost()
-                money -= monthlyServerCost
+                // 月结算：玩家公司粉丝自然增长
+                val releasedGames = games.filter { 
+                    it.releaseStatus == GameReleaseStatus.RELEASED || 
+                    it.releaseStatus == GameReleaseStatus.RATED 
+                }
+                if (releasedGames.isNotEmpty()) {
+                    // 基于已发售游戏数量和平均评分计算粉丝增长
+                    val avgRating = releasedGames.mapNotNull { it.gameRating?.finalScore }.average().toFloat()
+                    val gameCountMultiplier = 1.0 + (releasedGames.size * 0.1) // 每个游戏增加10%增长率
+                    
+                    val baseFansGrowth = when {
+                        avgRating >= 8.0f -> (fans * 0.05).toInt() // 5%增长（高评分）
+                        avgRating >= 6.0f -> (fans * 0.03).toInt() // 3%增长（中等评分）
+                        else -> (fans * 0.01).toInt() // 1%增长（低评分）
+                    }
+                    
+                    val totalFansGrowth = (baseFansGrowth * gameCountMultiplier).toInt().coerceAtLeast(100)
+                    fans = (fans + totalFansGrowth).coerceAtLeast(0)
+                    
+                    Log.d("MainActivity", "月结算粉丝增长: +$totalFansGrowth (游戏数:${releasedGames.size}, 平均评分:$avgRating, 当前粉丝:$fans)")
+                }
                 
                 // 月结算：更新竞争对手
                 val (updatedCompetitors, newNews) = CompetitorManager.updateCompetitors(
@@ -1192,6 +1245,13 @@ fun GameScreen(
                 competitors = updatedCompetitors
                 // 添加新闻，保持最近30条
                 competitorNews = (newNews + competitorNews).take(30)
+                
+                // 检查是否破产（负债达到50万）
+                if (money <= -500000L) {
+                    isPaused = true
+                    showBankruptcyDialog = true
+                    Log.d("MainActivity", "公司破产：当前资金 ¥$money")
+                }
                 
                 if (currentMonth > 12) {
                     currentMonth = 1
@@ -1341,7 +1401,8 @@ fun GameScreen(
                 isPaused = isPaused,
                 onPauseToggle = { isPaused = !isPaused },
                 companyName = companyName,
-                selectedLogo = selectedLogo
+                selectedLogo = selectedLogo,
+                onSettingsClick = { showSettings = true }
             )
             
             // 主要内容区域
@@ -1355,6 +1416,7 @@ fun GameScreen(
                     when (selectedTab) {
                         0 -> CompanyOverviewContent(
                             companyName = companyName,
+                            selectedLogo = selectedLogo,
                             founder = founder,
                             allEmployees = allEmployees,
                             games = games,
@@ -1374,6 +1436,9 @@ fun GameScreen(
                             },
                             money = money,
                             onMoneyUpdate = { updatedMoney -> money = updatedMoney },
+                            currentYear = currentYear,
+                            currentMonth = currentMonth,
+                            currentDay = currentDay,
                             jobPostingRefreshTrigger = jobPostingRefreshTrigger
                         )
                         2 -> ProjectManagementWrapper(
@@ -1402,6 +1467,7 @@ fun GameScreen(
                         3 -> CompetitorContent(
                             saveData = SaveData(
                                 companyName = companyName,
+                                companyLogo = selectedLogo,
                                 founderName = founderName,
                                 founderProfession = founderProfession,
                                 money = money,
@@ -1419,61 +1485,18 @@ fun GameScreen(
                             games = games,
                             money = money,
                             onPurchaseServer = { serverType ->
-                                // 购买服务器到公共池
-                                if (money >= serverType.cost) {
-                                    // 扣除费用
-                                    money -= serverType.cost
-                                    
-                                    // 使用固定的公共池ID存储服务器
-                                    val publicPoolId = "SERVER_PUBLIC_POOL"
-                                    RevenueManager.addServerToGame(
-                                        gameId = publicPoolId,
-                                        serverType = serverType,
-                                        purchaseYear = currentYear,
-                                        purchaseMonth = currentMonth,
-                                        purchaseDay = currentDay
-                                    )
-                                    
-                                    // 同时为所有现有网游添加服务器
-                                    val onlineGames = games.filter { it.businessModel == BusinessModel.ONLINE_GAME }
-                                    onlineGames.forEach { game ->
-                                        RevenueManager.addServerToGame(
-                                            gameId = game.id,
-                                            serverType = serverType,
-                                            purchaseYear = currentYear,
-                                            purchaseMonth = currentMonth,
-                                            purchaseDay = currentDay
-                                        )
-                                    }
-                                    
-                                    // 更新所有网游的服务器信息
-                                    games = games.map { game ->
-                                        if (game.businessModel == BusinessModel.ONLINE_GAME) {
-                                            game.copy(serverInfo = RevenueManager.getGameServerInfo(game.id))
-                                        } else {
-                                            game
-                                        }
-                                    }
-                                }
+                                // 购买服务器到公共池（不立即扣费，按购买日期每30天扣费）
+                                val publicPoolId = "SERVER_PUBLIC_POOL"
+                                RevenueManager.addServerToGame(
+                                    gameId = publicPoolId,
+                                    serverType = serverType,
+                                    purchaseYear = currentYear,
+                                    purchaseMonth = currentMonth,
+                                    purchaseDay = currentDay
+                                )
                             },
                             onMoneyUpdate = { updatedMoney -> money = updatedMoney }
                         )
-                        5 -> InGameSettingsContent(
-                            navController = navController,
-                            money = money,
-                            fans = fans,
-                            currentYear = currentYear,
-                            currentMonth = currentMonth,
-                            currentDay = currentDay,
-                            companyName = companyName,
-                            founderName = founderName,
-                            founderProfession = founderProfession,
-                            games = games,
-                            allEmployees = allEmployees,
-                            competitors = competitors,
-                            competitorNews = competitorNews
-                        )
-                        // 其他标签页内容可以在这里添加
                     }
             }
             
@@ -1604,6 +1627,34 @@ fun GameScreen(
                             existingGame
                         }
                     }
+                    
+                    // 根据游戏评分更新粉丝数（调整为更平衡的数值）
+                    val finalRating = pendingRatingGame!!.gameRating?.finalScore ?: 5.0f
+                    val fansChange = when {
+                        finalRating >= 9.0f -> {
+                            // 评分>=9：神作级别（8000-20000）
+                            (8000..20000).random()
+                        }
+                        finalRating >= 8.0f -> {
+                            // 评分>=8：优秀作品（3000-10000）
+                            (3000..10000).random()
+                        }
+                        finalRating >= 6.5f -> {
+                            // 评分>=6.5：中等偏上（1000-4000）
+                            (1000..4000).random()
+                        }
+                        finalRating >= 5.0f -> {
+                            // 评分>=5：及格水平（500-2000）
+                            (500..2000).random()
+                        }
+                        else -> {
+                            // 评分<5：口碑崩塌（-3000到-1000）
+                            (-3000..-1000).random()
+                        }
+                    }
+                    fans = (fans + fansChange).coerceAtLeast(0) // 粉丝数不能为负
+                    
+                    Log.d("MainActivity", "游戏发布-评分: $finalRating, 粉丝变化: $fansChange, 当前粉丝: $fans")
                     
                     // 自动切换到"已发售"界面，方便玩家查看新发售的游戏
                     selectedProjectType = ProjectDisplayType.RELEASED
@@ -1739,6 +1790,173 @@ fun GameScreen(
                 }
             )
         }
+        
+        // 破产对话框
+        if (showBankruptcyDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    // 破产对话框不允许关闭，必须选择一个选项
+                },
+                title = {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "💸",
+                            fontSize = 48.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "公司破产",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFEF4444)
+                        )
+                    }
+                },
+                text = {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "负债已达到 ¥50万！",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        Text(
+                            text = "当前资金：¥${formatMoney(money)}",
+                            fontSize = 14.sp,
+                            color = Color(0xFFEF4444),
+                            modifier = Modifier.padding(bottom = 16.dp)
+                        )
+                        Text(
+                            text = "公司已无力继续经营...",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                    }
+                },
+                confirmButton = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                showBankruptcyDialog = false
+                                navController.navigate("continue")
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF3B82F6)
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FolderOpen,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("读取存档", fontSize = 16.sp)
+                        }
+                        
+                        OutlinedButton(
+                            onClick = {
+                                showBankruptcyDialog = false
+                                navController.navigate("game_setup") {
+                                    popUpTo("game") { inclusive = true }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color(0xFF10B981)
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("重新开始", fontSize = 16.sp)
+                        }
+                    }
+                },
+                dismissButton = null
+            )
+        }
+        
+        // 设置界面覆盖层
+        if (showSettings) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.95f))
+                    .clickable(enabled = false) {} // 阻止点击事件穿透
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    // 顶部栏（带返回按钮）
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 返回按钮
+                        IconButton(
+                            onClick = { showSettings = false },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Text(
+                                text = "←",
+                                fontSize = 24.sp,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.width(8.dp))
+                        
+                        Text(
+                            text = "游戏设置",
+                            color = Color.White,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    
+                    // 设置内容
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        InGameSettingsContent(
+                            navController = navController,
+                            money = money,
+                            fans = fans,
+                            currentYear = currentYear,
+                            currentMonth = currentMonth,
+                            currentDay = currentDay,
+                            companyName = companyName,
+                            selectedLogo = selectedLogo,
+                            founderName = founderName,
+                            founderProfession = founderProfession,
+                            games = games,
+                            allEmployees = allEmployees,
+                            competitors = competitors,
+                            competitorNews = competitorNews
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1754,7 +1972,8 @@ fun TopInfoBar(
     isPaused: Boolean,
     onPauseToggle: () -> Unit,
     companyName: String = "我的游戏公司",
-    selectedLogo: String = "🎮"
+    selectedLogo: String = "🎮",
+    onSettingsClick: () -> Unit = {}
 ) {
     Box(
         modifier = Modifier
@@ -1777,25 +1996,55 @@ fun TopInfoBar(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 左边区域：公司LOGO和名字（垂直排列）
+            // 左边区域：资金和粉丝（垂直排列）
             Column(
                 modifier = Modifier.weight(1f),
                 horizontalAlignment = Alignment.Start,
                 verticalArrangement = Arrangement.Center
             ) {
-                // 公司LOGO在上
-                Text(
-                    text = selectedLogo,
-                    fontSize = 18.sp
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                // 公司名字在下
-                Text(
-                    text = companyName,
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                // 资金
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "💰",
+                        fontSize = 12.sp
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    // 金额采用滚动动画并保留两位小数
+                    val animatedMoney = remember { Animatable(money.toFloat()) }
+                    LaunchedEffect(money) {
+                        animatedMoney.animateTo(
+                            targetValue = money.toFloat(),
+                            animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing)
+                        )
+                    }
+                    Text(
+                        text = "¥${formatMoneyWithDecimals(animatedMoney.value.toDouble())}",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                // 粉丝
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "❤️",
+                        fontSize = 12.sp
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = formatMoneyWithDecimals(fans.toDouble()),
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
             
             // 中间区域：日期和游戏速度
@@ -1826,59 +2075,36 @@ fun TopInfoBar(
                 }
             }
             
-            // 右边区域：资金、粉丝和设置按钮
-            Column(
+            // 右边区域：设置按钮
+            Box(
                 modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.End
+                contentAlignment = Alignment.CenterEnd
             ) {
-                // 资金
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable { onSettingsClick() }
                 ) {
-                    Text(
-                        text = "💰",
-                        fontSize = 12.sp
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    // 金额采用滚动动画并保留两位小数
-                    val animatedMoney = remember { Animatable(money.toFloat()) }
-                    LaunchedEffect(money) {
-                        animatedMoney.animateTo(
-                            targetValue = money.toFloat(),
-                            animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing)
-                        )
-                    }
-                    Text(
-                        text = "¥${formatMoneyWithDecimals(animatedMoney.value.toDouble())}",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(4.dp))
-                
-                // 粉丝和设置按钮
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // 粉丝
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .background(
+                                color = Color.White.copy(alpha = 0.1f),
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "❤️",
-                            fontSize = 12.sp
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = formatMoney(fans.toLong()),
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
+                            text = "⚙️",
+                            fontSize = 16.sp
                         )
                     }
+                    Text(
+                        text = "设置",
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
                 }
             }
         }
@@ -1888,6 +2114,7 @@ fun TopInfoBar(
 @Composable
 fun CompanyOverviewContent(
     companyName: String = "我的游戏公司",
+    selectedLogo: String = "🎮",
     founder: Founder? = null,
     allEmployees: List<Employee> = emptyList(),
     games: List<Game> = emptyList(),
@@ -2018,6 +2245,7 @@ fun CompanyOverviewContent(
             // 计算公司市值（使用统一的市值计算函数）
             val currentSaveData = SaveData(
                 companyName = companyName,
+                companyLogo = selectedLogo,
                 founderName = founder?.name ?: "",
                 founderProfession = founder?.profession,
                 money = money,
@@ -2035,6 +2263,7 @@ fun CompanyOverviewContent(
             // 公司基本信息
             CompanyInfoCard(
                 title = "公司信息",
+                logo = selectedLogo, // 玩家选择的公司LOGO
                 items = listOf(
                     "公司名称" to companyName,
                     "成立时间" to "第1年1月1日",
@@ -2085,17 +2314,7 @@ fun CompanyOverviewContent(
                 }
             }
             
-            // 计算上个月总收入（简化：取最近30天的收入）
-            var lastMonthRevenue = 0.0
-            releasedGames.forEach { game ->
-                val revenue = RevenueManager.getGameRevenue(game.id)
-                if (revenue != null && revenue.dailySalesList.isNotEmpty()) {
-                    val recentDays = revenue.dailySalesList.takeLast(30)
-                    lastMonthRevenue += recentDays.sumOf { it.revenue }
-                }
-            }
-            
-            // 计算去年总收入（简化：取最近365天的收入）
+            // 计算总收入（简化：取最近365天的收入）
             var lastYearRevenue = 0.0
             releasedGames.forEach { game ->
                 val revenue = RevenueManager.getGameRevenue(game.id)
@@ -2110,8 +2329,7 @@ fun CompanyOverviewContent(
                 items = listOf(
                     "单机收入" to "¥${formatMoneyWithDecimals(singlePlayerRevenue)}",
                     "网游收入" to "¥${formatMoneyWithDecimals(onlineGameRevenue)}",
-                    "上个月总收入" to "¥${formatMoneyWithDecimals(lastMonthRevenue)}",
-                    "去年总收入" to "¥${formatMoneyWithDecimals(lastYearRevenue)}"
+                    "总收入" to "¥${formatMoneyWithDecimals(lastYearRevenue)}"
                 )
             )
             
@@ -2124,7 +2342,8 @@ fun CompanyOverviewContent(
 @Composable
 fun CompanyInfoCard(
     title: String,
-    items: List<Pair<String, String>>
+    items: List<Pair<String, String>>,
+    logo: String? = null // 可选的公司LOGO
 ) {
     Box(
         modifier = Modifier
@@ -2137,14 +2356,44 @@ fun CompanyInfoCard(
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            Text(
-                text = title,
-                color = Color(0xFFF59E0B), // 橙色强调色
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
-            )
-            
-            Spacer(modifier = Modifier.height(12.dp))
+            // 标题行（包含LOGO）
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(bottom = 12.dp)
+            ) {
+                // 如果有LOGO，显示在左侧
+                if (logo != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        Color(0xFFF59E0B),
+                                        Color(0xFFD97706)
+                                    )
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = logo,
+                            fontSize = 24.sp
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.width(12.dp))
+                }
+                
+                Text(
+                    text = title,
+                    color = Color(0xFFF59E0B), // 橙色强调色
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
             
             items.forEach { (label, value) ->
                 Row(
@@ -2236,13 +2485,6 @@ fun EnhancedBottomNavigationBar(
                 label = "服务器",
                 isSelected = selectedTab == 4,
                 onClick = { onTabSelected(4) }
-            )
-            
-            EnhancedBottomNavItem(
-                icon = "⚙️",
-                label = "设置",
-                isSelected = selectedTab == 5,
-                onClick = { onTabSelected(5) }
             )
         }
     }
@@ -2353,7 +2595,7 @@ fun ContinueScreen(navController: NavController) {
                         // 设置全局存档数据，以便GameScreen可以使用
                         currentLoadedSaveData = saveData
                         Toast.makeText(context, "加载存档 $slotIndex", Toast.LENGTH_SHORT).show()
-                        navController.navigate("game/${saveData.companyName}/${saveData.founderName}/🎮/${saveData.founderProfession?.name ?: "PROGRAMMER"}")
+                        navController.navigate("game/${saveData.companyName}/${saveData.founderName}/${saveData.companyLogo}/${saveData.founderProfession?.name ?: "PROGRAMMER"}")
                     },
                     onDeleteSave = {
                         saveToDelete = Pair(slotIndex, saves[slotIndex])
@@ -2531,16 +2773,25 @@ fun SaveSlotCard(
                         }
                     }
                     
-                    Text(
-                        text = "公司: ${saveData.companyName}",
-                        fontSize = 13.sp,
-                        color = Color.White.copy(alpha = 0.8f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = saveData.companyLogo,
+                            fontSize = 16.sp,
+                            modifier = Modifier.padding(end = 4.dp)
+                        )
+                        Text(
+                            text = "公司: ${saveData.companyName}",
+                            fontSize = 13.sp,
+                            color = Color.White.copy(alpha = 0.8f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                     
                     Text(
-                        text = "资金: ¥${saveData.money} | 粉丝: ${saveData.fans}",
+                        text = "资金: ¥${formatMoney(saveData.money)} | 粉丝: ${formatMoneyWithDecimals(saveData.fans.toDouble())}",
                         fontSize = 13.sp,
                         color = Color.White.copy(alpha = 0.8f),
                         maxLines = 1,
@@ -2711,6 +2962,7 @@ fun InGameSettingsContent(
     currentMonth: Int = 1,
     currentDay: Int = 1,
     companyName: String = "我的游戏公司",
+    selectedLogo: String = "🎮",
     founderName: String = "创始人",
     founderProfession: FounderProfession = FounderProfession.PROGRAMMER,
     games: List<Game> = emptyList(),
@@ -2729,14 +2981,6 @@ fun InGameSettingsContent(
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        Text(
-            text = "⚙️ 游戏设置",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            modifier = Modifier.padding(bottom = 24.dp)
-        )
-        
         // 保存游戏按钮
         Button(
             onClick = {
@@ -2838,7 +3082,7 @@ fun InGameSettingsContent(
                             fontSize = 14.sp
                         )
                         Text(
-                            text = "资金: ¥${formatMoney(selectedExistingSave!!.money)} | 粉丝: ${formatMoney(selectedExistingSave!!.fans.toLong())}",
+                            text = "资金: ¥${formatMoney(selectedExistingSave!!.money)} | 粉丝: ${formatMoneyWithDecimals(selectedExistingSave!!.fans.toDouble())}",
                             color = Color.White.copy(alpha = 0.6f),
                             fontSize = 14.sp
                         )
@@ -2856,6 +3100,7 @@ fun InGameSettingsContent(
                         onClick = {
                             val saveData = SaveData(
                                 companyName = companyName,
+                                companyLogo = selectedLogo,
                                 founderName = founderName,
                                 founderProfession = founderProfession,
                                 money = money,
@@ -2945,6 +3190,7 @@ fun InGameSettingsContent(
                                         // 空存档，直接保存
                                         val saveData = SaveData(
                                             companyName = companyName,
+                                            companyLogo = selectedLogo,
                                             founderName = founderName,
                                             founderProfession = founderProfession,
                                             money = money,
@@ -2993,7 +3239,7 @@ fun InGameSettingsContent(
                                         fontSize = 12.sp
                                     )
                                     Text(
-                                        text = "资金: ¥${formatMoney(existingSave.money)} | 粉丝: ${formatMoney(existingSave.fans.toLong())}",
+                                        text = "资金: ¥${formatMoney(existingSave.money)} | 粉丝: ${formatMoneyWithDecimals(existingSave.fans.toDouble())}",
                                         color = Color.White.copy(alpha = 0.7f),
                                         fontSize = 12.sp
                                     )

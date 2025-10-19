@@ -216,6 +216,11 @@ fun EmployeeAssignmentDialog(
     onDismiss: () -> Unit,
     onAssignEmployees: (List<Employee>) -> Unit
 ) {
+    // 过滤掉客服，客服不参与开发
+    val developmentEmployees = remember(availableEmployees) {
+        availableEmployees.filter { it.position != "客服" }
+    }
+    
     var selectedEmployees by remember { mutableStateOf(game.assignedEmployees.toSet()) }
     
     Dialog(onDismissRequest = onDismiss) {
@@ -246,9 +251,9 @@ fun EmployeeAssignmentDialog(
                 
 
                 
-                // 可用员工列表
+                // 可用员工列表（排除客服）
                 Text(
-                    text = "可用员工 (${availableEmployees.size}人):",
+                    text = "可用开发人员 (${developmentEmployees.size}人):",
                     color = Color.White.copy(alpha = 0.9f),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium
@@ -260,7 +265,7 @@ fun EmployeeAssignmentDialog(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(availableEmployees) { employee ->
+                    items(developmentEmployees) { employee ->
                         EmployeeSelectionCard(
                             employee = employee,
                             isSelected = selectedEmployees.contains(employee),
@@ -320,7 +325,7 @@ fun EmployeeAssignmentDialog(
                             val assignmentService = EnhancedAssignmentService()
                             val result = assignmentService.assignBestEmployeesToProject(
                                 game,
-                                availableEmployees
+                                developmentEmployees
                             )
                             selectedEmployees = result.assignedEmployees.toSet()
                         },

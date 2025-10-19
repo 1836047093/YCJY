@@ -169,6 +169,10 @@ object RevenueManager {
         val loadedMap = deserializeServerMap(json)
         gameServerMap.clear()
         gameServerMap.putAll(loadedMap)
+        
+        // 数据迁移：强制保存一次，确保lastBilling字段被持久化
+        saveServerData()
+        android.util.Log.d("RevenueManager", "服务器数据迁移完成，lastBilling字段已保存")
     }
     
     /**
@@ -200,7 +204,10 @@ object RevenueManager {
             sb.append("\"purchaseYear\":${server.purchaseYear},")
             sb.append("\"purchaseMonth\":${server.purchaseMonth},")
             sb.append("\"purchaseDay\":${server.purchaseDay},")
-            sb.append("\"isActive\":${server.isActive}")
+            sb.append("\"isActive\":${server.isActive},")
+            sb.append("\"lastBillingYear\":${server.lastBillingYear},")
+            sb.append("\"lastBillingMonth\":${server.lastBillingMonth},")
+            sb.append("\"lastBillingDay\":${server.lastBillingDay}")
             sb.append("}")
         }
         sb.append("]}")
@@ -281,6 +288,11 @@ object RevenueManager {
                     val purchaseDay = extractIntField(serverJson, "purchaseDay")
                     val isActive = extractBooleanField(serverJson, "isActive")
                     
+                    // 提取lastBilling字段（兼容旧存档，如果不存在则使用purchase日期）
+                    val lastBillingYear = extractIntFieldOrDefault(serverJson, "lastBillingYear", purchaseYear)
+                    val lastBillingMonth = extractIntFieldOrDefault(serverJson, "lastBillingMonth", purchaseMonth)
+                    val lastBillingDay = extractIntFieldOrDefault(serverJson, "lastBillingDay", purchaseDay)
+                    
                     val serverType = ServerType.valueOf(typeName)
                     servers.add(
                         ServerInstance(
@@ -289,7 +301,10 @@ object RevenueManager {
                             purchaseYear = purchaseYear,
                             purchaseMonth = purchaseMonth,
                             purchaseDay = purchaseDay,
-                            isActive = isActive
+                            isActive = isActive,
+                            lastBillingYear = lastBillingYear,
+                            lastBillingMonth = lastBillingMonth,
+                            lastBillingDay = lastBillingDay
                         )
                     )
                     
@@ -315,6 +330,13 @@ object RevenueManager {
         val regex = Regex(pattern)
         val match = regex.find(json)
         return match?.groupValues?.get(1)?.toIntOrNull() ?: 0
+    }
+    
+    private fun extractIntFieldOrDefault(json: String, fieldName: String, defaultValue: Int): Int {
+        val pattern = "\"$fieldName\":(\\d+)"
+        val regex = Regex(pattern)
+        val match = regex.find(json)
+        return match?.groupValues?.get(1)?.toIntOrNull() ?: defaultValue
     }
     
     private fun extractBooleanField(json: String, fieldName: String): Boolean {
@@ -991,24 +1013,24 @@ object RevenueManager {
         if (enabledItems.isEmpty()) return emptyList()
         
         return enabledItems.map { item ->
-            // 根据付费内容类型设置不同的付费率（已调整为更真实的数值）
+            // 根据付费内容类型设置不同的付费率（大幅度降低，避免收益过高）
             val purchaseRate = when (item.type.displayName) {
-                "皮肤与外观" -> 0.005  // 0.5%的活跃玩家会购买皮肤
-                "成长加速道具" -> 0.008  // 0.8%会购买加速道具
-                "稀有装备" -> 0.003  // 0.3%会购买稀有装备
-                "赛季通行证" -> 0.015  // 1.5%会购买赛季通行证
-                "强力角色" -> 0.004  // 0.4%会购买角色
-                "VIP会员" -> 0.010  // 1.0%会购买VIP
-                "抽卡系统" -> 0.020  // 2.0%会参与抽卡
-                "扩展包" -> 0.006  // 0.6%会购买扩展包
-                "资源包" -> 0.012  // 1.2%会购买资源包
-                "战斗通行证" -> 0.018  // 1.8%会购买战斗通行证
-                "宠物与坐骑" -> 0.007  // 0.7%会购买宠物
-                "便利工具" -> 0.009  // 0.9%会购买工具
-                "专属剧情" -> 0.005  // 0.5%会购买剧情
-                "建造蓝图" -> 0.008  // 0.8%会购买蓝图
-                "社交道具" -> 0.006  // 0.6%会购买社交道具
-                else -> 0.005  // 默认0.5%
+                "皮肤与外观" -> 0.001  // 0.1%的活跃玩家会购买皮肤
+                "成长加速道具" -> 0.0015  // 0.15%会购买加速道具
+                "稀有装备" -> 0.0006  // 0.06%会购买稀有装备
+                "赛季通行证" -> 0.003  // 0.3%会购买赛季通行证
+                "强力角色" -> 0.0008  // 0.08%会购买角色
+                "VIP会员" -> 0.002  // 0.2%会购买VIP
+                "抽卡系统" -> 0.004  // 0.4%会参与抽卡
+                "扩展包" -> 0.0012  // 0.12%会购买扩展包
+                "资源包" -> 0.0025  // 0.25%会购买资源包
+                "战斗通行证" -> 0.0035  // 0.35%会购买战斗通行证
+                "宠物与坐骑" -> 0.0014  // 0.14%会购买宠物
+                "便利工具" -> 0.0018  // 0.18%会购买工具
+                "专属剧情" -> 0.001  // 0.1%会购买剧情
+                "建造蓝图" -> 0.0016  // 0.16%会购买蓝图
+                "社交道具" -> 0.0012  // 0.12%会购买社交道具
+                else -> 0.001  // 默认0.1%
             }
             
             // 计算购买人数（带随机波动）
@@ -1141,21 +1163,98 @@ object RevenueManager {
     }
     
     /**
-     * 计算所有服务器的总月费
+     * 计算所有服务器的总月费（已弃用，改用checkAndBillServers）
      */
+    @Deprecated("使用checkAndBillServers代替")
     fun calculateTotalMonthlyServerCost(): Long {
         var totalCost = 0L
         gameServerMap.entries.forEach { (gameId, serverInfo) ->
-            // 排除公共池，避免重复计费（公共池的服务器已经分配到各个游戏中）
-            if (gameId != "SERVER_PUBLIC_POOL") {
-                serverInfo.servers.forEach { server ->
-                    if (server.isActive) {
-                        totalCost += server.type.cost
-                    }
+            serverInfo.servers.forEach { server ->
+                if (server.isActive) {
+                    totalCost += server.type.cost
                 }
             }
         }
         return totalCost
+    }
+    
+    /**
+     * 检查并扣除到期服务器的月费
+     * 每个服务器按购买日期独立计费，每30天扣一次费
+     * @return 本次扣费总金额
+     */
+    fun checkAndBillServers(
+        currentYear: Int,
+        currentMonth: Int,
+        currentDay: Int
+    ): Long {
+        android.util.Log.d("ServerBilling", "========== 开始检查服务器扣费 ==========")
+        android.util.Log.d("ServerBilling", "当前日期: ${currentYear}年${currentMonth}月${currentDay}日")
+        android.util.Log.d("ServerBilling", "服务器总数: ${gameServerMap.size}, 详情: ${gameServerMap.keys}")
+        
+        var totalBillingCost = 0L
+        val updatedGameServerMap = mutableMapOf<String, GameServerInfo>()
+        
+        gameServerMap.entries.forEach { (gameId, serverInfo) ->
+            android.util.Log.d("ServerBilling", "检查游戏/池: $gameId, 服务器数量: ${serverInfo.servers.size}")
+            
+            val updatedServers = serverInfo.servers.map { server ->
+                if (server.isActive) {
+                    // 计算距离上次扣费的天数
+                    val daysSinceLastBilling = calculateDaysSinceLaunch(
+                        releaseYear = server.lastBillingYear,
+                        releaseMonth = server.lastBillingMonth,
+                        releaseDay = server.lastBillingDay,
+                        currentYear = currentYear,
+                        currentMonth = currentMonth,
+                        currentDay = currentDay
+                    )
+                    
+                    android.util.Log.d("ServerBilling", 
+                        "服务器${server.id} - 类型:${server.type.displayName}, " +
+                        "上次扣费:${server.lastBillingYear}年${server.lastBillingMonth}月${server.lastBillingDay}日, " +
+                        "当前:${currentYear}年${currentMonth}月${currentDay}日, " +
+                        "距离天数:${daysSinceLastBilling}天(包含租用当天=${daysSinceLastBilling + 1}天), 月费:¥${server.type.cost}"
+                    )
+                    
+                    // 如果已经过了29天（即第30天，包含租用当天），扣费
+                    // 例如：1月3日租用，2月2日扣费（间隔29天，包含租用日共30天）
+                    if (daysSinceLastBilling >= 29) {
+                        totalBillingCost += server.type.cost
+                        android.util.Log.d("ServerBilling", 
+                            "✓ 扣费成功！服务器${server.id} - ¥${server.type.cost}, 累计:¥${totalBillingCost}"
+                        )
+                        // 更新扣费日期
+                        server.copy(
+                            lastBillingYear = currentYear,
+                            lastBillingMonth = currentMonth,
+                            lastBillingDay = currentDay
+                        )
+                    } else {
+                        android.util.Log.d("ServerBilling", 
+                            "○ 未到扣费周期，服务器${server.id} - 还需${29 - daysSinceLastBilling}天"
+                        )
+                        server
+                    }
+                } else {
+                    android.util.Log.d("ServerBilling", "服务器${server.id} - 已停用，跳过")
+                    server
+                }
+            }
+            updatedGameServerMap[gameId] = serverInfo.copy(servers = updatedServers)
+        }
+        
+        // 更新服务器数据
+        gameServerMap.clear()
+        gameServerMap.putAll(updatedGameServerMap)
+        if (totalBillingCost > 0) {
+            saveServerData()
+        }
+        
+        android.util.Log.d("ServerBilling", "========== 扣费检查完成 ==========")
+        android.util.Log.d("ServerBilling", "本次扣费总额: ¥$totalBillingCost")
+        
+        return totalBillingCost
     }
     
     /**

@@ -37,6 +37,9 @@ fun EmployeeManagementContent(
     onEmployeesUpdate: (List<Employee>) -> Unit,
     money: Long,
     onMoneyUpdate: (Long) -> Unit,
+    currentYear: Int,
+    currentMonth: Int,
+    currentDay: Int,
     onNavigateToTalentMarket: () -> Unit = {},
     jobPostingRefreshTrigger: Int = 0 // 用于触发应聘者数据刷新
 ) {
@@ -232,9 +235,21 @@ fun EmployeeManagementContent(
     if (showFireDialog && selectedEmployee != null) {
         EnhancedFireDialog(
             employee = selectedEmployee!!,
+            currentYear = currentYear,
+            currentMonth = currentMonth,
+            currentDay = currentDay,
+            currentMoney = money,
             onConfirm = {
+                // 计算赔偿金额
+                val severancePay = selectedEmployee!!.calculateSeverancePay(currentYear, currentMonth, currentDay)
+                
+                // 扣除赔偿金额
+                onMoneyUpdate(money - severancePay)
+                
+                // 移除员工
                 val updatedEmployees = allEmployees.filter { it.id != selectedEmployee!!.id }
                 onEmployeesUpdate(updatedEmployees)
+                
                 showFireDialog = false
                 selectedEmployee = null
             },
@@ -255,18 +270,19 @@ fun EmployeeManagementContent(
             onDismiss = { showTalentMarketDialog = false },
             jobPostingRefreshTrigger = jobPostingRefreshTrigger,
             onRecruitCandidate = { candidate ->
+                // 检查员工数量限制
+                if (allEmployees.size >= 30) {
+                    // 已达上限，不执行招聘
+                    // 可以显示提示消息（这里需要添加消息显示机制）
+                    return@NewTalentMarketDialog
+                }
+                
                 // 招聘候选人的逻辑
-                val newEmployee = Employee(
-                    id = (allEmployees.maxOfOrNull { it.id } ?: 0) + 1,
-                    name = candidate.name,
-                    position = candidate.position,
-                    skillDevelopment = candidate.skillDevelopment,
-                    skillDesign = candidate.skillDesign,
-                    skillArt = candidate.skillArt,
-                    skillMusic = candidate.skillMusic,
-                    skillService = candidate.skillService,
-                    salary = candidate.expectedSalary,
-                    experience = candidate.experience
+                val newEmployee = candidate.toEmployee(
+                    newId = (allEmployees.maxOfOrNull { it.id } ?: 0) + 1,
+                    hireYear = currentYear,
+                    hireMonth = currentMonth,
+                    hireDay = currentDay
                 )
                 
                 // 添加新员工到列表
@@ -568,30 +584,32 @@ fun EnhancedEmployeeCard(
                     
                     Spacer(modifier = Modifier.height(16.dp))
                     
-                    // 操作按钮
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        ModernButton(
-                            text = "培训",
-                            icon = Icons.Default.School,
-                            onClick = onTrainClick,
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF3B82F6)
+                    // 操作按钮（创始人不显示培训和解雇按钮）
+                    if (!employee.isFounder) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            ModernButton(
+                                text = "培训",
+                                icon = Icons.Default.School,
+                                onClick = onTrainClick,
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF3B82F6)
+                                )
                             )
-                        )
-                        
-                        ModernButton(
-                            text = "解雇",
-                            icon = Icons.Default.PersonRemove,
-                            onClick = onFireClick,
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFFEF4444)
+                            
+                            ModernButton(
+                                text = "解雇",
+                                icon = Icons.Default.PersonRemove,
+                                onClick = onFireClick,
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFFEF4444)
+                                )
                             )
-                        )
+                        }
                     }
                 }
             }
@@ -777,6 +795,10 @@ fun EnhancedTrainingDialog(
 @Composable
 fun EnhancedFireDialog(
     employee: Employee,
+    currentYear: Int,
+    currentMonth: Int,
+    currentDay: Int,
+    currentMoney: Long,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -820,6 +842,131 @@ fun EnhancedFireDialog(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
+                
+                // 计算赔偿信息
+                val workMonths = employee.calculateWorkMonths(currentYear, currentMonth, currentDay)
+                val workYears = (workMonths + 11) / 12
+                val severancePay = employee.calculateSeverancePay(currentYear, currentMonth, currentDay)
+                val compensationMonths = 2 * workYears + 1
+                
+                // 赔偿信息卡片
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF374151)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "💰 解雇赔偿详情",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFBBF24),
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "月薪：",
+                                fontSize = 13.sp,
+                                color = Color.White.copy(alpha = 0.7f)
+                            )
+                            Text(
+                                text = "¥${employee.salary}",
+                                fontSize = 13.sp,
+                                color = Color.White
+                            )
+                        }
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "工作时长：",
+                                fontSize = 13.sp,
+                                color = Color.White.copy(alpha = 0.7f)
+                            )
+                            Text(
+                                text = "${workYears}年${workMonths % 12}个月 (${workMonths}个月)",
+                                fontSize = 13.sp,
+                                color = Color.White
+                            )
+                        }
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "赔偿公式：",
+                                fontSize = 13.sp,
+                                color = Color.White.copy(alpha = 0.7f)
+                            )
+                            Text(
+                                text = "2N+1 = ${compensationMonths}个月工资",
+                                fontSize = 13.sp,
+                                color = Color.White
+                            )
+                        }
+                        
+                        HorizontalDivider(
+                            color = Color.White.copy(alpha = 0.2f),
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "赔偿金额：",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "¥$severancePay",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFEF4444)
+                            )
+                        }
+                    }
+                }
+                
+                // 资金不足警告
+                if (currentMoney < severancePay) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = "资金不足",
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "资金不足，解雇后将负债！",
+                            fontSize = 12.sp,
+                            color = Color(0xFFEF4444)
+                        )
+                    }
+                }
                 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

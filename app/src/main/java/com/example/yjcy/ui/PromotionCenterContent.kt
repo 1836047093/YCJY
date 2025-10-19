@@ -89,7 +89,7 @@ fun PromotionCenterContent(
                     ) {
                         PromotionOverviewItem(
                             label = "当前粉丝",
-                            value = "${fans / 1000}K",
+                            value = formatMoneyWithDecimals(fans.toDouble()),
                             icon = "👥"
                         )
                         PromotionOverviewItem(

@@ -116,7 +116,17 @@ fun EnhancedAssignmentResultDialog(
                             )
                         }
                         
-                        // 未分配员工
+                        // 无法分配的项目
+                        if (assignmentResult.failedProjects.isNotEmpty()) {
+                            item {
+                                FailedProjectsCard(
+                                    failedProjects = assignmentResult.failedProjects,
+                                    projectNames = projectNames
+                                )
+                            }
+                        }
+                        
+                        // 无法分配的员工
                         if (assignmentResult.unassignedEmployees.isNotEmpty()) {
                             item {
                                 UnassignedEmployeesCard(assignmentResult.unassignedEmployees)
@@ -127,37 +137,55 @@ fun EnhancedAssignmentResultDialog(
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     // 按钮
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = onDismiss,
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = Color.White
-                            ),
-                            border = ButtonDefaults.outlinedButtonBorder.copy(
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(Color.White.copy(alpha = 0.5f), Color.White.copy(alpha = 0.3f))
-                                )
-                            )
-                        ) {
-                            Text("重新分配")
-                        }
-                        
+                    if (assignmentResult.assignments.isEmpty()) {
+                        // 如果没有成功分配任何项目，只显示关闭按钮
                         Button(
-                            onClick = onConfirm,
-                            modifier = Modifier.weight(1f),
+                            onClick = onDismiss,
+                            modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF10B981)
+                                containerColor = Color(0xFFEF4444)
                             )
                         ) {
                             Text(
-                                text = "确认分配",
+                                text = "关闭",
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold
                             )
+                        }
+                    } else {
+                        // 有成功分配的项目，显示重新分配和确认分配按钮
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = onDismiss,
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = Color.White
+                                ),
+                                border = ButtonDefaults.outlinedButtonBorder.copy(
+                                    brush = Brush.horizontalGradient(
+                                        colors = listOf(Color.White.copy(alpha = 0.5f), Color.White.copy(alpha = 0.3f))
+                                    )
+                                )
+                            ) {
+                                Text("重新分配")
+                            }
+                            
+                            Button(
+                                onClick = onConfirm,
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF10B981)
+                                )
+                            ) {
+                                Text(
+                                    text = "确认分配",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }
@@ -317,7 +345,84 @@ private fun ProjectAssignmentCard(
 }
 
 /**
- * 未分配员工卡片
+ * 无法分配的项目卡片
+ */
+@Composable
+private fun FailedProjectsCard(
+    failedProjects: Map<String, String>,
+    projectNames: Map<String, String>
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFFEF4444).copy(alpha = 0.2f)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(bottom = 8.dp)
+            ) {
+                Text(
+                    text = "❌",
+                    fontSize = 20.sp,
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+                Text(
+                    text = "无法开发",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFEF4444)
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            failedProjects.forEach { (projectId, reason) ->
+                // 解析reason字符串，提取当前已有和需要的员工数
+                val staffInfo = parseStaffRequirement(reason)
+                
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFFEF4444).copy(alpha = 0.1f)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp)
+                    ) {
+                        Text(
+                            text = projectNames[projectId] ?: "项目 $projectId",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = staffInfo,
+                            fontSize = 13.sp,
+                            color = Color.White.copy(alpha = 0.9f),
+                            lineHeight = 18.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 无法分配的员工卡片
  */
 @Composable
 private fun UnassignedEmployeesCard(unassignedEmployees: List<Employee>) {
@@ -334,7 +439,7 @@ private fun UnassignedEmployeesCard(unassignedEmployees: List<Employee>) {
                 .padding(16.dp)
         ) {
             Text(
-                text = "未分配员工 (${unassignedEmployees.size}人)",
+                text = "无法分配的员工 (${unassignedEmployees.size}人)",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFFF59E0B)
@@ -351,5 +456,64 @@ private fun UnassignedEmployeesCard(unassignedEmployees: List<Employee>) {
                 )
             }
         }
+    }
+}
+
+/**
+ * 解析员工需求字符串，生成新的显示格式
+ * 输入示例："程序员需要5人，当前只有1人；策划师需要5人，当前只有0人；美术师需要5人，当前只有0人；音效师需要5人，当前只有0人"
+ * 输出示例："目前已有程序1名，还需要4名程序，5名美术，5名策划，5名音效"
+ */
+private fun parseStaffRequirement(reason: String): String {
+    // 岗位映射（全称 -> 简称）
+    val positionMap = mapOf(
+        "程序员" to "程序",
+        "策划师" to "策划",
+        "美术师" to "美术",
+        "音效师" to "音效"
+    )
+    
+    // 解析reason字符串
+    val staffData = mutableMapOf<String, Pair<Int, Int>>() // 岗位 -> (需要人数, 当前人数)
+    
+    reason.split("；").forEach { part ->
+        // 匹配格式："程序员需要5人，当前只有1人"
+        val regex = """(\S+)需要(\d+)人，当前只有(\d+)人""".toRegex()
+        val matchResult = regex.find(part.trim())
+        
+        if (matchResult != null) {
+            val position = matchResult.groupValues[1]
+            val required = matchResult.groupValues[2].toInt()
+            val current = matchResult.groupValues[3].toInt()
+            staffData[position] = Pair(required, current)
+        }
+    }
+    
+    // 计算总的当前人数
+    val totalCurrent = staffData.values.sumOf { it.second }
+    
+    // 构建需求列表
+    val needsList = mutableListOf<String>()
+    staffData.forEach { (position, counts) ->
+        val (required, current) = counts
+        val needed = required - current
+        if (needed > 0) {
+            val shortName = positionMap[position] ?: position
+            needsList.add("${needed}名${shortName}")
+        }
+    }
+    
+    // 构建最终字符串
+    return if (totalCurrent > 0 && needsList.isNotEmpty()) {
+        // 找出当前已有的岗位（假设只有一种岗位有人）
+        val currentPosition = staffData.entries.firstOrNull { it.value.second > 0 }
+        val currentShortName = currentPosition?.let { positionMap[it.key] ?: it.key } ?: "员工"
+        val currentCount = currentPosition?.value?.second ?: 0
+        
+        "目前已有${currentShortName}${currentCount}名，还需要" + needsList.joinToString("，")
+    } else if (needsList.isNotEmpty()) {
+        "还需要" + needsList.joinToString("，")
+    } else {
+        "人员配置完整"
     }
 }

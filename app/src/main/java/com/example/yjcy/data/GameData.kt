@@ -45,7 +45,10 @@ data class Employee(
     val salary: Int = 0,
     val experience: Int = 0,
     val motivation: Int = 100,
-    val isFounder: Boolean = false
+    val isFounder: Boolean = false,
+    val hireYear: Int = 1,  // 入职年份
+    val hireMonth: Int = 1, // 入职月份
+    val hireDay: Int = 1    // 入职日期
 ) {
     /**
      * 获取员工的专属技能类型
@@ -117,6 +120,50 @@ data class Employee(
             else -> 0
         }
     }
+    
+    /**
+     * 计算员工工作的总月数
+     * @param currentYear 当前游戏年份
+     * @param currentMonth 当前游戏月份
+     * @param currentDay 当前游戏日期
+     * @return 工作的总月数（向上取整）
+     */
+    fun calculateWorkMonths(currentYear: Int, currentMonth: Int, currentDay: Int): Int {
+        // 计算年份差
+        val yearDiff = currentYear - hireYear
+        // 计算月份差
+        val monthDiff = currentMonth - hireMonth
+        // 计算总月数
+        var totalMonths = yearDiff * 12 + monthDiff
+        
+        // 如果当前日期大于等于入职日期，说明已经满一个月了，需要+1
+        if (currentDay >= hireDay) {
+            totalMonths++
+        }
+        
+        // 确保至少1个月
+        return maxOf(1, totalMonths)
+    }
+    
+    /**
+     * 计算解雇赔偿金额（2N+1公式）
+     * N = 工作年数（向上取整）
+     * 赔偿金额 = 月薪 × (2N + 1)
+     * 
+     * @param currentYear 当前游戏年份
+     * @param currentMonth 当前游戏月份
+     * @param currentDay 当前游戏日期
+     * @return 赔偿金额
+     */
+    fun calculateSeverancePay(currentYear: Int, currentMonth: Int, currentDay: Int): Int {
+        val workMonths = calculateWorkMonths(currentYear, currentMonth, currentDay)
+        // 计算工作年数（向上取整）
+        val workYears = (workMonths + 11) / 12  // 向上取整：(月数 + 11) / 12
+        // 赔偿月数 = 2N + 1
+        val compensationMonths = 2 * workYears + 1
+        // 赔偿金额 = 月薪 × 赔偿月数
+        return salary * compensationMonths
+    }
 }
 
 // 创始人数据类
@@ -125,7 +172,11 @@ data class Founder(
     val profession: FounderProfession,
     val skillLevel: Int = SkillConstants.FOUNDER_SKILL_LEVEL // 使用常量定义
 ) {
-    fun toEmployee(): Employee {
+    fun toEmployee(
+        hireYear: Int = 1,
+        hireMonth: Int = 1,
+        hireDay: Int = 1
+    ): Employee {
         return Employee(
             id = 0, // 特殊ID标识创始人
             name = name,
@@ -136,7 +187,10 @@ data class Founder(
             skillMusic = if (profession.specialtySkill == "音乐") SkillConstants.FOUNDER_SKILL_LEVEL else 0,
             skillService = if (profession.specialtySkill == "服务") SkillConstants.FOUNDER_SKILL_LEVEL else 0,
             salary = 0, // 创始人无薪资
-            isFounder = true
+            isFounder = true,
+            hireYear = hireYear,
+            hireMonth = hireMonth,
+            hireDay = hireDay
         )
     }
 }
@@ -256,6 +310,7 @@ data class VipPriceRecommendation(
 // 存档数据类
 data class SaveData(
     val companyName: String = "我的游戏公司",
+    val companyLogo: String = "🎮", // 公司LOGO
     val founderName: String = "创始人",
     val founderProfession: FounderProfession? = null, // 新增字段，向后兼容
     val money: Long = 1000000L,

@@ -50,7 +50,12 @@ data class TalentCandidate(
     /**
      * 转换为Employee对象
      */
-    fun toEmployee(newId: Int): Employee {
+    fun toEmployee(
+        newId: Int,
+        hireYear: Int,
+        hireMonth: Int,
+        hireDay: Int
+    ): Employee {
         return Employee(
             id = newId,
             name = name,
@@ -63,7 +68,10 @@ data class TalentCandidate(
             salary = expectedSalary,
             experience = experience,
             motivation = Random.nextInt(80, 101), // 新员工动机较高
-            isFounder = false
+            isFounder = false,
+            hireYear = hireYear,
+            hireMonth = hireMonth,
+            hireDay = hireDay
         )
     }
     

@@ -14,8 +14,8 @@ android {
         applicationId = "com.example.yjcy"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -111,6 +111,7 @@ dependencies {
     implementation(libs.tap.core)
     implementation(libs.tap.login)
     implementation(libs.tap.compliance)
+    implementation(libs.tap.update)
     
     // JSON序列化（TapSDK需要）
     implementation(libs.kotlinx.serialization.json)

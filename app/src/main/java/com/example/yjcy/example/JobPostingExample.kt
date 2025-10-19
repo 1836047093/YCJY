@@ -16,7 +16,12 @@ import com.example.yjcy.service.JobPostingService
  * 示例1: 在员工管理界面中使用
  */
 @Composable
-fun EmployeeManagementExample(saveData: SaveData) {
+fun EmployeeManagementExample(
+    saveData: SaveData,
+    currentYear: Int = 1,
+    currentMonth: Int = 1,
+    currentDay: Int = 1
+) {
     var showTalentMarket by remember { mutableStateOf(false) }
     
     // 按钮触发打开人才市场
@@ -34,7 +39,10 @@ fun EmployeeManagementExample(saveData: SaveData) {
             onRecruitCandidate = { candidate ->
                 // 将候选人转换为员工并添加到员工列表
                 val newEmployee = candidate.toEmployee(
-                    newId = saveData.allEmployees.size + 1
+                    newId = saveData.allEmployees.size + 1,
+                    hireYear = currentYear,
+                    hireMonth = currentMonth,
+                    hireDay = currentDay
                 )
                 
                 // 扣除招聘费用（这里需要在调用处更新SaveData）

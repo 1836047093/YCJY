@@ -28,6 +28,7 @@ import com.example.yjcy.data.CompetitorGame
 import com.example.yjcy.data.CompetitorNews
 import com.example.yjcy.data.NewsType
 import com.example.yjcy.data.SaveData
+import com.example.yjcy.utils.formatMoneyWithDecimals
 import com.example.yjcy.data.GameReleaseStatus
 import com.example.yjcy.utils.formatMoney
 
@@ -500,7 +501,7 @@ fun getTopCompaniesByFans(saveData: SaveData): List<LeaderboardItem> {
             LeaderboardItem(
                 mainText = name,
                 subText = "",
-                value = "${fans / 1000}K",
+                value = formatMoneyWithDecimals(fans.toDouble()),
                 isPlayer = name == saveData.companyName
             )
         }
@@ -512,16 +513,14 @@ fun getTopCompaniesByFans(saveData: SaveData): List<LeaderboardItem> {
 fun getTopOnlineGames(saveData: SaveData): List<LeaderboardItem> {
     val allOnlineGames = mutableListOf<Triple<String, String, Int>>()
     
-    // 玩家的网游
-    saveData.games.filter { it.businessModel == BusinessModel.ONLINE_GAME && it.releaseStatus == com.example.yjcy.data.GameReleaseStatus.RELEASED }
-        .forEach { game ->
-            // 从RevenueManager获取活跃玩家数
-            val gameRevenue = com.example.yjcy.data.RevenueManager.getGameRevenue(game.id)
-            val activePlayers = if (gameRevenue != null) {
-                (gameRevenue.totalRegisteredPlayers * 0.4).toInt()
-            } else {
-                0
-            }
+    // 玩家的网游（包含已发售和已评分的游戏）
+    saveData.games.filter { 
+        it.businessModel == BusinessModel.ONLINE_GAME && 
+        (it.releaseStatus == com.example.yjcy.data.GameReleaseStatus.RELEASED || 
+         it.releaseStatus == com.example.yjcy.data.GameReleaseStatus.RATED)
+    }.forEach { game ->
+            // 从RevenueManager获取活跃玩家数（考虑兴趣值影响）
+            val activePlayers = com.example.yjcy.data.RevenueManager.getActivePlayers(game.id)
             allOnlineGames.add(
                 Triple(
                     game.name,
@@ -552,7 +551,8 @@ fun getTopOnlineGames(saveData: SaveData): List<LeaderboardItem> {
             LeaderboardItem(
                 mainText = gameName,
                 subText = companyName,
-                value = "活跃玩家：${players / 1000}K"
+                value = "活跃玩家：${players / 1000}K",
+                isPlayer = companyName == saveData.companyName
             )
         }
 }
@@ -563,18 +563,20 @@ fun getTopOnlineGames(saveData: SaveData): List<LeaderboardItem> {
 fun getTopSinglePlayerGames(saveData: SaveData): List<LeaderboardItem> {
     val allSinglePlayerGames = mutableListOf<Triple<String, String, Int>>()
     
-    // 玩家的单机游戏
+    // 玩家的单机游戏（包含已发售和已评分的游戏）
     saveData.games.filter { 
         it.businessModel == BusinessModel.SINGLE_PLAYER && 
-        it.releaseStatus == com.example.yjcy.data.GameReleaseStatus.RELEASED 
+        (it.releaseStatus == com.example.yjcy.data.GameReleaseStatus.RELEASED || 
+         it.releaseStatus == com.example.yjcy.data.GameReleaseStatus.RATED)
     }.forEach { game ->
-        // 计算销量（从收益推算，假设平均单价50元）
-        val estimatedSales = (game.revenue / 50).toInt()
+        // 从RevenueManager获取真实销量
+        val gameRevenue = com.example.yjcy.data.RevenueManager.getGameRevenue(game.id)
+        val totalSales = gameRevenue?.getTotalSales() ?: 0
         allSinglePlayerGames.add(
             Triple(
                 game.name,
                 saveData.companyName,
-                estimatedSales
+                totalSales
             )
         )
     }
@@ -600,7 +602,8 @@ fun getTopSinglePlayerGames(saveData: SaveData): List<LeaderboardItem> {
             LeaderboardItem(
                 mainText = gameName,
                 subText = companyName,
-                value = "总销量：${sales / 1000}K"
+                value = "总销量：${sales / 1000}K",
+                isPlayer = companyName == saveData.companyName
             )
         }
 }
@@ -898,7 +901,7 @@ fun CompetitorCard(
                         modifier = Modifier.padding(end = 8.dp)
                     )
                     Text(
-                        text = "❤️${competitor.fans / 1000}K",
+                        text = "❤️${formatMoneyWithDecimals(competitor.fans.toDouble())}",
                         color = Color(0xFFFF6B6B),
                         fontSize = 11.sp
                     )
@@ -981,7 +984,7 @@ fun CompetitorDetailDialog(
                     StatItem(
                         icon = "❤️",
                         label = "粉丝",
-                        value = "${competitor.fans / 1000}K"
+                        value = formatMoneyWithDecimals(competitor.fans.toDouble())
                     )
                     StatItem(
                         icon = "🎮",
@@ -1131,7 +1134,7 @@ fun PlayerCompanyDetailDialog(
                     StatItem(
                         icon = "❤️",
                         label = "粉丝",
-                        value = "${saveData.fans / 1000}K"
+                        value = formatMoneyWithDecimals(saveData.fans.toDouble())
                     )
                     StatItem(
                         icon = "🎮",
