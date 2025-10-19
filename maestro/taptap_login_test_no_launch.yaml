@@ -1,0 +1,35 @@
+appId: com.example.yjcy
+---
+# TapTap 登录流程完整测试（无启动应用步骤）
+# 测试日期: 2025-10-19
+# 测试目标: 验证 TapTap 登录界面的打开、元素显示和关闭功能
+# 注意: 运行前请先手动启动应用
+
+# 步骤 1: 验证主界面
+- waitForAnimationToEnd
+- assertVisible: "🎮 游创纪元"
+- assertVisible: "打造你的游戏帝国"
+- assertVisible: "🚀 使用 TapTap 登录"
+
+# 步骤 2: 点击 TapTap 登录按钮
+- tapOn: "🚀 使用 TapTap 登录"
+- waitForAnimationToEnd
+
+# 步骤 3: 验证 TapTap 登录界面所有元素
+- assertVisible: "TapTap"
+- assertVisible: "手机号登录/注册"
+- assertVisible: "未注册用户验证后将自动注册并登录"
+- assertVisible: "HK +852"
+- assertVisible: "登录"
+- assertVisible: "老用户邮箱登录"
+- assertVisible: "《服务协议》"
+- assertVisible: "《隐私政策》"
+
+# 步骤 4: 测试关闭登录界面
+- tapOn:
+    id: "com.example.yjcy:id/close"
+- waitForAnimationToEnd
+
+# 步骤 5: 验证成功返回主界面
+- assertVisible: "🎮 游创纪元"
+- assertVisible: "打造你的游戏帝国"

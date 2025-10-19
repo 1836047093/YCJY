@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "maestro": {
+      "command": "C:\\Users\\Administrator\\.maestro\\maestro\\bin\\maestro.bat",
+      "args": ["mcp"]
+    }
+  }
+}

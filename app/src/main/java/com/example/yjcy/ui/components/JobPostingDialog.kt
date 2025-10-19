@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -66,7 +67,10 @@ fun JobPostingDialog(
                 .fillMaxWidth(0.92f)
                 .padding(16.dp),
             shape = RoundedCornerShape(20.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF4A7BB7) // 蓝色背景
+            )
         ) {
             Column(
                 modifier = Modifier
@@ -78,12 +82,7 @@ fun JobPostingDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(
-                            brush = Brush.horizontalGradient(
-                                colors = listOf(
-                                    MaterialTheme.colorScheme.primaryContainer,
-                                    MaterialTheme.colorScheme.tertiaryContainer
-                                )
-                            ),
+                            color = Color(0xFF3A6BA5), // 深蓝色
                             shape = RoundedCornerShape(12.dp)
                         )
                         .padding(vertical = 12.dp),
@@ -96,13 +95,14 @@ fun JobPostingDialog(
                         Icon(
                             imageVector = Icons.Default.WorkOutline,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = Color.White,
                             modifier = Modifier.size(28.dp)
                         )
                         Text(
                             text = "发布招聘岗位",
                             style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
                         )
                     }
                 }
@@ -114,7 +114,7 @@ fun JobPostingDialog(
                     text = "岗位类型",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = Color.White
                 )
                 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -157,7 +157,7 @@ fun JobPostingDialog(
                     text = "最低技能等级: Lv.$minSkillLevel",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = Color.White
                 )
                 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -187,7 +187,7 @@ fun JobPostingDialog(
                     text = "薪资待遇",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = Color.White
                 )
                 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -196,13 +196,7 @@ fun JobPostingDialog(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isSalaryLow) {
-                            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
-                        } else if (isSalaryHigh) {
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                        } else {
-                            MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
-                        }
+                        containerColor = Color.White.copy(alpha = 0.15f) // 半透明白色
                     ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
@@ -222,19 +216,13 @@ fun JobPostingDialog(
                                     text = "Lv.$minSkillLevel 关键薪资阈值：¥${String.format("%,d", salaryThreshold)}",
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isSalaryLow) {
-                                        MaterialTheme.colorScheme.error
-                                    } else if (isSalaryHigh) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.tertiary
-                                    }
+                                    color = Color.White
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "当前薪资：¥${String.format("%,d", salary)}",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = Color.White.copy(alpha = 0.8f)
                                 )
                             }
                         }
@@ -246,20 +234,20 @@ fun JobPostingDialog(
                                 text = "💔 低于阈值，招聘成功率将大大下降！",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.error
+                                color = Color(0xFFFF6B6B) // 红色警告
                             )
                         } else if (isSalaryHigh) {
                             Text(
                                 text = "🎉 高于阈值，招聘成功率将大大增加！",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.primary
+                                color = Color(0xFF51CF66) // 绿色成功
                             )
                         } else {
                             Text(
                                 text = "📊 接近阈值，招聘成功率一般",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = Color.White.copy(alpha = 0.8f)
                             )
                         }
                     }
@@ -271,7 +259,7 @@ fun JobPostingDialog(
                 Text(
                     text = "薪资: ¥${String.format("%,d", salary)}",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Color.White
                 )
                 
                 Slider(
@@ -290,7 +278,7 @@ fun JobPostingDialog(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        containerColor = Color.White.copy(alpha = 0.15f) // 半透明白色
                     ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
@@ -301,7 +289,7 @@ fun JobPostingDialog(
                             text = "岗位预览",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            color = Color.White
                         )
                         
                         Spacer(modifier = Modifier.height(8.dp))
@@ -309,7 +297,8 @@ fun JobPostingDialog(
                         Text(
                             text = selectedPosition ?: "未选择岗位",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
                         )
                         
                         Spacer(modifier = Modifier.height(4.dp))
@@ -317,13 +306,13 @@ fun JobPostingDialog(
                         Text(
                             text = "要求: 专属技能 Lv.$minSkillLevel",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = Color.White.copy(alpha = 0.8f)
                         )
                         
                         Text(
                             text = "薪资: ¥${String.format("%,d", salary)}",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = Color.White.copy(alpha = 0.8f)
                         )
                     }
                 }

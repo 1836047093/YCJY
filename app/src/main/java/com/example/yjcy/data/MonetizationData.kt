@@ -41,7 +41,74 @@ enum class MonetizationItemType(val displayName: String, val description: String
     
     // 冒险游戏
     STORY_CHAPTERS("剧情章节", "额外剧情内容"),
-    SPECIAL_ITEMS("特殊道具", "独特道具和装备")
+    SPECIAL_ITEMS("特殊道具", "独特道具和装备"),
+    SPECIAL_TOOL_KIT("特殊工具包", "探险专用工具和装备"),
+    RARE_RESOURCES("稀有资源", "稀有材料和资源"),
+    SPECIAL_DUNGEON_PASS("特殊副本通行证", "限定副本入场券"),
+    CHARACTER_COSTUME("角色装扮", "角色外观装扮"),
+    FAST_EXPLORATION("快速探索特权", "探索加速权限"),
+    
+    // 角色扮演游戏
+    LIMITED_STORY_CHAPTER("限定剧情章节", "限时剧情内容"),
+    RARE_CLASS_RACE("稀有职业/种族", "特殊职业和种族"),
+    EXCLUSIVE_SKILL_BOOK("专属技能书", "独特技能学习"),
+    PERSONALIZED_OUTFIT("个性化外观套装", "定制外观系统"),
+    SOCIAL_INTERACTION_ITEM("社交互动道具", "社交表情和互动"),
+    
+    // 策略游戏
+    ADVANCED_UNIT_PACK("高级兵种包", "特殊兵种单位"),
+    TECH_BOOST_VOUCHER("科技加速券", "科技研发加速"),
+    TERRAIN_MODIFICATION("地形改造权", "地形编辑权限"),
+    DEFENSE_FACILITY_PACK("防御工事包", "防御建筑包"),
+    
+    // 模拟游戏
+    LUXURY_FURNITURE_SET("豪华家具套装", "高级家具装饰"),
+    RARE_PET_PLANT("稀有宠物/植物", "特殊宠物和植物"),
+    TIME_ACCELERATION_ITEM("时间加速道具", "时间流速加速"),
+    SCENE_DECORATION_PERMISSION("场景装饰权限", "场景自定义权限"),
+    
+    // 益智游戏
+    LEVEL_HINT("关卡提示", "关卡解谜提示"),
+    EXCLUSIVE_PUZZLE_ITEM("独家解谜道具", "特殊解谜工具"),
+    SKIN_CUSTOMIZATION_SYSTEM("皮肤装扮系统", "外观定制系统"),
+    CHALLENGE_TICKET("挑战赛门票", "特殊挑战入场券"),
+    PUZZLE_FORMULA_PACK("解谜公式包", "解谜技巧包"),
+    
+    // 竞速游戏
+    VEHICLE_SKIN("赛车皮肤", "载具外观皮肤"),
+    NITRO_EFFECT("氮气特效", "氮气视觉特效"),
+    TRACK_CUSTOMIZATION("赛道自定义权", "赛道编辑权限"),
+    TEAM_BADGE("车队徽章", "车队标识定制"),
+    VEHICLE_TUNING_BLUEPRINT("车辆改装蓝图", "载具改装方案"),
+    
+    // 体育游戏
+    TEAM_SKIN("球队皮肤", "球队外观定制"),
+    TRAINING_BOOST_VOUCHER("训练加速券", "训练加速道具"),
+    TACTICAL_COMMAND_PACK("战术指令包", "战术策略包"),
+    FAN_INTERACTION_ITEM("球迷互动道具", "球迷互动系统"),
+    
+    // 恐怖游戏
+    SPECIAL_WEAPON_PACK("特殊武器包", "特殊武器装备"),
+    SCENE_DECORATION_PACK("场景装饰包", "场景装饰道具"),
+    CHARACTER_SKIN("角色皮肤", "角色外观皮肤"),
+    PUZZLE_HINT_PACK("解谜提示包", "解谜线索包"),
+    TREASURE_KEY("宝藏钥匙", "宝箱开启钥匙"),
+    
+    // 休闲游戏
+    SKIN_SET("皮肤套装", "外观皮肤套装"),
+    ITEM_COMBO_PACK("道具组合包", "道具礼包"),
+    ITEM_DOUBLE_VOUCHER("道具双倍券", "道具加倍券"),
+    SOCIAL_EMOJI_PACK("社交表情包", "表情和贴纸"),
+    
+    // 射击游戏
+    TACTICAL_BACKPACK("战术背包", "装备背包扩展"),
+    BATTLEFIELD_DECORATION("战场装饰", "战场个性化装饰"),
+    NEW_CHARACTER("新人物", "可解锁角色"),
+    
+    // MOBA游戏
+    HERO_SKIN("英雄皮肤", "英雄外观皮肤"),
+    NEW_HERO("新英雄", "可购买英雄"),
+    RECALL_EFFECT("回城特效", "回城动画特效")
 }
 
 /**
@@ -79,6 +146,53 @@ fun MonetizationItemType.getUpdateContentName(): String {
         MonetizationItemType.LOOT_BOXES -> "新宝箱"
         MonetizationItemType.STORY_CHAPTERS -> "新剧情"
         MonetizationItemType.SPECIAL_ITEMS -> "新特殊道具"
+        MonetizationItemType.SPECIAL_TOOL_KIT -> "新工具包"
+        MonetizationItemType.RARE_RESOURCES -> "新资源"
+        MonetizationItemType.SPECIAL_DUNGEON_PASS -> "新副本"
+        MonetizationItemType.CHARACTER_COSTUME -> "新装扮"
+        MonetizationItemType.FAST_EXPLORATION -> "探索加速"
+        MonetizationItemType.LIMITED_STORY_CHAPTER -> "限定剧情"
+        MonetizationItemType.RARE_CLASS_RACE -> "新职业/种族"
+        MonetizationItemType.EXCLUSIVE_SKILL_BOOK -> "新技能书"
+        MonetizationItemType.PERSONALIZED_OUTFIT -> "新外观套装"
+        MonetizationItemType.SOCIAL_INTERACTION_ITEM -> "新社交道具"
+        MonetizationItemType.ADVANCED_UNIT_PACK -> "新兵种"
+        MonetizationItemType.TECH_BOOST_VOUCHER -> "科技加速"
+        MonetizationItemType.TERRAIN_MODIFICATION -> "地形改造"
+        MonetizationItemType.DEFENSE_FACILITY_PACK -> "新防御工事"
+        MonetizationItemType.LUXURY_FURNITURE_SET -> "新家具"
+        MonetizationItemType.RARE_PET_PLANT -> "新宠物/植物"
+        MonetizationItemType.TIME_ACCELERATION_ITEM -> "时间加速"
+        MonetizationItemType.SCENE_DECORATION_PERMISSION -> "场景装饰"
+        MonetizationItemType.LEVEL_HINT -> "关卡提示"
+        MonetizationItemType.EXCLUSIVE_PUZZLE_ITEM -> "解谜道具"
+        MonetizationItemType.SKIN_CUSTOMIZATION_SYSTEM -> "皮肤系统"
+        MonetizationItemType.CHALLENGE_TICKET -> "挑战赛"
+        MonetizationItemType.PUZZLE_FORMULA_PACK -> "解谜公式"
+        MonetizationItemType.VEHICLE_SKIN -> "新赛车皮肤"
+        MonetizationItemType.NITRO_EFFECT -> "新氮气特效"
+        MonetizationItemType.TRACK_CUSTOMIZATION -> "赛道自定义"
+        MonetizationItemType.TEAM_BADGE -> "新车队徽章"
+        MonetizationItemType.VEHICLE_TUNING_BLUEPRINT -> "新改装蓝图"
+        MonetizationItemType.TEAM_SKIN -> "新球队皮肤"
+        MonetizationItemType.TRAINING_BOOST_VOUCHER -> "训练加速"
+        MonetizationItemType.TACTICAL_COMMAND_PACK -> "新战术包"
+        MonetizationItemType.FAN_INTERACTION_ITEM -> "球迷互动"
+        MonetizationItemType.SPECIAL_WEAPON_PACK -> "新武器包"
+        MonetizationItemType.SCENE_DECORATION_PACK -> "新装饰包"
+        MonetizationItemType.CHARACTER_SKIN -> "新角色皮肤"
+        MonetizationItemType.PUZZLE_HINT_PACK -> "新提示包"
+        MonetizationItemType.TREASURE_KEY -> "新宝藏钥匙"
+        MonetizationItemType.SKIN_SET -> "新皮肤套装"
+        MonetizationItemType.ITEM_COMBO_PACK -> "新道具包"
+        MonetizationItemType.ITEM_DOUBLE_VOUCHER -> "双倍券"
+        MonetizationItemType.SOCIAL_EMOJI_PACK -> "新表情包"
+        MonetizationItemType.TACTICAL_BACKPACK -> "新战术背包"
+        MonetizationItemType.BATTLEFIELD_DECORATION -> "战场装饰"
+        MonetizationItemType.NEW_CHARACTER -> "新人物"
+        MonetizationItemType.HERO_SKIN -> "新英雄皮肤"
+        MonetizationItemType.NEW_HERO -> "新英雄"
+        MonetizationItemType.RECALL_EFFECT -> "新回城特效"
     }
 }
 
@@ -96,70 +210,81 @@ object MonetizationConfig {
                 MonetizationItemType.POWERFUL_CHARACTERS
             )
             GameTheme.RPG -> listOf(
-                MonetizationItemType.GACHA_SYSTEM,
-                MonetizationItemType.VIP_MEMBERSHIP,
-                MonetizationItemType.EXPANSION_PACK,
-                MonetizationItemType.GROWTH_BOOST,
-                MonetizationItemType.RARE_EQUIPMENT
+                MonetizationItemType.LIMITED_STORY_CHAPTER,
+                MonetizationItemType.RARE_CLASS_RACE,
+                MonetizationItemType.EXCLUSIVE_SKILL_BOOK,
+                MonetizationItemType.PERSONALIZED_OUTFIT,
+                MonetizationItemType.SOCIAL_INTERACTION_ITEM
             )
             GameTheme.STRATEGY -> listOf(
-                MonetizationItemType.PREMIUM_UNITS,
-                MonetizationItemType.RESOURCE_PACK,
-                MonetizationItemType.VIP_MEMBERSHIP,
-                MonetizationItemType.EXPANSION_PACK
+                MonetizationItemType.ADVANCED_UNIT_PACK,
+                MonetizationItemType.TECH_BOOST_VOUCHER,
+                MonetizationItemType.TERRAIN_MODIFICATION,
+                MonetizationItemType.DEFENSE_FACILITY_PACK,
+                MonetizationItemType.SEASON_PASS
             )
             GameTheme.SPORTS -> listOf(
                 MonetizationItemType.PLAYER_CARDS,
-                MonetizationItemType.TEAM_CUSTOMIZATION,
-                MonetizationItemType.SEASON_PASS,
-                MonetizationItemType.VIP_MEMBERSHIP
+                MonetizationItemType.TEAM_SKIN,
+                MonetizationItemType.TRAINING_BOOST_VOUCHER,
+                MonetizationItemType.TACTICAL_COMMAND_PACK,
+                MonetizationItemType.FAN_INTERACTION_ITEM
             )
             GameTheme.RACING -> listOf(
-                MonetizationItemType.PREMIUM_VEHICLES,
-                MonetizationItemType.TRACK_PACK,
-                MonetizationItemType.SKINS_APPEARANCE,
-                MonetizationItemType.SEASON_PASS
+                MonetizationItemType.VEHICLE_SKIN,
+                MonetizationItemType.NITRO_EFFECT,
+                MonetizationItemType.TRACK_CUSTOMIZATION,
+                MonetizationItemType.TEAM_BADGE,
+                MonetizationItemType.VEHICLE_TUNING_BLUEPRINT
             )
             GameTheme.SIMULATION -> listOf(
-                MonetizationItemType.DLC_CONTENT,
-                MonetizationItemType.EXPANSION_PACK,
-                MonetizationItemType.COSMETIC_ITEMS,
-                MonetizationItemType.VIP_MEMBERSHIP
+                MonetizationItemType.LUXURY_FURNITURE_SET,
+                MonetizationItemType.RARE_PET_PLANT,
+                MonetizationItemType.TIME_ACCELERATION_ITEM,
+                MonetizationItemType.SCENE_DECORATION_PERMISSION,
+                MonetizationItemType.SOCIAL_INTERACTION_ITEM
             )
             GameTheme.ADVENTURE -> listOf(
-                MonetizationItemType.STORY_CHAPTERS,
-                MonetizationItemType.SPECIAL_ITEMS,
-                MonetizationItemType.COSMETIC_ITEMS,
-                MonetizationItemType.DLC_CONTENT
+                MonetizationItemType.SPECIAL_TOOL_KIT,
+                MonetizationItemType.RARE_RESOURCES,
+                MonetizationItemType.SPECIAL_DUNGEON_PASS,
+                MonetizationItemType.CHARACTER_COSTUME,
+                MonetizationItemType.FAST_EXPLORATION
             )
             GameTheme.PUZZLE -> listOf(
-                MonetizationItemType.DLC_CONTENT,
-                MonetizationItemType.COSMETIC_ITEMS,
-                MonetizationItemType.GROWTH_BOOST
+                MonetizationItemType.LEVEL_HINT,
+                MonetizationItemType.EXCLUSIVE_PUZZLE_ITEM,
+                MonetizationItemType.SKIN_CUSTOMIZATION_SYSTEM,
+                MonetizationItemType.CHALLENGE_TICKET,
+                MonetizationItemType.PUZZLE_FORMULA_PACK
             )
             GameTheme.HORROR -> listOf(
-                MonetizationItemType.DLC_CONTENT,
-                MonetizationItemType.STORY_CHAPTERS,
-                MonetizationItemType.COSMETIC_ITEMS
+                MonetizationItemType.SPECIAL_WEAPON_PACK,
+                MonetizationItemType.SCENE_DECORATION_PACK,
+                MonetizationItemType.CHARACTER_SKIN,
+                MonetizationItemType.PUZZLE_HINT_PACK,
+                MonetizationItemType.TREASURE_KEY
             )
             GameTheme.CASUAL -> listOf(
-                MonetizationItemType.COSMETIC_ITEMS,
-                MonetizationItemType.GROWTH_BOOST,
-                MonetizationItemType.DLC_CONTENT
+                MonetizationItemType.SKIN_SET,
+                MonetizationItemType.ITEM_COMBO_PACK,
+                MonetizationItemType.ITEM_DOUBLE_VOUCHER,
+                MonetizationItemType.SOCIAL_EMOJI_PACK,
+                MonetizationItemType.SOCIAL_INTERACTION_ITEM
             )
             GameTheme.SHOOTER -> listOf(
                 MonetizationItemType.WEAPON_SKINS,
-                MonetizationItemType.BATTLE_PASS,
-                MonetizationItemType.LOOT_BOXES,
-                MonetizationItemType.SKINS_APPEARANCE,
+                MonetizationItemType.TACTICAL_BACKPACK,
+                MonetizationItemType.BATTLEFIELD_DECORATION,
+                MonetizationItemType.NEW_CHARACTER,
                 MonetizationItemType.SEASON_PASS
             )
             GameTheme.MOBA -> listOf(
-                MonetizationItemType.POWERFUL_CHARACTERS,
-                MonetizationItemType.SKINS_APPEARANCE,
-                MonetizationItemType.BATTLE_PASS,
+                MonetizationItemType.HERO_SKIN,
+                MonetizationItemType.NEW_HERO,
                 MonetizationItemType.SEASON_PASS,
-                MonetizationItemType.LOOT_BOXES
+                MonetizationItemType.RECALL_EFFECT,
+                MonetizationItemType.SOCIAL_INTERACTION_ITEM
             )
         }
     }

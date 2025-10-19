@@ -244,12 +244,19 @@ fun UpdateFeatureDialog(
     onDismiss: () -> Unit,
     onConfirm: (List<String>) -> Unit
 ) {
-    // 根据游戏的付费内容生成更新选项
+    // 根据游戏的付费内容或主题生成更新选项
     val options = remember(game) {
-        game.monetizationItems
-            .filter { it.isEnabled }
-            .map { it.type.getUpdateContentName() }
-            .distinct()
+        if (game.businessModel == BusinessModel.ONLINE_GAME) {
+            // 网络游戏：使用已启用的付费内容
+            game.monetizationItems
+                .filter { it.isEnabled }
+                .map { it.type.getUpdateContentName() }
+                .distinct()
+        } else {
+            // 单机游戏：根据游戏主题获取推荐的付费内容类型作为更新内容
+            val recommendedItems = com.example.yjcy.data.MonetizationConfig.getRecommendedItems(game.theme)
+            recommendedItems.map { it.getUpdateContentName() }
+        }
     }
     
     val selected = remember { mutableStateListOf<String>() }
@@ -260,6 +267,16 @@ fun UpdateFeatureDialog(
         title = { Text("选择更新内容", fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // 单机游戏提示文本
+                if (game.businessModel == BusinessModel.SINGLE_PLAYER && options.isNotEmpty()) {
+                    Text(
+                        text = "💡 单机游戏更新内容基于游戏主题（${game.theme.displayName}）",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                }
+                
                 // 全选/反选按钮
                 if (options.isNotEmpty()) {
                     Row(
@@ -294,7 +311,11 @@ fun UpdateFeatureDialog(
                 // 更新内容选项
                 if (options.isEmpty()) {
                     Text(
-                        text = "暂无可用的更新内容\n请先在付费设置中启用付费内容",
+                        text = if (game.businessModel == BusinessModel.ONLINE_GAME) {
+                            "暂无可用的更新内容\n请先在付费设置中启用付费内容"
+                        } else {
+                            "暂无可用的更新内容"
+                        },
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center,

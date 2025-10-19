@@ -431,9 +431,12 @@ class JobPostingService {
     
     /**
      * 获取所有待处理的应聘者数量
+     * 只统计活跃岗位（ACTIVE状态）的待处理应聘者
      */
     fun getTotalPendingApplicants(): Int {
-        return jobPostings.values.sumOf { it.getPendingApplicantsCount() }
+        return jobPostings.values
+            .filter { it.status == JobPostingStatus.ACTIVE }
+            .sumOf { it.getPendingApplicantsCount() }
     }
     
     /**

@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -62,7 +63,7 @@ fun NewTalentMarketDialog(
             shape = RoundedCornerShape(20.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
+                containerColor = Color(0xFF4A7BB7) // 蓝色背景
             )
         ) {
             Column(
@@ -73,12 +74,7 @@ fun NewTalentMarketDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(
-                            brush = Brush.horizontalGradient(
-                                colors = listOf(
-                                    MaterialTheme.colorScheme.primaryContainer,
-                                    MaterialTheme.colorScheme.secondaryContainer
-                                )
-                            )
+                            color = Color(0xFF3A6BA5) // 更深的蓝色
                         )
                 ) {
                     Row(
@@ -94,7 +90,7 @@ fun NewTalentMarketDialog(
                             Icon(
                                 imageVector = Icons.Default.People,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
+                                tint = Color.White,
                                 modifier = Modifier.size(28.dp)
                             )
                             Spacer(modifier = Modifier.width(12.dp))
@@ -103,12 +99,12 @@ fun NewTalentMarketDialog(
                                     text = "人才市场",
                                     fontSize = 22.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    color = Color.White
                                 )
                                 Text(
                                     text = "发布岗位，招聘人才",
                                     fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = Color.White.copy(alpha = 0.8f)
                                 )
                             }
                         }
@@ -123,7 +119,7 @@ fun NewTalentMarketDialog(
                                 Icon(
                                     imageVector = Icons.Default.Add,
                                     contentDescription = "发布岗位",
-                                    tint = MaterialTheme.colorScheme.primary
+                                    tint = Color.White
                                 )
                             }
                             
@@ -132,7 +128,7 @@ fun NewTalentMarketDialog(
                                 Icon(
                                     imageVector = Icons.Default.Close,
                                     contentDescription = "关闭",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    tint = Color.White
                                 )
                             }
                         }
@@ -148,7 +144,7 @@ fun NewTalentMarketDialog(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            containerColor = Color.White.copy(alpha = 0.15f) // 半透明白色
                         ),
                         shape = RoundedCornerShape(12.dp)
                     ) {
@@ -165,21 +161,22 @@ fun NewTalentMarketDialog(
                                 Icon(
                                     imageVector = Icons.Default.TrendingUp,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
+                                    tint = Color.White,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = "可用资金",
                                     style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color.White
                                 )
                             }
                             Text(
                                 text = "¥${String.format(Locale.getDefault(), "%,d", saveData.money)}",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
+                                color = Color.White
                             )
                         }
                     }
@@ -200,17 +197,18 @@ fun NewTalentMarketDialog(
                                     imageVector = Icons.Default.WorkOutline,
                                     contentDescription = null,
                                     modifier = Modifier.size(64.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                    tint = Color.White.copy(alpha = 0.6f)
                                 )
                                 Text(
                                     text = "还没有发布岗位",
                                     style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color.White
                                 )
                                 Text(
                                     text = "点击右上角 + 按钮发布招聘岗位",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = Color.White.copy(alpha = 0.8f)
                                 )
                                 
                                 Spacer(modifier = Modifier.height(8.dp))

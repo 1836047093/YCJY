@@ -8,11 +8,15 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.activity.enableEdgeToEdge
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.EaseInOut
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.Animatable
@@ -25,11 +29,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.hoverable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -37,13 +37,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
-import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
-import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
-import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
@@ -61,6 +57,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
@@ -72,31 +69,35 @@ import com.example.yjcy.data.FounderProfession
 import com.example.yjcy.data.Game
 import com.example.yjcy.data.GameRatingCalculator
 import com.example.yjcy.data.GameReleaseStatus
-import com.example.yjcy.data.PriceRecommendationEngine
 import com.example.yjcy.data.RevenueManager
 import com.example.yjcy.data.SaveData
-import com.example.yjcy.data.SkillConstants
 import com.example.yjcy.ui.BadgeBox
 import com.example.yjcy.ui.EmployeeManagementContent
 import com.example.yjcy.ui.GameRatingDialog
 import com.example.yjcy.ui.GameReleaseDialog
 import com.example.yjcy.ui.ProjectManagementWrapper
 import com.example.yjcy.ui.ProjectDisplayType
-import com.example.yjcy.ui.PromotionCenterContent
 import com.example.yjcy.ui.ServerManagementContent
 import com.example.yjcy.ui.theme.YjcyTheme
 import com.example.yjcy.utils.formatMoney
 import com.example.yjcy.utils.formatMoneyWithDecimals
 import com.example.yjcy.service.JobPostingService
-import com.example.yjcy.data.ServerType
 import com.example.yjcy.data.getUpdateContentName
 import com.example.yjcy.ui.BusinessModel
+import com.example.yjcy.data.CompetitorCompany
+import com.example.yjcy.data.CompetitorNews
+import com.example.yjcy.data.CompetitorManager
+import com.example.yjcy.ui.CompetitorContent
+import com.example.yjcy.ui.calculatePlayerMarketValue
 import com.google.gson.Gson
 import dagger.hilt.android.AndroidEntryPoint
 import java.util.Locale
 import kotlin.math.sin
 import kotlin.random.Random
 import kotlinx.coroutines.delay
+import com.example.yjcy.taptap.TapLoginManager
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.yjcy.ui.taptap.TapLoginViewModel
 
 
 
@@ -111,20 +112,38 @@ class MainActivity : ComponentActivity() {
         
         Log.d("MainActivity", "MainActivity onCreate 开始")
         
+        // 打印当前签名信息（用于TapTap SDK配置）
+        com.example.yjcy.utils.SignatureHelper.logAppInfo(this)
+        
         // 初始化RevenueManager以支持数据持久化
-        com.example.yjcy.data.RevenueManager.initialize(this)
+        RevenueManager.initialize(this)
         
-        // 增强全屏显示设置
-        // enableFullScreenDisplay()  // 临时注释掉以解决闪退问题
-        
+        // 先启用边到边显示
         enableEdgeToEdge()
+        
+        // 然后设置全屏显示和隐藏系统导航栏
+        enableFullScreenDisplay()
+        
+        // 检查用户是否已同意隐私政策
+        val sharedPreferences = getSharedPreferences("privacy_settings", MODE_PRIVATE)
+        val hasAgreedPrivacy = sharedPreferences.getBoolean("privacy_agreed", false)
+        
+        // 如果用户已同意隐私政策，则初始化SDK
+        if (hasAgreedPrivacy) {
+            (application as? YjcyApplication)?.initTapSDKIfNeeded()
+        } else {
+            Log.d("MainActivity", "用户未同意隐私政策，等待用户同意后再初始化SDK")
+        }
+        
         setContent {
             YjcyTheme {
                 val navController = rememberNavController()
                 
-                // SharedPreferences for privacy policy agreement
-                val sharedPreferences = getSharedPreferences("privacy_settings", MODE_PRIVATE)
-                var showPrivacyDialog by remember { mutableStateOf(!sharedPreferences.getBoolean("privacy_agreed", false)) }
+                // 使用外部已创建的sharedPreferences
+                var showPrivacyDialog by remember { mutableStateOf(!hasAgreedPrivacy) }
+                
+                // TapTap登录状态检查（Activity重启后会重新检查）
+                var isTapTapLoggedIn by remember { mutableStateOf(TapLoginManager.isLoggedIn()) }
                 
                 // Privacy Policy Dialog
                 if (showPrivacyDialog) {
@@ -135,14 +154,32 @@ class MainActivity : ComponentActivity() {
                                 apply()
                             }
                             showPrivacyDialog = false
+                            
+                            // 用户同意隐私政策后，立即初始化TapSDK
+                            (application as? YjcyApplication)?.initTapSDKIfNeeded()
+                        },
+                        onReject = {
+                            // 用户拒绝隐私政策，退出游戏
+                            finish()
                         }
                     )
                 }
                 
-                NavHost(
-                    navController = navController,
-                    startDestination = "main_menu"
-                ) {
+                // 强制TapTap登录界面（隐私协议同意后且未登录时显示）
+                if (!showPrivacyDialog && !isTapTapLoggedIn) {
+                    ForcedTapLoginScreen(
+                        onLoginSuccess = {
+                            isTapTapLoggedIn = true
+                        }
+                    )
+                }
+                
+                // 只有在隐私协议同意且TapTap登录后才显示导航
+                if (!showPrivacyDialog && isTapTapLoggedIn) {
+                    NavHost(
+                        navController = navController,
+                        startDestination = "main_menu"
+                    ) {
                     composable("main_menu") {
                         MainMenuScreen(navController)
                     }
@@ -169,8 +206,183 @@ class MainActivity : ComponentActivity() {
                     composable("in_game_settings") {
                         InGameSettingsScreen(navController)
                     }
+                    }
+                }
+            }
+        }
+    }
+    
+    private fun enableFullScreenDisplay() {
+        try {
+            // 使用 WindowCompat API，与 enableEdgeToEdge 兼容
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            
+            val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+            windowInsetsController.let { controller ->
+                // 隐藏状态栏和导航栏
+                controller.hide(WindowInsetsCompat.Type.systemBars())
+                // 设置沉浸式模式，滑动时临时显示系统栏
+                controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "设置全屏显示失败: ${e.message}", e)
+        }
+    }
+}
 
-
+/**
+ * 强制TapTap登录界面
+ * 玩家必须登录后才能进入游戏
+ */
+@Composable
+fun ForcedTapLoginScreen(
+    onLoginSuccess: () -> Unit,
+    viewModel: TapLoginViewModel = viewModel()
+) {
+    val context = LocalContext.current
+    val activity = context as? Activity
+    
+    var showMessage by remember { mutableStateOf<String?>(null) }
+    
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF667eea),
+                        Color(0xFF764ba2)
+                    )
+                )
+            )
+    ) {
+        // 背景粒子动画
+        ParticleBackground()
+        
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Logo展示
+            Text(
+                text = "🎮 游创纪元",
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = "打造你的游戏帝国",
+                fontSize = 16.sp,
+                color = Color.White.copy(alpha = 0.8f),
+                textAlign = TextAlign.Center
+            )
+            
+            Spacer(modifier = Modifier.height(48.dp))
+            
+            // TapTap登录卡片
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.White.copy(alpha = 0.95f)
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "🎮 TapTap 登录",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF667eea)
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Text(
+                        text = "请先登录TapTap账号",
+                        fontSize = 14.sp,
+                        color = Color.Gray
+                    )
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    // 登录按钮
+                    Button(
+                        onClick = {
+                            activity?.let { act ->
+                                viewModel.login(act) { success, message ->
+                                    showMessage = message
+                                    if (success) {
+                                        onLoginSuccess()
+                                    }
+                                }
+                            } ?: run {
+                                showMessage = "无法获取Activity"
+                            }
+                        },
+                        enabled = !viewModel.isLoading,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF667eea)
+                        )
+                    ) {
+                        if (viewModel.isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = Color.White
+                            )
+                        } else {
+                            Text(
+                                text = "🚀 使用 TapTap 登录",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+            }
+            
+            // 自动隐藏消息（3秒后）
+            LaunchedEffect(showMessage) {
+                showMessage?.let {
+                    delay(3000) // 3秒延迟
+                    showMessage = null
+                }
+            }
+            
+            // 错误提示
+            showMessage?.let { message ->
+                Spacer(modifier = Modifier.height(16.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (message.contains("成功")) Color(0xFF10B981) else Color(0xFFEF4444)
+                    )
+                ) {
+                    Text(
+                        text = message,
+                        fontSize = 14.sp,
+                        color = Color.White,
+                        modifier = Modifier.padding(12.dp),
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         }
@@ -276,6 +488,12 @@ fun SettingsOption(
 
 @Composable
 fun MainMenuScreen(navController: NavController) {
+    val context = LocalContext.current
+    val activity = context as? Activity
+    
+    // 退出应用确认对话框状态
+    var showExitDialog by remember { mutableStateOf(false) }
+    
     // Logo动画
     val infiniteTransition = rememberInfiniteTransition(label = "logo_animation")
     
@@ -288,6 +506,11 @@ fun MainMenuScreen(navController: NavController) {
         ),
         label = "logo_scale"
     )
+    
+    // 拦截返回键，显示退出应用确认对话框
+    BackHandler {
+        showExitDialog = true
+    }
     
     Box(
         modifier = Modifier
@@ -355,6 +578,75 @@ fun MainMenuScreen(navController: NavController) {
                     onClick = { navController.navigate("settings") }
                 )
             }
+            
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            // 健康游戏忠告
+            Card(
+                modifier = Modifier
+                    .width(320.dp)
+                    .padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.White.copy(alpha = 0.15f)
+                ),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f))
+            ) {
+                Text(
+                    text = "抵制不良游戏，拒绝盗版游戏。\n注意自我保护，谨防受骗上当。\n适度游戏益脑，沉迷游戏伤身。\n合理安排时间，享受健康生活。",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White.copy(alpha = 0.7f),
+                    textAlign = TextAlign.Center,
+                    lineHeight = 16.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp)
+                )
+            }
+        }
+        
+        // 退出应用确认对话框
+        if (showExitDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    showExitDialog = false
+                },
+                title = {
+                    Text(
+                        text = "⚠️ 退出游戏",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Text(
+                        text = "确定要退出游戏吗？",
+                        fontSize = 14.sp
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            activity?.finish()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFEF4444)
+                        )
+                    ) {
+                        Text("确认退出")
+                    }
+                },
+                dismissButton = {
+                    OutlinedButton(
+                        onClick = {
+                            showExitDialog = false
+                        }
+                    ) {
+                        Text("取消")
+                    }
+                }
+            )
         }
     }
 }
@@ -697,6 +989,9 @@ fun GameScreen(
     initialFounderProfession: String = "PROGRAMMER",
     saveData: SaveData? = null
 ) {
+    // 获取 Activity 上下文，用于退出游戏
+    val activity = LocalActivity.current!!
+    
     // 游戏状态数据 - 如果有存档数据则使用存档数据，否则使用默认值
     var money by remember { mutableLongStateOf(saveData?.money ?: 1000000L) }
     var fans by remember { mutableIntStateOf(saveData?.fans ?: 0) }
@@ -729,16 +1024,23 @@ fun GameScreen(
     var showReleaseDialog by remember { mutableStateOf(false) }
     var showRatingDialog by remember { mutableStateOf(false) }
     var pendingReleaseGame by remember { mutableStateOf<Game?>(null) }
-    var revenueRefreshTrigger by remember { mutableStateOf(0) } // 用于触发收益数据刷新
-    var jobPostingRefreshTrigger by remember { mutableStateOf(0) } // 用于触发岗位应聘者数据刷新
+    var revenueRefreshTrigger by remember { mutableIntStateOf(0) } // 用于触发收益数据刷新
+    var jobPostingRefreshTrigger by remember { mutableIntStateOf(0) } // 用于触发岗位应聘者数据刷新
     var pendingRatingGame by remember { mutableStateOf<Game?>(null) }
     
     // 废弃游戏相关状态
     var showAbandonDialog by remember { mutableStateOf(false) }
     var pendingAbandonGame by remember { mutableStateOf<Game?>(null) }
     
+    // 退出游戏确认对话框状态
+    var showExitDialog by remember { mutableStateOf(false) }
+    
     // 员工状态管理 - 提升到GameScreen级别
     val allEmployees = remember { mutableStateListOf<Employee>() }
+    
+    // 竞争对手数据状态
+    var competitors by remember { mutableStateOf(saveData?.competitors ?: emptyList()) }
+    var competitorNews by remember { mutableStateOf(saveData?.competitorNews ?: emptyList()) }
     
     // 获取待处理的应聘者数量
     val jobPostingService = remember { JobPostingService.getInstance() }
@@ -786,87 +1088,79 @@ fun GameScreen(
         }
     }
     
-    // 初始化员工列表 - 将创始人转换为员工并添加到列表开头
-    LaunchedEffect(founder) {
-        if (allEmployees.isEmpty() || allEmployees.firstOrNull()?.name != founder.name) {
-            allEmployees.clear()
-            val founderAsEmployee = Employee(
-                id = 0,
-                name = founder.name,
-                position = when (founder.profession) {
-                    FounderProfession.PROGRAMMER -> "程序员"
-                    FounderProfession.DESIGNER -> "策划师"
-                    FounderProfession.ARTIST -> "美术师"
-                    FounderProfession.SOUND_ENGINEER -> "音效师"
-                    FounderProfession.CUSTOMER_SERVICE -> "客服"
-                },
-                salary = 0,
-                skillDevelopment = when (founder.profession) {
-                    FounderProfession.PROGRAMMER -> 5
-                    FounderProfession.DESIGNER -> 2
-                    FounderProfession.ARTIST -> 1
-                    FounderProfession.SOUND_ENGINEER -> 1
-                    FounderProfession.CUSTOMER_SERVICE -> 1
-                },
-                skillDesign = when (founder.profession) {
-                    FounderProfession.PROGRAMMER -> 2
-                    FounderProfession.DESIGNER -> 5
-                    FounderProfession.ARTIST -> 2
-                    FounderProfession.SOUND_ENGINEER -> 1
-                    FounderProfession.CUSTOMER_SERVICE -> 1
-                },
-                skillArt = when (founder.profession) {
-                    FounderProfession.PROGRAMMER -> 1
-                    FounderProfession.DESIGNER -> 2
-                    FounderProfession.ARTIST -> 5
-                    FounderProfession.SOUND_ENGINEER -> 2
-                    FounderProfession.CUSTOMER_SERVICE -> 1
-                },
-                skillMusic = when (founder.profession) {
-                    FounderProfession.PROGRAMMER -> 1
-                    FounderProfession.DESIGNER -> 1
-                    FounderProfession.ARTIST -> 2
-                    FounderProfession.SOUND_ENGINEER -> 5
-                    FounderProfession.CUSTOMER_SERVICE -> 1
-                },
-                skillService = when (founder.profession) {
-                    FounderProfession.PROGRAMMER -> 2
-                    FounderProfession.DESIGNER -> 2
-                    FounderProfession.ARTIST -> 1
-                    FounderProfession.SOUND_ENGINEER -> 1
-                    FounderProfession.CUSTOMER_SERVICE -> 5
-                }
-            )
-            allEmployees.add(founderAsEmployee)
-        }
-    }
-    
-    // 员工管理回调函数
-    val onTrainEmployee: (Employee, String) -> Unit = { employee, skillType ->
-        // 创始人不能被培训（技能已经是满级）
-        if (employee.id != 0) {
-            // 执行培训逻辑
-            val index = allEmployees.indexOfFirst { it.id == employee.id }
-            if (index != -1) {
-                val updatedEmployee = when (skillType) {
-                    "开发" -> employee.copy(skillDevelopment = minOf(SkillConstants.MAX_SKILL_LEVEL, employee.skillDevelopment + 1))
-                    "设计" -> employee.copy(skillDesign = minOf(SkillConstants.MAX_SKILL_LEVEL, employee.skillDesign + 1))
-                    "美工" -> employee.copy(skillArt = minOf(SkillConstants.MAX_SKILL_LEVEL, employee.skillArt + 1))
-                    "音乐" -> employee.copy(skillMusic = minOf(SkillConstants.MAX_SKILL_LEVEL, employee.skillMusic + 1))
-                    "服务" -> employee.copy(skillService = minOf(SkillConstants.MAX_SKILL_LEVEL, employee.skillService + 1))
-                    else -> employee
-                }
-                allEmployees[index] = updatedEmployee
+    // 初始化员工列表 - 从存档加载或创建创始人员工
+    LaunchedEffect(founder, saveData) {
+        if (allEmployees.isEmpty()) {
+            if (saveData != null && saveData.allEmployees.isNotEmpty()) {
+                // 从存档加载员工数据
+                allEmployees.addAll(saveData.allEmployees)
+            } else {
+                // 新游戏：将创始人转换为员工
+                val founderAsEmployee = Employee(
+                    id = 0,
+                    name = founder.name,
+                    position = when (founder.profession) {
+                        FounderProfession.PROGRAMMER -> "程序员"
+                        FounderProfession.DESIGNER -> "策划师"
+                        FounderProfession.ARTIST -> "美术师"
+                        FounderProfession.SOUND_ENGINEER -> "音效师"
+                        FounderProfession.CUSTOMER_SERVICE -> "客服"
+                    },
+                    salary = 0,
+                    skillDevelopment = when (founder.profession) {
+                        FounderProfession.PROGRAMMER -> 5
+                        FounderProfession.DESIGNER -> 2
+                        FounderProfession.ARTIST -> 1
+                        FounderProfession.SOUND_ENGINEER -> 1
+                        FounderProfession.CUSTOMER_SERVICE -> 1
+                    },
+                    skillDesign = when (founder.profession) {
+                        FounderProfession.PROGRAMMER -> 2
+                        FounderProfession.DESIGNER -> 5
+                        FounderProfession.ARTIST -> 2
+                        FounderProfession.SOUND_ENGINEER -> 1
+                        FounderProfession.CUSTOMER_SERVICE -> 1
+                    },
+                    skillArt = when (founder.profession) {
+                        FounderProfession.PROGRAMMER -> 1
+                        FounderProfession.DESIGNER -> 2
+                        FounderProfession.ARTIST -> 5
+                        FounderProfession.SOUND_ENGINEER -> 2
+                        FounderProfession.CUSTOMER_SERVICE -> 1
+                    },
+                    skillMusic = when (founder.profession) {
+                        FounderProfession.PROGRAMMER -> 1
+                        FounderProfession.DESIGNER -> 1
+                        FounderProfession.ARTIST -> 2
+                        FounderProfession.SOUND_ENGINEER -> 5
+                        FounderProfession.CUSTOMER_SERVICE -> 1
+                    },
+                    skillService = when (founder.profession) {
+                        FounderProfession.PROGRAMMER -> 2
+                        FounderProfession.DESIGNER -> 2
+                        FounderProfession.ARTIST -> 1
+                        FounderProfession.SOUND_ENGINEER -> 1
+                        FounderProfession.CUSTOMER_SERVICE -> 5
+                    },
+                    isFounder = true
+                )
+                allEmployees.add(founderAsEmployee)
             }
         }
     }
     
-    val onDismissEmployee: (Employee) -> Unit = { employee ->
-        // 创始人不能被解雇
-        if (employee.id != 0) {
-            allEmployees.removeAll { it.id == employee.id }
+    // 初始化竞争对手（仅新游戏）
+    LaunchedEffect(saveData) {
+        if (saveData == null && competitors.isEmpty()) {
+            // 生成初始竞争对手
+            competitors = CompetitorManager.generateInitialCompetitors(
+                companyName, 
+                currentYear, 
+                currentMonth
+            )
         }
     }
+    
     
     // 时间推进系统
     LaunchedEffect(gameSpeed, isPaused) {
@@ -887,6 +1181,17 @@ fun GameScreen(
                 // 月结算：扣除服务器月费
                 val monthlyServerCost = RevenueManager.calculateTotalMonthlyServerCost()
                 money -= monthlyServerCost
+                
+                // 月结算：更新竞争对手
+                val (updatedCompetitors, newNews) = CompetitorManager.updateCompetitors(
+                    competitors,
+                    currentYear,
+                    currentMonth,
+                    currentDay
+                )
+                competitors = updatedCompetitors
+                // 添加新闻，保持最近30条
+                competitorNews = (newNews + competitorNews).take(30)
                 
                 if (currentMonth > 12) {
                     currentMonth = 1
@@ -912,11 +1217,11 @@ fun GameScreen(
                     val isCompleted = newProgress >= 1.0f
                     
                     // 如果游戏刚完成，触发发售流程
-                    val updatedGame = if (isCompleted && !game.isCompleted) {
+                    val updatedGame = if (isCompleted) {
                         val gameRating = GameRatingCalculator.calculateRating(game)
                         val completedGame = game.copy(
                             developmentProgress = newProgress,
-                            isCompleted = isCompleted,
+                            isCompleted = true,
                             rating = gameRating.finalScore,
                             gameRating = gameRating,
                             releaseStatus = GameReleaseStatus.READY_FOR_RELEASE
@@ -930,7 +1235,7 @@ fun GameScreen(
                     } else {
                         game.copy(
                             developmentProgress = newProgress,
-                            isCompleted = isCompleted
+                            isCompleted = false
                         )
                     }
                     
@@ -976,7 +1281,7 @@ fun GameScreen(
                         
                         // 如果开启了自动更新，自动创建下一次更新任务
                         if (releasedGame.autoUpdate) {
-                            println("【自动更新】游戏《${releasedGame.name}》的更新已自动发布！版本升级至 V${String.format("%.1f", updatedGame.version)}")
+                            println("【自动更新】游戏《${releasedGame.name}》的更新已自动发布！版本升级至 V${String.format(Locale.getDefault(), "%.1f", updatedGame.version)}")
                             
                             // 根据游戏已启用的付费内容生成更新选项
                             val autoUpdateFeatures = releasedGame.monetizationItems
@@ -994,7 +1299,7 @@ fun GameScreen(
                 }
             
             // 为活跃岗位生成应聘者
-            com.example.yjcy.service.JobPostingService.getInstance().generateApplicantsForActiveJobs(1)
+            JobPostingService.getInstance().generateApplicantsForActiveJobs(1)
             
             // 触发收益数据刷新
             revenueRefreshTrigger++
@@ -1002,6 +1307,11 @@ fun GameScreen(
             // 触发岗位应聘者数据刷新
             jobPostingRefreshTrigger++
         }
+    }
+    
+    // 拦截返回键，显示退出确认对话框
+    BackHandler {
+        showExitDialog = true
     }
     
     Box(
@@ -1047,7 +1357,14 @@ fun GameScreen(
                             companyName = companyName,
                             founder = founder,
                             allEmployees = allEmployees,
-                            games = games
+                            games = games,
+                            money = money,
+                            fans = fans,
+                            currentYear = currentYear,
+                            currentMonth = currentMonth,
+                            currentDay = currentDay,
+                            competitors = competitors,
+                            competitorNews = competitorNews
                         )
                         1 -> EmployeeManagementContent(
                             allEmployees = allEmployees,
@@ -1082,7 +1399,23 @@ fun GameScreen(
                             onMoneyUpdate = { updatedMoney -> money = updatedMoney },
                             onFansUpdate = { updatedFans -> fans = updatedFans }
                         )
-                        3 -> ServerManagementContent(
+                        3 -> CompetitorContent(
+                            saveData = SaveData(
+                                companyName = companyName,
+                                founderName = founderName,
+                                founderProfession = founderProfession,
+                                money = money,
+                                fans = fans,
+                                currentYear = currentYear,
+                                currentMonth = currentMonth,
+                                currentDay = currentDay,
+                                allEmployees = allEmployees,
+                                games = games,
+                                competitors = competitors,
+                                competitorNews = competitorNews
+                            )
+                        )
+                        4 -> ServerManagementContent(
                             games = games,
                             money = money,
                             onPurchaseServer = { serverType ->
@@ -1125,7 +1458,7 @@ fun GameScreen(
                             },
                             onMoneyUpdate = { updatedMoney -> money = updatedMoney }
                         )
-                        4 -> InGameSettingsContent(
+                        5 -> InGameSettingsContent(
                             navController = navController,
                             money = money,
                             fans = fans,
@@ -1134,7 +1467,11 @@ fun GameScreen(
                             currentDay = currentDay,
                             companyName = companyName,
                             founderName = founderName,
-                            games = games
+                            founderProfession = founderProfession,
+                            games = games,
+                            allEmployees = allEmployees,
+                            competitors = competitors,
+                            competitorNews = competitorNews
                         )
                         // 其他标签页内容可以在这里添加
                     }
@@ -1358,6 +1695,50 @@ fun GameScreen(
                 }
             )
         }
+        
+        // 退出游戏确认对话框
+        if (showExitDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    showExitDialog = false
+                },
+                title = {
+                    Text(
+                        text = "⚠️ 退出游戏",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Text(
+                        text = "确定要退出游戏吗？\n\n未保存的进度将会丢失！",
+                        fontSize = 14.sp
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            // 退出应用
+                            activity.finish()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFEF4444)
+                        )
+                    ) {
+                        Text("确认退出")
+                    }
+                },
+                dismissButton = {
+                    OutlinedButton(
+                        onClick = {
+                            showExitDialog = false
+                        }
+                    ) {
+                        Text("取消")
+                    }
+                }
+            )
+        }
     }
 }
 
@@ -1487,7 +1868,7 @@ fun TopInfoBar(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "👥",
+                            text = "❤️",
                             fontSize = 12.sp
                         )
                         Spacer(modifier = Modifier.width(4.dp))
@@ -1509,9 +1890,18 @@ fun CompanyOverviewContent(
     companyName: String = "我的游戏公司",
     founder: Founder? = null,
     allEmployees: List<Employee> = emptyList(),
-    games: List<Game> = emptyList()
+    games: List<Game> = emptyList(),
+    money: Long = 0L,
+    fans: Int = 0,
+    currentYear: Int = 1,
+    currentMonth: Int = 1,
+    currentDay: Int = 1,
+    competitors: List<CompetitorCompany> = emptyList(),
+    competitorNews: List<CompetitorNews> = emptyList()
 ) {
     var showSecretaryBubble by remember { mutableStateOf(false) }
+    
+    val scrollState = rememberScrollState()
     
     Box(
         modifier = Modifier
@@ -1524,6 +1914,7 @@ fun CompanyOverviewContent(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(scrollState)
                 .padding(16.dp)
         ) {
             // 标题栏与秘书头像
@@ -1624,12 +2015,30 @@ fun CompanyOverviewContent(
             
             Spacer(modifier = Modifier.height(20.dp))
             
+            // 计算公司市值（使用统一的市值计算函数）
+            val currentSaveData = SaveData(
+                companyName = companyName,
+                founderName = founder?.name ?: "",
+                founderProfession = founder?.profession,
+                money = money,
+                fans = fans,
+                currentYear = currentYear,
+                currentMonth = currentMonth,
+                currentDay = currentDay,
+                allEmployees = allEmployees,
+                games = games,
+                competitors = competitors,
+                competitorNews = competitorNews
+            )
+            val marketValue = calculatePlayerMarketValue(currentSaveData)
+            
             // 公司基本信息
             CompanyInfoCard(
                 title = "公司信息",
                 items = listOf(
                     "公司名称" to companyName,
-                    "成立时间" to "第1年1月1日"
+                    "成立时间" to "第1年1月1日",
+                    "公司市值" to formatMoney(marketValue)
                 )
             )
             
@@ -1705,6 +2114,9 @@ fun CompanyOverviewContent(
                     "去年总收入" to "¥${formatMoneyWithDecimals(lastYearRevenue)}"
                 )
             )
+            
+            // 底部留白，避免内容被底部导航栏遮挡
+            Spacer(modifier = Modifier.height(80.dp))
         }
     }
 }
@@ -1813,17 +2225,24 @@ fun EnhancedBottomNavigationBar(
             )
             
             EnhancedBottomNavItem(
-                icon = "🖥️",
-                label = "服务器",
+                icon = "🎯",
+                label = "竞争对手",
                 isSelected = selectedTab == 3,
                 onClick = { onTabSelected(3) }
             )
             
             EnhancedBottomNavItem(
-                icon = "⚙️",
-                label = "设置",
+                icon = "🖥️",
+                label = "服务器",
                 isSelected = selectedTab == 4,
                 onClick = { onTabSelected(4) }
+            )
+            
+            EnhancedBottomNavItem(
+                icon = "⚙️",
+                label = "设置",
+                isSelected = selectedTab == 5,
+                onClick = { onTabSelected(5) }
             )
         }
     }
@@ -1836,7 +2255,7 @@ fun EnhancedBottomNavItem(
     isSelected: Boolean,
     onClick: () -> Unit,
     showBadge: Boolean = false,
-    badgeCount: Int = 0
+    @Suppress("UNUSED_PARAMETER") badgeCount: Int = 0
 ) {
     val scale by animateFloatAsState(
         targetValue = if (isSelected) 1.1f else 1.0f,
@@ -1885,7 +2304,7 @@ fun EnhancedBottomNavItem(
         }
         Text(
             text = label,
-            color = if (isSelected) Color.White else Color.Black, // 选中时为白色，未选中时为黑色
+            color = Color.White, // 统一使用白色
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold // 设置为加粗
         )
@@ -2221,221 +2640,6 @@ fun SettingsScreen(navController: NavController) {
 
 
 
-// 现代化色彩系统
-object ModernColorSystem {
-    // 主要渐变背景
-    val primaryGradient = listOf(
-        Color(0xFF667eea),
-        Color(0xFF764ba2)
-    )
-    
-    val secondaryGradient = listOf(
-        Color(0xFF4facfe),
-        Color(0xFF00f2fe)
-    )
-    
-    val accentGradient = listOf(
-        Color(0xFFfa709a),
-        Color(0xFFfee140)
-    )
-    
-    // 毛玻璃效果颜色
-    val glassBackground = Color.White.copy(alpha = 0.1f)
-    val glassStroke = Color.White.copy(alpha = 0.2f)
-    
-    // 文本颜色
-    val primaryText = Color.White
-    val secondaryText = Color.White.copy(alpha = 0.8f)
-    
-    // 状态颜色
-    val successColor = Color(0xFF10B981)
-    val warningColor = Color(0xFFF59E0B)
-    val errorColor = Color(0xFFEF4444)
-    val infoColor = Color(0xFF3B82F6)
-    
-    // 趋势颜色
-    val trendUpColor = Color(0xFF10B981)
-    val trendDownColor = Color(0xFFEF4444)
-    val trendStableColor = Color(0xFF6B7280)
-}
-
-// 现代化动画系统
-object ModernAnimationSystem {
-    // 基础动画时长
-    const val FAST_ANIMATION = 200
-    const val NORMAL_ANIMATION = 300
-    
-    // 缓动函数
-    val fastOutSlowIn = FastOutSlowInEasing
-    
-    // 常用动画规格
-    val fadeInOut = tween<Float>(NORMAL_ANIMATION, easing = fastOutSlowIn)
-    val scaleInOut = tween<Float>(FAST_ANIMATION, easing = fastOutSlowIn)
-}
-
-// 毛玻璃效果组件
-@Composable
-fun GlassCard(
-    modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    
-    val animatedScale by animateFloatAsState(
-        targetValue = if (isPressed) 0.98f else 1f,
-        animationSpec = ModernAnimationSystem.scaleInOut
-    )
-    
-    val animatedAlpha by animateFloatAsState(
-        targetValue = if (isPressed) 0.8f else 1f,
-        animationSpec = ModernAnimationSystem.fadeInOut
-    )
-    
-    Card(
-        modifier = modifier
-            .scale(animatedScale)
-            .alpha(animatedAlpha)
-            .then(
-                if (onClick != null) {
-                    Modifier.clickable(
-                        interactionSource = interactionSource,
-                        indication = null
-                    ) { onClick() }
-                } else Modifier
-            ),
-        colors = CardDefaults.cardColors(
-            containerColor = ModernColorSystem.glassBackground
-        ),
-        border = BorderStroke(
-            width = 1.dp,
-            color = ModernColorSystem.glassStroke
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 8.dp,
-            pressedElevation = 12.dp
-        ),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            content = content
-        )
-    }
-}
-
-// 数据芯片组件
-@Composable
-fun DataChip(
-    text: String,
-    modifier: Modifier = Modifier,
-    icon: String? = null,
-    color: Color = ModernColorSystem.infoColor
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(20.dp),
-        color = color.copy(alpha = 0.2f),
-        border = BorderStroke(1.dp, color.copy(alpha = 0.3f))
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            if (icon != null) {
-                Text(
-                    text = icon,
-                    fontSize = 12.sp
-                )
-            }
-            Text(
-                text = text,
-                fontSize = 12.sp,
-                color = ModernColorSystem.primaryText,
-                fontWeight = FontWeight.Medium
-            )
-        }
-    }
-}
-
-
-
-// 响应式布局系统
-object ResponsiveLayoutSystem {
-    // 屏幕断点
-    
-    // 布局配置
-    data class LayoutConfig(
-        val isCompact: Boolean,
-        val isMedium: Boolean,
-        val isExpanded: Boolean,
-        val columns: Int,
-        val cardSpacing: Int,
-        val contentPadding: Int,
-        val itemSpacing: Int,
-        val cardPadding: Int,
-        val titleFontSize: Int
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun getLayoutConfig(): ResponsiveLayoutSystem.LayoutConfig {
-    val context = LocalContext.current
-    val windowSizeClass = calculateWindowSizeClass(context as Activity)
-    
-    return when (windowSizeClass.widthSizeClass) {
-        WindowWidthSizeClass.Compact -> ResponsiveLayoutSystem.LayoutConfig(
-            isCompact = true,
-            isMedium = false,
-            isExpanded = false,
-            columns = 1,
-            cardSpacing = 8,
-            contentPadding = 12,
-            itemSpacing = 8,
-            cardPadding = 12,
-            titleFontSize = 16
-        )
-        WindowWidthSizeClass.Medium -> ResponsiveLayoutSystem.LayoutConfig(
-            isCompact = false,
-            isMedium = true,
-            isExpanded = false,
-            columns = 2,
-            cardSpacing = 12,
-            contentPadding = 16,
-            itemSpacing = 12,
-            cardPadding = 16,
-            titleFontSize = 18
-        )
-        WindowWidthSizeClass.Expanded -> ResponsiveLayoutSystem.LayoutConfig(
-            isCompact = false,
-            isMedium = false,
-            isExpanded = true,
-            columns = 3,
-            cardSpacing = 16,
-            contentPadding = 20,
-            itemSpacing = 16,
-            cardPadding = 20,
-            titleFontSize = 20
-        )
-        else -> ResponsiveLayoutSystem.LayoutConfig(
-            isCompact = false,
-            isMedium = false,
-            isExpanded = true,
-            columns = 3,
-            cardSpacing = 16,
-            contentPadding = 20,
-            itemSpacing = 16,
-            cardPadding = 20,
-            titleFontSize = 20
-        )
-    }
-}
-
-
-
 
 
 // 存档管理类
@@ -2445,9 +2649,9 @@ class SaveManager(context: Context) {
     
     fun saveGame(slotIndex: Int, saveData: SaveData) {
         val json = gson.toJson(saveData)
-        sharedPreferences.edit()
-            .putString("save_slot_$slotIndex", json)
-            .apply()
+        sharedPreferences.edit {
+            putString("save_slot_$slotIndex", json)
+        }
     }
     
     fun loadGame(slotIndex: Int): SaveData? {
@@ -2464,9 +2668,9 @@ class SaveManager(context: Context) {
     }
     
     fun deleteSave(slotIndex: Int) {
-        sharedPreferences.edit()
-            .remove("save_slot_$slotIndex")
-            .apply()
+        sharedPreferences.edit {
+            remove("save_slot_$slotIndex")
+        }
     }
     
     fun getAllSaves(): Map<Int, SaveData?> {
@@ -2508,7 +2712,11 @@ fun InGameSettingsContent(
     currentDay: Int = 1,
     companyName: String = "我的游戏公司",
     founderName: String = "创始人",
-    games: List<Game> = emptyList()
+    founderProfession: FounderProfession = FounderProfession.PROGRAMMER,
+    games: List<Game> = emptyList(),
+    allEmployees: List<Employee> = emptyList(),
+    competitors: List<CompetitorCompany> = emptyList(),
+    competitorNews: List<CompetitorNews> = emptyList()
 ) {
     val context = LocalContext.current
     val saveManager = remember { SaveManager(context) }
@@ -2593,7 +2801,7 @@ fun InGameSettingsContent(
     // 保存游戏对话框
     if (showSaveDialog) {
         var showOverwriteConfirmDialog by remember { mutableStateOf(false) }
-        var selectedSlotNumber by remember { mutableStateOf(0) }
+        var selectedSlotNumber by remember { mutableIntStateOf(0) }
         var selectedExistingSave by remember { mutableStateOf<SaveData?>(null) }
         
         // 覆盖确认对话框
@@ -2649,21 +2857,25 @@ fun InGameSettingsContent(
                             val saveData = SaveData(
                                 companyName = companyName,
                                 founderName = founderName,
+                                founderProfession = founderProfession,
                                 money = money,
                                 fans = fans,
                                 currentYear = currentYear,
                                 currentMonth = currentMonth,
                                 currentDay = currentDay,
+                                allEmployees = allEmployees,
                                 games = games,
+                                competitors = competitors,
+                                competitorNews = competitorNews,
                                 saveTime = System.currentTimeMillis()
                             )
                             saveManager.saveGame(selectedSlotNumber, saveData)
+                            // 显示保存成功提示（在重置前使用selectedSlotNumber）
+                            Toast.makeText(context, "游戏已保存到存档位 $selectedSlotNumber", Toast.LENGTH_SHORT).show()
                             showSaveDialog = false
                             showOverwriteConfirmDialog = false
                             selectedSlotNumber = 0
                             selectedExistingSave = null
-                            // 显示保存成功提示
-                            Toast.makeText(context, "游戏已保存到存档位 $selectedSlotNumber", Toast.LENGTH_SHORT).show()
                             // 如果需要在保存后返回主菜单
                             if (shouldReturnToMenuAfterSave) {
                                 shouldReturnToMenuAfterSave = false
@@ -2734,12 +2946,16 @@ fun InGameSettingsContent(
                                         val saveData = SaveData(
                                             companyName = companyName,
                                             founderName = founderName,
+                                            founderProfession = founderProfession,
                                             money = money,
                                             fans = fans,
                                             currentYear = currentYear,
                                             currentMonth = currentMonth,
                                             currentDay = currentDay,
+                                            allEmployees = allEmployees,
                                             games = games,
+                                            competitors = competitors,
+                                            competitorNews = competitorNews,
                                             saveTime = System.currentTimeMillis()
                                         )
                                         saveManager.saveGame(slotNumber, saveData)
@@ -2878,8 +3094,7 @@ fun InGameSettingsContent(
 
 
 @Composable
-fun PrivacyPolicyDialog(onAgree: () -> Unit) {
-    var isChecked by remember { mutableStateOf(false) }
+fun PrivacyPolicyDialog(onAgree: () -> Unit, onReject: () -> Unit) {
     val context = LocalContext.current
     
     Dialog(
@@ -2961,6 +3176,14 @@ fun PrivacyPolicyDialog(onAgree: () -> Unit) {
                     )
                     
                     Text(
+                        text = "• 设备信息收集：我们会收集您的Android ID等设备标识符，用于用户账号识别、登录认证、防作弊以及为您提供个性化服务。这些信息仅在您同意本隐私政策后才会收集；",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFF374151),
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    
+                    Text(
                         text = "• 我们可能会申请存储权限，用于保存游戏数据；",
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color(0xFF374151),
@@ -2989,75 +3212,69 @@ fun PrivacyPolicyDialog(onAgree: () -> Unit) {
                     )
                     
                     Text(
+                        text = "第三方SDK说明：",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF374151),
+                        modifier = Modifier.padding(bottom = 4.dp, top = 8.dp)
+                    )
+                    
+                    Text(
+                        text = "• TapTap SDK：用于提供登录、实名认证和防沉迷服务，会在您同意本隐私政策后收集Android ID等设备信息，用于账号识别和合规认证。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFF374151),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    
+                    Text(
                         text = "我们不会收集与游戏无关或强制用户开启的个人信息。",
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color(0xFF374151)
                     )
                 }
                 
-                // 复选框区域
+                // 按钮区域
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(top = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Checkbox(
-                        checked = isChecked,
-                        onCheckedChange = { isChecked = it },
-                        colors = CheckboxDefaults.colors(
-                            checkedColor = Color(0xFF10B981),
-                            uncheckedColor = Color(0xFF9CA3AF)
+                    // 拒绝按钮
+                    Button(
+                        onClick = onReject,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF6B7280),
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = "拒绝",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(vertical = 4.dp)
                         )
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    
-                    // 带链接的复选框文本
-                    val checkboxText = buildAnnotatedString {
-                        append("我已阅读并同意")
-                        pushStringAnnotation(tag = "user_agreement", annotation = "https://share.note.youdao.com/s/FUdL4QRe")
-                        withStyle(style = SpanStyle(color = Color(0xFF3B82F6), fontWeight = FontWeight.Medium)) {
-                            append("《用户协议》")
-                        }
-                        pop()
-                        append("与")
-                        pushStringAnnotation(tag = "privacy_policy", annotation = "https://share.note.youdao.com/s/KjmsBvUB")
-                        withStyle(style = SpanStyle(color = Color(0xFF3B82F6), fontWeight = FontWeight.Medium)) {
-                            append("《隐私政策》")
-                        }
-                        pop()
                     }
                     
-                    Text(
-                        text = checkboxText,
-                        style = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFF374151)),
-                        modifier = Modifier.clickable {
-                            // Handle privacy policy link
-                            val intent = Intent(Intent.ACTION_VIEW, "https://share.note.youdao.com/s/KjmsBvUB".toUri())
-                            context.startActivity(intent)
-                        }
-                    )
-                }
-                
-                // 确认按钮
-                Button(
-                    onClick = onAgree,
-                    enabled = isChecked,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isChecked) Color(0xFF10B981) else Color(0xFF9CA3AF),
-                        contentColor = Color.White
-                    ),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text(
-                        text = "进入游戏",
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
+                    // 同意按钮
+                    Button(
+                        onClick = onAgree,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF10B981),
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = "同意",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    }
                 }
             }
         }

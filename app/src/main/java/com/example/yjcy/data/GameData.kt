@@ -18,7 +18,7 @@ enum class FounderProfession(val displayName: String, val icon: String, val spec
     PROGRAMMER("程序员", "💻", "开发"),
     DESIGNER("策划师", "📋", "设计"),
     ARTIST("美术师", "🎨", "美工"),
-    SOUND_ENGINEER("音效师", "🎵", "音乐"),
+    SOUND_ENGINEER("音效师", "🎧", "音乐"),
     CUSTOMER_SERVICE("客服", "📞", "服务")
 }
 
@@ -265,5 +265,7 @@ data class SaveData(
     val currentDay: Int = 1,
     val allEmployees: List<Employee> = emptyList(),
     val games: List<Game> = emptyList(),
+    val competitors: List<CompetitorCompany> = emptyList(), // 竞争对手公司列表
+    val competitorNews: List<CompetitorNews> = emptyList(), // 竞争对手动态新闻（最近30条）
     val saveTime: Long = System.currentTimeMillis()
 )

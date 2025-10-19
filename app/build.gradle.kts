@@ -20,13 +20,28 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        getByName("debug") {
+            // 使用Android默认的debug keystore
+            storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // 开发阶段release也用debug签名
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {
@@ -92,6 +107,13 @@ dependencies {
     // ViewModel
     implementation(libs.lifecycle.viewmodel.compose)
     
+    // TapSDK
+    implementation(libs.tap.core)
+    implementation(libs.tap.login)
+    implementation(libs.tap.compliance)
+    
+    // JSON序列化（TapSDK需要）
+    implementation(libs.kotlinx.serialization.json)
 
 
     testImplementation(libs.junit)
