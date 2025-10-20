@@ -93,6 +93,7 @@ import com.example.yjcy.data.CompetitorManager
 import com.example.yjcy.ui.CompetitorContent
 import com.example.yjcy.ui.calculatePlayerMarketValue
 import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import dagger.hilt.android.AndroidEntryPoint
 import java.util.Locale
 import kotlin.math.sin
@@ -203,9 +204,18 @@ class MainActivity : ComponentActivity() {
                         val founderName = backStackEntry.arguments?.getString("founderName") ?: "创始人"
                         val selectedLogo = backStackEntry.arguments?.getString("selectedLogo") ?: "🎮"
                         val founderProfession = backStackEntry.arguments?.getString("founderProfession") ?: "PROGRAMMER"
-                        GameScreen(navController, companyName, founderName, selectedLogo, founderProfession, currentLoadedSaveData)
-                        // 清除存档数据，避免影响下次新游戏
-                        currentLoadedSaveData = null
+                        
+                        // 保存当前存档数据的快照，避免被清空影响
+                        val saveDataSnapshot = remember { currentLoadedSaveData }
+                        
+                        // 首次进入时清除全局存档变量
+                        DisposableEffect(Unit) {
+                            onDispose {
+                                currentLoadedSaveData = null
+                            }
+                        }
+                        
+                        GameScreen(navController, companyName, founderName, selectedLogo, founderProfession, saveDataSnapshot)
                     }
                     composable("continue") {
                         ContinueScreen(navController)
@@ -541,7 +551,7 @@ fun MainMenuScreen(navController: NavController) {
         
         // 左上角版本号
         Text(
-            text = "V1.5",
+            text = "V1.8.1",
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
             color = Color.White.copy(alpha = 0.7f),
@@ -1044,6 +1054,10 @@ fun GameScreen(
     initialFounderProfession: String = "PROGRAMMER",
     saveData: SaveData? = null
 ) {
+    // 调试：记录GameScreen创建
+    val screenInstanceId = remember { System.currentTimeMillis() }
+    Log.d("GameScreen", "🔵 GameScreen【实例 $screenInstanceId】被创建, saveData=${if (saveData != null) "非null(公司=${saveData.companyName})" else "null(新游戏)"}")
+    
     // 获取 Activity 上下文，用于退出游戏
     val activity = LocalActivity.current!!
     
@@ -1067,13 +1081,6 @@ fun GameScreen(
     // 消息状态
     var showMessage by remember { mutableStateOf(false) }
     var messageText by remember { mutableStateOf("") }
-    
-    // 如果是新游戏，清除RevenueManager的旧数据
-    LaunchedEffect(saveData) {
-        if (saveData == null) {
-            RevenueManager.clearAllData()
-        }
-    }
     
     // 游戏发售相关状态
     var showReleaseDialog by remember { mutableStateOf(false) }
@@ -1117,9 +1124,23 @@ fun GameScreen(
         Founder(name = founderName, profession = founderProfession)
     }
 
-    // 如果是从存档进入，初始化已发售游戏的收益数据（避免收益概览为空、按钮无响应）
-    LaunchedEffect(saveData) {
+    // 初始化RevenueManager数据：新游戏清空，读档恢复（只执行一次）
+    LaunchedEffect(Unit) {
+        val instanceId = System.currentTimeMillis()
+        Log.d("GameScreen", "【实例 $instanceId】LaunchedEffect(Unit) 开始执行, saveData=${if (saveData != null) "非null" else "null"}")
+        
         if (saveData != null) {
+            // ===== 读档：恢复数据 =====
+            Log.d("GameScreen", "【实例 $instanceId】===== 读档模式：开始恢复数据 =====")
+            
+            // 恢复服务器数据
+            if (saveData.serverData.isNotEmpty()) {
+                RevenueManager.importServerData(saveData.serverData)
+                Log.d("GameScreen", "【实例 $instanceId】✓ 从存档恢复服务器数据: ${saveData.serverData.size} 个游戏")
+            } else {
+                Log.d("GameScreen", "【实例 $instanceId】⚠ 存档中没有服务器数据")
+            }
+            
             saveData.games
                 .filter { it.releaseStatus == GameReleaseStatus.RELEASED || it.releaseStatus == GameReleaseStatus.RATED }
                 .forEach { releasedGame ->
@@ -1146,11 +1167,16 @@ fun GameScreen(
                 }
             // 触发一次UI刷新以显示已初始化的收益
             revenueRefreshTrigger++
+            Log.d("GameScreen", "【实例 $instanceId】===== 读档数据恢复完成 =====")
+        } else {
+            // ===== 新游戏：清空旧数据 =====
+            Log.d("GameScreen", "【实例 $instanceId】===== 新游戏模式：清空旧数据 =====")
+            RevenueManager.clearAllData()
         }
     }
     
-    // 初始化员工列表 - 从存档加载或创建创始人员工
-    LaunchedEffect(founder, saveData) {
+    // 初始化员工列表 - 从存档加载或创建创始人员工（只执行一次）
+    LaunchedEffect(Unit) {
         if (allEmployees.isEmpty()) {
             if (saveData != null && saveData.allEmployees.isNotEmpty()) {
                 // 从存档加载员工数据
@@ -1167,8 +1193,8 @@ fun GameScreen(
         }
     }
     
-    // 初始化竞争对手（仅新游戏）
-    LaunchedEffect(saveData) {
+    // 初始化竞争对手（只执行一次）
+    LaunchedEffect(Unit) {
         if (saveData == null && competitors.isEmpty()) {
             // 生成初始竞争对手
             competitors = CompetitorManager.generateInitialCompetitors(
@@ -1478,7 +1504,8 @@ fun GameScreen(
                                 allEmployees = allEmployees,
                                 games = games,
                                 competitors = competitors,
-                                competitorNews = competitorNews
+                                competitorNews = competitorNews,
+                                serverData = RevenueManager.exportServerData()
                             )
                         )
                         4 -> ServerManagementContent(
@@ -2560,6 +2587,11 @@ fun ContinueScreen(navController: NavController) {
     var saves by remember { mutableStateOf(saveManager.getAllSaves()) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var saveToDelete by remember { mutableStateOf<Pair<Int, SaveData?>?>(null) }
+    var showVersionWarningDialog by remember { mutableStateOf(false) }
+    var saveToLoad by remember { mutableStateOf<Pair<Int, SaveData>?>(null) }
+    
+    // 当前游戏版本（从build.gradle.kts获取）
+    val currentVersion = "1.8.1"
     
     Box(
         modifier = Modifier
@@ -2592,10 +2624,18 @@ fun ContinueScreen(navController: NavController) {
                     slotIndex = slotIndex,
                     saveData = saves[slotIndex],
                     onLoadSave = { saveData ->
-                        // 设置全局存档数据，以便GameScreen可以使用
-                        currentLoadedSaveData = saveData
-                        Toast.makeText(context, "加载存档 $slotIndex", Toast.LENGTH_SHORT).show()
-                        navController.navigate("game/${saveData.companyName}/${saveData.founderName}/${saveData.companyLogo}/${saveData.founderProfession?.name ?: "PROGRAMMER"}")
+                        // 检查存档版本号
+                        val saveVersion = saveData.version
+                        if (compareVersion(saveVersion, currentVersion) < 0) {
+                            // 存档版本低于当前版本，显示警告对话框
+                            saveToLoad = Pair(slotIndex, saveData)
+                            showVersionWarningDialog = true
+                        } else {
+                            // 版本号正常，直接加载
+                            currentLoadedSaveData = saveData
+                            Toast.makeText(context, "加载存档 $slotIndex", Toast.LENGTH_SHORT).show()
+                            navController.navigate("game/${saveData.companyName}/${saveData.founderName}/${saveData.companyLogo}/${saveData.founderProfession?.name ?: "PROGRAMMER"}")
+                        }
                     },
                     onDeleteSave = {
                         saveToDelete = Pair(slotIndex, saves[slotIndex])
@@ -2630,6 +2670,27 @@ fun ContinueScreen(navController: NavController) {
                 onDismiss = {
                     showDeleteConfirmDialog = false
                     saveToDelete = null
+                }
+            )
+        }
+        
+        // 版本号警告对话框
+        if (showVersionWarningDialog && saveToLoad != null) {
+            VersionWarningDialog(
+                slotIndex = saveToLoad!!.first,
+                saveData = saveToLoad!!.second,
+                currentVersion = currentVersion,
+                onConfirm = {
+                    // 用户确认后继续加载
+                    currentLoadedSaveData = saveToLoad!!.second
+                    Toast.makeText(context, "加载存档 ${saveToLoad!!.first}", Toast.LENGTH_SHORT).show()
+                    navController.navigate("game/${saveToLoad!!.second.companyName}/${saveToLoad!!.second.founderName}/${saveToLoad!!.second.companyLogo}/${saveToLoad!!.second.founderProfession?.name ?: "PROGRAMMER"}")
+                    showVersionWarningDialog = false
+                    saveToLoad = null
+                },
+                onDismiss = {
+                    showVersionWarningDialog = false
+                    saveToLoad = null
                 }
             )
         }
@@ -2726,7 +2787,7 @@ fun SaveSlotCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(140.dp)
+            .height(160.dp)
             .clickable {
                 saveData?.let { onLoadSave(it) }
             },
@@ -2805,6 +2866,16 @@ fun SaveSlotCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.fillMaxWidth()
+                    )
+                    
+                    // 显示版本号
+                    Text(
+                        text = "版本: ${saveData.version}",
+                        fontSize = 12.sp,
+                        color = Color(0xFF10B981),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        fontWeight = FontWeight.Medium
                     )
                 }
             } else {
@@ -2889,19 +2960,199 @@ fun SettingsScreen(navController: NavController) {
     }
 }
 
+/**
+ * 比较两个版本号
+ * @return 如果version1 < version2返回负数，相等返回0，大于返回正数
+ */
+fun compareVersion(version1: String, version2: String): Int {
+    val v1Parts = version1.split(".").map { it.toIntOrNull() ?: 0 }
+    val v2Parts = version2.split(".").map { it.toIntOrNull() ?: 0 }
+    
+    val maxLength = maxOf(v1Parts.size, v2Parts.size)
+    for (i in 0 until maxLength) {
+        val v1 = v1Parts.getOrNull(i) ?: 0
+        val v2 = v2Parts.getOrNull(i) ?: 0
+        if (v1 != v2) {
+            return v1 - v2
+        }
+    }
+    return 0
+}
 
-
-
+@Composable
+fun VersionWarningDialog(
+    slotIndex: Int,
+    saveData: SaveData,
+    currentVersion: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "⚠️",
+                    fontSize = 24.sp
+                )
+                Text(
+                    text = "存档版本警告",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            }
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFFFEF3C7).copy(alpha = 0.1f)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "存档版本: ${saveData.version}",
+                            color = Color(0xFFFBBF24),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "当前版本: $currentVersion",
+                            color = Color(0xFF10B981),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+                
+                Text(
+                    text = "当前存档版本低于最新版，可能会出现以下问题：",
+                    color = Color.White.copy(alpha = 0.9f),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "•",
+                            color = Color(0xFFFBBF24),
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = "旧存档游戏数据可能受到影响",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 13.sp
+                        )
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "•",
+                            color = Color(0xFFFBBF24),
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = "无法体验新版本的玩法或功能",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+                
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF10B981).copy(alpha = 0.1f)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "💡",
+                            fontSize = 16.sp
+                        )
+                        Text(
+                            text = "建议开启新档游玩以获得最佳体验",
+                            color = Color(0xFF10B981),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Card(
+                modifier = Modifier.clickable { onConfirm() },
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFFFBBF24).copy(alpha = 0.2f)
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    text = "仍然加载",
+                    color = Color(0xFFFBBF24),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        dismissButton = {
+            Card(
+                modifier = Modifier.clickable { onDismiss() },
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.White.copy(alpha = 0.1f)
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    text = "取消",
+                    color = Color.White,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        containerColor = Color(0xFF1F2937),
+        shape = RoundedCornerShape(16.dp)
+    )
+}
 
 // 存档管理类
 class SaveManager(context: Context) {
     private val sharedPreferences = context.getSharedPreferences("game_saves", Context.MODE_PRIVATE)
-    private val gson = Gson()
+    private val gson = GsonBuilder()
+        .setPrettyPrinting()
+        .serializeNulls() // 确保null值也被序列化
+        .create()
     
     fun saveGame(slotIndex: Int, saveData: SaveData) {
         val json = gson.toJson(saveData)
         sharedPreferences.edit {
             putString("save_slot_$slotIndex", json)
+        }
+        Log.d("SaveManager", "保存游戏到存档位 $slotIndex, 游戏数量: ${saveData.games.size}")
+        saveData.games.forEach { game ->
+            Log.d("SaveManager", "游戏 ${game.name}: serverInfo = ${game.serverInfo}")
         }
     }
     
@@ -2909,8 +3160,14 @@ class SaveManager(context: Context) {
         val json = sharedPreferences.getString("save_slot_$slotIndex", null)
         return if (json != null) {
             try {
-                gson.fromJson(json, SaveData::class.java)
-            } catch (_: Exception) {
+                val loadedData = gson.fromJson(json, SaveData::class.java)
+                Log.d("SaveManager", "从存档位 $slotIndex 加载游戏, 游戏数量: ${loadedData.games.size}")
+                loadedData.games.forEach { game ->
+                    Log.d("SaveManager", "加载游戏 ${game.name}: serverInfo = ${game.serverInfo}")
+                }
+                loadedData
+            } catch (e: Exception) {
+                Log.e("SaveManager", "加载存档失败", e)
                 null
             }
         } else {
@@ -3112,6 +3369,7 @@ fun InGameSettingsContent(
                                 games = games,
                                 competitors = competitors,
                                 competitorNews = competitorNews,
+                                serverData = RevenueManager.exportServerData(), // 导出服务器数据
                                 saveTime = System.currentTimeMillis()
                             )
                             saveManager.saveGame(selectedSlotNumber, saveData)
@@ -3202,6 +3460,7 @@ fun InGameSettingsContent(
                                             games = games,
                                             competitors = competitors,
                                             competitorNews = competitorNews,
+                                            serverData = RevenueManager.exportServerData(), // 导出服务器数据
                                             saveTime = System.currentTimeMillis()
                                         )
                                         saveManager.saveGame(slotNumber, saveData)

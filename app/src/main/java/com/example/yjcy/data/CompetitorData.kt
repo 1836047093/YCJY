@@ -6,6 +6,16 @@ import com.example.yjcy.ui.BusinessModel
 import kotlin.random.Random
 
 /**
+ * 辅助数据类：四元组
+ */
+private data class Quadruple<A, B, C, D>(
+    val first: A,
+    val second: B,
+    val third: C,
+    val fourth: D
+)
+
+/**
  * 竞争对手公司数据类
  */
 data class CompetitorCompany(
@@ -33,6 +43,21 @@ data class CompetitorCompany(
         return games.filter { it.businessModel == BusinessModel.SINGLE_PLAYER }
             .sumOf { it.salesCount }
     }
+    
+    /**
+     * 计算公司所有游戏的总收入（累计）
+     */
+    fun getTotalRevenue(): Double {
+        return games.sumOf { it.totalRevenue }
+    }
+    
+    /**
+     * 计算公司所有游戏的平均评分
+     */
+    fun getAverageRating(): Float {
+        if (games.isEmpty()) return 5.0f
+        return games.map { it.rating }.average().toFloat()
+    }
 }
 
 /**
@@ -50,7 +75,9 @@ data class CompetitorGame(
     val activePlayers: Int = 0, // 活跃玩家数（网游）
     val salesCount: Int = 0, // 销量（单机）
     val releaseYear: Int = 1, // 发售年份
-    val releaseMonth: Int = 1 // 发售月份
+    val releaseMonth: Int = 1, // 发售月份
+    val totalRevenue: Double = 0.0, // 累计总收入
+    val monetizationRevenue: Double = 0.0 // 累计付费内容收入（仅网游）
 )
 
 /**
@@ -205,7 +232,7 @@ object CompetitorManager {
             // 根据游戏年龄和评分生成合理的玩家数/销量
             val monthsSinceRelease = (currentYear - actualReleaseYear) * 12 + (currentMonth - actualReleaseMonth)
             
-            val (activePlayers, salesCount) = when (businessModel) {
+            val (activePlayers, salesCount, initialRevenue, initialMonetizationRevenue) = when (businessModel) {
                 BusinessModel.ONLINE_GAME -> {
                     // 网游活跃玩家：基于评分和时间
                     val baseActivePlayers = ((rating - 5) * 10000).toInt() // 评分影响基数
@@ -215,15 +242,27 @@ object CompetitorManager {
                         monthsSinceRelease <= 24 -> Random.nextDouble(0.3, 0.8)  // 1-2年
                         else -> Random.nextDouble(0.1, 0.5)                       // 2年以上
                     }
-                    val activePlayers = (baseActivePlayers * timeMultiplier).toInt()
-                    Pair(activePlayers.coerceIn(500, 500000), 0)
+                    val activePlayers = (baseActivePlayers * timeMultiplier).toInt().coerceIn(500, 500000)
+                    
+                    // 使用付费内容系统计算累计收入
+                    val monthlyMonetizationRevenue = calculateCompetitorMonetizationRevenue(activePlayers, theme)
+                    val totalMonetizationRevenue = monthlyMonetizationRevenue * monthsSinceRelease.coerceAtLeast(1)
+                    
+                    // 注册收入为0（免费网游）
+                    val totalRevenue = totalMonetizationRevenue
+                    
+                    Quadruple(activePlayers, 0, totalRevenue, totalMonetizationRevenue)
                 }
                 BusinessModel.SINGLE_PLAYER -> {
                     // 单机游戏销量：基于评分和时间累计
                     val baseSales = ((rating - 5) * 5000).toInt()
                     val timeSales = monthsSinceRelease * Random.nextInt(100, 500)
                     val totalSales = (baseSales + timeSales).coerceIn(1000, 1000000)
-                    Pair(0, totalSales)
+                    
+                    // 单机收入 = 销量 × 单价（假设50元）
+                    val totalRevenue = totalSales * 50.0
+                    
+                    Quadruple(0, totalSales, totalRevenue, 0.0)
                 }
             }
             
@@ -240,7 +279,9 @@ object CompetitorManager {
                     activePlayers = activePlayers,
                     salesCount = salesCount,
                     releaseYear = actualReleaseYear,
-                    releaseMonth = actualReleaseMonth
+                    releaseMonth = actualReleaseMonth,
+                    totalRevenue = initialRevenue,
+                    monetizationRevenue = initialMonetizationRevenue
                 )
             )
         }
@@ -262,9 +303,25 @@ object CompetitorManager {
         val newsList = mutableListOf<CompetitorNews>()
         
         for (company in competitors) {
-            // 更新市值 (±5%-15%)
-            val marketValueChange = company.marketValue * Random.nextDouble(-0.05, 0.15)
-            val newMarketValue = (company.marketValue + marketValueChange.toLong()).coerceAtLeast(100000L)
+            // 更新市值：基于总收入、平均评分和成立年数动态计算
+            // 市值 = 总收入 × (1 + 评分系数 + 年数系数 + 游戏数量系数)
+            val totalRevenue = company.getTotalRevenue()
+            val avgRating = company.getAverageRating()
+            
+            // 评分系数：评分越高，市盈率越高 (0-1之间)
+            val ratingMultiplier = ((avgRating - 5.0f) / 5.0f).coerceIn(0f, 1f).toDouble()
+            
+            // 年数系数：成立时间越长，品牌价值越高 (0-0.5之间)
+            val yearsMultiplier = (company.yearsFounded.toDouble() / 10.0).coerceIn(0.0, 0.5)
+            
+            // 游戏数量系数：游戏越多，公司价值越高 (0-0.3之间)
+            val gameCountMultiplier = (company.games.size.toDouble() / 10.0).coerceIn(0.0, 0.3)
+            
+            // 计算市值倍数 (1.0-2.8之间)
+            val marketValueMultiplier = 1.0 + ratingMultiplier + yearsMultiplier + gameCountMultiplier
+            
+            // 新市值 = 总收入 × 市值倍数，最低10万
+            val newMarketValue = (totalRevenue * marketValueMultiplier).toLong().coerceAtLeast(100000L)
             
             // 更新粉丝数 (+2%-10%)
             val fansGrowth = (company.fans * Random.nextDouble(0.02, 0.10)).toInt()
@@ -279,6 +336,11 @@ object CompetitorManager {
                         val playerChange = (game.activePlayers * Random.nextDouble(-0.10, 0.30)).toInt()
                         val newActivePlayers = (game.activePlayers + playerChange).coerceAtLeast(100)
                         
+                        // 使用付费内容系统计算本月收入
+                        val monthlyMonetizationRevenue = calculateCompetitorMonetizationRevenue(newActivePlayers, game.theme)
+                        val newMonetizationRevenue = game.monetizationRevenue + monthlyMonetizationRevenue
+                        val newTotalRevenue = newMonetizationRevenue // 网游总收入=付费内容收入
+                        
                         // 检查是否达到里程碑
                         if (shouldGenerateMilestoneNews(game.activePlayers, newActivePlayers)) {
                             newsList.add(
@@ -289,12 +351,20 @@ object CompetitorManager {
                             )
                         }
                         
-                        updatedGames.add(game.copy(activePlayers = newActivePlayers))
+                        updatedGames.add(game.copy(
+                            activePlayers = newActivePlayers,
+                            totalRevenue = newTotalRevenue,
+                            monetizationRevenue = newMonetizationRevenue
+                        ))
                     }
                     BusinessModel.SINGLE_PLAYER -> {
                         // 单机游戏持续销售 (+100-1000)
                         val salesGrowth = Random.nextInt(100, 1000)
                         val newSalesCount = game.salesCount + salesGrowth
+                        
+                        // 累加单机收入：新销量 × 单价(50元)
+                        val additionalRevenue = salesGrowth * 50.0
+                        val newTotalRevenue = game.totalRevenue + additionalRevenue
                         
                         // 检查是否达到销量里程碑
                         if (shouldGenerateSalesMilestoneNews(game.salesCount, newSalesCount)) {
@@ -306,7 +376,10 @@ object CompetitorManager {
                             )
                         }
                         
-                        updatedGames.add(game.copy(salesCount = newSalesCount))
+                        updatedGames.add(game.copy(
+                            salesCount = newSalesCount,
+                            totalRevenue = newTotalRevenue
+                        ))
                     }
                 }
             }
@@ -441,9 +514,19 @@ object CompetitorManager {
         val businessModel = BusinessModel.entries.random()
         val rating = Random.nextInt(60, 90) / 10f
         
-        val (activePlayers, salesCount) = when (businessModel) {
-            BusinessModel.ONLINE_GAME -> Pair(Random.nextInt(1000, 20000), 0)
-            BusinessModel.SINGLE_PLAYER -> Pair(0, Random.nextInt(2000, 10000))
+        val (activePlayers, salesCount, initialRevenue, initialMonetizationRevenue) = when (businessModel) {
+            BusinessModel.ONLINE_GAME -> {
+                val players = Random.nextInt(1000, 20000)
+                // 使用付费内容系统计算首月收入
+                val monetizationRevenue = calculateCompetitorMonetizationRevenue(players, theme)
+                Quadruple(players, 0, monetizationRevenue, monetizationRevenue)
+            }
+            BusinessModel.SINGLE_PLAYER -> {
+                val sales = Random.nextInt(2000, 10000)
+                // 首月收入 = 销量 × 单价(50元)
+                val revenue = sales * 50.0
+                Quadruple(0, sales, revenue, 0.0)
+            }
         }
         
         return CompetitorGame(
@@ -458,7 +541,9 @@ object CompetitorManager {
             activePlayers = activePlayers,
             salesCount = salesCount,
             releaseYear = year,
-            releaseMonth = month
+            releaseMonth = month,
+            totalRevenue = initialRevenue,
+            monetizationRevenue = initialMonetizationRevenue
         )
     }
     
@@ -486,6 +571,68 @@ object CompetitorManager {
             month = month,
             day = day
         )
+    }
+    
+    /**
+     * 计算竞争对手网游的付费内容月收入
+     * 根据游戏主题配置5个付费内容，使用更激进的付费率和价格
+     */
+    private fun calculateCompetitorMonetizationRevenue(activePlayers: Int, theme: GameTheme): Double {
+        var totalRevenue = 0.0
+        
+        // 根据游戏主题获取推荐的5个付费内容类型
+        val recommendedItems = MonetizationConfig.getRecommendedItems(theme)
+        
+        // 为每个付费内容类型设置付费率和价格（更激进的数值）
+        for (itemType in recommendedItems) {
+            // 根据付费内容类型设置不同的付费率（提高到原来的10-20倍）
+            val purchaseRate = when (itemType.displayName) {
+                "皮肤与外观", "角色皮肤", "英雄皮肤", "武器皮肤", "赛车皮肤", "球队皮肤", "皮肤套装" -> 0.005  // 0.5%
+                "成长加速道具", "训练加速券", "科技加速券", "时间加速道具" -> 0.008  // 0.8%
+                "稀有装备", "特殊武器包", "战术背包" -> 0.003  // 0.3%
+                "赛季通行证", "战斗通行证" -> 0.015  // 1.5%
+                "强力角色", "新英雄", "新人物", "新角色" -> 0.004  // 0.4%
+                "VIP会员" -> 0.01  // 1.0%
+                "抽卡系统", "球员卡包" -> 0.02  // 2.0%（最激进）
+                "扩展包", "DLC内容", "限定剧情章节" -> 0.006  // 0.6%
+                "资源包", "道具组合包", "资源包" -> 0.012  // 1.2%
+                "高级兵种包", "高级单位", "高级载具" -> 0.005  // 0.5%
+                else -> 0.005  // 默认0.5%
+            }
+            
+            // 根据付费内容类型设置价格范围（更高的价格）
+            val prices = when (itemType.displayName) {
+                "皮肤与外观", "角色皮肤", "英雄皮肤", "武器皮肤", "赛车皮肤", "球队皮肤" -> listOf(30f, 68f, 98f, 198f)
+                "成长加速道具", "训练加速券", "科技加速券" -> listOf(18f, 30f, 68f)
+                "稀有装备", "特殊武器包" -> listOf(68f, 98f, 198f)
+                "赛季通行证", "战斗通行证" -> listOf(68f, 98f, 128f, 198f)
+                "强力角色", "新英雄", "新人物" -> listOf(98f, 198f, 328f)
+                "VIP会员" -> listOf(30f, 68f, 98f, 198f)
+                "抽卡系统", "球员卡包" -> listOf(6f, 30f, 68f, 328f, 648f)  // 抽卡有低价和高价档位
+                "扩展包", "DLC内容", "限定剧情章节" -> listOf(68f, 98f, 128f)
+                "资源包", "道具组合包" -> listOf(30f, 68f, 98f)
+                "高级兵种包", "高级单位", "高级载具" -> listOf(98f, 198f, 328f)
+                else -> listOf(30f, 68f, 98f)  // 默认价格
+            }
+            
+            // 随机选择一个价格档位（偏向高价）
+            val price = if (Random.nextDouble() < 0.3) {
+                prices.last()  // 30%概率选择最高价
+            } else {
+                prices.random()  // 70%概率随机选择
+            }
+            
+            // 计算购买人数（带随机波动）
+            val baseBuyers = (activePlayers * purchaseRate).toInt()
+            val fluctuation = Random.nextDouble(0.8, 1.2)  // 减少波动范围，更稳定
+            val actualBuyers = (baseBuyers * fluctuation).toInt().coerceAtLeast(1)
+            
+            // 计算收益
+            val revenue = actualBuyers * price
+            totalRevenue += revenue
+        }
+        
+        return totalRevenue
     }
     
     /**

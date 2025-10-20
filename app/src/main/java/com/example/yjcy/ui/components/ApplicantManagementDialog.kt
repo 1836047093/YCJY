@@ -319,7 +319,7 @@ fun ApplicantManagementDialog(
             }
         }
     }
-}
+    }
 
 /**
  * 统计卡片

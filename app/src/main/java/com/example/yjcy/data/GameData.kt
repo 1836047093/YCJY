@@ -322,5 +322,7 @@ data class SaveData(
     val games: List<Game> = emptyList(),
     val competitors: List<CompetitorCompany> = emptyList(), // 竞争对手公司列表
     val competitorNews: List<CompetitorNews> = emptyList(), // 竞争对手动态新闻（最近30条）
-    val saveTime: Long = System.currentTimeMillis()
+    val serverData: Map<String, GameServerInfo> = emptyMap(), // 服务器数据（所有游戏的服务器信息）
+    val saveTime: Long = System.currentTimeMillis(),
+    val version: String = "1.8.1" // 存档版本号
 )

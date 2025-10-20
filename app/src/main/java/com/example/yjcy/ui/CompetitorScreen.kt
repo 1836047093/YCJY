@@ -122,6 +122,28 @@ fun LeaderboardContent(saveData: SaveData) {
     var selectedLeaderboard by remember { mutableStateOf(LeaderboardType.MARKET_VALUE) }
     var expanded by remember { mutableStateOf(false) }
     
+    // 实时更新的排行榜数据状态
+    var liveLeaderboardItems by remember { mutableStateOf<List<LeaderboardItem>>(emptyList()) }
+    
+    // 计算所有竞争对手网游的总收入总和，用于检测数据变化
+    val competitorTotalRevenue = remember(saveData.competitors) {
+        saveData.competitors.sumOf { competitor ->
+            competitor.games.filter { it.businessModel == BusinessModel.ONLINE_GAME }
+                .sumOf { it.totalRevenue.toLong() }
+        }
+    }
+    
+    // 定时更新机制：每3秒更新一次网游排行榜数据
+    // 当排行榜类型、竞争对手总收入、玩家游戏数量发生变化时，立即刷新一次
+    LaunchedEffect(selectedLeaderboard, competitorTotalRevenue, saveData.games.size) {
+        while (true) {
+            if (selectedLeaderboard == LeaderboardType.ONLINE_GAME) {
+                liveLeaderboardItems = getTopOnlineGamesWithFluctuation(saveData)
+            }
+            kotlinx.coroutines.delay(3000L) // 每3秒更新一次
+        }
+    }
+    
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -228,7 +250,7 @@ fun LeaderboardContent(saveData: SaveData) {
                             title = "热门网游排行",
                             icon = "🎮",
                             topColor = Color(0xFF4ECDC4),
-                            items = getTopOnlineGames(saveData)
+                            items = liveLeaderboardItems.ifEmpty { getTopOnlineGames(saveData) }
                         )
                     }
                     LeaderboardType.SINGLE_PLAYER -> {
@@ -425,13 +447,26 @@ fun LeaderboardItemRow(
         
         Spacer(modifier = Modifier.width(8.dp))
         
-        // 数值
-        Text(
-            text = item.value,
-            color = if (isTop) topColor else Color.White,
-            fontWeight = FontWeight.Bold,
-            fontSize = 14.sp
-        )
+        // 数值（右侧显示区域）
+        Column(
+            horizontalAlignment = Alignment.End
+        ) {
+            Text(
+                text = item.value,
+                color = if (isTop) topColor else Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            )
+            if (item.extraInfo.isNotEmpty()) {
+                Text(
+                    text = item.extraInfo,
+                    color = Color(0xFFFFD700), // 金色显示总收入
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+        }
     }
 }
 
@@ -442,6 +477,7 @@ data class LeaderboardItem(
     val mainText: String,
     val subText: String,
     val value: String,
+    val extraInfo: String = "", // 额外信息（如总收入）
     val isPlayer: Boolean = false // 标记是否为玩家公司
 )
 
@@ -511,7 +547,8 @@ fun getTopCompaniesByFans(saveData: SaveData): List<LeaderboardItem> {
  * 获取活跃玩家最多的网游（前5）
  */
 fun getTopOnlineGames(saveData: SaveData): List<LeaderboardItem> {
-    val allOnlineGames = mutableListOf<Triple<String, String, Int>>()
+    // 使用四元组存储：游戏名、公司名、活跃玩家数、总收入
+    val allOnlineGames = mutableListOf<Tuple4<String, String, Int, Double>>()
     
     // 玩家的网游（包含已发售和已评分的游戏）
     saveData.games.filter { 
@@ -521,24 +558,33 @@ fun getTopOnlineGames(saveData: SaveData): List<LeaderboardItem> {
     }.forEach { game ->
             // 从RevenueManager获取活跃玩家数（考虑兴趣值影响）
             val activePlayers = com.example.yjcy.data.RevenueManager.getActivePlayers(game.id)
+            // 获取总收入
+            val gameRevenue = com.example.yjcy.data.RevenueManager.getGameRevenue(game.id)
+            val totalRevenue = gameRevenue?.let {
+                val stats = com.example.yjcy.data.RevenueManager.calculateStatistics(it)
+                stats.totalRevenue
+            } ?: 0.0
+            
             allOnlineGames.add(
-                Triple(
+                Tuple4<String, String, Int, Double>(
                     game.name,
                     saveData.companyName,
-                    activePlayers
+                    activePlayers,
+                    totalRevenue
                 )
             )
         }
     
-    // 竞争对手的网游
+    // 竞争对手的网游（使用真实累计收入）
     saveData.competitors.forEach { competitor ->
         competitor.games.filter { it.businessModel == BusinessModel.ONLINE_GAME }
             .forEach { game ->
                 allOnlineGames.add(
-                    Triple(
+                    Tuple4<String, String, Int, Double>(
                         game.name,
                         competitor.name,
-                        game.activePlayers
+                        game.activePlayers,
+                        game.totalRevenue
                     )
                 )
             }
@@ -547,12 +593,93 @@ fun getTopOnlineGames(saveData: SaveData): List<LeaderboardItem> {
     return allOnlineGames
         .sortedByDescending { it.third }
         .take(5)
-        .map { (gameName, companyName, players) ->
+        .map {
             LeaderboardItem(
-                mainText = gameName,
-                subText = companyName,
-                value = "活跃玩家：${players / 1000}K",
-                isPlayer = companyName == saveData.companyName
+                mainText = it.first,
+                subText = it.second,
+                value = "活跃玩家：${formatMoneyWithDecimals(it.third.toDouble())}",
+                extraInfo = "总收入：${formatMoneyWithDecimals(it.fourth)}",
+                isPlayer = it.second == saveData.companyName
+            )
+        }
+}
+
+/**
+ * 四元组数据类
+ */
+data class Tuple4<A, B, C, D>(
+    val first: A,
+    val second: B,
+    val third: C,
+    val fourth: D
+)
+
+/**
+ * 获取带有实时波动的网游排行榜（用于动态显示）
+ * 活跃玩家数和总收入会在±1-3%范围内波动
+ */
+fun getTopOnlineGamesWithFluctuation(saveData: SaveData): List<LeaderboardItem> {
+    // 使用四元组存储：游戏名、公司名、活跃玩家数、总收入
+    val allOnlineGames = mutableListOf<Tuple4<String, String, Int, Double>>()
+    
+    // 玩家的网游（包含已发售和已评分的游戏）
+    saveData.games.filter { 
+        it.businessModel == BusinessModel.ONLINE_GAME && 
+        (it.releaseStatus == com.example.yjcy.data.GameReleaseStatus.RELEASED || 
+         it.releaseStatus == com.example.yjcy.data.GameReleaseStatus.RATED)
+    }.forEach { game ->
+            // 从RevenueManager获取活跃玩家数（考虑兴趣值影响）
+            val basePlayers = com.example.yjcy.data.RevenueManager.getActivePlayers(game.id)
+            // 添加±1-3%的随机波动
+            val fluctuation = kotlin.random.Random.nextDouble(-0.03, 0.03)
+            val activePlayers = (basePlayers * (1 + fluctuation)).toInt().coerceAtLeast(0)
+            
+            // 获取总收入（累计值，不应该波动）
+            val gameRevenue = com.example.yjcy.data.RevenueManager.getGameRevenue(game.id)
+            val totalRevenue = gameRevenue?.let {
+                val stats = com.example.yjcy.data.RevenueManager.calculateStatistics(it)
+                stats.totalRevenue
+            } ?: 0.0
+            
+            allOnlineGames.add(
+                Tuple4<String, String, Int, Double>(
+                    game.name,
+                    saveData.companyName,
+                    activePlayers,
+                    totalRevenue
+                )
+            )
+        }
+    
+    // 竞争对手的网游（使用真实累计收入）
+    saveData.competitors.forEach { competitor ->
+        competitor.games.filter { it.businessModel == BusinessModel.ONLINE_GAME }
+            .forEach { game ->
+                // 添加±1-3%的随机波动（仅活跃玩家数）
+                val fluctuation = kotlin.random.Random.nextDouble(-0.03, 0.03)
+                val activePlayers = (game.activePlayers * (1 + fluctuation)).toInt().coerceAtLeast(0)
+                
+                allOnlineGames.add(
+                    Tuple4<String, String, Int, Double>(
+                        game.name,
+                        competitor.name,
+                        activePlayers,
+                        game.totalRevenue // 使用真实累计收入
+                    )
+                )
+            }
+    }
+    
+    return allOnlineGames
+        .sortedByDescending { it.third }
+        .take(5)
+        .map {
+            LeaderboardItem(
+                mainText = it.first,
+                subText = it.second,
+                value = "活跃玩家：${formatMoneyWithDecimals(it.third.toDouble())}",
+                extraInfo = "总收入：${formatMoneyWithDecimals(it.fourth)}",
+                isPlayer = it.second == saveData.companyName
             )
         }
 }
@@ -602,7 +729,7 @@ fun getTopSinglePlayerGames(saveData: SaveData): List<LeaderboardItem> {
             LeaderboardItem(
                 mainText = gameName,
                 subText = companyName,
-                value = "总销量：${sales / 1000}K",
+                value = "总销量：${formatMoneyWithDecimals(sales.toDouble())}",
                 isPlayer = companyName == saveData.companyName
             )
         }
@@ -1305,7 +1432,7 @@ fun CompetitorGameCard(game: CompetitorGame) {
             // 显示玩家数或销量
             if (game.businessModel == BusinessModel.ONLINE_GAME && game.activePlayers > 0) {
                 Text(
-                    text = "👥 活跃玩家: ${game.activePlayers / 1000}K",
+                    text = "👥 活跃玩家: ${formatMoneyWithDecimals(game.activePlayers.toDouble())}",
                     color = Color(0xFF4ECDC4),
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 4.dp)
@@ -1313,7 +1440,7 @@ fun CompetitorGameCard(game: CompetitorGame) {
             }
             if (game.businessModel == BusinessModel.SINGLE_PLAYER && game.salesCount > 0) {
                 Text(
-                    text = "📦 销量: ${game.salesCount / 1000}K",
+                    text = "📦 销量: ${formatMoneyWithDecimals(game.salesCount.toDouble())}",
                     color = Color(0xFF95E1D3),
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 4.dp)

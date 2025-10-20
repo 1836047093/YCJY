@@ -73,10 +73,12 @@ fun ServerManagementContent(
     
     // 收集所有已租用的服务器
     val allServers = remember(games, refreshTrigger) {
+        android.util.Log.d("ServerManagement", "===== 开始收集服务器列表 (refreshTrigger=$refreshTrigger) =====")
         val serverList = mutableListOf<ServerDetail>()
         
         // 1. 公共池服务器
         val publicPoolInfo = RevenueManager.getGameServerInfo("SERVER_PUBLIC_POOL")
+        android.util.Log.d("ServerManagement", "公共池服务器数量: ${publicPoolInfo.servers.size}")
         publicPoolInfo.servers.forEach { server ->
             serverList.add(
                 ServerDetail(
@@ -91,6 +93,7 @@ fun ServerManagementContent(
         games.forEach { game ->
             if (game.businessModel == BusinessModel.ONLINE_GAME) {
                 val gameServerInfo = RevenueManager.getGameServerInfo(game.id)
+                android.util.Log.d("ServerManagement", "游戏[${game.name}]服务器数量: ${gameServerInfo.servers.size}")
                 gameServerInfo.servers.forEach { server ->
                     serverList.add(
                         ServerDetail(
@@ -102,6 +105,9 @@ fun ServerManagementContent(
                 }
             }
         }
+        
+        android.util.Log.d("ServerManagement", "总共收集到 ${serverList.size} 台服务器")
+        android.util.Log.d("ServerManagement", "===== 服务器列表收集完成 =====")
         
         serverList
     }
@@ -164,20 +170,16 @@ fun ServerManagementContent(
                         RevenueManager.getGameServerInfo(publicPoolId).getTotalCapacity()
                     }
                     
-                    // 计算总活跃玩家数（所有在线网游）
+                    // 计算总活跃玩家数（所有在线网游，考虑兴趣值影响）
                     val totalActivePlayers = remember(games, refreshTrigger) {
                         var total = 0
                         games.filter { 
                             it.businessModel == BusinessModel.ONLINE_GAME && 
                             (it.releaseStatus == GameReleaseStatus.RELEASED || it.releaseStatus == GameReleaseStatus.RATED)
                         }.forEach { game ->
-                            val revenue = RevenueManager.getGameRevenue(game.id)
-                            if (revenue != null && revenue.isActive) {
-                                val statistics = RevenueManager.calculateStatistics(revenue)
-                                val totalSales = statistics.totalSales
-                                val activePlayers = (totalSales * 0.4).toInt()
-                                total += activePlayers
-                            }
+                            // 使用 getActivePlayers 方法，自动考虑兴趣值衰减影响
+                            val activePlayers = RevenueManager.getActivePlayers(game.id)
+                            total += activePlayers
                         }
                         total
                     }

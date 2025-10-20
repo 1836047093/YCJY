@@ -1013,24 +1013,24 @@ object RevenueManager {
         if (enabledItems.isEmpty()) return emptyList()
         
         return enabledItems.map { item ->
-            // 根据付费内容类型设置不同的付费率（大幅度降低，避免收益过高）
+            // 根据付费内容类型设置不同的付费率（调整到0.03%-0.12%，相比最初降低70%）
             val purchaseRate = when (item.type.displayName) {
-                "皮肤与外观" -> 0.001  // 0.1%的活跃玩家会购买皮肤
-                "成长加速道具" -> 0.0015  // 0.15%会购买加速道具
-                "稀有装备" -> 0.0006  // 0.06%会购买稀有装备
-                "赛季通行证" -> 0.003  // 0.3%会购买赛季通行证
-                "强力角色" -> 0.0008  // 0.08%会购买角色
-                "VIP会员" -> 0.002  // 0.2%会购买VIP
-                "抽卡系统" -> 0.004  // 0.4%会参与抽卡
-                "扩展包" -> 0.0012  // 0.12%会购买扩展包
-                "资源包" -> 0.0025  // 0.25%会购买资源包
-                "战斗通行证" -> 0.0035  // 0.35%会购买战斗通行证
-                "宠物与坐骑" -> 0.0014  // 0.14%会购买宠物
-                "便利工具" -> 0.0018  // 0.18%会购买工具
-                "专属剧情" -> 0.001  // 0.1%会购买剧情
-                "建造蓝图" -> 0.0016  // 0.16%会购买蓝图
-                "社交道具" -> 0.0012  // 0.12%会购买社交道具
-                else -> 0.001  // 默认0.1%
+                "皮肤与外观" -> 0.0003  // 0.03%的活跃玩家会购买皮肤
+                "成长加速道具" -> 0.00045  // 0.045%会购买加速道具
+                "稀有装备" -> 0.00018  // 0.018%会购买稀有装备
+                "赛季通行证" -> 0.0009  // 0.09%会购买赛季通行证
+                "强力角色" -> 0.00024  // 0.024%会购买角色
+                "VIP会员" -> 0.0006  // 0.06%会购买VIP
+                "抽卡系统" -> 0.0012  // 0.12%会参与抽卡
+                "扩展包" -> 0.00036  // 0.036%会购买扩展包
+                "资源包" -> 0.00075  // 0.075%会购买资源包
+                "战斗通行证" -> 0.00105  // 0.105%会购买战斗通行证
+                "宠物与坐骑" -> 0.00042  // 0.042%会购买宠物
+                "便利工具" -> 0.00054  // 0.054%会购买工具
+                "专属剧情" -> 0.0003  // 0.03%会购买剧情
+                "建造蓝图" -> 0.00048  // 0.048%会购买蓝图
+                "社交道具" -> 0.00036  // 0.036%会购买社交道具
+                else -> 0.0003  // 默认0.03%
             }
             
             // 计算购买人数（带随机波动）
@@ -1052,13 +1052,20 @@ object RevenueManager {
      * 清除所有收益数据（用于新游戏）
      */
     fun clearAllData() {
+        android.util.Log.d("RevenueManager", "===== 清除所有数据 =====")
+        android.util.Log.d("RevenueManager", "清除前gameServerMap大小: ${gameServerMap.size}")
+        
         gameRevenueMap.clear()
         gameInfoMap.clear()
         gameServerMap.clear()
         
+        android.util.Log.d("RevenueManager", "清除后gameServerMap大小: ${gameServerMap.size}")
+        
         // 清除持久化数据
         val prefs = sharedPreferences ?: return
         prefs.edit().clear().apply()
+        
+        android.util.Log.d("RevenueManager", "===== SharedPreferences已清除 =====")
     }
     
     // ========== 服务器管理功能 ==========
@@ -1067,9 +1074,16 @@ object RevenueManager {
      * 获取游戏的服务器信息
      */
     fun getGameServerInfo(gameId: String): GameServerInfo {
-        return gameServerMap.getOrPut(gameId) {
-            GameServerInfo(gameId = gameId)
+        val info = gameServerMap[gameId]
+        if (info == null) {
+            // 如果找不到，创建新的空信息（但记录日志）
+            android.util.Log.d("RevenueManager", "⚠ getGameServerInfo: gameId=$gameId 不存在，创建新的空信息")
+            android.util.Log.d("RevenueManager", "当前gameServerMap中的gameId: ${gameServerMap.keys.joinToString()}")
+            val newInfo = GameServerInfo(gameId = gameId)
+            gameServerMap[gameId] = newInfo
+            return newInfo
         }
+        return info
     }
     
     /**
@@ -1519,6 +1533,56 @@ object RevenueManager {
         val interestMultiplier = calculateActivePlayerMultiplier(gameRevenue.playerInterest)
         
         return (baseActivePlayers * interestMultiplier).toInt()
+    }
+    
+    /**
+     * 导出所有服务器数据（用于存档）
+     */
+    fun exportServerData(): Map<String, GameServerInfo> {
+        return gameServerMap.toMap()
+    }
+    
+    /**
+     * 导入服务器数据（用于读档）
+     * 注意：这会覆盖当前所有服务器数据，并同步到SharedPreferences
+     */
+    fun importServerData(serverData: Map<String, GameServerInfo>) {
+        android.util.Log.d("RevenueManager", "===== 开始导入服务器数据 =====")
+        android.util.Log.d("RevenueManager", "导入前gameServerMap大小: ${gameServerMap.size}")
+        
+        gameServerMap.clear()
+        gameServerMap.putAll(serverData)
+        
+        android.util.Log.d("RevenueManager", "导入后gameServerMap大小: ${gameServerMap.size}")
+        android.util.Log.d("RevenueManager", "导入服务器数据: ${serverData.size} 个游戏")
+        serverData.forEach { (gameId, info) ->
+            android.util.Log.d("RevenueManager", "  - 游戏 $gameId: ${info.servers.size} 台服务器")
+            info.servers.forEach { server ->
+                android.util.Log.d("RevenueManager", "    * ${server.type.displayName}, 购买于 ${server.purchaseYear}年${server.purchaseMonth}月${server.purchaseDay}日")
+            }
+        }
+        
+        // 立即同步到SharedPreferences，确保数据持久化
+        saveServerData()
+        android.util.Log.d("RevenueManager", "===== 服务器数据已同步到SharedPreferences =====")
+        
+        // 验证数据已正确保存
+        logCurrentServerState()
+    }
+    
+    /**
+     * 调试：记录当前服务器状态
+     */
+    fun logCurrentServerState() {
+        android.util.Log.d("RevenueManager", "========== 当前服务器状态 ==========")
+        android.util.Log.d("RevenueManager", "gameServerMap总大小: ${gameServerMap.size}")
+        gameServerMap.forEach { (gameId, info) ->
+            android.util.Log.d("RevenueManager", "  [$gameId]: ${info.servers.size} 台服务器")
+            info.servers.forEach { server ->
+                android.util.Log.d("RevenueManager", "    - ${server.type.displayName} (${server.id})")
+            }
+        }
+        android.util.Log.d("RevenueManager", "====================================")
     }
     
 }
