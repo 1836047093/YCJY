@@ -119,6 +119,24 @@ data class GameRevenue(
     fun getDaysOnMarket(): Int {
         return dailySalesList.size
     }
+    
+    /**
+     * 获取当前活跃玩家数（仅网络游戏）
+     */
+    fun getActivePlayers(): Long {
+        // 基础活跃玩家 = 总注册人数 * 40%
+        val baseActivePlayers = (totalRegisteredPlayers * 0.4).toLong()
+        
+        // 根据兴趣值计算倍数
+        val interestMultiplier = when {
+            playerInterest >= 70.0 -> 1.0         // 正常状态
+            playerInterest >= 50.0 -> 0.7         // 小幅下降
+            playerInterest >= 30.0 -> 0.4         // 大幅下降
+            else -> 0.2                           // 严重下降
+        }
+        
+        return (baseActivePlayers * interestMultiplier).toLong()
+    }
 }
 
 /**

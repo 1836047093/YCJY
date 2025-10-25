@@ -30,6 +30,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -43,6 +44,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
@@ -75,6 +77,7 @@ import com.example.yjcy.data.FounderProfession
 import com.example.yjcy.data.Game
 import com.example.yjcy.data.GameRatingCalculator
 import com.example.yjcy.data.GameReleaseStatus
+import com.example.yjcy.data.GameRevenue
 import com.example.yjcy.data.RevenueManager
 import com.example.yjcy.data.SaveData
 import com.example.yjcy.data.DevelopmentPhase
@@ -97,6 +100,12 @@ import com.example.yjcy.data.CompetitorNews
 import com.example.yjcy.data.CompetitorManager
 import com.example.yjcy.data.Complaint
 import com.example.yjcy.data.ComplaintStatus
+import com.example.yjcy.data.Achievement
+import com.example.yjcy.data.Achievements
+import com.example.yjcy.data.AchievementCategory
+import com.example.yjcy.data.UnlockedAchievement
+import com.example.yjcy.managers.AchievementManager
+import com.example.yjcy.ui.AchievementPopupQueue
 import com.example.yjcy.ui.CompetitorContent
 import com.example.yjcy.ui.calculatePlayerMarketValue
 import com.example.yjcy.ui.SecretaryChatScreen
@@ -233,7 +242,16 @@ class MainActivity : ComponentActivity() {
                         SettingsScreen(navController)
                     }
                     composable("achievement") {
-                        AchievementScreen(navController)
+                        // 创建临时SaveData用于显示成就
+                        val tempSaveData = SaveData(
+                            money = 1000000L,
+                            unlockedAchievements = emptyList()
+                        )
+                        AchievementScreen(
+                            navController = navController,
+                            saveData = tempSaveData,
+                            revenueData = emptyMap()
+                        )
                     }
                     composable("leaderboard") {
                     }
@@ -1139,6 +1157,10 @@ fun GameScreen(
     var complaints by remember { mutableStateOf(saveData?.complaints ?: emptyList()) }
     var autoProcessComplaints by remember { mutableStateOf(saveData?.autoProcessComplaints ?: false) }
     
+    // 成就系统状态
+    var unlockedAchievements by remember { mutableStateOf(saveData?.unlockedAchievements ?: emptyList()) }
+    var pendingAchievementsToShow by remember { mutableStateOf<List<Achievement>>(emptyList()) }
+    
     // 获取待处理的应聘者数量
     val jobPostingService = remember { JobPostingService.getInstance() }
     var pendingApplicantsCount by remember { mutableIntStateOf(0) }
@@ -1272,6 +1294,19 @@ fun GameScreen(
         }
     }
     
+    // 新游戏初始化：解锁"从零开始的游戏梦"成就
+    LaunchedEffect(Unit) {
+        if (saveData == null && unlockedAchievements.isEmpty()) {
+            val startAchievement = Achievements.COMPANY_START
+            unlockedAchievements = AchievementManager.unlockAchievement(
+                unlockedAchievements,
+                startAchievement
+            )
+            pendingAchievementsToShow = listOf(startAchievement)
+            Log.d("MainActivity", "🏆 自动解锁初始成就：${startAchievement.name}")
+        }
+    }
+    
     
     // 时间推进系统
     LaunchedEffect(gameSpeed, isPaused) {
@@ -1401,6 +1436,33 @@ fun GameScreen(
                     // 更新上次月结算时间
                     lastSettlementYear = currentYear
                     lastSettlementMonth = currentMonth
+                    
+                    // 月结算：检查成就
+                    val currentSaveData = SaveData(
+                        money = money,
+                        fans = fans,
+                        allEmployees = allEmployees.toList(),
+                        games = games,
+                        unlockedAchievements = unlockedAchievements
+                    )
+                    val revenueDataMap = RevenueManager.exportRevenueData()
+                    val newlyUnlocked = AchievementManager.checkAndUnlockAchievements(
+                        currentSaveData,
+                        revenueDataMap
+                    )
+                    
+                    if (newlyUnlocked.isNotEmpty()) {
+                        // 更新已解锁成就列表
+                        newlyUnlocked.forEach { achievement ->
+                            unlockedAchievements = AchievementManager.unlockAchievement(
+                                unlockedAchievements,
+                                achievement
+                            )
+                        }
+                        // 添加到待显示队列
+                        pendingAchievementsToShow = newlyUnlocked
+                        Log.d("MainActivity", "🏆 解锁${newlyUnlocked.size}个新成就: ${newlyUnlocked.map { it.name }}")
+                    }
                     
                     Log.d("MainActivity", "✅ 月结算完成: ${currentYear}年${currentMonth}月")
                 } else {
@@ -2191,7 +2253,8 @@ fun GameScreen(
                             competitors = competitors,
                             competitorNews = competitorNews,
                             complaints = complaints,
-                            autoProcessComplaints = autoProcessComplaints
+                            autoProcessComplaints = autoProcessComplaints,
+                            unlockedAchievements = unlockedAchievements
                         )
                     }
                 }
@@ -2202,6 +2265,16 @@ fun GameScreen(
         if (showSecretaryChat) {
             SecretaryChatDialog(
                 onDismiss = { showSecretaryChat = false }
+            )
+        }
+        
+        // 成就解锁弹窗
+        if (pendingAchievementsToShow.isNotEmpty()) {
+            AchievementPopupQueue(
+                achievements = pendingAchievementsToShow,
+                onAllDismissed = {
+                    pendingAchievementsToShow = emptyList()
+                }
             )
         }
     }
@@ -3180,68 +3253,237 @@ fun SaveSlotCard(
 }
 
 @Composable
-fun AchievementScreen(navController: NavController) {
+fun AchievementScreen(
+    navController: NavController,
+    saveData: SaveData,
+    revenueData: Map<String, GameRevenue>
+) {
+    val unlockedIds = saveData.unlockedAchievements.map { it.achievementId }.toSet()
+    val totalAchievements = Achievements.ALL_ACHIEVEMENTS.size
+    val unlockedCount = unlockedIds.size
+    
+    var selectedCategory by remember { mutableStateOf(AchievementCategory.COMPANY) }
+    
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF4facfe),
-                        Color(0xFF00f2fe)
+                        Color(0xFF667eea),
+                        Color(0xFF764ba2)
                     )
                 )
-            ),
-        contentAlignment = Alignment.Center
+            )
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
         ) {
-            Text(
-                text = "🏆 成就",
-                style = MaterialTheme.typography.headlineLarge,
-                color = Color.White
-            )
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // 占位内容卡片
-            Card(
+            // 标题和统计（并列显示）
+            Row(
                 modifier = Modifier
-                    .width(320.dp)
-                    .padding(horizontal = 16.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = Color.White.copy(alpha = 0.95f)
-                )
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "成就系统",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF4facfe)
+                Text(
+                    text = "🏆 成就",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                
+                Spacer(modifier = Modifier.width(16.dp))
+                
+                // 统计卡片
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color.White.copy(alpha = 0.9f)
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "成就内容即将添加...",
-                        fontSize = 14.sp,
-                        color = Color.Gray,
-                        textAlign = TextAlign.Center
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "已解锁：",
+                            fontSize = 14.sp,
+                            color = Color(0xFF666666)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "$unlockedCount",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFFD700)
+                        )
+                        Text(
+                            text = " / $totalAchievements",
+                            fontSize = 14.sp,
+                            color = Color(0xFF666666)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "(${(unlockedCount * 100 / totalAchievements)}%)",
+                            fontSize = 14.sp,
+                            color = Color(0xFF999999)
+                        )
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // 类别标签页
+            ScrollableTabRow(
+                selectedTabIndex = AchievementCategory.entries.indexOf(selectedCategory),
+                containerColor = Color.Transparent,
+                contentColor = Color.White,
+                edgePadding = 16.dp
+            ) {
+                AchievementCategory.entries.forEach { category ->
+                    Tab(
+                        selected = selectedCategory == category,
+                        onClick = { selectedCategory = category },
+                        text = {
+                            Text(
+                                text = "${category.icon} ${category.displayName}",
+                                fontSize = 14.sp,
+                                maxLines = 1
+                            )
+                        }
                     )
                 }
             }
             
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             
-            GameMenuButton(
-                text = "返回主菜单",
-                onClick = { navController.popBackStack() }
-            )
+            // 成就列表
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                val categoryAchievements = Achievements.getAchievementsByCategory(selectedCategory)
+                
+                items(categoryAchievements) { achievement ->
+                    AchievementCard(
+                        achievement = achievement,
+                        isUnlocked = achievement.id in unlockedIds,
+                        progress = AchievementManager.getAchievementProgress(achievement, saveData, revenueData)
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // 返回按钮（居中）
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                GameMenuButton(
+                    text = "返回主菜单",
+                    onClick = { navController.popBackStack() }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun AchievementCard(
+    achievement: Achievement,
+    isUnlocked: Boolean,
+    progress: Float
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isUnlocked) {
+                Color.White.copy(alpha = 0.95f)
+            } else {
+                Color.White.copy(alpha = 0.7f)
+            }
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 成就图标
+            Box(
+                modifier = Modifier
+                    .size(60.dp)
+                    .background(
+                        color = if (isUnlocked) {
+                            Color(0xFFFFD700).copy(alpha = 0.2f)
+                        } else {
+                            Color.Gray.copy(alpha = 0.1f)
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = achievement.icon,
+                    fontSize = 32.sp,
+                    modifier = Modifier.alpha(if (isUnlocked) 1f else 0.5f)
+                )
+            }
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            // 成就信息
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = achievement.name,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isUnlocked) Color(0xFF333333) else Color(0xFF999999)
+                )
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                Text(
+                    text = achievement.description,
+                    fontSize = 13.sp,
+                    color = if (isUnlocked) Color(0xFF666666) else Color(0xFF999999)
+                )
+            }
+            
+            Spacer(modifier = Modifier.width(12.dp))
+            
+            // 完成状态标签
+            Card(
+                shape = RoundedCornerShape(8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isUnlocked) {
+                        Color(0xFF4CAF50)
+                    } else {
+                        Color(0xFFE0E0E0)
+                    }
+                )
+            ) {
+                Text(
+                    text = if (isUnlocked) "已完成" else "未完成",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (isUnlocked) Color.White else Color(0xFF999999),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+            }
         }
     }
 }
@@ -3256,19 +3498,23 @@ fun SettingsScreen(navController: NavController) {
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF4facfe),
-                        Color(0xFF00f2fe)
+                        Color(0xFF667eea),
+                        Color(0xFF764ba2)
                     )
                 )
-            ),
-        contentAlignment = Alignment.Center
+            )
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             Text(
                 text = "⚙️ 设置",
-                style = MaterialTheme.typography.headlineLarge,
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Bold,
                 color = Color.White
             )
             Spacer(modifier = Modifier.height(32.dp))
@@ -3598,7 +3844,8 @@ fun InGameSettingsContent(
     competitors: List<CompetitorCompany> = emptyList(),
     competitorNews: List<CompetitorNews> = emptyList(),
     complaints: List<Complaint> = emptyList(),
-    autoProcessComplaints: Boolean = false
+    autoProcessComplaints: Boolean = false,
+    unlockedAchievements: List<UnlockedAchievement> = emptyList()
 ) {
     val context = LocalContext.current
     val saveManager = remember { SaveManager(context) }
@@ -3757,6 +4004,7 @@ fun InGameSettingsContent(
                                 jobPostings = JobPostingService.getInstance().getAllJobPostingsForSave(), // 导出招聘岗位数据
                                 complaints = complaints, // 保存客诉数据
                                 autoProcessComplaints = autoProcessComplaints, // 保存自动处理开关状态
+                                unlockedAchievements = unlockedAchievements, // 保存已解锁成就
                                 saveTime = System.currentTimeMillis(),
                                 version = BuildConfig.VERSION_NAME // 使用当前游戏版本号
                             )
@@ -3869,6 +4117,7 @@ fun InGameSettingsContent(
                                             jobPostings = JobPostingService.getInstance().getAllJobPostingsForSave(), // 导出招聘岗位数据
                                             complaints = complaints, // 保存客诉数据
                                             autoProcessComplaints = autoProcessComplaints, // 保存自动处理开关状态
+                                            unlockedAchievements = unlockedAchievements, // 保存已解锁成就
                                             saveTime = System.currentTimeMillis(),
                                             version = BuildConfig.VERSION_NAME // 使用当前游戏版本号
                                         )

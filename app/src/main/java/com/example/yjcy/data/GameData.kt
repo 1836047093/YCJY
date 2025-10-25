@@ -522,6 +522,7 @@ data class SaveData(
     val jobPostings: List<JobPosting> = emptyList(), // 招聘岗位列表
     val complaints: List<Complaint> = emptyList(), // 客诉列表
     val autoProcessComplaints: Boolean = false, // 新增：自动处理客诉开关（默认关闭）
+    val unlockedAchievements: List<UnlockedAchievement> = emptyList(), // 新增：已解锁的成就列表
     val saveTime: Long = System.currentTimeMillis(),
     val version: String = "1.0.0" // 存档版本号（创建时会被覆盖为当前版本）
 )
