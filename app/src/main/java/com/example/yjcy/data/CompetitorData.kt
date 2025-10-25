@@ -111,6 +111,47 @@ enum class NewsType {
 }
 
 /**
+ * 收购状态枚举
+ */
+enum class AcquisitionStatus {
+    ELIGIBLE,              // 符合收购条件
+    INSUFFICIENT_MARKET_VALUE, // 市值不足
+    INSUFFICIENT_FUNDS,    // 资金不足
+    CANNOT_ACQUIRE_SELF    // 无法收购自己
+}
+
+/**
+ * 竞价出价记录
+ */
+data class AcquisitionBid(
+    val bidderId: Int,           // 出价者ID（-1表示玩家）
+    val bidderName: String,      // 出价者名称
+    val amount: Long,            // 出价金额
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+/**
+ * 收购结果密封类
+ */
+sealed class AcquisitionResult {
+    data class Success(
+        val acquiredCompany: CompetitorCompany,
+        val finalPrice: Long,
+        val inheritedGames: List<CompetitorGame>,
+        val marketValueGain: Long,
+        val fansGain: Int
+    ) : AcquisitionResult()
+    
+    data class Failed(
+        val reason: String,
+        val winnerName: String,
+        val finalPrice: Long
+    ) : AcquisitionResult()
+    
+    data class Cancelled(val reason: String) : AcquisitionResult()
+}
+
+/**
  * 竞争对手管理器
  * 负责生成和管理竞争对手公司及其游戏
  */
@@ -667,5 +708,153 @@ object CompetitorManager {
             "神盾动力" -> "🛡️" // 盾牌，象征神盾的防护与力量
             else -> "🎮"        // 默认游戏图标
         }
+    }
+    
+    /**
+     * 检查玩家是否有资格收购目标公司
+     */
+    fun checkAcquisitionEligibility(
+        playerMarketValue: Long,
+        playerMoney: Long,
+        targetCompany: CompetitorCompany,
+        isTargetPlayer: Boolean = false
+    ): AcquisitionStatus {
+        // 无法收购自己
+        if (isTargetPlayer) {
+            return AcquisitionStatus.CANNOT_ACQUIRE_SELF
+        }
+        
+        // 市值要求：玩家市值 ≥ 目标市值 × 1.5倍
+        val requiredMarketValue = (targetCompany.marketValue * 1.5).toLong()
+        if (playerMarketValue < requiredMarketValue) {
+            return AcquisitionStatus.INSUFFICIENT_MARKET_VALUE
+        }
+        
+        // 资金要求：玩家资金 ≥ 目标市值 × 1.2倍（最低收购价）
+        val minimumBidPrice = (targetCompany.marketValue * 1.2).toLong()
+        if (playerMoney < minimumBidPrice) {
+            return AcquisitionStatus.INSUFFICIENT_FUNDS
+        }
+        
+        return AcquisitionStatus.ELIGIBLE
+    }
+    
+    /**
+     * 发起收购（返回初始出价和竞价对手列表）
+     */
+    fun initiateAcquisition(
+        targetCompany: CompetitorCompany,
+        allCompetitors: List<CompetitorCompany>,
+        playerMarketValue: Long
+    ): Pair<Long, List<CompetitorCompany>> {
+        // 基础收购价 = 目标市值 × 1.2倍
+        val basePrice = (targetCompany.marketValue * 1.2).toLong()
+        
+        // 30-50%概率触发竞价
+        val shouldTriggerBidding = Random.nextDouble() < Random.nextDouble(0.3, 0.5)
+        
+        if (!shouldTriggerBidding) {
+            return Pair(basePrice, emptyList())
+        }
+        
+        // 筛选有资格的竞争对手
+        // 条件：市值 > 目标市值 × 1.3倍 且 不是目标公司本身
+        val eligibleCompetitors = allCompetitors.filter { competitor ->
+            competitor.id != targetCompany.id &&
+            competitor.marketValue > (targetCompany.marketValue * 1.3).toLong()
+        }
+        
+        // 随机选择1-2个竞争对手参与竞价
+        val biddingCompetitors = if (eligibleCompetitors.isNotEmpty()) {
+            val count = Random.nextInt(1, minOf(3, eligibleCompetitors.size + 1))
+            eligibleCompetitors.shuffled().take(count)
+        } else {
+            emptyList()
+        }
+        
+        return Pair(basePrice, biddingCompetitors)
+    }
+    
+    /**
+     * 处理AI竞价轮次
+     * @return Triple(是否有AI继续出价, 新的出价金额, 出价的AI公司)
+     */
+    fun processAIBidding(
+        currentPrice: Long,
+        targetCompany: CompetitorCompany,
+        biddingCompetitors: List<CompetitorCompany>
+    ): Triple<Boolean, Long, CompetitorCompany?> {
+        // 筛选仍有能力出价的AI
+        val capableCompetitors = biddingCompetitors.filter { competitor ->
+            // AI最高出价 = min(自身市值 × 0.7, 目标市值 × 2.5)
+            val maxBid = minOf(
+                (competitor.marketValue * 0.7).toLong(),
+                (targetCompany.marketValue * 2.5).toLong()
+            )
+            
+            // 当前价格必须低于AI的最高出价
+            currentPrice < maxBid
+        }
+        
+        if (capableCompetitors.isEmpty()) {
+            return Triple(false, currentPrice, null)
+        }
+        
+        // 选择一个AI出价（市值越高，越容易出价）
+        val totalMarketValue = capableCompetitors.sumOf { it.marketValue }
+        val randomValue = Random.nextLong(0, totalMarketValue)
+        var accumulatedValue = 0L
+        var selectedCompetitor: CompetitorCompany? = null
+        
+        for (competitor in capableCompetitors.sortedByDescending { it.marketValue }) {
+            accumulatedValue += competitor.marketValue
+            if (randomValue < accumulatedValue) {
+                selectedCompetitor = competitor
+                break
+            }
+        }
+        
+        selectedCompetitor = selectedCompetitor ?: capableCompetitors.first()
+        
+        // AI决定是否继续出价（60-80%概率）
+        val willBid = Random.nextDouble() < Random.nextDouble(0.6, 0.8)
+        if (!willBid) {
+            return Triple(false, currentPrice, null)
+        }
+        
+        // AI出价：当前价格 × (1 + 5%-15%)
+        val increaseRate = Random.nextDouble(0.05, 0.15)
+        val newPrice = (currentPrice * (1 + increaseRate)).toLong()
+        
+        // 确保不超过AI的最高出价
+        val maxBid = minOf(
+            (selectedCompetitor.marketValue * 0.7).toLong(),
+            (targetCompany.marketValue * 2.5).toLong()
+        )
+        val finalPrice = minOf(newPrice, maxBid)
+        
+        return Triple(true, finalPrice, selectedCompetitor)
+    }
+    
+    /**
+     * 完成收购，返回收购结果
+     */
+    fun completeAcquisition(
+        targetCompany: CompetitorCompany,
+        finalPrice: Long
+    ): Triple<Long, Int, List<CompetitorGame>> {
+        // 市值增加：目标市值 × 60%
+        val marketValueGain = (targetCompany.marketValue * 0.6).toLong()
+        
+        // 粉丝增加：目标粉丝 × 40%
+        val fansGain = (targetCompany.fans * 0.4).toInt()
+        
+        // 继承热门游戏（1-2个评分最高的游戏）
+        val inheritedGamesCount = Random.nextInt(1, minOf(3, targetCompany.games.size + 1))
+        val inheritedGames = targetCompany.games
+            .sortedByDescending { it.rating }
+            .take(inheritedGamesCount)
+        
+        return Triple(marketValueGain, fansGain, inheritedGames)
     }
 }

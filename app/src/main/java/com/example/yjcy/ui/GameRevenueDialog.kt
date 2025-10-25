@@ -183,7 +183,7 @@ fun GameRevenueDialog(
             game = game,
             money = money,
             onDismiss = { showUpdateDialog = false },
-            onConfirm = { features ->
+            onConfirm = { features, announcement ->
                 // 计算更新费用
                 val updateCost = RevenueManager.calculateUpdateCost(gameRevenue.gameId)
                 
@@ -191,8 +191,8 @@ fun GameRevenueDialog(
                 if (money >= updateCost) {
                     // 扣除更新费用
                     onMoneyUpdate(money - updateCost.toLong())
-                    // 创建更新任务
-                    RevenueManager.createUpdateTask(gameRevenue.gameId, features)
+                    // 创建更新任务（暂存更新内容和公告，等更新完成后再添加到updateHistory）
+                    RevenueManager.createUpdateTask(gameRevenue.gameId, features, announcement)
                     showUpdateDialog = false
                     // 通知外层开始更新（例如关闭此弹窗，回到项目界面以分配员工）
                     onStartUpdate(gameRevenue.gameId)
@@ -255,8 +255,9 @@ fun UpdateFeatureDialog(
     game: Game,
     money: Long = 0L,
     onDismiss: () -> Unit,
-    onConfirm: (List<String>) -> Unit
+    onConfirm: (List<String>, String) -> Unit
 ) {
+    var showAnnouncementDialog by remember { mutableStateOf(false) }
     // 根据游戏的付费内容或主题生成更新选项
     val options = remember(game) {
         if (game.businessModel == BusinessModel.ONLINE_GAME) {
@@ -377,7 +378,7 @@ fun UpdateFeatureDialog(
         confirmButton = {
             val canAfford = money >= updateCost
             TextButton(
-                onClick = { onConfirm(selected.toList()) },
+                onClick = { showAnnouncementDialog = true },
                 enabled = selected.isNotEmpty() && canAfford
             ) {
                 Text(
@@ -394,6 +395,19 @@ fun UpdateFeatureDialog(
         },
         shape = RoundedCornerShape(16.dp)
     )
+    
+    // 更新公告输入对话框
+    if (showAnnouncementDialog) {
+        AnnouncementInputDialog(
+            updateContent = selected.toList(),
+            onDismiss = { showAnnouncementDialog = false },
+            onConfirm = { announcement ->
+                showAnnouncementDialog = false
+                onDismiss() // 关闭更新内容选择对话框
+                onConfirm(selected.toList(), announcement)
+            }
+        )
+    }
 }
 
 @Composable
@@ -1580,5 +1594,142 @@ fun QuickPriceChip(
             containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
             labelColor = MaterialTheme.colorScheme.primary
         )
+    )
+}
+
+/**
+ * 更新公告输入对话框
+ * 玩家可以自定义更新公告，或使用默认公告
+ */
+@Composable
+fun AnnouncementInputDialog(
+    updateContent: List<String>,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var announcement by remember { mutableStateOf("") }
+    val defaultAnnouncement = remember(updateContent) {
+        com.example.yjcy.utils.CommentGenerator.generateDefaultAnnouncement(updateContent)
+    }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                "📢 编写更新公告",
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // 显示更新内容
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp)
+                    ) {
+                        Text(
+                            text = "本次更新内容：",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        updateContent.forEach { content ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "• ",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                                Text(
+                                    text = content,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                // 公告输入框
+                OutlinedTextField(
+                    value = announcement,
+                    onValueChange = { announcement = it },
+                    label = { Text("更新公告（选填）") },
+                    placeholder = { Text("输入更新公告，或点击【使用默认】...") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 120.dp, max = 180.dp),
+                    maxLines = 6,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                    )
+                )
+                
+                // 默认公告预览
+                if (announcement.isEmpty()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp)
+                        ) {
+                            Text(
+                                text = "💡 默认公告预览：",
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = defaultAnnouncement,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            // 统一的确认按钮，根据输入状态显示不同文字
+            TextButton(
+                onClick = {
+                    val finalAnnouncement = if (announcement.isNotEmpty()) {
+                        announcement
+                    } else {
+                        defaultAnnouncement
+                    }
+                    onConfirm(finalAnnouncement)
+                }
+            ) {
+                Text(if (announcement.isNotEmpty()) "确认发布" else "使用默认")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消")
+            }
+        },
+        shape = RoundedCornerShape(20.dp)
     )
 }

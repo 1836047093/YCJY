@@ -42,7 +42,8 @@ data class RevenueStatistics(
 data class GameUpdateTask(
     val features: List<String>,
     val requiredPoints: Int,
-    val progressPoints: Int = 0
+    val progressPoints: Int = 0,
+    val announcement: String = "" // 更新公告
 )
 
 /**
@@ -681,12 +682,12 @@ object RevenueManager {
     /**
      * 创建一条更新任务
      */
-    fun createUpdateTask(gameId: String, features: List<String>): GameUpdateTask? {
+    fun createUpdateTask(gameId: String, features: List<String>, announcement: String = ""): GameUpdateTask? {
         val current = gameRevenueMap[gameId] ?: return null
         if (current.updateTask != null) return current.updateTask
         // 简单估算：每个特性 100 进度点
         val required = (features.size * 100).coerceAtLeast(100)
-        val task = GameUpdateTask(features = features, requiredPoints = required)
+        val task = GameUpdateTask(features = features, requiredPoints = required, announcement = announcement)
         gameRevenueMap[gameId] = current.copy(updateTask = task)
         saveRevenueData()
         return task

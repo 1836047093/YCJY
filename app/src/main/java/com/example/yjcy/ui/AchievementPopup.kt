@@ -3,6 +3,8 @@ package com.example.yjcy.ui
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -48,9 +50,7 @@ fun AchievementUnlockPopup(
             iconScale = value
         }
         
-        // 3秒后自动关闭
-        delay(3000)
-        onDismiss()
+        // 移除自动关闭，玩家必须点击才能关闭
     }
     
     // 弹窗内容动画
@@ -70,13 +70,19 @@ fun AchievementUnlockPopup(
     ) {
         Dialog(onDismissRequest = onDismiss) {
             Box(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }
+                    ) { onDismiss() },
                 contentAlignment = Alignment.Center
             ) {
                 Card(
                     modifier = Modifier
                         .width(320.dp)
-                        .wrapContentHeight(),
+                        .wrapContentHeight()
+                        .clickable { onDismiss() },
                     shape = RoundedCornerShape(24.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = Color.White

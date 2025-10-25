@@ -1,5 +1,6 @@
 package com.example.yjcy.ui
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,9 +15,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,7 +54,8 @@ enum class LeaderboardType(
  */
 @Composable
 fun CompetitorContent(
-    saveData: SaveData
+    saveData: SaveData,
+    onAcquisitionSuccess: (CompetitorCompany, Long, Long, Int, List<CompetitorGame>) -> Unit = { _, _, _, _, _ -> }
 ) {
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("📊 排行榜", "📰 新闻", "🏢 对手")
@@ -111,7 +116,7 @@ fun CompetitorContent(
             when (selectedTab) {
                 0 -> LeaderboardContent(saveData)
                 1 -> NewsContent(saveData)
-                2 -> CompetitorsListContent(saveData)
+                2 -> CompetitorsListContent(saveData, onAcquisitionSuccess)
             }
         }
     }
@@ -238,7 +243,8 @@ fun LeaderboardContent(saveData: SaveData) {
                             title = "市值排行榜",
                             icon = "💰",
                             topColor = Color(0xFFFFD700),
-                            items = getTopCompaniesByMarketValue(saveData)
+                            items = getTopCompaniesByMarketValue(saveData),
+                            leaderboardType = LeaderboardType.MARKET_VALUE
                         )
                     }
                     LeaderboardType.FANS -> {
@@ -246,7 +252,8 @@ fun LeaderboardContent(saveData: SaveData) {
                             title = "粉丝排行榜",
                             icon = "❤️",
                             topColor = Color(0xFFFF6B6B),
-                            items = getTopCompaniesByFans(saveData)
+                            items = getTopCompaniesByFans(saveData),
+                            leaderboardType = LeaderboardType.FANS
                         )
                     }
                     LeaderboardType.ONLINE_GAME -> {
@@ -254,7 +261,8 @@ fun LeaderboardContent(saveData: SaveData) {
                             title = "热门网游排行",
                             icon = "🎮",
                             topColor = Color(0xFF4ECDC4),
-                            items = liveLeaderboardItems.ifEmpty { getTopOnlineGames(saveData) }
+                            items = liveLeaderboardItems.ifEmpty { getTopOnlineGames(saveData) },
+                            leaderboardType = LeaderboardType.ONLINE_GAME
                         )
                     }
                     LeaderboardType.SINGLE_PLAYER -> {
@@ -262,7 +270,8 @@ fun LeaderboardContent(saveData: SaveData) {
                             title = "畅销单机排行",
                             icon = "📦",
                             topColor = Color(0xFF95E1D3),
-                            items = getTopSinglePlayerGames(saveData)
+                            items = getTopSinglePlayerGames(saveData),
+                            leaderboardType = LeaderboardType.SINGLE_PLAYER
                         )
                     }
                 }
@@ -279,7 +288,8 @@ fun LeaderboardCard(
     title: String,
     icon: String,
     topColor: Color,
-    items: List<LeaderboardItem>
+    items: List<LeaderboardItem>,
+    leaderboardType: LeaderboardType
 ) {
     Card(
         modifier = Modifier
@@ -325,7 +335,8 @@ fun LeaderboardCard(
                     item = item,
                     topColor = topColor,
                     isTop = index < 3,
-                    isPlayer = item.isPlayer
+                    isPlayer = item.isPlayer,
+                    leaderboardType = leaderboardType
                 )
                 if (index < items.size - 1) {
                     Spacer(modifier = Modifier.height(8.dp))
@@ -355,15 +366,108 @@ fun LeaderboardItemRow(
     item: LeaderboardItem,
     topColor: Color,
     isTop: Boolean,
-    isPlayer: Boolean = false
+    isPlayer: Boolean = false,
+    leaderboardType: LeaderboardType
 ) {
+    // 为前3名设计专属的超炫酷图标组合
+    val rankIconData = when {
+        rank == 1 -> when (leaderboardType) {
+            LeaderboardType.MARKET_VALUE -> Triple("💎", "✨", listOf(Color(0xFFFFD700), Color(0xFFFFEB3B), Color(0xFFFFC107)))
+            LeaderboardType.FANS -> Triple("❤️", "💕", listOf(Color(0xFFFF1744), Color(0xFFFF4081), Color(0xFFFF80AB)))
+            LeaderboardType.ONLINE_GAME -> Triple("🔥", "⚡", listOf(Color(0xFFFF5722), Color(0xFFFF6F00), Color(0xFFFFD54F)))
+            LeaderboardType.SINGLE_PLAYER -> Triple("👑", "💎", listOf(Color(0xFFFFD700), Color(0xFFFFEB3B), Color(0xFFFFF59D)))
+        }
+        rank == 2 -> when (leaderboardType) {
+            LeaderboardType.MARKET_VALUE -> Triple("💰", "💸", listOf(Color(0xFFC0C0C0), Color(0xFFE0E0E0), Color(0xFFBDBDBD)))
+            LeaderboardType.FANS -> Triple("💖", "💗", listOf(Color(0xFFFF4081), Color(0xFFFF80AB), Color(0xFFF48FB1)))
+            LeaderboardType.ONLINE_GAME -> Triple("⚡", "🌟", listOf(Color(0xFFFFEB3B), Color(0xFFFFC107), Color(0xFFFFD54F)))
+            LeaderboardType.SINGLE_PLAYER -> Triple("🎮", "🕹️", listOf(Color(0xFF5C6BC0), Color(0xFF7E57C2), Color(0xFF9575CD))) // 游戏手柄+摇杆，紫蓝色系
+        }
+        rank == 3 -> when (leaderboardType) {
+            LeaderboardType.MARKET_VALUE -> Triple("💵", "💴", listOf(Color(0xFFCD7F32), Color(0xFFD4A574), Color(0xFFE6C9A8)))
+            LeaderboardType.FANS -> Triple("💕", "💝", listOf(Color(0xFFF06292), Color(0xFFF48FB1), Color(0xFFF8BBD0)))
+            LeaderboardType.ONLINE_GAME -> Triple("⭐", "✨", listOf(Color(0xFF00BCD4), Color(0xFF26C6DA), Color(0xFF4DD0E1)))
+            LeaderboardType.SINGLE_PLAYER -> Triple("🏆", "⭐", listOf(Color(0xFFFF6F00), Color(0xFFFF8A65), Color(0xFFFFAB91))) // 奖杯+星星，橙红色系
+        }
+        else -> Triple("", "", emptyList())
+    }
+    
+    val (mainIcon, particleIcon, gradientColors) = rankIconData
+    
+    // 创建超强视觉冲击的动画效果
+    val infiniteTransition = rememberInfiniteTransition(label = "rank_animation_$rank")
+    
+    // 彩虹渐变色循环动画 - 超强视觉冲击
+    val colorProgress = if (isTop) {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(2000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "color_animation"
+        ).value
+    } else 0f
+    
+    // 强烈闪光效果 - 快速闪烁
+    val flashAlpha = if (isTop) {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = keyframes {
+                    durationMillis = when (rank) {
+                        1 -> 1000
+                        2 -> 1200
+                        3 -> 1400
+                        else -> 1000
+                    }
+                    0f at 0
+                    1f at 100 using FastOutSlowInEasing
+                    0.3f at 200
+                    1f at 300 using FastOutSlowInEasing
+                    0f at durationMillis
+                },
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "flash_animation"
+        ).value
+    } else 0f
+    
+    // 冲击波扩散效果
+    val shockwaveScale = if (isTop) {
+        infiniteTransition.animateFloat(
+            initialValue = 0.5f,
+            targetValue = 2.5f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1500, easing = LinearOutSlowInEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "shockwave_animation"
+        ).value
+    } else 1f
+    
+    // 计算当前渐变色
+    val currentGradientColor = if (gradientColors.isNotEmpty()) {
+        val colorIndex = (colorProgress * gradientColors.size).toInt() % gradientColors.size
+        val nextColorIndex = (colorIndex + 1) % gradientColors.size
+        val fraction = (colorProgress * gradientColors.size) % 1f
+        
+        androidx.compose.ui.graphics.lerp(
+            gradientColors[colorIndex],
+            gradientColors[nextColorIndex],
+            fraction
+        )
+    } else Color.Gray
+    
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(
                 color = when {
-                    isPlayer -> Color(0xFF4CAF50).copy(alpha = 0.3f) // 玩家公司用绿色高亮
-                    isTop -> topColor.copy(alpha = 0.2f)
+                    isPlayer -> Color(0xFF4CAF50).copy(alpha = 0.3f)
+                    isTop -> currentGradientColor.copy(alpha = 0.15f) // 使用渐变色作为背景
                     else -> Color.Transparent
                 },
                 shape = RoundedCornerShape(8.dp)
@@ -375,6 +479,12 @@ fun LeaderboardItemRow(
                         color = Color(0xFF4CAF50),
                         shape = RoundedCornerShape(8.dp)
                     )
+                } else if (isTop) {
+                    Modifier.border(
+                        width = 2.dp,
+                        brush = Brush.linearGradient(gradientColors),
+                        shape = RoundedCornerShape(8.dp)
+                    )
                 } else {
                     Modifier
                 }
@@ -382,36 +492,109 @@ fun LeaderboardItemRow(
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 排名
+        // 超炫酷的动态图标区域（前3名）
         Box(
-            modifier = Modifier
-                .size(32.dp)
-                .background(
-                    brush = if (isTop) {
-                        Brush.radialGradient(
-                            colors = listOf(
-                                topColor,
-                                topColor.copy(alpha = 0.6f)
-                            )
-                        )
-                    } else {
-                        Brush.radialGradient(
-                            colors = listOf(
-                                Color.Gray,
-                                Color.Gray.copy(alpha = 0.6f)
-                            )
-                        )
-                    },
-                    shape = CircleShape
-                ),
+            modifier = Modifier.size(56.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = rank.toString(),
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
-            )
+            if (isTop && mainIcon.isNotEmpty()) {
+                // 冲击波扩散层（爆炸效果）
+                Box(
+                    modifier = Modifier
+                        .size((40 * shockwaveScale).dp)
+                        .graphicsLayer {
+                            alpha = (1f - (shockwaveScale - 0.5f) / 2f).coerceIn(0f, 1f) * 0.6f
+                        }
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    currentGradientColor.copy(alpha = 0.8f),
+                                    Color.Transparent
+                                )
+                            ),
+                            shape = CircleShape
+                        )
+                )
+                
+                // 强烈闪光层
+                Box(
+                    modifier = Modifier
+                        .size(50.dp)
+                        .graphicsLayer {
+                            alpha = flashAlpha * 0.9f
+                        }
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    Color.White,
+                                    currentGradientColor,
+                                    Color.Transparent
+                                )
+                            ),
+                            shape = CircleShape
+                        )
+                )
+                
+                // 粒子层 - 围绕主图标的装饰粒子
+                if (particleIcon.isNotEmpty()) {
+                    // 4个粒子环绕在四个方向
+                    val particlePositions = listOf(
+                        Pair(20.dp, 0.dp),    // 右
+                        Pair(-20.dp, 0.dp),   // 左
+                        Pair(0.dp, -20.dp),   // 上
+                        Pair(0.dp, 20.dp)     // 下
+                    )
+                    
+                    particlePositions.forEach { (xOffset, yOffset) ->
+                        Text(
+                            text = particleIcon,
+                            fontSize = 16.sp,
+                            modifier = Modifier
+                                .offset(x = xOffset, y = yOffset)
+                                .graphicsLayer {
+                                    alpha = flashAlpha * 0.8f
+                                }
+                        )
+                    }
+                }
+                
+                // 主图标 - 超大尺寸
+                Text(
+                    text = mainIcon,
+                    fontSize = 40.sp,
+                    modifier = Modifier
+                        .graphicsLayer {
+                            // 强烈的阴影效果
+                            shadowElevation = 16f
+                            // 轻微缩放（保持图标稳定可见）
+                            scaleX = 1f + flashAlpha * 0.1f
+                            scaleY = 1f + flashAlpha * 0.1f
+                        }
+                )
+            } else {
+                // 第4-5名显示普通数字
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    Color.Gray,
+                                    Color.Gray.copy(alpha = 0.6f)
+                                )
+                            ),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = rank.toString(),
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                }
+            }
         }
         
         Spacer(modifier = Modifier.width(12.dp))
@@ -457,14 +640,14 @@ fun LeaderboardItemRow(
         ) {
             Text(
                 text = item.value,
-                color = if (isTop) topColor else Color.White,
+                color = if (isTop) currentGradientColor else Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp
             )
             if (item.extraInfo.isNotEmpty()) {
                 Text(
                     text = item.extraInfo,
-                    color = Color(0xFFFFD700), // 金色显示总收入
+                    color = if (isTop) currentGradientColor.copy(alpha = 0.9f) else Color(0xFFFFD700),
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(top = 2.dp)
@@ -852,7 +1035,10 @@ fun NewsCard(news: CompetitorNews) {
  * 竞争对手列表内容
  */
 @Composable
-fun CompetitorsListContent(saveData: SaveData) {
+fun CompetitorsListContent(
+    saveData: SaveData,
+    onAcquisitionSuccess: (CompetitorCompany, Long, Long, Int, List<CompetitorGame>) -> Unit = { _, _, _, _, _ -> }
+) {
     var selectedCompetitor by remember { mutableStateOf<CompetitorCompany?>(null) }
     var showPlayerDetail by remember { mutableStateOf(false) }
     
@@ -911,7 +1097,13 @@ fun CompetitorsListContent(saveData: SaveData) {
     if (selectedCompetitor != null) {
         CompetitorDetailDialog(
             competitor = selectedCompetitor!!,
-            onDismiss = { selectedCompetitor = null }
+            onDismiss = { selectedCompetitor = null },
+            saveData = saveData,
+            onAcquisitionSuccess = { company, price, marketValueGain, fansGain, games ->
+                // 收购成功后关闭对话框，并触发外层回调
+                selectedCompetitor = null
+                onAcquisitionSuccess(company, price, marketValueGain, fansGain, games)
+            }
         )
     }
     
@@ -1055,8 +1247,12 @@ fun CompetitorCard(
 @Composable
 fun CompetitorDetailDialog(
     competitor: CompetitorCompany,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    saveData: SaveData,
+    onAcquisitionSuccess: (CompetitorCompany, Long, Long, Int, List<CompetitorGame>) -> Unit = { _, _, _, _, _ -> }
 ) {
+    var showAcquisitionDialog by remember { mutableStateOf(false) }
+    val playerMarketValue = calculatePlayerMarketValue(saveData)
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
@@ -1144,20 +1340,52 @@ fun CompetitorDetailDialog(
                     }
                 }
                 
-                // 关闭按钮
-                Button(
-                    onClick = onDismiss,
+                // 按钮区域
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF667eea)
-                    )
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("关闭", color = Color.White)
+                    // 收购按钮
+                    Button(
+                        onClick = { showAcquisitionDialog = true },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFF6B6B)
+                        )
+                    ) {
+                        Text("💰 收购", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                    
+                    // 关闭按钮
+                    Button(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF667eea)
+                        )
+                    ) {
+                        Text("关闭", color = Color.White)
+                    }
                 }
             }
         }
+    }
+    
+    // 收购对话框
+    if (showAcquisitionDialog) {
+        AcquisitionDialog(
+            targetCompany = competitor,
+            saveData = saveData,
+            playerMarketValue = playerMarketValue,
+            onDismiss = { showAcquisitionDialog = false },
+            onSuccess = { finalPrice, marketValueGain, fansGain, inheritedGames ->
+                showAcquisitionDialog = false
+                onDismiss()
+                onAcquisitionSuccess(competitor, finalPrice, marketValueGain, fansGain, inheritedGames)
+            }
+        )
     }
 }
 
@@ -1451,5 +1679,446 @@ fun CompetitorGameCard(game: CompetitorGame) {
                 )
             }
         }
+    }
+}
+
+/**
+ * 收购竞价对话框
+ */
+@Composable
+fun AcquisitionDialog(
+    targetCompany: CompetitorCompany,
+    saveData: SaveData,
+    playerMarketValue: Long,
+    onDismiss: () -> Unit,
+    onSuccess: (Long, Long, Int, List<CompetitorGame>) -> Unit
+) {
+    // 检查资格
+    val eligibilityStatus = remember {
+        com.example.yjcy.data.CompetitorManager.checkAcquisitionEligibility(
+            playerMarketValue = playerMarketValue,
+            playerMoney = saveData.money,
+            targetCompany = targetCompany,
+            isTargetPlayer = false
+        )
+    }
+    
+    // 竞价状态
+    var biddingPhase by remember { mutableStateOf("checking") } // checking, bidding, finished
+    var currentPrice by remember { mutableStateOf(0L) }
+    var currentLeader by remember { mutableStateOf("") }
+    var biddingHistory by remember { mutableStateOf(listOf<com.example.yjcy.data.AcquisitionBid>()) }
+    var biddingCompetitors by remember { mutableStateOf(listOf<CompetitorCompany>()) }
+    var canPlayerBid by remember { mutableStateOf(true) }
+    var resultMessage by remember { mutableStateOf("") }
+    var showResult by remember { mutableStateOf(false) }
+    
+    // 玩家加价触发器
+    var triggerAIBidding by remember { mutableStateOf(0) }
+    
+    // 玩家加价函数
+    fun playerRaiseBid() {
+        val increaseRate = 0.1
+        val newPrice = (currentPrice * (1 + increaseRate)).toLong()
+        
+        if (saveData.money >= newPrice) {
+            currentPrice = newPrice
+            currentLeader = saveData.companyName
+            canPlayerBid = true
+            
+            biddingHistory = biddingHistory + com.example.yjcy.data.AcquisitionBid(
+                bidderId = -1,
+                bidderName = saveData.companyName,
+                amount = newPrice
+            )
+            
+            // 触发下一轮AI竞价
+            triggerAIBidding++
+        }
+    }
+    
+    // 初始化竞价和处理AI轮次
+    LaunchedEffect(eligibilityStatus, triggerAIBidding) {
+        // AI竞价处理函数
+        suspend fun processAIRound() {
+            val (hasAIBid, newPrice, aiCompany) = com.example.yjcy.data.CompetitorManager.processAIBidding(
+                currentPrice = currentPrice,
+                targetCompany = targetCompany,
+                biddingCompetitors = biddingCompetitors
+            )
+            
+            if (hasAIBid && aiCompany != null) {
+                currentPrice = newPrice
+                currentLeader = aiCompany.name
+                canPlayerBid = saveData.money >= newPrice
+                
+                biddingHistory = biddingHistory + com.example.yjcy.data.AcquisitionBid(
+                    bidderId = aiCompany.id,
+                    bidderName = aiCompany.name,
+                    amount = newPrice
+                )
+                
+                // 继续下一轮
+                kotlinx.coroutines.delay(2000)
+                processAIRound()
+            } else {
+                // 竞价结束
+                biddingPhase = "finished"
+                
+                if (currentLeader == saveData.companyName) {
+                    // 玩家获胜
+                    val (marketValueGain, fansGain, inheritedGames) = 
+                        com.example.yjcy.data.CompetitorManager.completeAcquisition(
+                            targetCompany = targetCompany,
+                            finalPrice = currentPrice
+                        )
+                    
+                    resultMessage = "🎉 收购成功！\n\n" +
+                        "以 ${formatMoney(currentPrice)} 成功收购 ${targetCompany.name}\n\n" +
+                        "收益：\n" +
+                        "• 市值增加：${formatMoney(marketValueGain)}\n" +
+                        "• 粉丝增加：${formatMoneyWithDecimals(fansGain.toDouble())}\n" +
+                        "• 继承游戏：${inheritedGames.size}款"
+                    
+                    showResult = true
+                    
+                    kotlinx.coroutines.delay(1000)
+                    onSuccess(currentPrice, marketValueGain, fansGain, inheritedGames)
+                } else {
+                    // 玩家失败
+                    resultMessage = "😞 收购失败\n\n" +
+                        "${currentLeader} 以 ${formatMoney(currentPrice)} 的价格\n" +
+                        "成功收购了 ${targetCompany.name}"
+                    
+                    showResult = true
+                }
+            }
+        }
+        
+        // 初始化竞价
+        if (eligibilityStatus == com.example.yjcy.data.AcquisitionStatus.ELIGIBLE && triggerAIBidding == 0) {
+            kotlinx.coroutines.delay(500)
+            
+            // 发起收购
+            val (basePrice, competitors) = com.example.yjcy.data.CompetitorManager.initiateAcquisition(
+                targetCompany = targetCompany,
+                allCompetitors = saveData.competitors,
+                playerMarketValue = playerMarketValue
+            )
+            
+            currentPrice = basePrice
+            biddingCompetitors = competitors
+            currentLeader = saveData.companyName
+            
+            biddingHistory = listOf(
+                com.example.yjcy.data.AcquisitionBid(
+                    bidderId = -1,
+                    bidderName = saveData.companyName,
+                    amount = basePrice
+                )
+            )
+            
+            biddingPhase = "bidding"
+            
+            // 如果有竞争对手，开始AI竞价
+            if (competitors.isNotEmpty()) {
+                kotlinx.coroutines.delay(1500)
+                processAIRound()
+            }
+        }
+        
+        // 玩家加价后触发AI竞价
+        if (triggerAIBidding > 0 && biddingPhase == "bidding") {
+            kotlinx.coroutines.delay(2000)
+            processAIRound()
+        }
+    }
+    
+    Dialog(onDismissRequest = { if (biddingPhase == "finished") onDismiss() }) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 600.dp)
+                .shadow(16.dp, RoundedCornerShape(24.dp)),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF1E1E2E)
+            )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+            ) {
+                // 标题
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                ) {
+                    Text(
+                        text = "💰",
+                        fontSize = 32.sp,
+                        modifier = Modifier.padding(end = 12.dp)
+                    )
+                    Column {
+                        Text(
+                            text = "收购 ${targetCompany.name}",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp
+                        )
+                        Text(
+                            text = "目标市值: ${formatMoney(targetCompany.marketValue)}",
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+                
+                HorizontalDivider(color = Color.White.copy(alpha = 0.3f), modifier = Modifier.padding(vertical = 12.dp))
+                
+                // 内容区域
+                when {
+                    eligibilityStatus != com.example.yjcy.data.AcquisitionStatus.ELIGIBLE -> {
+                        // 显示资格不符信息
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = "❌",
+                                fontSize = 48.sp,
+                                modifier = Modifier.padding(bottom = 16.dp)
+                            )
+                            Text(
+                                text = when (eligibilityStatus) {
+                                    com.example.yjcy.data.AcquisitionStatus.INSUFFICIENT_MARKET_VALUE -> 
+                                        "市值不足\n需要: ${formatMoney((targetCompany.marketValue * 1.5).toLong())}\n当前: ${formatMoney(playerMarketValue)}"
+                                    com.example.yjcy.data.AcquisitionStatus.INSUFFICIENT_FUNDS -> 
+                                        "资金不足\n需要: ${formatMoney((targetCompany.marketValue * 1.2).toLong())}\n当前: ${formatMoney(saveData.money)}"
+                                    else -> "无法收购"
+                                },
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 20.sp
+                            )
+                        }
+                        
+                        Button(
+                            onClick = onDismiss,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF667eea)
+                            )
+                        ) {
+                            Text("关闭", color = Color.White)
+                        }
+                    }
+                    showResult -> {
+                        // 显示结果
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = if (currentLeader == saveData.companyName) "🎉" else "😞",
+                                fontSize = 48.sp,
+                                modifier = Modifier.padding(bottom = 16.dp)
+                            )
+                            Text(
+                                text = resultMessage,
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 20.sp
+                            )
+                        }
+                        
+                        Button(
+                            onClick = onDismiss,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF667eea)
+                            )
+                        ) {
+                            Text("关闭", color = Color.White)
+                        }
+                    }
+                    else -> {
+                        // 竞价进行中
+                        Column(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            // 当前出价信息
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 12.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = Color(0xFF667eea).copy(alpha = 0.3f)
+                                )
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp)
+                                ) {
+                                    Text(
+                                        text = "当前最高出价",
+                                        color = Color.White.copy(alpha = 0.7f),
+                                        fontSize = 12.sp,
+                                        modifier = Modifier.padding(bottom = 4.dp)
+                                    )
+                                    Text(
+                                        text = formatMoney(currentPrice),
+                                        color = Color(0xFFFFD700),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 24.sp,
+                                        modifier = Modifier.padding(bottom = 8.dp)
+                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "领先者：",
+                                            color = Color.White.copy(alpha = 0.7f),
+                                            fontSize = 12.sp
+                                        )
+                                        Text(
+                                            text = currentLeader,
+                                            color = if (currentLeader == saveData.companyName) 
+                                                Color(0xFF4CAF50) else Color.White,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp
+                                        )
+                                    }
+                                }
+                            }
+                            
+                            // 竞价历史
+                            if (biddingCompetitors.isNotEmpty()) {
+                                Text(
+                                    text = "竞价记录",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+                                
+                                LazyColumn(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f)
+                                        .padding(bottom = 12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    items(biddingHistory.reversed()) { bid ->
+                                        BidHistoryItem(bid, saveData.companyName)
+                                    }
+                                }
+                            } else {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                            
+                            // 操作按钮
+                            if (biddingPhase == "bidding") {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    // 放弃按钮
+                                    Button(
+                                        onClick = {
+                                            biddingPhase = "finished"
+                                            resultMessage = "您已放弃收购\n${currentLeader} 将收购 ${targetCompany.name}"
+                                            showResult = true
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xFF666666)
+                                        )
+                                    ) {
+                                        Text("放弃", color = Color.White)
+                                    }
+                                    
+                                    // 加价按钮
+                                    val nextBid = (currentPrice * 1.1).toLong()
+                                    Button(
+                                        onClick = { playerRaiseBid() },
+                                        modifier = Modifier.weight(1f),
+                                        enabled = canPlayerBid && saveData.money >= nextBid &&
+                                                currentLeader != saveData.companyName,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xFFFF6B6B)
+                                        )
+                                    ) {
+                                        Text(
+                                            text = if (currentLeader == saveData.companyName) {
+                                                "等待中..."
+                                            } else if (saveData.money >= nextBid) {
+                                                "加价至 ${formatMoney(nextBid)}"
+                                            } else {
+                                                "资金不足"
+                                            },
+                                            color = Color.White,
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 竞价历史记录项
+ */
+@Composable
+fun BidHistoryItem(bid: com.example.yjcy.data.AcquisitionBid, playerName: String) {
+    val isPlayer = bid.bidderName == playerName
+    
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                color = if (isPlayer) Color(0xFF4CAF50).copy(alpha = 0.2f) 
+                        else Color.White.copy(alpha = 0.05f),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = if (isPlayer) "👤" else "🏢",
+            fontSize = 16.sp,
+            modifier = Modifier.padding(end = 8.dp)
+        )
+        
+        Text(
+            text = bid.bidderName,
+            color = if (isPlayer) Color(0xFF4CAF50) else Color.White,
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp,
+            modifier = Modifier.weight(1f)
+        )
+        
+        Text(
+            text = formatMoney(bid.amount),
+            color = Color(0xFFFFD700),
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp
+        )
     }
 }

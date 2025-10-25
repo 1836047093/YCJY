@@ -108,31 +108,6 @@ fun EnhancedGameProjectCard(
                     
                     // 项目状态指示器
                     if (isDeveloping) {
-                        // 开发阶段标签
-                        Card(
-                            colors = CardDefaults.cardColors(
-                                containerColor = Color(0xFF3B82F6).copy(alpha = 0.2f)
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    text = game.currentPhase.icon,
-                                    fontSize = 12.sp
-                                )
-                                Text(
-                                    text = game.currentPhase.displayName,
-                                    color = Color(0xFF3B82F6),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                        
                         // 开发中的游戏状态
                         Card(
                             colors = CardDefaults.cardColors(
@@ -574,41 +549,6 @@ fun EnhancedGameProjectCard(
                                     )
                                 )
                         )
-                        
-                        // 动态高光效果
-                        val infiniteTransition = rememberInfiniteTransition(label = "shimmer")
-                        val shimmerOffset by infiniteTransition.animateFloat(
-                            initialValue = -1f,
-                            targetValue = 1f,
-                            animationSpec = infiniteRepeatable(
-                                animation = tween(
-                                    durationMillis = 2000,
-                                    easing = LinearEasing
-                                ),
-                                repeatMode = RepeatMode.Restart
-                            ),
-                            label = "shimmer_offset"
-                        )
-                        
-                        if (animatedProgress > 0f && animatedProgress < 1f) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth(animatedProgress)
-                                    .fillMaxHeight()
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(
-                                        Brush.horizontalGradient(
-                                            colors = listOf(
-                                                Color.White.copy(alpha = 0f),
-                                                Color.White.copy(alpha = 0.3f),
-                                                Color.White.copy(alpha = 0f)
-                                            ),
-                                            startX = shimmerOffset * 1000f,
-                                            endX = shimmerOffset * 1000f + 200f
-                                        )
-                                    )
-                            )
-                        }
                     }
                 }
                 
@@ -836,27 +776,162 @@ fun EnhancedGameProjectCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // 已发售或已下架的游戏：只显示收益按钮（即使有更新任务）
+                // 已发售或已下架的游戏：显示收益按钮和游戏社区按钮
                 if (isReleased || isRemoved) {
-                    Button(
-                        onClick = { showRevenueDialog = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF10B981)
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.TrendingUp,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "📊 查看详细收益报告",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium
-                        )
+                    // 如果有更新历史，显示并排按钮；否则只显示收益按钮
+                    if (game.updateHistory.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // 收益报告按钮
+                            Button(
+                                onClick = { showRevenueDialog = true },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF10B981)
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.TrendingUp,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "收益报告",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                            
+                            // 游戏社区按钮
+                            var showCommunityDialog by remember { mutableStateOf(false) }
+                            Button(
+                                onClick = { showCommunityDialog = true },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF3B82F6)
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = "🎮",
+                                    fontSize = 16.sp
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "游戏社区",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                            
+                            // 游戏社区对话框
+                            if (showCommunityDialog) {
+                                GameCommunityDialog(
+                                    game = game,
+                                    onDismiss = { showCommunityDialog = false },
+                                    onCommentLike = { updateIndex, commentId ->
+                                        // 处理评论点赞
+                                        val updatedHistory = game.updateHistory.toMutableList()
+                                        if (updateIndex in updatedHistory.indices) {
+                                            val update = updatedHistory[updateIndex]
+                                            val updatedComments = update.comments.map { comment ->
+                                                if (comment.id == commentId && !comment.isLikedByUser) {
+                                                    comment.copy(
+                                                        likes = comment.likes + 1,
+                                                        isLikedByUser = true
+                                                    )
+                                                } else {
+                                                    comment
+                                                }
+                                            }
+                                            updatedHistory[updateIndex] = update.copy(comments = updatedComments)
+                                            onGameUpdate(game.copy(updateHistory = updatedHistory))
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    } else {
+                        // 没有更新历史，显示收益报告和社区按钮
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // 收益报告按钮
+                            Button(
+                                onClick = { showRevenueDialog = true },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF10B981)
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.TrendingUp,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "收益报告",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                            
+                            // 游戏社区按钮
+                            var showCommunityDialog by remember { mutableStateOf(false) }
+                            Button(
+                                onClick = { showCommunityDialog = true },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF3B82F6)
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = "🎮",
+                                    fontSize = 16.sp
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "游戏社区",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                            
+                            // 游戏社区对话框
+                            if (showCommunityDialog) {
+                                GameCommunityDialog(
+                                    game = game,
+                                    onDismiss = { showCommunityDialog = false },
+                                    onCommentLike = { updateIndex, commentId ->
+                                        // 处理评论点赞
+                                        val updatedHistory = game.updateHistory.toMutableList()
+                                        if (updateIndex in updatedHistory.indices) {
+                                            val update = updatedHistory[updateIndex]
+                                            val updatedComments = update.comments.map { comment ->
+                                                if (comment.id == commentId && !comment.isLikedByUser) {
+                                                    comment.copy(
+                                                        likes = comment.likes + 1,
+                                                        isLikedByUser = true
+                                                    )
+                                                } else {
+                                                    comment
+                                                }
+                                            }
+                                            updatedHistory[updateIndex] = update.copy(comments = updatedComments)
+                                            onGameUpdate(game.copy(updateHistory = updatedHistory))
+                                        }
+                                    }
+                                )
+                            }
+                        }
                     }
                 } else if (hasActiveUpdateTask) {
                     // 有更新任务的游戏

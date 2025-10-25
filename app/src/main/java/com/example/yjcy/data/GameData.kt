@@ -328,7 +328,8 @@ data class Game(
     val autoUpdate: Boolean = false, // 新增：自动更新开关（开启后更新完成会自动发布）
     val version: Float = 1.0f, // 新增：游戏版本号，每次更新+0.1
     val currentPhase: DevelopmentPhase = DevelopmentPhase.DESIGN, // 当前开发阶段
-    val phaseProgress: Float = 0f // 当前阶段进度（0-1）
+    val phaseProgress: Float = 0f, // 当前阶段进度（0-1）
+    val updateHistory: List<GameUpdate> = emptyList() // 游戏更新历史记录
 ) {
     /**
      * 计算游戏开发成本
@@ -501,6 +502,35 @@ data class Complaint(
         return currentProgress >= workload
     }
 }
+
+// 游戏日期数据类
+data class GameDate(
+    val year: Int,
+    val month: Int,
+    val day: Int
+) {
+    override fun toString(): String {
+        return "${year}年${month}月${day}日"
+    }
+}
+
+// 玩家评论数据类
+data class PlayerComment(
+    val id: String = java.util.UUID.randomUUID().toString(),  // 唯一ID
+    val playerName: String,  // 玩家昵称
+    val content: String,  // 评论内容
+    var likes: Int,  // 点赞数
+    var isLikedByUser: Boolean = false  // 玩家是否点赞过
+)
+
+// 游戏更新记录数据类
+data class GameUpdate(
+    val updateNumber: Int,  // 第几次更新（1, 2, 3...）
+    val updateDate: GameDate,  // 更新日期
+    val updateContent: List<String>,  // 更新内容列表（如："新皮肤", "新道具"）
+    val announcement: String,  // 更新公告（玩家输入的，或默认的）
+    val comments: List<PlayerComment> = emptyList()  // 玩家评论
+)
 
 // 存档数据类
 data class SaveData(
