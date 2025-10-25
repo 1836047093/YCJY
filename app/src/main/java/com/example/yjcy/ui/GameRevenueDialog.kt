@@ -60,7 +60,9 @@ fun GameRevenueDialog(
     onMonetizationUpdate: (List<MonetizationItem>) -> Unit = {},
     onPurchaseServer: (ServerType) -> Unit = {},
     onAutoUpdateToggle: (Boolean) -> Unit = {},
-    businessModel: BusinessModel
+    businessModel: BusinessModel,
+    money: Long = 0L,  // 新增：资金
+    onMoneyUpdate: (Long) -> Unit = {}  // 新增：资金更新回调
 ) {
     var showConfirmDialog by remember { mutableStateOf(false) }
     var showUpdateDialog by remember { mutableStateOf(false) }
@@ -179,12 +181,22 @@ fun GameRevenueDialog(
     if (showUpdateDialog) {
         UpdateFeatureDialog(
             game = game,
+            money = money,
             onDismiss = { showUpdateDialog = false },
             onConfirm = { features ->
-                RevenueManager.createUpdateTask(gameRevenue.gameId, features)
-                showUpdateDialog = false
-                // 通知外层开始更新（例如关闭此弹窗，回到项目界面以分配员工）
-                onStartUpdate(gameRevenue.gameId)
+                // 计算更新费用
+                val updateCost = RevenueManager.calculateUpdateCost(gameRevenue.gameId)
+                
+                // 检查资金是否足够
+                if (money >= updateCost) {
+                    // 扣除更新费用
+                    onMoneyUpdate(money - updateCost.toLong())
+                    // 创建更新任务
+                    RevenueManager.createUpdateTask(gameRevenue.gameId, features)
+                    showUpdateDialog = false
+                    // 通知外层开始更新（例如关闭此弹窗，回到项目界面以分配员工）
+                    onStartUpdate(gameRevenue.gameId)
+                }
             }
         )
     }
@@ -241,6 +253,7 @@ fun StatusIndicator(isActive: Boolean, businessModel: BusinessModel = BusinessMo
 @Composable
 fun UpdateFeatureDialog(
     game: Game,
+    money: Long = 0L,
     onDismiss: () -> Unit,
     onConfirm: (List<String>) -> Unit
 ) {
@@ -262,21 +275,16 @@ fun UpdateFeatureDialog(
     val selected = remember { mutableStateListOf<String>() }
     val allSelected = selected.size == options.size && options.isNotEmpty()
     
+    // 计算更新费用
+    val updateCost = remember(game.id) {
+        RevenueManager.calculateUpdateCost(game.id)
+    }
+    
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("选择更新内容", fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                // 单机游戏提示文本
-                if (game.businessModel == BusinessModel.SINGLE_PLAYER && options.isNotEmpty()) {
-                    Text(
-                        text = "💡 单机游戏更新内容基于游戏主题（${game.theme.displayName}）",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    )
-                }
-                
                 // 全选/反选按钮
                 if (options.isNotEmpty()) {
                     Row(
@@ -338,14 +346,47 @@ fun UpdateFeatureDialog(
                         }
                     }
                 }
+                
+                // 显示更新费用
+                if (options.isNotEmpty()) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                    )
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "更新费用：",
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = formatMoneyWithDecimals(updateCost),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
+            val canAfford = money >= updateCost
             TextButton(
                 onClick = { onConfirm(selected.toList()) },
-                enabled = selected.isNotEmpty()
+                enabled = selected.isNotEmpty() && canAfford
             ) {
-                Text("开始更新")
+                Text(
+                    text = if (!canAfford && selected.isNotEmpty()) {
+                        "资金不足"
+                    } else {
+                        "开始更新"
+                    }
+                )
             }
         },
         dismissButton = {

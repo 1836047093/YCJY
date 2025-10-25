@@ -9,7 +9,7 @@ import kotlin.random.Random
  */
 data class DailySales(
     val date: Date,
-    val sales: Int,
+    val sales: Long,
     val revenue: Double
 )
 
@@ -18,7 +18,7 @@ data class DailySales(
  */
 data class SalesData(
     val label: String,
-    val value: Int,
+    val value: Long,
     val revenue: Double
 )
 
@@ -27,10 +27,10 @@ data class SalesData(
  */
 data class RevenueStatistics(
     val totalRevenue: Double,
-    val totalSales: Int,
+    val totalSales: Long,
     val averageDailyRevenue: Double,
-    val averageDailySales: Int,
-    val peakDailySales: Int,
+    val averageDailySales: Long,
+    val peakDailySales: Long,
     val peakDailyRevenue: Double,
     val daysOnMarket: Int,
     val revenueGrowthRate: Double
@@ -76,7 +76,7 @@ data class GameRevenue(
     val monetizationRevenues: List<MonetizationRevenue> = emptyList(),
     // 新增：玩家兴趣值系统（仅网络游戏）
     val playerInterest: Double = 100.0, // 玩家兴趣值 0-100
-    val totalRegisteredPlayers: Int = 0, // 总注册人数
+    val totalRegisteredPlayers: Long = 0, // 总注册人数
     val lifecycleProgress: Double = 0.0, // 生命周期进度 0-100%
     val daysSinceLaunch: Int = 0, // 上线天数
     val lastInterestDecayDay: Int = 0 // 上次兴趣值衰减的天数
@@ -91,7 +91,7 @@ data class GameRevenue(
     /**
      * 获取总销量
      */
-    fun getTotalSales(): Int {
+    fun getTotalSales(): Long {
         return dailySalesList.sumOf { it.sales }
     }
     
@@ -107,10 +107,10 @@ data class GameRevenue(
     /**
      * 获取平均每日销量
      */
-    fun getAverageDailySales(): Int {
+    fun getAverageDailySales(): Long {
         return if (dailySalesList.isNotEmpty()) {
             getTotalSales() / dailySalesList.size
-        } else 0
+        } else 0L
     }
     
     /**
@@ -366,13 +366,41 @@ object RevenueManager {
             editor.putInt("revenue_${index}_update_count", revenue.updateCount)
             editor.putFloat("revenue_${index}_multiplier", revenue.cumulativeSalesMultiplier.toFloat())
             
+            // 保存网游特有字段
+            editor.putInt("revenue_${index}_release_year", revenue.releaseYear)
+            editor.putInt("revenue_${index}_release_month", revenue.releaseMonth)
+            editor.putInt("revenue_${index}_release_day", revenue.releaseDay)
+            editor.putFloat("revenue_${index}_player_interest", revenue.playerInterest.toFloat())
+            editor.putLong("revenue_${index}_total_registered", revenue.totalRegisteredPlayers)
+            editor.putFloat("revenue_${index}_lifecycle_progress", revenue.lifecycleProgress.toFloat())
+            editor.putInt("revenue_${index}_days_since_launch", revenue.daysSinceLaunch)
+            editor.putInt("revenue_${index}_last_decay_day", revenue.lastInterestDecayDay)
+            
+            // 保存付费内容收益
+            editor.putInt("revenue_${index}_monetization_count", revenue.monetizationRevenues.size)
+            revenue.monetizationRevenues.forEachIndexed { monIndex, monRevenue ->
+                editor.putString("revenue_${index}_mon${monIndex}_type", monRevenue.itemType)
+                editor.putFloat("revenue_${index}_mon${monIndex}_revenue", monRevenue.totalRevenue.toFloat())
+            }
+            
+            // 保存更新任务
+            revenue.updateTask?.let { task ->
+                editor.putBoolean("revenue_${index}_has_update_task", true)
+                editor.putInt("revenue_${index}_task_required", task.requiredPoints)
+                editor.putInt("revenue_${index}_task_progress", task.progressPoints)
+                editor.putInt("revenue_${index}_task_feature_count", task.features.size)
+                task.features.forEachIndexed { featureIndex, feature ->
+                    editor.putString("revenue_${index}_task_feature${featureIndex}", feature)
+                }
+            } ?: editor.putBoolean("revenue_${index}_has_update_task", false)
+            
             // 保存每日销量数据（只保存最近30天）
             val recentDailySales = revenue.dailySalesList.takeLast(30)
-            editor.putInt("revenue_${index}_days", recentDailySales.size)
+            editor.putInt("revenue_${index}_daily_sales_count", recentDailySales.size)
             recentDailySales.forEachIndexed { dayIndex, dailySales ->
-                editor.putLong("revenue_${index}_day${dayIndex}_time", dailySales.date.time)
-                editor.putInt("revenue_${index}_day${dayIndex}_sales", dailySales.sales)
-                editor.putFloat("revenue_${index}_day${dayIndex}_revenue", dailySales.revenue.toFloat())
+                editor.putLong("revenue_${index}_daily_sales_${dayIndex}_date", dailySales.date.time)
+                editor.putLong("revenue_${index}_daily_sales_${dayIndex}_sales", dailySales.sales)
+                editor.putFloat("revenue_${index}_daily_sales_${dayIndex}_revenue", dailySales.revenue.toFloat())
             }
         }
         
@@ -399,21 +427,47 @@ object RevenueManager {
                 val updateCount = prefs.getInt("revenue_${i}_update_count", 0)
                 val multiplier = prefs.getFloat("revenue_${i}_multiplier", 1.0f).toDouble()
                 
+                // 加载网游特有字段
+                val releaseYear = prefs.getInt("revenue_${i}_release_year", 1)
+                val releaseMonth = prefs.getInt("revenue_${i}_release_month", 1)
+                val releaseDay = prefs.getInt("revenue_${i}_release_day", 1)
+                val playerInterest = prefs.getFloat("revenue_${i}_player_interest", 100.0f).toDouble()
+                val totalRegisteredPlayers = prefs.getLong("revenue_${i}_total_registered", 0L)
+                val lifecycleProgress = prefs.getFloat("revenue_${i}_lifecycle_progress", 0.0f).toDouble()
+                val daysSinceLaunch = prefs.getInt("revenue_${i}_days_since_launch", 0)
+                val lastInterestDecayDay = prefs.getInt("revenue_${i}_last_decay_day", 0)
+                
+                // 加载付费内容收益
+                val monetizationCount = prefs.getInt("revenue_${i}_monetization_count", 0)
+                val monetizationRevenues = mutableListOf<MonetizationRevenue>()
+                for (monIndex in 0 until monetizationCount) {
+                    val itemType = prefs.getString("revenue_${i}_mon${monIndex}_type", "") ?: ""
+                    val monRevenue = prefs.getFloat("revenue_${i}_mon${monIndex}_revenue", 0f).toDouble()
+                    monetizationRevenues.add(MonetizationRevenue(itemType, monRevenue))
+                }
+                
+                // 加载更新任务
+                val hasUpdateTask = prefs.getBoolean("revenue_${i}_has_update_task", false)
+                val updateTask = if (hasUpdateTask) {
+                    val requiredPoints = prefs.getInt("revenue_${i}_task_required", 100)
+                    val progressPoints = prefs.getInt("revenue_${i}_task_progress", 0)
+                    val featureCount = prefs.getInt("revenue_${i}_task_feature_count", 0)
+                    val features = mutableListOf<String>()
+                    for (featureIndex in 0 until featureCount) {
+                        val feature = prefs.getString("revenue_${i}_task_feature${featureIndex}", "") ?: ""
+                        if (feature.isNotEmpty()) features.add(feature)
+                    }
+                    GameUpdateTask(features, requiredPoints, progressPoints)
+                } else null
+                
                 // 加载每日销量数据
-                val daysCount = prefs.getInt("revenue_${i}_days", 0)
+                val dailySalesCount = prefs.getInt("revenue_${i}_daily_sales_count", 0)
                 val dailySalesList = mutableListOf<DailySales>()
-                for (dayIndex in 0 until daysCount) {
-                    val time = prefs.getLong("revenue_${i}_day${dayIndex}_time", 0)
-                    val sales = prefs.getInt("revenue_${i}_day${dayIndex}_sales", 0)
-                    val revenue = prefs.getFloat("revenue_${i}_day${dayIndex}_revenue", 0f).toDouble()
-                    
-                    dailySalesList.add(
-                        DailySales(
-                            date = Date(time),
-                            sales = sales,
-                            revenue = revenue
-                        )
-                    )
+                for (dayIndex in 0 until dailySalesCount) {
+                    val date = Date(prefs.getLong("revenue_${i}_daily_sales_${dayIndex}_date", 0))
+                    val sales = prefs.getLong("revenue_${i}_daily_sales_${dayIndex}_sales", 0L)
+                    val revenue = prefs.getFloat("revenue_${i}_daily_sales_${dayIndex}_revenue", 0f).toDouble()
+                    dailySalesList.add(DailySales(date, sales, revenue))
                 }
                 
                 val gameRevenue = GameRevenue(
@@ -421,10 +475,20 @@ object RevenueManager {
                     gameName = gameName,
                     releaseDate = if (dailySalesList.isNotEmpty()) dailySalesList.first().date else Date(),
                     releasePrice = releasePrice,
+                    releaseYear = releaseYear,
+                    releaseMonth = releaseMonth,
+                    releaseDay = releaseDay,
                     isActive = isActive,
                     dailySalesList = dailySalesList,
                     updateCount = updateCount,
-                    cumulativeSalesMultiplier = multiplier
+                    cumulativeSalesMultiplier = multiplier,
+                    monetizationRevenues = monetizationRevenues,
+                    playerInterest = playerInterest,
+                    totalRegisteredPlayers = totalRegisteredPlayers,
+                    lifecycleProgress = lifecycleProgress,
+                    daysSinceLaunch = daysSinceLaunch,
+                    lastInterestDecayDay = lastInterestDecayDay,
+                    updateTask = updateTask
                 )
                 
                 gameRevenueMap[gameId] = gameRevenue
@@ -463,9 +527,9 @@ object RevenueManager {
                 i == 0 -> {
                     // 首日销量/注册，应用宣传指数提升
                     val baseValue = Random.nextInt(800, 1200)
-                    // 宣传指数100%时，首发销量/注册提升50%
-                    // 低于100%也有提升，但效果没有10 0%多
-                    val promotionBonus = 1f + (promotionIndex * 0.5f)
+                    // 宣传指数100%时，首发销量/注册提升25%（已下调，原50%）
+                    // 低于100%也有提升，但效果没有100%多
+                    val promotionBonus = 1f + (promotionIndex * 0.25f)
                     (baseValue * promotionBonus).toInt()
                 }
                 i <= 7 -> Random.nextInt(300, 600) // 首周
@@ -482,7 +546,7 @@ object RevenueManager {
             dailySalesList.add(
                 DailySales(
                     date = date,
-                    sales = actualSales,
+                    sales = actualSales.toLong(),
                     revenue = dailyRevenue
                 )
             )
@@ -505,16 +569,45 @@ object RevenueManager {
     }
 
     /**
-     * 计算下一次更新成本（随更新次数递增）
-     * 规则：基础价为首发价的20%，每次更新成本在上次基础上×(1 + 0.15)
-     * 也可理解为 base * (1.15^updateCount)
+     * 计算下一次更新成本（随更新次数递增，带成本上限）
+     * 
+     * **单机游戏**（DLC/资料片性质）：
+     * - 基础成本：80,000元
+     * - 递增系数：1.25（每次+25%）
+     * - 成本上限：300,000元（第7次达到）
+     * - 价格梯度：80K → 100K → 125K → 156K → 195K → 244K → 300K（上限）
+     * 
+     * **网络游戏**（持续运营性质）：
+     * - 基础成本：40,000元
+     * - 递增系数：1.25（每次+25%）
+     * - 成本上限：150,000元（第7次达到）
+     * - 价格梯度：40K → 50K → 62.5K → 78K → 97.5K → 122K → 150K（上限）
+     * 
+     * **设计理念**：
+     * - 单机游戏基础成本是网游的2倍，符合DLC性质
+     * - 设置成本上限防止后期成本过高导致游戏失衡
+     * - 第7次更新后达到上限，保持固定成本
+     * - 鼓励玩家持续维护游戏，但不会无限膨胀
      */
     fun calculateUpdateCost(gameId: String): Double {
         val gameRevenue = gameRevenueMap[gameId] ?: return 0.0
-        // 基础价固定为 50,000，后续每次在此基础上递增
-        val base = 50_000.0
-        val factor = Math.pow(1.15, gameRevenue.updateCount.toDouble())
-        return base * factor
+        
+        // 获取游戏商业模式
+        val (businessModel, _) = gameInfoMap[gameId] 
+            ?: (com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER to emptyList())
+        
+        // 根据商业模式设置不同的基础成本和上限
+        val (base, maxCost) = when (businessModel) {
+            com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER -> Pair(80_000.0, 300_000.0)  // 单机：基础80K，上限300K
+            com.example.yjcy.ui.BusinessModel.ONLINE_GAME -> Pair(40_000.0, 150_000.0)     // 网游：基础40K，上限150K
+        }
+        
+        // 使用1.25的递增系数（每次+25%），但不超过上限
+        val factor = Math.pow(1.25, gameRevenue.updateCount.toDouble())
+        val calculatedCost = base * factor
+        
+        // 返回计算成本和上限中的较小值
+        return calculatedCost.coerceAtMost(maxCost)
     }
 
     /**
@@ -533,7 +626,7 @@ object RevenueManager {
         // 批量提升历史销量
         val ratio = newMultiplier / current.cumulativeSalesMultiplier
         val adjustedDaily = current.dailySalesList.map { d ->
-            val newSales = (d.sales * ratio).toInt().coerceAtLeast(1)
+            val newSales = (d.sales * ratio).toLong().coerceAtLeast(1L)
             val newRevenue = newSales * current.releasePrice
             d.copy(sales = newSales, revenue = newRevenue)
         }
@@ -736,22 +829,42 @@ object RevenueManager {
     }
     
     /**
+     * 计算评分倍率（更陡峭的曲线，让低评分游戏销量大幅下降）
+     */
+    private fun calculateRatingMultiplier(rating: Float): Float {
+        return when {
+            rating >= 9.0f -> 1.5f  // 杰作（9-10分）
+            rating >= 7.0f -> {
+                // 优秀（7-9分）：线性插值 1.0 到 1.5
+                1.0f + ((rating - 7.0f) / 2.0f) * 0.5f
+            }
+            rating >= 5.0f -> {
+                // 及格（5-7分）：线性插值 0.6 到 1.0
+                0.6f + ((rating - 5.0f) / 2.0f) * 0.4f
+            }
+            rating >= 3.0f -> {
+                // 差评（3-5分）：线性插值 0.2 到 0.6
+                0.2f + ((rating - 3.0f) / 2.0f) * 0.4f
+            }
+            else -> {
+                // 烂作（0-3分）：线性插值 0.05 到 0.2
+                0.05f + (rating / 3.0f) * 0.15f
+            }
+        }
+    }
+    
+    /**
      * 根据游戏评分更新收益数据
      */
     fun updateRevenueBasedOnRating(gameId: String, rating: Float) {
         val gameRevenue = gameRevenueMap[gameId] ?: return
         
-        // 根据评分调整收益倍数
-        val multiplier = when {
-            rating >= 9.0f -> 1.5f
-            rating >= 7.0f -> 1.2f
-            rating >= 5.0f -> 1.0f
-            else -> 0.7f
-        }
+        // 使用新的评分倍率函数
+        val multiplier = calculateRatingMultiplier(rating)
         
         // 更新每日销量数据，应用评分倍数
         val updatedDailySales = gameRevenue.dailySalesList.map { dailySales ->
-            val adjustedSales = (dailySales.sales * multiplier).toInt()
+            val adjustedSales = (dailySales.sales * multiplier).toLong()
             val adjustedRevenue = adjustedSales * gameRevenue.releasePrice
             
             dailySales.copy(
@@ -856,25 +969,30 @@ object RevenueManager {
                 // 根据粉丝数量添加加成
                 applyFansBonus(withRatingBonus, fanCount)
             } else {
-                // 单机：根据价格调整首日销量
-                when {
-                    currentGameRevenue.releasePrice <= 30.0 -> Random.nextInt(800, 1200) // 低价游戏
-                    currentGameRevenue.releasePrice <= 100.0 -> Random.nextInt(500, 800) // 中价游戏
-                    else -> Random.nextInt(200, 500) // 高价游戏
+                // 单机：根据价格调整首日销量（已下调基础值）
+                val baseSalesForPrice = when {
+                    currentGameRevenue.releasePrice <= 30.0 -> Random.nextInt(500, 800) // 低价游戏（原800-1200）
+                    currentGameRevenue.releasePrice <= 100.0 -> Random.nextInt(300, 500) // 中价游戏（原500-800）
+                    else -> Random.nextInt(100, 300) // 高价游戏（原200-500）
                 }
+                // 应用评分倍率（单机游戏销量受评分影响很大）
+                val ratingMultiplier = if (gameRating != null) calculateRatingMultiplier(gameRating) else 1.0f
+                val withRatingMultiplier = (baseSalesForPrice * ratingMultiplier).toInt()
+                // 单机游戏也应用粉丝加成（效果低于网游）
+                applyFansBonusForSinglePlayer(withRatingMultiplier, fanCount)
             }
             
             val firstDayRevenue = baseSales * currentGameRevenue.releasePrice
             
             val firstDaySales = DailySales(
                 date = firstDayDate,
-                sales = baseSales,
+                sales = baseSales.toLong(),
                 revenue = firstDayRevenue
             )
             
             // 网络游戏：初始化总注册人数并计算付费内容收益
             val totalRegistered = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
-                baseSales
+                baseSales.toLong()
             } else {
                 currentGameRevenue.totalRegisteredPlayers
             }
@@ -884,7 +1002,7 @@ object RevenueManager {
             var firstDayMonetizationRevenue = 0.0
             val initialMonetizationRevenues = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
                 // 首日活跃玩家 = 注册人数 * 40%（新游戏兴趣值默认100%）
-                val firstDayActivePlayers = (baseSales * 0.4).toInt()
+                val firstDayActivePlayers = (baseSales * 0.4).toLong()
                 val dailyRevenues = calculateMonetizationRevenues(firstDayActivePlayers, monetizationItems)
                 firstDayMonetizationRevenue = dailyRevenues.sumOf { it.totalRevenue }
                 dailyRevenues
@@ -933,7 +1051,7 @@ object RevenueManager {
         // 创建新的每日销量数据
         val newDailySales = DailySales(
             date = newDate,
-            sales = newSales,
+            sales = newSales.toLong(),
             revenue = newRevenue
         )
         
@@ -947,9 +1065,9 @@ object RevenueManager {
         val monetizationRevenues = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
             // 计算当天的付费内容收益 - 使用活跃玩家数（总注册*40%*兴趣值影响）
             val totalRegistered = currentGameRevenue.totalRegisteredPlayers + newSales
-            val baseActivePlayers = (totalRegistered * 0.4).toInt()
+            val baseActivePlayers = (totalRegistered * 0.4).toLong()
             val interestMultiplier = calculateActivePlayerMultiplier(currentGameRevenue.playerInterest)
-            val actualActivePlayers = (baseActivePlayers * interestMultiplier).toInt()
+            val actualActivePlayers = (baseActivePlayers * interestMultiplier).toLong()
             
             val dailyRevenues = calculateMonetizationRevenues(actualActivePlayers, monetizationItems)
             dailyMonetizationRevenue = dailyRevenues.sumOf { it.totalRevenue }
@@ -1004,7 +1122,7 @@ object RevenueManager {
      * @return 付费内容收益列表
      */
     private fun calculateMonetizationRevenues(
-        activePlayers: Int,
+        activePlayers: Long,
         monetizationItems: List<MonetizationItem>
     ): List<MonetizationRevenue> {
         // 只计算已启用且设置了价格的付费内容
@@ -1013,24 +1131,24 @@ object RevenueManager {
         if (enabledItems.isEmpty()) return emptyList()
         
         return enabledItems.map { item ->
-            // 根据付费内容类型设置不同的付费率（调整到0.03%-0.12%，相比最初降低70%）
+            // 根据付费内容类型设置不同的付费率（调整到0.5%-2.0%，更合理的付费率）
             val purchaseRate = when (item.type.displayName) {
-                "皮肤与外观" -> 0.0003  // 0.03%的活跃玩家会购买皮肤
-                "成长加速道具" -> 0.00045  // 0.045%会购买加速道具
-                "稀有装备" -> 0.00018  // 0.018%会购买稀有装备
-                "赛季通行证" -> 0.0009  // 0.09%会购买赛季通行证
-                "强力角色" -> 0.00024  // 0.024%会购买角色
-                "VIP会员" -> 0.0006  // 0.06%会购买VIP
-                "抽卡系统" -> 0.0012  // 0.12%会参与抽卡
-                "扩展包" -> 0.00036  // 0.036%会购买扩展包
-                "资源包" -> 0.00075  // 0.075%会购买资源包
-                "战斗通行证" -> 0.00105  // 0.105%会购买战斗通行证
-                "宠物与坐骑" -> 0.00042  // 0.042%会购买宠物
-                "便利工具" -> 0.00054  // 0.054%会购买工具
-                "专属剧情" -> 0.0003  // 0.03%会购买剧情
-                "建造蓝图" -> 0.00048  // 0.048%会购买蓝图
-                "社交道具" -> 0.00036  // 0.036%会购买社交道具
-                else -> 0.0003  // 默认0.03%
+                "皮肤与外观" -> 0.005  // 0.5%的活跃玩家会购买皮肤
+                "成长加速道具" -> 0.008  // 0.8%会购买加速道具
+                "稀有装备" -> 0.003  // 0.3%会购买稀有装备
+                "赛季通行证" -> 0.015  // 1.5%会购买赛季通行证
+                "强力角色" -> 0.004  // 0.4%会购买角色
+                "VIP会员" -> 0.01  // 1.0%会购买VIP
+                "抽卡系统" -> 0.02  // 2.0%会参与抽卡
+                "扩展包" -> 0.006  // 0.6%会购买扩展包
+                "资源包" -> 0.012  // 1.2%会购买资源包
+                "战斗通行证" -> 0.018  // 1.8%会购买战斗通行证
+                "宠物与坐骑" -> 0.007  // 0.7%会购买宠物
+                "便利工具" -> 0.009  // 0.9%会购买工具
+                "专属剧情" -> 0.005  // 0.5%会购买剧情
+                "建造蓝图" -> 0.008  // 0.8%会购买蓝图
+                "社交道具" -> 0.006  // 0.6%会购买社交道具
+                else -> 0.005  // 默认0.5%
             }
             
             // 计算购买人数（带随机波动）
@@ -1478,7 +1596,7 @@ object RevenueManager {
     }
     
     /**
-     * 根据粉丝数量计算注册数加成（分段递减）
+     * 根据粉丝数量计算注册数加成（网游专用，已下调数值）
      * @param baseRegistrations 基础注册数
      * @param fanCount 粉丝数量
      * @return 应用加成后的注册数
@@ -1486,27 +1604,27 @@ object RevenueManager {
     private fun applyFansBonus(baseRegistrations: Int, fanCount: Int): Int {
         if (fanCount <= 0) return baseRegistrations
         
-        // 计算粉丝加成百分比（分段递减）
+        // 计算粉丝加成百分比（分段递减，已下调）
         val bonusPercent = when {
             fanCount <= 10000 -> {
-                // 0-10K 粉丝：每1K粉丝 +2%（最多 +20%）
-                (fanCount / 1000) * 2.0
+                // 0-10K 粉丝：每1K粉丝 +1%（最多 +10%）（原+2%/+20%）
+                (fanCount / 1000) * 1.0
             }
             fanCount <= 50000 -> {
-                // 10K-50K 粉丝：前10K给20%，后续每1K粉丝 +1%（最多额外 +40%）
-                val base = 20.0
-                val extra = ((fanCount - 10000) / 1000) * 1.0
+                // 10K-50K 粉丝：前10K给10%，后续每1K粉丝 +0.5%（最多额外 +20%）（原+1%/+40%）
+                val base = 10.0
+                val extra = ((fanCount - 10000) / 1000) * 0.5
                 base + extra
             }
             fanCount <= 100000 -> {
-                // 50K-100K 粉丝：前50K给60%，后续每1K粉丝 +0.5%（最多额外 +25%）
-                val base = 60.0
-                val extra = ((fanCount - 50000) / 1000) * 0.5
+                // 50K-100K 粉丝：前50K给30%，后续每1K粉丝 +0.3%（最多额外 +15%）（原+0.5%/+25%）
+                val base = 30.0
+                val extra = ((fanCount - 50000) / 1000) * 0.3
                 base + extra
             }
             else -> {
-                // 100K+ 粉丝：封顶在 +85%
-                85.0
+                // 100K+ 粉丝：封顶在 +50%（原+85%）
+                50.0
             }
         }
         
@@ -1515,24 +1633,61 @@ object RevenueManager {
     }
     
     /**
+     * 根据粉丝数量计算单机游戏销量加成（效果低于网游）
+     * @param baseSales 基础销量
+     * @param fanCount 粉丝数量
+     * @return 应用加成后的销量
+     */
+    private fun applyFansBonusForSinglePlayer(baseSales: Int, fanCount: Int): Int {
+        if (fanCount <= 0) return baseSales
+        
+        // 计算粉丝加成百分比（单机游戏加成较低，封顶30%）
+        val bonusPercent = when {
+            fanCount <= 10000 -> {
+                // 0-10K 粉丝：每1K粉丝 +0.5%（最多 +5%）
+                (fanCount / 1000) * 0.5
+            }
+            fanCount <= 50000 -> {
+                // 10K-50K 粉丝：前10K给5%，后续每1K粉丝 +0.3%（最多额外 +12%）
+                val base = 5.0
+                val extra = ((fanCount - 10000) / 1000) * 0.3
+                base + extra
+            }
+            fanCount <= 100000 -> {
+                // 50K-100K 粉丝：前50K给17%，后续每1K粉丝 +0.2%（最多额外 +10%）
+                val base = 17.0
+                val extra = ((fanCount - 50000) / 1000) * 0.2
+                base + extra
+            }
+            else -> {
+                // 100K+ 粉丝：封顶在 +30%
+                30.0
+            }
+        }
+        
+        val multiplier = 1.0 + (bonusPercent / 100.0)
+        return (baseSales * multiplier).toInt()
+    }
+    
+    /**
      * 获取当前活跃玩家数（考虑兴趣值影响）
      */
-    fun getActivePlayers(gameId: String): Int {
-        val gameRevenue = gameRevenueMap[gameId] ?: return 0
+    fun getActivePlayers(gameId: String): Long {
+        val gameRevenue = gameRevenueMap[gameId] ?: return 0L
         
         // 检查是否为网络游戏
         val (businessModel, _) = gameInfoMap[gameId] 
             ?: (com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER to emptyList())
         
-        if (businessModel != com.example.yjcy.ui.BusinessModel.ONLINE_GAME) return 0
+        if (businessModel != com.example.yjcy.ui.BusinessModel.ONLINE_GAME) return 0L
         
         // 基础活跃玩家 = 总注册人数 * 40%（注册玩家中40%保持活跃）
-        val baseActivePlayers = (gameRevenue.totalRegisteredPlayers * 0.4).toInt()
+        val baseActivePlayers = (gameRevenue.totalRegisteredPlayers * 0.4).toLong()
         
         // 根据兴趣值调整活跃玩家数
         val interestMultiplier = calculateActivePlayerMultiplier(gameRevenue.playerInterest)
         
-        return (baseActivePlayers * interestMultiplier).toInt()
+        return (baseActivePlayers * interestMultiplier).toLong()
     }
     
     /**
@@ -1583,6 +1738,41 @@ object RevenueManager {
             }
         }
         android.util.Log.d("RevenueManager", "====================================")
+    }
+    
+    /**
+     * 导出所有收益数据（用于存档）
+     */
+    fun exportRevenueData(): Map<String, GameRevenue> {
+        return gameRevenueMap.toMap()
+    }
+    
+    /**
+     * 导入收益数据（用于读档）
+     * 注意：这会覆盖当前所有收益数据，并同步到SharedPreferences
+     */
+    fun importRevenueData(revenueData: Map<String, GameRevenue>) {
+        android.util.Log.d("RevenueManager", "===== 开始导入收益数据 =====")
+        android.util.Log.d("RevenueManager", "导入前gameRevenueMap大小: ${gameRevenueMap.size}")
+        
+        gameRevenueMap.clear()
+        gameRevenueMap.putAll(revenueData)
+        
+        android.util.Log.d("RevenueManager", "导入后gameRevenueMap大小: ${gameRevenueMap.size}")
+        android.util.Log.d("RevenueManager", "导入收益数据: ${revenueData.size} 个游戏")
+        revenueData.forEach { (gameId, revenue) ->
+            android.util.Log.d("RevenueManager", "  - 游戏 $gameId (${revenue.gameName})")
+            android.util.Log.d("RevenueManager", "    * 总收益: ${revenue.getTotalRevenue()}")
+            android.util.Log.d("RevenueManager", "    * 销售天数: ${revenue.dailySalesList.size}")
+            android.util.Log.d("RevenueManager", "    * 更新次数: ${revenue.updateCount}")
+            if (revenue.totalRegisteredPlayers > 0) {
+                android.util.Log.d("RevenueManager", "    * 总注册: ${revenue.totalRegisteredPlayers}, 兴趣值: ${revenue.playerInterest}%")
+            }
+        }
+        
+        // 立即同步到SharedPreferences，确保数据持久化
+        saveRevenueData()
+        android.util.Log.d("RevenueManager", "===== 收益数据已同步到SharedPreferences =====")
     }
     
 }

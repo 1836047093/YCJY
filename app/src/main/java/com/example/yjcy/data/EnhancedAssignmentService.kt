@@ -29,8 +29,8 @@ class EnhancedAssignmentService {
         for (project in sortedProjects) {
             val availableForProject = availableEmployees.filter { it.id !in usedEmployees }
             
-            // 先检查人数是否足够
-            val checkResult = checkEmployeeAvailability(availableForProject)
+            // 先检查人数是否足够（根据当前开发阶段）
+            val checkResult = checkEmployeeAvailability(project, availableForProject)
             if (!checkResult.isEnough) {
                 failedProjects[project.id] = checkResult.reason
                 continue
@@ -60,28 +60,25 @@ class EnhancedAssignmentService {
     }
     
     /**
-     * 检查可用员工是否满足开发需求
-     * 每个游戏需要：5名程序员、5名策划师、5名美术师、5名音效师
+     * 检查可用员工是否满足当前阶段的开发需求
+     * 根据游戏的开发阶段判断需要哪些职位
      */
-    private fun checkEmployeeAvailability(availableEmployees: List<Employee>): EmployeeCheckResult {
+    private fun checkEmployeeAvailability(game: Game, availableEmployees: List<Employee>): EmployeeCheckResult {
         // 过滤掉客服，客服不参与开发
         val developmentEmployees = availableEmployees.filter { it.position != "客服" }
         
         // 统计各岗位人数
         val positionCounts = developmentEmployees.groupBy { it.position }.mapValues { it.value.size }
         
-        val requiredPositions = mapOf(
-            "程序员" to 5,
-            "策划师" to 5,
-            "美术师" to 5,
-            "音效师" to 5
-        )
+        // 根据当前阶段获取需要的职位和人数
+        val requiredPositions = game.currentPhase.requiredPositions
+        val minCount = game.currentPhase.minCount // 使用阶段的最低人数要求
         
         val shortages = mutableListOf<String>()
-        for ((position, required) in requiredPositions) {
+        for (position in requiredPositions) {
             val available = positionCounts[position] ?: 0
-            if (available < required) {
-                shortages.add("${position}需要${required}人，当前只有${available}人")
+            if (available < minCount) {
+                shortages.add("${position}最少需要${minCount}人，当前只有${available}人")
             }
         }
         
@@ -94,12 +91,12 @@ class EnhancedAssignmentService {
     
     /**
      * 为单个项目分配最佳员工
-     * 每个游戏需要20名员工：5名程序、5名策划、5名美术、5名音效
+     * 根据游戏的当前开发阶段分配对应职位的员工
      * 客服不参与开发
-     * @param project 项目信息（当前版本统一所有游戏类型的岗位需求，该参数保留用于将来可能的扩展）
+     * @param project 项目信息，用于获取当前阶段和所需职位
      */
     fun assignBestEmployeesToProject(
-        @Suppress("UNUSED_PARAMETER") project: Game,
+        project: Game,
         availableEmployees: List<Employee>
     ): ProjectAssignmentResult {
         val assignedEmployees = mutableListOf<Employee>()
@@ -108,20 +105,15 @@ class EnhancedAssignmentService {
         // 过滤掉客服，客服不参与开发
         val developmentEmployees = availableEmployees.filter { it.position != "客服" }
         
-        // 定义每个岗位需要的人数
-        val requiredPositions = mapOf(
-            "程序员" to 5,
-            "策划师" to 5,
-            "美术师" to 5,
-            "音效师" to 5
-        )
+        // 根据当前阶段获取需要的职位
+        val requiredPositions = project.currentPhase.requiredPositions
         
-        // 为每个岗位分配指定数量的员工
-        for ((position, count) in requiredPositions) {
+        // 为每个岗位分配所有可用的员工（按技能从高到低排序）
+        for (position in requiredPositions) {
             val positionEmployees = developmentEmployees
                 .filter { it.position == position && it.id !in assignedEmployees.map { emp -> emp.id } }
                 .sortedByDescending { it.getSpecialtySkillLevel() }  // 按专业技能从高到低排序
-                .take(count)  // 取前N名
+                // 不限制人数，分配所有可用的该职位员工以加速开发
             
             assignedEmployees.addAll(positionEmployees)
             

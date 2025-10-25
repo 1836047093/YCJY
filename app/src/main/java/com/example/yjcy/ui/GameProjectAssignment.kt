@@ -217,8 +217,12 @@ fun EmployeeAssignmentDialog(
     onAssignEmployees: (List<Employee>) -> Unit
 ) {
     // 过滤掉客服，客服不参与开发
-    val developmentEmployees = remember(availableEmployees) {
-        availableEmployees.filter { it.position != "客服" }
+    // 并且只显示符合当前阶段要求的职位
+    val developmentEmployees = remember(availableEmployees, game.currentPhase) {
+        availableEmployees.filter { 
+            it.position != "客服" && 
+            it.position in game.currentPhase.requiredPositions 
+        }
     }
     
     var selectedEmployees by remember { mutableStateOf(game.assignedEmployees.toSet()) }
@@ -321,13 +325,19 @@ fun EmployeeAssignmentDialog(
                 ) {
                     Button(
                         onClick = {
-                            // 一键分配功能
-                            val assignmentService = EnhancedAssignmentService()
-                            val result = assignmentService.assignBestEmployeesToProject(
-                                game,
-                                developmentEmployees
-                            )
-                            selectedEmployees = result.assignedEmployees.toSet()
+                            // 一键分配功能：使用当前阶段推荐人数，优先选择技能高的员工
+                            val recommendedCount = game.currentPhase.recommendedCount
+                            val bestEmployees = developmentEmployees
+                                .sortedByDescending { employee ->
+                                    // 根据当前阶段选择对应的技能
+                                    when (game.currentPhase) {
+                                        DevelopmentPhase.DESIGN -> employee.skillDesign
+                                        DevelopmentPhase.ART_SOUND -> maxOf(employee.skillArt, employee.skillMusic)
+                                        DevelopmentPhase.PROGRAMMING -> employee.skillDevelopment
+                                    }
+                                }
+                                .take(recommendedCount)
+                            selectedEmployees = bestEmployees.toSet()
                         },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(

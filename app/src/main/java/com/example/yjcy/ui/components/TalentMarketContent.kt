@@ -34,8 +34,11 @@ fun TalentMarketContent(
     val talentMarketService = remember { TalentMarketService() }
     val recruitmentService = remember { RecruitmentService() }
     
+    // 获取现有员工名字集合，确保候选人名字唯一
+    val existingEmployeeNames = remember { saveData.allEmployees.map { it.name }.toSet() }
+    
     // 状态管理
-    var candidates by remember { mutableStateOf(talentMarketService.generateCandidates()) }
+    var candidates by remember { mutableStateOf(talentMarketService.generateCandidates(existingEmployeeNames = existingEmployeeNames)) }
     var filteredCandidates by remember { mutableStateOf(candidates) }
     var filterCriteria by remember { mutableStateOf(FilterCriteria.default()) }
     var isLoading by remember { mutableStateOf(false) }
@@ -70,7 +73,10 @@ fun TalentMarketContent(
                 IconButton(
                     onClick = {
                         isLoading = true
-                        candidates = talentMarketService.refreshCandidates()
+                        // 收集现有员工名字和当前候选人名字，确保刷新后不重复
+                        val allUsedNames = saveData.allEmployees.map { it.name }.toSet() + 
+                                          candidates.map { it.name }.toSet()
+                        candidates = talentMarketService.refreshCandidates(existingEmployeeNames = allUsedNames)
                         isLoading = false
                     }
                 ) {

@@ -30,6 +30,7 @@ import com.example.yjcy.data.Game
 import com.example.yjcy.data.Employee
 import com.example.yjcy.data.GameReleaseStatus
 import com.example.yjcy.data.RevenueManager
+import com.example.yjcy.data.DevelopmentPhase
 import com.example.yjcy.ui.BusinessModel
 import com.example.yjcy.utils.formatMoneyWithDecimals
 
@@ -49,7 +50,9 @@ fun EnhancedGameProjectCard(
     onReleaseGame: ((Game) -> Unit)? = null,  // 新增：发售游戏回调
     onAbandonGame: ((Game) -> Unit)? = null,  // 新增：废弃游戏回调
     onPurchaseServer: ((Game, com.example.yjcy.data.ServerType) -> Unit)? = null,  // 新增：购买服务器回调
-    showDataOverview: Boolean = true  // 新增：是否显示数据概览（正在更新标签页设为false）
+    showDataOverview: Boolean = true,  // 新增：是否显示数据概览（正在更新标签页设为false）
+    money: Long = 0L,  // 新增：资金
+    onMoneyUpdate: (Long) -> Unit = {}  // 新增：资金更新回调
 ) {
     var showRevenueDialog by remember { mutableStateOf(false) }
     
@@ -105,7 +108,32 @@ fun EnhancedGameProjectCard(
                     
                     // 项目状态指示器
                     if (isDeveloping) {
-                        // 开发中的游戏
+                        // 开发阶段标签
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color(0xFF3B82F6).copy(alpha = 0.2f)
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = game.currentPhase.icon,
+                                    fontSize = 12.sp
+                                )
+                                Text(
+                                    text = game.currentPhase.displayName,
+                                    color = Color(0xFF3B82F6),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                        
+                        // 开发中的游戏状态
                         Card(
                             colors = CardDefaults.cardColors(
                                 containerColor = if (game.assignedEmployees.isNotEmpty()) 
@@ -197,8 +225,15 @@ fun EnhancedGameProjectCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // 平台显示优化：多个平台时只显示第一个+数量
+                    val platformText = if (game.platforms.size <= 1) {
+                        game.platforms.joinToString(", ") { it.displayName }
+                    } else {
+                        "${game.platforms.first().displayName}+${game.platforms.size - 1}"
+                    }
+                    
                     Text(
-                        text = "${game.theme.displayName} • ${game.platforms.joinToString(", ") { it.displayName }}",
+                        text = "${game.theme.displayName} • $platformText",
                         color = Color.White.copy(alpha = 0.8f),
                         fontSize = 14.sp
                     )
@@ -243,6 +278,81 @@ fun EnhancedGameProjectCard(
             }
             
             Spacer(modifier = Modifier.height(16.dp))
+            
+            // 开发阶段要求说明（仅开发中的游戏显示）
+            if (isDeveloping) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF3B82F6).copy(alpha = 0.1f)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = game.currentPhase.icon,
+                                fontSize = 16.sp
+                            )
+                            Text(
+                                text = "当前阶段：${game.currentPhase.displayName}",
+                                color = Color(0xFF3B82F6),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        Text(
+                            text = game.currentPhase.description,
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 13.sp
+                        )
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        // 所需职位
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "所需职位：",
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            
+                            game.currentPhase.requiredPositions.forEach { position ->
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = Color(0xFF10B981).copy(alpha = 0.2f)
+                                    ),
+                                    shape = RoundedCornerShape(6.dp)
+                                ) {
+                                    Text(
+                                        text = position,
+                                        color = Color(0xFF10B981),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+            }
             
             // 更新内容列表（仅在正在更新标签页显示）
             if (hasActiveUpdateTask && !showDataOverview) {
@@ -505,8 +615,8 @@ fun EnhancedGameProjectCard(
                 Spacer(modifier = Modifier.height(16.dp))
             }
             
-            // 收益信息显示区域（根据 showDataOverview 参数控制）
-            if (showDataOverview) {
+            // 收益信息显示区域（根据 showDataOverview 参数控制，已下架的游戏不显示）
+            if (showDataOverview && !isRemoved) {
                 gameRevenue?.let { revenue ->
                     val statistics = remember(revenue) {
                         RevenueManager.calculateStatistics(revenue)
@@ -888,7 +998,9 @@ fun EnhancedGameProjectCard(
                     val updatedGame = game.copy(autoUpdate = enabled)
                     onGameUpdate(updatedGame)
                 },
-                businessModel = game.businessModel
+                businessModel = game.businessModel,
+                money = money,
+                onMoneyUpdate = onMoneyUpdate
             )
         }
     }

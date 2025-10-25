@@ -14,8 +14,8 @@ android {
         applicationId = "com.example.yjcy"
         minSdk = 24
         targetSdk = 36
-        versionCode = 4
-        versionName = "1.8.1"
+        versionCode = 9
+        versionName = "1.9.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -57,6 +57,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true // 启用BuildConfig类生成
     }
     
     // 16KB页面大小支持配置

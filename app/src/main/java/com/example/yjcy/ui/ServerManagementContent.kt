@@ -61,13 +61,41 @@ fun ServerManagementContent(
     var selectedFilter by remember { mutableStateOf(ServerFilter.ALL) }
     var showFilterDialog by remember { mutableStateOf(false) }
     var showQuickPurchaseDialog by remember { mutableStateOf(false) }
+    var showCapacityWarningDialog by remember { mutableStateOf(false) }
     var refreshTrigger by remember { mutableIntStateOf(0) } // 用于强制刷新UI
+    
+    // 计算总容量和总活跃玩家数（用于容量检查）
+    val publicPoolId = "SERVER_PUBLIC_POOL"
+    
+    val totalCapacity = remember(games, refreshTrigger) {
+        RevenueManager.getGameServerInfo(publicPoolId).getTotalCapacity()
+    }
+    
+    val totalActivePlayers = remember(games, refreshTrigger) {
+        var total = 0L
+        games.filter { 
+            it.businessModel == BusinessModel.ONLINE_GAME && 
+            (it.releaseStatus == GameReleaseStatus.RELEASED || it.releaseStatus == GameReleaseStatus.RATED)
+        }.forEach { game ->
+            val activePlayers = RevenueManager.getActivePlayers(game.id)
+            total += activePlayers
+        }
+        total
+    }
     
     // 定期刷新数据（每3秒）
     LaunchedEffect(Unit) {
         while (true) {
             kotlinx.coroutines.delay(3000)
             refreshTrigger++
+        }
+    }
+    
+    // 检测容量不足并弹窗提醒
+    LaunchedEffect(totalActivePlayers, totalCapacity) {
+        val capacityInPeople = totalCapacity * 10000L
+        if (totalActivePlayers > capacityInPeople) {
+            showCapacityWarningDialog = true
         }
     }
     
@@ -162,27 +190,6 @@ fun ServerManagementContent(
                     )
                     
                     Spacer(modifier = Modifier.height(12.dp))
-                    
-                    // 计算总容量和总活跃服务器数（从公共池读取）
-                    val publicPoolId = "SERVER_PUBLIC_POOL"
-                    
-                    val totalCapacity = remember(games, refreshTrigger) {
-                        RevenueManager.getGameServerInfo(publicPoolId).getTotalCapacity()
-                    }
-                    
-                    // 计算总活跃玩家数（所有在线网游，考虑兴趣值影响）
-                    val totalActivePlayers = remember(games, refreshTrigger) {
-                        var total = 0
-                        games.filter { 
-                            it.businessModel == BusinessModel.ONLINE_GAME && 
-                            (it.releaseStatus == GameReleaseStatus.RELEASED || it.releaseStatus == GameReleaseStatus.RATED)
-                        }.forEach { game ->
-                            // 使用 getActivePlayers 方法，自动考虑兴趣值衰减影响
-                            val activePlayers = RevenueManager.getActivePlayers(game.id)
-                            total += activePlayers
-                        }
-                        total
-                    }
                     
                     // 格式化容量显示（K/M格式）
                     val formattedCapacity = remember(totalCapacity) {
@@ -342,6 +349,19 @@ fun ServerManagementContent(
                 onPurchaseServer(serverType)
                 refreshTrigger++ // 触发刷新
                 showQuickPurchaseDialog = false
+            }
+        )
+    }
+    
+    // 容量不足警告对话框
+    if (showCapacityWarningDialog) {
+        CapacityWarningDialog(
+            totalActivePlayers = totalActivePlayers,
+            totalCapacity = totalCapacity,
+            onDismiss = { showCapacityWarningDialog = false },
+            onOpenPurchase = {
+                showCapacityWarningDialog = false
+                showQuickPurchaseDialog = true
             }
         )
     }
@@ -1024,4 +1044,195 @@ fun FilterOptionCard(
             }
         }
     }
+}
+
+/**
+ * 容量不足警告对话框
+ */
+@Composable
+fun CapacityWarningDialog(
+    totalActivePlayers: Long,
+    totalCapacity: Int,
+    onDismiss: () -> Unit,
+    onOpenPurchase: () -> Unit
+) {
+    // 格式化显示
+    val formattedActivePlayers = when {
+        totalActivePlayers >= 1_000_000 -> "${totalActivePlayers / 1_000_000}M"
+        totalActivePlayers >= 1_000 -> "${totalActivePlayers / 1_000}K"
+        else -> "$totalActivePlayers"
+    }
+    
+    val capacityInPeople = totalCapacity * 10000
+    val formattedCapacity = when {
+        capacityInPeople >= 1_000_000 -> "${capacityInPeople / 1_000_000}M"
+        capacityInPeople >= 1_000 -> "${capacityInPeople / 1_000}K"
+        else -> "$capacityInPeople"
+    }
+    
+    val overCapacity = totalActivePlayers - capacityInPeople
+    val formattedOverCapacity = when {
+        overCapacity >= 1_000_000 -> "${overCapacity / 1_000_000}M"
+        overCapacity >= 1_000 -> "${overCapacity / 1_000}K"
+        else -> "$overCapacity"
+    }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1F2937),
+        icon = {
+            Text(
+                text = "⚠️",
+                fontSize = 48.sp
+            )
+        },
+        title = {
+            Text(
+                text = "服务器容量不足",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFEF4444)
+            )
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "您的服务器容量已经不足！",
+                    fontSize = 14.sp,
+                    color = Color.White
+                )
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFFEF4444).copy(alpha = 0.2f)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "当前总活跃数：",
+                                fontSize = 13.sp,
+                                color = Color.White
+                            )
+                            Text(
+                                text = formattedActivePlayers,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFEF4444)
+                            )
+                        }
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "服务器总容量：",
+                                fontSize = 13.sp,
+                                color = Color.White
+                            )
+                            Text(
+                                text = formattedCapacity,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Gray
+                            )
+                        }
+                        
+                        HorizontalDivider(
+                            color = Color.White.copy(alpha = 0.2f),
+                            thickness = 1.dp
+                        )
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "超出容量：",
+                                fontSize = 13.sp,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "+$formattedOverCapacity",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFEF4444)
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                Text(
+                    text = "💡 服务器容量不足可能导致：",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFFBBF24)
+                )
+                
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "• 游戏运行不稳定",
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+                    Text(
+                        text = "• 玩家体验下降",
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+                    Text(
+                        text = "• 收益受到影响",
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                Text(
+                    text = "请及时添加服务器以确保游戏正常运行！",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF10B981)
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onOpenPurchase,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF10B981)
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("立即添加服务器", color = Color.White)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("稍后处理", color = Color.White)
+            }
+        }
+    )
 }

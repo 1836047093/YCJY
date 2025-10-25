@@ -31,7 +31,7 @@ data class CompetitorCompany(
     /**
      * 计算公司的总活跃玩家数（所有网游的活跃玩家之和）
      */
-    fun getTotalActivePlayers(): Int {
+    fun getTotalActivePlayers(): Long {
         return games.filter { it.businessModel == BusinessModel.ONLINE_GAME }
             .sumOf { it.activePlayers }
     }
@@ -39,7 +39,7 @@ data class CompetitorCompany(
     /**
      * 计算公司的总销量（所有单机游戏的销量之和）
      */
-    fun getTotalSales(): Int {
+    fun getTotalSales(): Long {
         return games.filter { it.businessModel == BusinessModel.SINGLE_PLAYER }
             .sumOf { it.salesCount }
     }
@@ -72,8 +72,8 @@ data class CompetitorGame(
     val platforms: List<Platform>,
     val businessModel: BusinessModel,
     val rating: Float, // 游戏评分 (0-10)
-    val activePlayers: Int = 0, // 活跃玩家数（网游）
-    val salesCount: Int = 0, // 销量（单机）
+    val activePlayers: Long = 0, // 活跃玩家数（网游）
+    val salesCount: Long = 0, // 销量（单机）
     val releaseYear: Int = 1, // 发售年份
     val releaseMonth: Int = 1, // 发售月份
     val totalRevenue: Double = 0.0, // 累计总收入
@@ -121,16 +121,26 @@ object CompetitorManager {
         "泰坦互娱", "乱线工坊", "璀璨游戏", "神盾动力"
     )
     
-    // 游戏名称前缀
+    // 游戏名称前缀（避免真实游戏名称）
     private val gameNamePrefixes = listOf(
-        "传奇", "英雄", "王者", "战争", "征服", "冒险", "幻想", "永恒",
-        "命运", "荣耀", "天堂", "地狱", "黑暗", "光明", "神话", "史诗"
+        "虚空", "星辰", "银河", "时空", "龙翼", "凤羽", "雷霆", "烈焰",
+        "冰霜", "暗影", "圣光", "魔法", "机甲", "异界", "混沌", "苍穹",
+        "深渊", "幻影", "极地", "炽天", "末日", "创世", "轮回", "涅槃"
     )
     
-    // 游戏名称后缀
+    // 游戏名称后缀（避免真实游戏名称）
     private val gameNameSuffixes = listOf(
-        "之战", "物语", "世界", "传说", "纪元", "奇迹", "帝国", "联盟",
-        "争霸", "对决", "狂潮", "风暴", "觉醒", "重生", "起源", "终结"
+        "纪元", "编年史", "传说", "秘境", "冒险", "挑战", "试炼", "远征",
+        "征途", "战纪", "乱斗", "狂想", "交响曲", "协奏曲", "狂潮", "浩劫",
+        "崛起", "黎明", "余晖", "探索", "维度", "界限", "碎片", "遗迹"
+    )
+    
+    // 真实游戏名称黑名单（防止生成真实游戏名称）
+    private val gameNameBlacklist = setOf(
+        "英雄联盟", "王者荣耀", "和平精英", "原神", "崩坏三", "明日方舟",
+        "阴阳师", "梦幻西游", "大话西游", "倩女幽魂", "天涯明月刀", "剑网三",
+        "逆水寒", "永劫无间", "黑神话", "战神", "刺客信条", "使命召唤",
+        "绝地求生", "堡垒之夜", "英雄无敌", "魔兽世界", "炉石传说", "守望先锋"
     )
     
     /**
@@ -204,13 +214,13 @@ object CompetitorManager {
         val usedGameNames = mutableSetOf<String>()
         
         for (j in 1..gameCount) {
-            // 生成唯一的游戏名称
+            // 生成唯一的游戏名称（避免真实游戏名称）
             var gameName: String
             do {
                 val prefix = gameNamePrefixes.random()
                 val suffix = gameNameSuffixes.random()
                 gameName = "$prefix$suffix"
-            } while (usedGameNames.contains(gameName))
+            } while (usedGameNames.contains(gameName) || gameNameBlacklist.contains(gameName))
             usedGameNames.add(gameName)
             
             val theme = GameTheme.entries.random()
@@ -235,14 +245,14 @@ object CompetitorManager {
             val (activePlayers, salesCount, initialRevenue, initialMonetizationRevenue) = when (businessModel) {
                 BusinessModel.ONLINE_GAME -> {
                     // 网游活跃玩家：基于评分和时间
-                    val baseActivePlayers = ((rating - 5) * 10000).toInt() // 评分影响基数
+                    val baseActivePlayers = ((rating - 5) * 10000).toLong() // 评分影响基数
                     val timeMultiplier = when {
                         monthsSinceRelease <= 6 -> Random.nextDouble(0.8, 1.5)   // 新游戏
                         monthsSinceRelease <= 12 -> Random.nextDouble(0.6, 1.2)  // 半年-1年
                         monthsSinceRelease <= 24 -> Random.nextDouble(0.3, 0.8)  // 1-2年
                         else -> Random.nextDouble(0.1, 0.5)                       // 2年以上
                     }
-                    val activePlayers = (baseActivePlayers * timeMultiplier).toInt().coerceIn(500, 500000)
+                    val activePlayers = (baseActivePlayers * timeMultiplier).toLong().coerceIn(500L, 500000L)
                     
                     // 使用付费内容系统计算累计收入
                     val monthlyMonetizationRevenue = calculateCompetitorMonetizationRevenue(activePlayers, theme)
@@ -251,18 +261,18 @@ object CompetitorManager {
                     // 注册收入为0（免费网游）
                     val totalRevenue = totalMonetizationRevenue
                     
-                    Quadruple(activePlayers, 0, totalRevenue, totalMonetizationRevenue)
+                    Quadruple(activePlayers, 0L, totalRevenue, totalMonetizationRevenue)
                 }
                 BusinessModel.SINGLE_PLAYER -> {
                     // 单机游戏销量：基于评分和时间累计
-                    val baseSales = ((rating - 5) * 5000).toInt()
+                    val baseSales = ((rating - 5) * 5000).toLong()
                     val timeSales = monthsSinceRelease * Random.nextInt(100, 500)
-                    val totalSales = (baseSales + timeSales).coerceIn(1000, 1000000)
+                    val totalSales = (baseSales + timeSales).coerceIn(1000L, 1000000L)
                     
                     // 单机收入 = 销量 × 单价（假设50元）
                     val totalRevenue = totalSales * 50.0
                     
-                    Quadruple(0, totalSales, totalRevenue, 0.0)
+                    Quadruple(0L, totalSales, totalRevenue, 0.0)
                 }
             }
             
@@ -333,8 +343,8 @@ object CompetitorManager {
                 when (game.businessModel) {
                     BusinessModel.ONLINE_GAME -> {
                         // 网游活跃玩家数变化 (±10%-30%)
-                        val playerChange = (game.activePlayers * Random.nextDouble(-0.10, 0.30)).toInt()
-                        val newActivePlayers = (game.activePlayers + playerChange).coerceAtLeast(100)
+                        val playerChange = (game.activePlayers * Random.nextDouble(-0.10, 0.30)).toLong()
+                        val newActivePlayers = (game.activePlayers + playerChange).coerceAtLeast(100L)
                         
                         // 使用付费内容系统计算本月收入
                         val monthlyMonetizationRevenue = calculateCompetitorMonetizationRevenue(newActivePlayers, game.theme)
@@ -359,7 +369,7 @@ object CompetitorManager {
                     }
                     BusinessModel.SINGLE_PLAYER -> {
                         // 单机游戏持续销售 (+100-1000)
-                        val salesGrowth = Random.nextInt(100, 1000)
+                        val salesGrowth = Random.nextInt(100, 1000).toLong()
                         val newSalesCount = game.salesCount + salesGrowth
                         
                         // 累加单机收入：新销量 × 单价(50元)
@@ -412,8 +422,8 @@ object CompetitorManager {
     /**
      * 检查是否应生成玩家数里程碑新闻
      */
-    private fun shouldGenerateMilestoneNews(oldPlayers: Int, newPlayers: Int): Boolean {
-        val milestones = listOf(10000, 50000, 100000, 200000, 300000, 500000, 1000000)
+    private fun shouldGenerateMilestoneNews(oldPlayers: Long, newPlayers: Long): Boolean {
+        val milestones = listOf(10000L, 50000L, 100000L, 200000L, 300000L, 500000L, 1000000L)
         return milestones.any { milestone ->
             oldPlayers < milestone && newPlayers >= milestone
         }
@@ -422,8 +432,8 @@ object CompetitorManager {
     /**
      * 检查是否应生成销量里程碑新闻
      */
-    private fun shouldGenerateSalesMilestoneNews(oldSales: Int, newSales: Int): Boolean {
-        val milestones = listOf(10000, 50000, 100000, 200000, 500000, 1000000)
+    private fun shouldGenerateSalesMilestoneNews(oldSales: Long, newSales: Long): Boolean {
+        val milestones = listOf(10000L, 50000L, 100000L, 200000L, 500000L, 1000000L)
         return milestones.any { milestone ->
             oldSales < milestone && newSales >= milestone
         }
@@ -435,7 +445,7 @@ object CompetitorManager {
     private fun generatePlayerMilestoneNews(
         company: CompetitorCompany,
         game: CompetitorGame,
-        playerCount: Int,
+        playerCount: Long,
         year: Int,
         month: Int,
         day: Int
@@ -471,7 +481,7 @@ object CompetitorManager {
     private fun generateSalesMilestoneNews(
         company: CompetitorCompany,
         game: CompetitorGame,
-        salesCount: Int,
+        salesCount: Long,
         year: Int,
         month: Int,
         day: Int
@@ -504,9 +514,14 @@ object CompetitorManager {
      * 生成新游戏
      */
     private fun generateNewGame(company: CompetitorCompany, year: Int, month: Int): CompetitorGame {
-        val prefix = gameNamePrefixes.random()
-        val suffix = gameNameSuffixes.random()
-        val gameName = "$prefix$suffix"
+        // 生成游戏名称（避免真实游戏名称和已有游戏重名）
+        var gameName: String
+        val usedNames = company.games.map { it.name }.toSet()
+        do {
+            val prefix = gameNamePrefixes.random()
+            val suffix = gameNameSuffixes.random()
+            gameName = "$prefix$suffix"
+        } while (usedNames.contains(gameName) || gameNameBlacklist.contains(gameName))
         
         val theme = GameTheme.entries.random()
         val platformCount = Random.nextInt(1, 4)
@@ -516,16 +531,16 @@ object CompetitorManager {
         
         val (activePlayers, salesCount, initialRevenue, initialMonetizationRevenue) = when (businessModel) {
             BusinessModel.ONLINE_GAME -> {
-                val players = Random.nextInt(1000, 20000)
+                val players = Random.nextInt(1000, 20000).toLong()
                 // 使用付费内容系统计算首月收入
                 val monetizationRevenue = calculateCompetitorMonetizationRevenue(players, theme)
-                Quadruple(players, 0, monetizationRevenue, monetizationRevenue)
+                Quadruple(players, 0L, monetizationRevenue, monetizationRevenue)
             }
             BusinessModel.SINGLE_PLAYER -> {
-                val sales = Random.nextInt(2000, 10000)
+                val sales = Random.nextInt(2000, 10000).toLong()
                 // 首月收入 = 销量 × 单价(50元)
                 val revenue = sales * 50.0
-                Quadruple(0, sales, revenue, 0.0)
+                Quadruple(0L, sales, revenue, 0.0)
             }
         }
         
@@ -577,7 +592,7 @@ object CompetitorManager {
      * 计算竞争对手网游的付费内容月收入
      * 根据游戏主题配置5个付费内容，使用更激进的付费率和价格
      */
-    private fun calculateCompetitorMonetizationRevenue(activePlayers: Int, theme: GameTheme): Double {
+    private fun calculateCompetitorMonetizationRevenue(activePlayers: Long, theme: GameTheme): Double {
         var totalRevenue = 0.0
         
         // 根据游戏主题获取推荐的5个付费内容类型

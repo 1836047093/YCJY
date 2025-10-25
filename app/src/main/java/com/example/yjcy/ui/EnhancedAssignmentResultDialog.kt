@@ -23,6 +23,8 @@ import androidx.compose.ui.window.Dialog
 import com.example.yjcy.data.EnhancedAssignmentResult
 import com.example.yjcy.data.SkillMatchResult
 import com.example.yjcy.data.Employee
+import com.example.yjcy.data.Game
+import com.example.yjcy.data.DevelopmentPhase
 
 /**
  * 增强分配结果对话框
@@ -32,6 +34,7 @@ import com.example.yjcy.data.Employee
 fun EnhancedAssignmentResultDialog(
     assignmentResult: EnhancedAssignmentResult,
     projectNames: Map<String, String> = emptyMap(),
+    games: List<Game> = emptyList(),
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
@@ -121,7 +124,8 @@ fun EnhancedAssignmentResultDialog(
                             item {
                                 FailedProjectsCard(
                                     failedProjects = assignmentResult.failedProjects,
-                                    projectNames = projectNames
+                                    projectNames = projectNames,
+                                    games = games
                                 )
                             }
                         }
@@ -350,7 +354,8 @@ private fun ProjectAssignmentCard(
 @Composable
 private fun FailedProjectsCard(
     failedProjects: Map<String, String>,
-    projectNames: Map<String, String>
+    projectNames: Map<String, String>,
+    games: List<Game>
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -384,8 +389,12 @@ private fun FailedProjectsCard(
             Spacer(modifier = Modifier.height(8.dp))
             
             failedProjects.forEach { (projectId, reason) ->
-                // 解析reason字符串，提取当前已有和需要的员工数
-                val staffInfo = parseStaffRequirement(reason)
+                // 获取游戏的开发阶段
+                val game = games.firstOrNull { it.id == projectId }
+                val phase = game?.currentPhase
+                
+                // 解析reason字符串，根据阶段过滤显示
+                val staffInfo = parseStaffRequirement(reason, phase)
                 
                 Card(
                     modifier = Modifier
@@ -460,11 +469,11 @@ private fun UnassignedEmployeesCard(unassignedEmployees: List<Employee>) {
 }
 
 /**
- * 解析员工需求字符串，生成新的显示格式
- * 输入示例："程序员需要5人，当前只有1人；策划师需要5人，当前只有0人；美术师需要5人，当前只有0人；音效师需要5人，当前只有0人"
- * 输出示例："目前已有程序1名，还需要4名程序，5名美术，5名策划，5名音效"
+ * 解析员工需求字符串，根据开发阶段过滤显示
+ * 输入示例：“策划师最少需要1人，当前只有0人”
+ * 输出示例：“还需要1名策划”（只显示当前阶段需要的职位）
  */
-private fun parseStaffRequirement(reason: String): String {
+private fun parseStaffRequirement(reason: String, phase: DevelopmentPhase?): String {
     // 岗位映射（全称 -> 简称）
     val positionMap = mapOf(
         "程序员" to "程序",
@@ -473,19 +482,25 @@ private fun parseStaffRequirement(reason: String): String {
         "音效师" to "音效"
     )
     
+    // 获取当前阶段需要的职位
+    val requiredPositions = phase?.requiredPositions ?: emptyList()
+    
     // 解析reason字符串
-    val staffData = mutableMapOf<String, Pair<Int, Int>>() // 岗位 -> (需要人数, 当前人数)
+    val staffData = mutableMapOf<String, Pair<Int, Int>>() // 岗位 -> (最少需要人数, 当前人数)
     
     reason.split("；").forEach { part ->
-        // 匹配格式："程序员需要5人，当前只有1人"
-        val regex = """(\S+)需要(\d+)人，当前只有(\d+)人""".toRegex()
+        // 匹配格式：“策划师最少需要1人，当前只有0人”
+        val regex = """(\S+)最少需要(\d+)人，当前只有(\d+)人""".toRegex()
         val matchResult = regex.find(part.trim())
         
         if (matchResult != null) {
             val position = matchResult.groupValues[1]
-            val required = matchResult.groupValues[2].toInt()
-            val current = matchResult.groupValues[3].toInt()
-            staffData[position] = Pair(required, current)
+            // 只解析当前阶段需要的职位
+            if (requiredPositions.isEmpty() || position in requiredPositions) {
+                val required = matchResult.groupValues[2].toInt()
+                val current = matchResult.groupValues[3].toInt()
+                staffData[position] = Pair(required, current)
+            }
         }
     }
     

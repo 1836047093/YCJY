@@ -1,6 +1,7 @@
 package com.example.yjcy.ui
 
 import com.example.yjcy.data.*
+import com.example.yjcy.utils.formatMoneyWithDecimals
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -138,10 +139,18 @@ fun EnhancedProjectManagementContent(
     money: Long = 0L,  // 新增：资金
     fans: Int = 0,  // 新增：粉丝数
     onMoneyUpdate: (Long) -> Unit = {},  // 新增：资金更新回调
-    onFansUpdate: (Int) -> Unit = {}  // 新增：粉丝更新回调
+    onFansUpdate: (Int) -> Unit = {},  // 新增：粉丝更新回调
+    complaints: List<Complaint> = emptyList(),  // 新增：客诉列表
+    onComplaintsUpdate: (List<Complaint>) -> Unit = {},  // 新增：客诉更新回调
+    autoProcessComplaints: Boolean = false,  // 新增：自动处理客诉开关
+    onAutoProcessToggle: (Boolean) -> Unit = {},  // 新增：自动处理开关回调
+    currentYear: Int = 1,  // 新增：当前年份
+    currentMonth: Int = 1,  // 新增：当前月份
+    currentDay: Int = 1  // 新增：当前日期
 ) {
     var showGameDevelopmentDialog by remember { mutableStateOf(false) }
     var showPromotionCenterDialog by remember { mutableStateOf(false) }
+    var showCustomerServiceDialog by remember { mutableStateOf(false) }
     
     // 根据选择的项目类型过滤游戏列表
     val filteredGames = remember(games, selectedProjectType, refreshTrigger) {
@@ -181,6 +190,11 @@ fun EnhancedProjectManagementContent(
         }
     }
     
+    // 计算待处理的客诉数量
+    val pendingComplaintsCount = remember(complaints) {
+        complaints.count { it.status == ComplaintStatus.PENDING }
+    }
+    
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -194,24 +208,48 @@ fun EnhancedProjectManagementContent(
             )
             .padding(16.dp)
     ) {
-        // 标题栏
+        // 客服中心和宣传中心按钮
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                text = "🎮 项目管理",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
+            // 客服中心按钮
+            BadgeBox(
+                modifier = Modifier.weight(1f),
+                showBadge = pendingComplaintsCount > 0,
+                badgeCount = null  // 只显示红点，不显示数字
+            ) {
+                Button(
+                    onClick = { showCustomerServiceDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF3B82F6).copy(alpha = 0.8f)
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = "📞",
+                        fontSize = 16.sp,
+                        modifier = Modifier.padding(end = 4.dp)
+                    )
+                    Text(
+                        text = "客服中心",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
             
             // 宣传中心按钮
             Button(
                 onClick = { showPromotionCenterDialog = true },
+                modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFFEA580C).copy(alpha = 0.8f)
                 ),
@@ -227,7 +265,9 @@ fun EnhancedProjectManagementContent(
                     text = "宣传中心",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color.White
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -391,7 +431,9 @@ fun EnhancedProjectManagementContent(
                         },
                         onReleaseGame = onReleaseGame,
                         onAbandonGame = onAbandonGame,
-                        showDataOverview = selectedProjectType != ProjectDisplayType.UPDATING  // 正在更新标签页不显示数据概览
+                        showDataOverview = selectedProjectType != ProjectDisplayType.UPDATING,  // 正在更新标签页不显示数据概览
+                        money = money,
+                        onMoneyUpdate = onMoneyUpdate
                     )
                 }
             }
@@ -401,8 +443,11 @@ fun EnhancedProjectManagementContent(
     // 游戏开发流程对话框
     if (showGameDevelopmentDialog) {
         SuperEnhancedGameDevelopmentDialog(
+            money = money,
             onDismiss = { showGameDevelopmentDialog = false },
             onGameCreated = { newGame ->
+                // 扣除开发费用
+                onMoneyUpdate(money - newGame.developmentCost)
                 onGamesUpdate(games + newGame)
                 showGameDevelopmentDialog = false
             }
@@ -421,6 +466,76 @@ fun EnhancedProjectManagementContent(
             onGamesUpdate = onGamesUpdate
         )
     }
+    
+    // 客服中心对话框
+    if (showCustomerServiceDialog) {
+        CustomerServiceDialog(
+            complaints = complaints,
+            employees = availableEmployees,
+            fans = fans,
+            currentYear = currentYear,
+            currentMonth = currentMonth,
+            currentDay = currentDay,
+            autoProcessEnabled = autoProcessComplaints,
+            onAutoProcessToggle = onAutoProcessToggle,
+            onDismiss = { showCustomerServiceDialog = false },
+            onComplaintsUpdate = onComplaintsUpdate
+        )
+    }
+}
+
+/**
+ * 客服中心对话框（居中显示，类似宣传中心）
+ */
+@Composable
+fun CustomerServiceDialog(
+    complaints: List<Complaint>,
+    employees: List<Employee>,
+    fans: Int,
+    currentYear: Int,
+    currentMonth: Int,
+    currentDay: Int,
+    autoProcessEnabled: Boolean,
+    onAutoProcessToggle: (Boolean) -> Unit,
+    onDismiss: () -> Unit,
+    onComplaintsUpdate: (List<Complaint>) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1F2937),
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "📞 客服中心",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+        },
+        text = {
+            CustomerServiceContent(
+                complaints = complaints,
+                employees = employees,
+                fans = fans,
+                currentYear = currentYear,
+                currentMonth = currentMonth,
+                currentDay = currentDay,
+                autoProcessEnabled = autoProcessEnabled,
+                onAutoProcessToggle = onAutoProcessToggle,
+                onComplaintsUpdate = onComplaintsUpdate
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("关闭", color = Color.White)
+            }
+        }
+    )
 }
 
 // 新增的增强版主题选择组件
@@ -525,6 +640,7 @@ fun AnimatedThemeGrid(
  */
 @Composable
 fun SuperEnhancedGameDevelopmentDialog(
+    money: Long,
     onDismiss: () -> Unit,
     onGameCreated: (Game) -> Unit
 ) {
@@ -538,7 +654,7 @@ fun SuperEnhancedGameDevelopmentDialog(
     var monetizationItems by remember { mutableStateOf<List<com.example.yjcy.data.MonetizationItem>>(emptyList()) }
     
     // 计算总步骤数：网络游戏需要额外的付费内容步骤
-    val totalSteps = if (selectedBusinessModel == BusinessModel.ONLINE_GAME) 5 else 4
+    val totalSteps = if (selectedBusinessModel == BusinessModel.ONLINE_GAME) 4 else 3
     val isLastStep = currentStep == totalSteps - 1
     
     AlertDialog(
@@ -583,7 +699,9 @@ fun SuperEnhancedGameDevelopmentDialog(
                 
                 // 步骤内容
                 when (currentStep) {
-                    0 -> GameNameInputStep(
+                    0 -> ThemeAndNameInputStep(
+                        selectedTheme = selectedTheme,
+                        onThemeSelected = { selectedTheme = it },
                         gameName = gameName,
                         onGameNameChange = { newValue ->
                             gameName = newValue
@@ -609,11 +727,7 @@ fun SuperEnhancedGameDevelopmentDialog(
                         isGameNameValid = isGameNameValid,
                         gameNameError = gameNameError
                     )
-                    1 -> EnhancedGameThemeSelectionStep(
-                        selectedTheme = selectedTheme,
-                        onThemeSelected = { selectedTheme = it }
-                    )
-                    2 -> PlatformAndBusinessModelStep(
+                    1 -> PlatformAndBusinessModelStep(
                         selectedPlatforms = selectedPlatforms,
                         selectedBusinessModel = selectedBusinessModel,
                         onPlatformToggle = { platform ->
@@ -623,9 +737,10 @@ fun SuperEnhancedGameDevelopmentDialog(
                                 selectedPlatforms + platform
                             }
                         },
-                        onBusinessModelSelected = { selectedBusinessModel = it }
+                        onBusinessModelSelected = { selectedBusinessModel = it },
+                        money = money
                     )
-                    3 -> {
+                    2 -> {
                         // 如果是网络游戏，显示付费内容选择
                         if (selectedBusinessModel == BusinessModel.ONLINE_GAME) {
                             MonetizationSelectionStep(
@@ -643,7 +758,7 @@ fun SuperEnhancedGameDevelopmentDialog(
                             )
                         }
                     }
-                    4 -> {
+                    3 -> {
                         // 网络游戏的确认步骤
                         GameConfirmationStep(
                             gameName = gameName,
@@ -705,8 +820,9 @@ fun SuperEnhancedGameDevelopmentDialog(
                                     assignedEmployees = emptyList(),
                                     monetizationItems = monetizationItems
                                 ).let { game ->
-                                    // 开发阶段不产生成本，保持为0
-                                    game.copy(developmentCost = 0L)
+                                    // 计算平台开发费用
+                                    val totalPlatformCost = selectedPlatforms.sumOf { it.developmentCost.toLong() }
+                                    game.copy(developmentCost = totalPlatformCost)
                                 }
                                 onGameCreated(newGame)
                             }
@@ -718,16 +834,28 @@ fun SuperEnhancedGameDevelopmentDialog(
                         0 -> gameName.isNotBlank() && isGameNameValid
                         1 -> selectedTheme != null
                         2 -> selectedPlatforms.isNotEmpty() && selectedBusinessModel != null
-                        else -> true // 付费内容可选
+                        else -> {
+                            // 最后一步：检查资金是否足够
+                            val totalCost = selectedPlatforms.sumOf { it.developmentCost.toLong() }
+                            money >= totalCost
+                        }
                     }
                 ) {
+                    val totalCost = selectedPlatforms.sumOf { it.developmentCost.toLong() }
+                    val canAfford = money >= totalCost
+                    val buttonText = if (isLastStep) {
+                        if (canAfford) "创建游戏" else "资金不足"
+                    } else {
+                        "下一步"
+                    }
+                    
                     Text(
-                        text = if (isLastStep) "创建游戏" else "下一步",
+                        text = buttonText,
                         color = if (when (currentStep) {
                             0 -> gameName.isNotBlank() && isGameNameValid
                             1 -> selectedTheme != null
                             2 -> selectedPlatforms.isNotEmpty() && selectedBusinessModel != null
-                            else -> true
+                            else -> canAfford
                         }) Color(0xFF10B981) else Color.White.copy(alpha = 0.5f)
                     )
                 }
@@ -813,6 +941,7 @@ fun AnimatedThemeCard(
  */
 @Composable
 fun EnhancedGameDevelopmentDialog(
+    money: Long,
     onDismiss: () -> Unit,
     onGameCreated: (Game) -> Unit
 ) {
@@ -845,10 +974,9 @@ fun EnhancedGameDevelopmentDialog(
                 // 标题
                 Text(
                     text = when (currentStep) {
-                        0 -> "🎮 输入游戏名称"
-                        1 -> "🎨 选择游戏主题"
-                        2 -> "📱 选择平台和商业模式"
-                        3 -> "✅ 确认开发"
+                        0 -> "🎨 游戏主题和名称"
+                        1 -> "📱 选择平台和商业模式"
+                        2 -> "✅ 确认开发"
                         else -> "开发新游戏"
                     },
                     color = Color.White,
@@ -859,7 +987,9 @@ fun EnhancedGameDevelopmentDialog(
                 
                 // 内容
                 when (currentStep) {
-                    0 -> GameNameInputStep(
+                    0 -> ThemeAndNameInputStep(
+                        selectedTheme = selectedTheme,
+                        onThemeSelected = { selectedTheme = it },
                         gameName = gameName,
                         onGameNameChange = { newValue ->
                             gameName = newValue
@@ -885,11 +1015,7 @@ fun EnhancedGameDevelopmentDialog(
                         isGameNameValid = isGameNameValid,
                         gameNameError = gameNameError
                     )
-                    1 -> GameThemeSelectionStep(
-                        selectedTheme = selectedTheme,
-                        onThemeSelected = { selectedTheme = it }
-                    )
-                    2 -> PlatformAndBusinessModelStep(
+                    1 -> PlatformAndBusinessModelStep(
                         selectedPlatforms = selectedPlatforms,
                         selectedBusinessModel = selectedBusinessModel,
                         onPlatformToggle = { platform ->
@@ -899,9 +1025,10 @@ fun EnhancedGameDevelopmentDialog(
                                 selectedPlatforms + platform
                             }
                         },
-                        onBusinessModelSelected = { selectedBusinessModel = it }
+                        onBusinessModelSelected = { selectedBusinessModel = it },
+                        money = money
                     )
-                    3 -> GameConfirmationStep(
+                    2 -> GameConfirmationStep(
                         gameName = gameName,
                         theme = selectedTheme,
                         platforms = selectedPlatforms.toList(),
@@ -948,7 +1075,7 @@ fun EnhancedGameDevelopmentDialog(
                     Button(
                         onClick = {
                             when (currentStep) {
-                                3 -> {
+                                2 -> {
                                     // 创建游戏
                                     if (gameName.isNotBlank() && selectedTheme != null && 
                                         selectedPlatforms.isNotEmpty() && selectedBusinessModel != null) {
@@ -963,8 +1090,9 @@ fun EnhancedGameDevelopmentDialog(
                                             revenue = 0L,
                                             assignedEmployees = emptyList()
                                         ).let { game ->
-                                            // 开发阶段不产生成本，保持为0
-                                            game.copy(developmentCost = 0L)
+                                            // 计算平台开发费用
+                                            val totalPlatformCost = selectedPlatforms.sumOf { it.developmentCost.toLong() }
+                                            game.copy(developmentCost = totalPlatformCost)
                                         }
                                         onGameCreated(newGame)
                                     }
@@ -973,10 +1101,9 @@ fun EnhancedGameDevelopmentDialog(
                             }
                         },
                         enabled = when (currentStep) {
-                            0 -> gameName.isNotBlank() && isGameNameValid
-                            1 -> selectedTheme != null
-                            2 -> selectedPlatforms.isNotEmpty() && selectedBusinessModel != null
-                            3 -> true
+                            0 -> gameName.isNotBlank() && isGameNameValid && selectedTheme != null
+                            1 -> selectedPlatforms.isNotEmpty() && selectedBusinessModel != null
+                            2 -> true
                             else -> false
                         },
                         colors = ButtonDefaults.buttonColors(
@@ -985,7 +1112,7 @@ fun EnhancedGameDevelopmentDialog(
                         )
                     ) {
                         Text(
-                            text = if (currentStep == 3) "创建游戏" else "下一步",
+                            text = if (currentStep == 2) "创建游戏" else "下一步",
                             color = Color.White
                         )
                     }
@@ -1007,7 +1134,8 @@ fun GameNameInputStep(
     gameName: String,
     onGameNameChange: (String) -> Unit,
     isGameNameValid: Boolean = true,
-    gameNameError: String = ""
+    gameNameError: String = "",
+    selectedTheme: GameTheme? = null
 ) {
     Column {
         Text(
@@ -1017,26 +1145,63 @@ fun GameNameInputStep(
             modifier = Modifier.padding(bottom = 12.dp)
         )
         
-        OutlinedTextField(
-            value = gameName,
-            onValueChange = onGameNameChange,
-            isError = !isGameNameValid,
-            placeholder = {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            OutlinedTextField(
+                value = gameName,
+                onValueChange = onGameNameChange,
+                isError = !isGameNameValid,
+                placeholder = {
+                    Text(
+                        text = "例如：超级冒险",
+                        color = Color.White.copy(alpha = 0.5f)
+                    )
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = if (isGameNameValid) Color(0xFF10B981) else Color.Red,
+                    unfocusedBorderColor = if (isGameNameValid) Color.White.copy(alpha = 0.3f) else Color.Red,
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    cursorColor = Color(0xFF10B981),
+                    errorBorderColor = Color.Red
+                ),
+                modifier = Modifier.weight(1f)
+            )
+            
+            // 一键生成游戏名按钮
+            Button(
+                onClick = {
+                    if (selectedTheme != null) {
+                        val generatedName = com.example.yjcy.utils.GameNameGenerator.generateGameName(selectedTheme)
+                        onGameNameChange(generatedName)
+                    }
+                },
+                enabled = selectedTheme != null,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF8B5CF6),
+                    disabledContainerColor = Color.White.copy(alpha = 0.1f)
+                ),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.height(56.dp)
+            ) {
                 Text(
-                    text = "例如：超级冒险",
-                    color = Color.White.copy(alpha = 0.5f)
+                    text = "✨",
+                    fontSize = 18.sp
                 )
-            },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = if (isGameNameValid) Color(0xFF10B981) else Color.Red,
-                unfocusedBorderColor = if (isGameNameValid) Color.White.copy(alpha = 0.3f) else Color.Red,
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White,
-                cursorColor = Color(0xFF10B981),
-                errorBorderColor = Color.Red
-            ),
-            modifier = Modifier.fillMaxWidth()
-        )
+            }
+        }
+        
+        if (selectedTheme == null) {
+            Text(
+                text = "💡 请先选择游戏主题后可使用一键生成",
+                color = Color(0xFFFBBF24),
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
         
         if (!isGameNameValid && gameNameError.isNotEmpty()) {
             Text(
@@ -1045,6 +1210,115 @@ fun GameNameInputStep(
                 fontSize = 12.sp,
                 modifier = Modifier.padding(top = 4.dp)
             )
+        }
+    }
+}
+
+/**
+ * 组合的主题选择和游戏名输入步骤
+ */
+@Composable
+fun ThemeAndNameInputStep(
+    selectedTheme: GameTheme?,
+    onThemeSelected: (GameTheme) -> Unit,
+    gameName: String,
+    onGameNameChange: (String) -> Unit,
+    isGameNameValid: Boolean = true,
+    gameNameError: String = ""
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(24.dp)
+    ) {
+        // 主题选择部分
+        Column {
+            Text(
+                text = "选择游戏主题：",
+                color = Color.White.copy(alpha = 0.8f),
+                fontSize = 14.sp,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+            
+            EnhancedGameThemeSelectionStep(
+                selectedTheme = selectedTheme,
+                onThemeSelected = onThemeSelected
+            )
+        }
+        
+        // 游戏名输入部分
+        Column {
+            Text(
+                text = "请输入游戏名称：",
+                color = Color.White.copy(alpha = 0.8f),
+                fontSize = 14.sp,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                OutlinedTextField(
+                    value = gameName,
+                    onValueChange = onGameNameChange,
+                    isError = !isGameNameValid,
+                    placeholder = {
+                        Text(
+                            text = "例如：超级冒险",
+                            color = Color.White.copy(alpha = 0.5f)
+                        )
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = if (isGameNameValid) Color(0xFF10B981) else Color.Red,
+                        unfocusedBorderColor = if (isGameNameValid) Color.White.copy(alpha = 0.3f) else Color.Red,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        cursorColor = Color(0xFF10B981),
+                        errorBorderColor = Color.Red
+                    ),
+                    modifier = Modifier.weight(1f)
+                )
+                
+                // 一键生成游戏名按钮
+                Button(
+                    onClick = {
+                        if (selectedTheme != null) {
+                            val generatedName = com.example.yjcy.utils.GameNameGenerator.generateGameName(selectedTheme)
+                            onGameNameChange(generatedName)
+                        }
+                    },
+                    enabled = selectedTheme != null,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF8B5CF6),
+                        disabledContainerColor = Color.White.copy(alpha = 0.1f)
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.height(56.dp)
+                ) {
+                    Text(
+                        text = "✨",
+                        fontSize = 18.sp
+                    )
+                }
+            }
+            
+            if (selectedTheme == null) {
+                Text(
+                    text = "💡 请先选择游戏主题后可使用一键生成",
+                    color = Color(0xFFFBBF24),
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+            
+            if (!isGameNameValid && gameNameError.isNotEmpty()) {
+                Text(
+                    text = gameNameError,
+                    color = Color.Red,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
         }
     }
 }
@@ -1326,6 +1600,14 @@ fun PlatformCard(
                 overflow = TextOverflow.Ellipsis,
                 lineHeight = 14.sp
             )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = formatMoneyWithDecimals(platform.developmentCost.toDouble()),
+                color = Color(0xFFF59E0B),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
         }
     }
 }
@@ -1354,8 +1636,11 @@ fun PlatformGrid(
 fun PlatformSelectionDialog(
     selectedPlatforms: Set<Platform>,
     onPlatformToggle: (Platform) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    money: Long = 0L  // 新增：玩家资金
 ) {
+    var showInsufficientFundsDialog by remember { mutableStateOf(false) }
+    val totalCost = selectedPlatforms.sumOf { it.developmentCost }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Color(0xFF1F2937),
@@ -1385,7 +1670,14 @@ fun PlatformSelectionDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = onDismiss
+                onClick = {
+                    // 检查资金是否足够
+                    if (selectedPlatforms.isNotEmpty() && totalCost > money) {
+                        showInsufficientFundsDialog = true
+                    } else {
+                        onDismiss()
+                    }
+                }
             ) {
                 Text(
                     text = "确定",
@@ -1394,6 +1686,60 @@ fun PlatformSelectionDialog(
             }
         }
     )
+    
+    // 资金不足提示对话框
+    if (showInsufficientFundsDialog) {
+        AlertDialog(
+            onDismissRequest = { showInsufficientFundsDialog = false },
+            containerColor = Color(0xFF1F2937),
+            title = {
+                Text(
+                    text = "⚠️ 资金不足",
+                    color = Color(0xFFEF4444),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "所选平台的开发费用超出了您的资金！",
+                        color = Color.White,
+                        fontSize = 14.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "总开发费用: ${formatMoneyWithDecimals(totalCost.toDouble())}",
+                        color = Color(0xFFF59E0B),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "当前资金: ${formatMoneyWithDecimals(money.toDouble())}",
+                        color = Color(0xFF10B981),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "还差: ${formatMoneyWithDecimals((totalCost - money).toDouble())}",
+                        color = Color(0xFFEF4444),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { showInsufficientFundsDialog = false }
+                ) {
+                    Text(
+                        text = "知道了",
+                        color = Color(0xFF10B981)
+                    )
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -1401,7 +1747,8 @@ fun PlatformAndBusinessModelStep(
     selectedPlatforms: Set<Platform>,
     selectedBusinessModel: BusinessModel?,
     onPlatformToggle: (Platform) -> Unit,
-    onBusinessModelSelected: (BusinessModel) -> Unit
+    onBusinessModelSelected: (BusinessModel) -> Unit,
+    money: Long = 0L  // 新增：玩家资金
 ) {
     var showPlatformDialog by remember { mutableStateOf(false) }
     
@@ -1424,7 +1771,8 @@ fun PlatformAndBusinessModelStep(
             PlatformSelectionDialog(
                 selectedPlatforms = selectedPlatforms,
                 onPlatformToggle = onPlatformToggle,
-                onDismiss = { showPlatformDialog = false }
+                onDismiss = { showPlatformDialog = false },
+                money = money  // 传递资金参数
             )
         }
         
@@ -1520,6 +1868,14 @@ fun GameConfirmationStep(
                     text = "商业模式: ${businessModel?.displayName ?: "未选择"}",
                     color = Color.White,
                     fontSize = 14.sp
+                )
+                
+                val developmentCost = platforms.sumOf { it.developmentCost }
+                Text(
+                    text = "开发费用: ${formatMoneyWithDecimals(developmentCost.toDouble())}",
+                    color = Color(0xFFF59E0B),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
                 )
             }
         }

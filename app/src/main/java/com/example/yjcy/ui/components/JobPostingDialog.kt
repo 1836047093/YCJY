@@ -44,17 +44,16 @@ fun JobPostingDialog(
     
     val positions = FilterCriteria.getAvailablePositions()
     
-    // 根据技能等级计算关键薪资阈值
-    val salaryThreshold = minSkillLevel * 10000
+    // 根据技能等级计算最低薪资标准（硬性要求）
+    val minSalaryRequired = minSkillLevel * 10000
     
-    // 检查薪资是否低于/高于阈值
-    val isSalaryLow = salary < salaryThreshold
-    val isSalaryHigh = salary > salaryThreshold
+    // 计算薪资与最低标准的比率
+    val salaryRatio = salary.toFloat() / minSalaryRequired.toFloat()
     
     // 验证表单
     val isValid = selectedPosition != null && 
                   minSkillLevel in 1..5 && 
-                  salary > 0
+                  salary >= minSalaryRequired
     
     Dialog(
         onDismissRequest = onDismiss,
@@ -133,7 +132,7 @@ fun JobPostingDialog(
                         readOnly = true,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .menuAnchor(),
+                            .menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryNotEditable),
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showPositionDropdown) },
                         colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
                     )
@@ -166,21 +165,50 @@ fun JobPostingDialog(
                 
                 Spacer(modifier = Modifier.height(8.dp))
                 
+                // 使用自定义按钮确保所有分辨率下都能并排显示
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     (1..5).forEach { level ->
-                        FilterChip(
-                            selected = minSkillLevel == level,
+                        val isSelected = minSkillLevel == level
+                        OutlinedButton(
                             onClick = { 
                                 minSkillLevel = level
-                                // 自动调整薪资到阈值，以获得较好的招聘成功率
-                                salary = level * 10000
+                                // 自动调整薪资到最低标准
+                                val newMinSalary = level * 10000
+                                if (salary < newMinSalary) {
+                                    salary = newMinSalary
+                                }
                             },
-                            label = { Text("Lv.$level") },
-                            modifier = Modifier.weight(1f)
-                        )
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(40.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = if (isSelected) Color(0xFF3A6BA5) else Color.Transparent,
+                                contentColor = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f)
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(
+                                width = if (isSelected) 2.dp else 1.dp,
+                                brush = if (isSelected) {
+                                    Brush.linearGradient(
+                                        colors = listOf(Color(0xFF74C0FC), Color(0xFF4A7BB7))
+                                    )
+                                } else {
+                                    Brush.linearGradient(
+                                        colors = listOf(Color.White.copy(alpha = 0.3f), Color.White.copy(alpha = 0.3f))
+                                    )
+                                }
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = "Lv.$level",
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
                     }
                 }
                 
@@ -212,19 +240,24 @@ fun JobPostingDialog(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
-                                text = if (isSalaryLow) "⚠️" else if (isSalaryHigh) "✅" else "💡",
+                                text = when {
+                                    salaryRatio >= 1.25f -> "🎉"
+                                    salaryRatio >= 1.15f -> "👍"
+                                    salaryRatio >= 1.05f -> "💡"
+                                    else -> "⚠️"
+                                },
                                 fontSize = 16.sp
                             )
                             Column {
                                 Text(
-                                    text = "Lv.$minSkillLevel 关键薪资阈值：¥${String.format("%,d", salaryThreshold)}",
+                                    text = "Lv.$minSkillLevel 最低薪资：¥${String.format("%,d", minSalaryRequired)}",
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = "当前薪资：¥${String.format("%,d", salary)}",
+                                    text = "当前薪资：¥${String.format("%,d", salary)} (${String.format("%.0f%%", salaryRatio * 100)})",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Color.White.copy(alpha = 0.8f)
                                 )
@@ -233,26 +266,45 @@ fun JobPostingDialog(
                         
                         Spacer(modifier = Modifier.height(6.dp))
                         
-                        if (isSalaryLow) {
-                            Text(
-                                text = "💔 低于阈值，招聘成功率将大大下降！",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Medium,
-                                color = Color(0xFFFF6B6B) // 红色警告
-                            )
-                        } else if (isSalaryHigh) {
-                            Text(
-                                text = "🎉 高于阈值，招聘成功率将大大增加！",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Medium,
-                                color = Color(0xFF51CF66) // 绿色成功
-                            )
-                        } else {
-                            Text(
-                                text = "📊 接近阈值，招聘成功率一般",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.White.copy(alpha = 0.8f)
-                            )
+                        when {
+                            salaryRatio >= 1.5f -> {
+                                Text(
+                                    text = "💎 远高于标准（+${String.format("%.0f%%", (salaryRatio - 1) * 100)}）- 大量应聘者！",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF51CF66) // 绿色
+                                )
+                            }
+                            salaryRatio >= 1.25f -> {
+                                Text(
+                                    text = "✨ 高于标准25%+ - 较多应聘者",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF51CF66) // 绿色
+                                )
+                            }
+                            salaryRatio >= 1.15f -> {
+                                Text(
+                                    text = "👌 高于标准15%+ - 一般数量应聘者",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFF74C0FC) // 蓝色
+                                )
+                            }
+                            salaryRatio >= 1.05f -> {
+                                Text(
+                                    text = "📝 略高于标准 - 少量应聘者",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.White.copy(alpha = 0.9f)
+                                )
+                            }
+                            else -> {
+                                Text(
+                                    text = "⚠️ 刚达标准 - 极少应聘者，建议提高薪资！",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFFFFD93D) // 黄色警告
+                                )
+                            }
                         }
                     }
                 }
@@ -269,57 +321,13 @@ fun JobPostingDialog(
                 Slider(
                     value = salary.toFloat(),
                     onValueChange = { 
-                        salary = it.toInt()
+                        // 确保薪资不低于最低标准
+                        salary = it.toInt().coerceAtLeast(minSalaryRequired)
                     },
-                    valueRange = 5000f..60000f,
-                    steps = 54,
+                    valueRange = minSalaryRequired.toFloat()..60000f,
+                    steps = ((60000 - minSalaryRequired) / 1000).coerceAtLeast(0),
                     modifier = Modifier.fillMaxWidth()
                 )
-                
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                // 岗位预览
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color.White.copy(alpha = 0.15f) // 半透明白色
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
-                    ) {
-                        Text(
-                            text = "岗位预览",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        Text(
-                            text = selectedPosition ?: "未选择岗位",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        
-                        Spacer(modifier = Modifier.height(4.dp))
-                        
-                        Text(
-                            text = "要求: 专属技能 Lv.$minSkillLevel",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.White.copy(alpha = 0.8f)
-                        )
-                        
-                        Text(
-                            text = "薪资: ¥${String.format("%,d", salary)}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.White.copy(alpha = 0.8f)
-                        )
-                    }
-                }
                 
                 Spacer(modifier = Modifier.height(24.dp))
                 
@@ -329,7 +337,7 @@ fun JobPostingDialog(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     // 取消按钮
-                    OutlinedButton(
+                    Button(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp),
@@ -344,7 +352,7 @@ fun JobPostingDialog(
                         Text(
                             text = "取消",
                             style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Medium
+                            fontWeight = FontWeight.Bold
                         )
                     }
                     

@@ -131,9 +131,17 @@ class JobPostingService {
     /**
      * 为活跃岗位生成新的应聘者
      * 每个岗位根据时间推进和岗位吸引力生成0-3个应聘者
+     * @param existingEmployeeNames 现有员工名字集合，用于避免重复
      */
-    fun generateApplicantsForActiveJobs(daysElapsed: Int = 1) {
+    fun generateApplicantsForActiveJobs(daysElapsed: Int = 1, existingEmployeeNames: Set<String> = emptySet()) {
         val activeJobs = getActiveJobPostings()
+        
+        // 收集所有已存在的名字（包括现有员工和所有岗位的应聘者）
+        val allUsedNames = mutableSetOf<String>()
+        allUsedNames.addAll(existingEmployeeNames)
+        activeJobs.forEach { job ->
+            allUsedNames.addAll(job.applicants.map { it.candidate.name })
+        }
         
         activeJobs.forEach { job ->
             // 计算该岗位的吸引力（基于薪资范围）
@@ -144,7 +152,7 @@ class JobPostingService {
             
             if (applicantCount > 0) {
                 // 生成符合岗位要求的应聘者
-                val newApplicants = generateApplicantsForJob(job, applicantCount)
+                val newApplicants = generateApplicantsForJob(job, applicantCount, allUsedNames)
                 
                 // 更新岗位的应聘者列表
                 val updatedJob = job.copy(
@@ -157,46 +165,62 @@ class JobPostingService {
     
     /**
      * 计算岗位吸引力（0.0-1.0）
-     * 基于薪资与技能等级阈值的关系
+     * 基于薪资与技能等级最低标准的关系
      * 
-     * 规则：
-     * - Lv.1 阈值: 10000，低于大大下降，高于大大增加
-     * - Lv.2 阈值: 20000，低于大大下降，高于大大增加
-     * - 以此类推...
+     * 规则（已调整为精确梯度）：
+     * - 刚好100%（1.0万）：0.15（极少应聘者）
+     * - 高于5-10%（1.05-1.1万）：0.3-0.4（少量应聘者）
+     * - 高于15%（1.15万）：0.5（一般数量）
+     * - 高于25%（1.25万）：0.7（较多应聘者）
+     * - 高于50%+（1.5万+）：0.9-1.0（大量应聘者）
      */
     private fun calculateJobAttractiveness(job: JobPosting): Float {
-        // 计算该技能等级的关键薪资阈值
-        val salaryThreshold = job.minSkillLevel * 10000
+        // 计算该技能等级的最低薪资标准
+        val minSalaryRequired = job.minSkillLevel * 10000
         
         // 使用岗位薪资（现在minSalary和maxSalary相同）
         val salary = job.minSalary
         
-        // 计算薪资与阈值的比率
-        val salaryRatio = salary.toFloat() / salaryThreshold.toFloat()
+        // 计算薪资与最低标准的比率
+        val salaryRatio = salary.toFloat() / minSalaryRequired.toFloat()
         
-        // 基于薪资比率计算吸引力
+        // 基于薪资比率计算吸引力（精确梯度设计）
         val attractiveness = when {
-            // 高于阈值 - 大大增加
-            salaryRatio > 1.0f -> {
-                // 高于阈值越多，吸引力越高
-                // 1.0 -> 0.7, 1.2 -> 0.8, 1.5 -> 0.9, 2.0+ -> 1.0
-                val bonus = (salaryRatio - 1.0f) * 0.6f
-                (0.7f + bonus).coerceAtMost(1.0f)
+            // 远高于标准（150%+）：0.9-1.0（大量应聘者）
+            salaryRatio >= 1.5f -> {
+                // 1.5 -> 0.9, 2.0 -> 1.0, 2.5+ -> 1.0
+                val bonus = (salaryRatio - 1.5f) * 0.2f
+                (0.9f + bonus).coerceAtMost(1.0f)
             }
-            // 接近阈值（90%-100%） - 一般
-            salaryRatio >= 0.9f -> {
-                // 0.9 -> 0.5, 0.95 -> 0.6, 1.0 -> 0.7
-                0.5f + (salaryRatio - 0.9f) * 2.0f
+            // 高于标准25-50%（125-150%）：0.7-0.85（较多应聘者）
+            salaryRatio >= 1.25f -> {
+                // 线性插值：1.25 -> 0.7, 1.5 -> 0.85
+                val progress = (salaryRatio - 1.25f) / 0.25f
+                0.7f + progress * 0.15f
             }
-            // 低于阈值 - 大大下降
-            else -> {
-                // 低于阈值越多，吸引力越低
-                // 0.9 -> 0.5, 0.7 -> 0.3, 0.5 -> 0.15, 0.3 -> 0.08
-                (salaryRatio * 0.55f).coerceAtLeast(0.05f)
+            // 高于标准15-25%（115-125%）：0.5-0.7（一般数量）
+            salaryRatio >= 1.15f -> {
+                // 线性插值：1.15 -> 0.5, 1.25 -> 0.7
+                val progress = (salaryRatio - 1.15f) / 0.1f
+                0.5f + progress * 0.2f
             }
+            // 高于标准5-15%（105-115%）：0.3-0.5（少量应聘者）
+            salaryRatio >= 1.05f -> {
+                // 线性插值：1.05 -> 0.3, 1.15 -> 0.5
+                val progress = (salaryRatio - 1.05f) / 0.1f
+                0.3f + progress * 0.2f
+            }
+            // 刚好达标准或略高（100-105%）：0.15-0.3（极少应聘者）
+            salaryRatio >= 1.0f -> {
+                // 线性插值：1.0 -> 0.15, 1.05 -> 0.3
+                val progress = (salaryRatio - 1.0f) / 0.05f
+                0.15f + progress * 0.15f
+            }
+            // 理论上不应该出现（UI已限制），但保险起见
+            else -> 0.05f
         }
         
-        return attractiveness.coerceIn(0.0f, 1.0f)
+        return attractiveness.coerceIn(0.05f, 1.0f)
     }
     
     /**
@@ -215,13 +239,14 @@ class JobPostingService {
     
     /**
      * 为指定岗位生成应聘者
+     * @param existingNames 已使用的名字集合（可变集合，会自动添加新生成的名字）
      */
-    private fun generateApplicantsForJob(job: JobPosting, count: Int): List<JobApplicant> {
+    private fun generateApplicantsForJob(job: JobPosting, count: Int, existingNames: MutableSet<String>): List<JobApplicant> {
         val applicants = mutableListOf<JobApplicant>()
         
         repeat(count) {
             // 生成符合岗位要求的候选人
-            val candidate = generateCandidateForJob(job)
+            val candidate = generateCandidateForJob(job, existingNames)
             
             val applicant = JobApplicant(
                 id = "applicant_${UUID.randomUUID()}",
@@ -237,13 +262,15 @@ class JobPostingService {
     
     /**
      * 为指定岗位生成符合要求的候选人
+     * @param existingNames 已使用的名字集合，用于避免重复
      */
-    private fun generateCandidateForJob(job: JobPosting): TalentCandidate {
+    private fun generateCandidateForJob(job: JobPosting, existingNames: Set<String>): TalentCandidate {
         // 使用TalentMarketService生成候选人，但调整参数以符合岗位要求
         val candidate = talentMarketService.generateCandidateForPosition(
             position = job.position,
             minSkillLevel = job.minSkillLevel,
-            salaryRange = job.minSalary..job.maxSalary
+            salaryRange = job.minSalary..job.maxSalary,
+            existingEmployeeNames = existingNames
         )
         
         return candidate
@@ -292,7 +319,8 @@ class JobPostingService {
         notes: String = ""
     ): InterviewResult? {
         val job = jobPostings[jobId] ?: return null
-        val applicant = job.applicants.find { it.id == applicantId } ?: return null
+        // 检查应聘者是否存在
+        if (job.applicants.none { it.id == applicantId }) return null
         
         // 玩家直接决定，评分基于候选人技能
         val score = if (decision) {
@@ -440,10 +468,28 @@ class JobPostingService {
     }
     
     /**
-     * 清除所有数据（用于测试）
+     * 清除所有数据（用于测试或加载新存档前）
      */
     fun clearAllData() {
         jobPostings.clear()
+    }
+    
+    /**
+     * 从存档加载招聘岗位数据
+     * 在加载存档时调用，恢复招聘岗位状态
+     */
+    fun loadFromSave(jobPostingsList: List<JobPosting>) {
+        jobPostings.clear()
+        jobPostingsList.forEach { posting ->
+            jobPostings[posting.id] = posting
+        }
+    }
+    
+    /**
+     * 获取所有招聘岗位数据（用于保存存档）
+     */
+    fun getAllJobPostingsForSave(): List<JobPosting> {
+        return jobPostings.values.toList()
     }
 }
 

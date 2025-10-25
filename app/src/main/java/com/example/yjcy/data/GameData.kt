@@ -32,6 +32,102 @@ enum class GameReleaseStatus {
     REMOVED_FROM_MARKET // 已下架
 }
 
+// 游戏开发阶段枚举
+enum class DevelopmentPhase(
+    val displayName: String,
+    val icon: String,
+    val description: String,
+    val requiredPositions: List<String>, // 必需的职位
+    val recommendedCount: Int, // 推荐人数
+    val minCount: Int // 最少人数
+) {
+    DESIGN(
+        displayName = "需求文档",
+        icon = "📋",
+        description = "策划师编写游戏需求文档和设计方案",
+        requiredPositions = listOf("策划师"),
+        recommendedCount = 2,
+        minCount = 1
+    ),
+    ART_SOUND(
+        displayName = "美术音效",
+        icon = "🎨",
+        description = "美术师和音效师制作游戏资源",
+        requiredPositions = listOf("美术师", "音效师"),
+        recommendedCount = 2,
+        minCount = 1
+    ),
+    PROGRAMMING(
+        displayName = "程序实现",
+        icon = "💻",
+        description = "程序员实现游戏功能和逻辑",
+        requiredPositions = listOf("程序员"),
+        recommendedCount = 2,
+        minCount = 1
+    );
+    
+    /**
+     * 检查员工列表是否满足当前阶段的最低要求
+     */
+    fun checkRequirements(employees: List<Employee>): Boolean {
+        val requiredPositionEmployees = employees.filter { it.position in requiredPositions }
+        return requiredPositionEmployees.size >= minCount
+    }
+    
+    /**
+     * 获取当前阶段的有效员工（职位匹配的员工）
+     */
+    fun getValidEmployees(employees: List<Employee>): List<Employee> {
+        return employees.filter { it.position in requiredPositions }
+    }
+    
+    /**
+     * 计算阶段进度增长速度（基于有效员工的技能）
+     */
+    fun calculateProgressSpeed(employees: List<Employee>): Float {
+        val validEmployees = getValidEmployees(employees)
+        if (validEmployees.isEmpty()) return 0f
+        
+        // 计算有效员工的平均技能等级
+        val avgSkillLevel = validEmployees.map { employee ->
+            when (this) {
+                DESIGN -> employee.skillDesign
+                ART_SOUND -> maxOf(employee.skillArt, employee.skillMusic)
+                PROGRAMMING -> employee.skillDevelopment
+            }
+        }.average().toFloat()
+        
+        // 基础进度：每天2%
+        val baseProgress = 0.02f
+        
+        // 技能倍率：1级=0.5x, 2级=0.8x, 3级=1.0x, 4级=1.3x, 5级=1.6x
+        val skillMultiplier = when {
+            avgSkillLevel >= 5f -> 1.6f
+            avgSkillLevel >= 4f -> 1.3f
+            avgSkillLevel >= 3f -> 1.0f
+            avgSkillLevel >= 2f -> 0.8f
+            else -> 0.5f
+        }
+        
+        // 人数倍率：每人+0.3倍率，最高10人封顶4.0倍
+        // 1人=1.0x, 2人=1.3x, 3人=1.6x, 4人=1.9x, 5人=2.2x, ..., 10人=4.0x
+        val countMultiplier = (1.0f + (validEmployees.size - 1) * 0.3f).coerceAtMost(4.0f)
+        
+        return baseProgress * skillMultiplier * countMultiplier
+    }
+    
+    /**
+     * 获取下一个开发阶段
+     */
+    fun getNextPhase(): DevelopmentPhase? {
+        return when (this) {
+            DESIGN -> ART_SOUND
+            ART_SOUND -> PROGRAMMING
+            PROGRAMMING -> null // 最后阶段，返回null表示开发完成
+        }
+    }
+}
+
 // 员工数据类
 data class Employee(
     val id: Int,
@@ -90,6 +186,21 @@ data class Employee(
      */
     fun getTotalSkillPoints(): Int {
         return skillDevelopment + skillDesign + skillArt + skillMusic + skillService
+    }
+    
+    /**
+     * 清理非专属技能，确保只保留岗位对应的专属技能
+     * 用于修复旧存档中的错误数据
+     */
+    fun cleanNonSpecialtySkills(): Employee {
+        return when (getSpecialtySkillType()) {
+            "开发" -> this.copy(skillDesign = 0, skillArt = 0, skillMusic = 0, skillService = 0)
+            "设计" -> this.copy(skillDevelopment = 0, skillArt = 0, skillMusic = 0, skillService = 0)
+            "美工" -> this.copy(skillDevelopment = 0, skillDesign = 0, skillMusic = 0, skillService = 0)
+            "音乐" -> this.copy(skillDevelopment = 0, skillDesign = 0, skillArt = 0, skillService = 0)
+            "服务" -> this.copy(skillDevelopment = 0, skillDesign = 0, skillArt = 0, skillMusic = 0)
+            else -> this // 未知岗位保持不变
+        }
     }
     
     /**
@@ -215,7 +326,9 @@ data class Game(
     val serverInfo: GameServerInfo? = null, // 新增：服务器信息（仅网络游戏）
     val promotionIndex: Float = 0f, // 新增：宣传指数（0-1，表示0%-100%）
     val autoUpdate: Boolean = false, // 新增：自动更新开关（开启后更新完成会自动发布）
-    val version: Float = 1.0f // 新增：游戏版本号，每次更新+0.1
+    val version: Float = 1.0f, // 新增：游戏版本号，每次更新+0.1
+    val currentPhase: DevelopmentPhase = DevelopmentPhase.DESIGN, // 当前开发阶段
+    val phaseProgress: Float = 0f // 当前阶段进度（0-1）
 ) {
     /**
      * 计算游戏开发成本
@@ -307,12 +420,94 @@ data class VipPriceRecommendation(
     val yearly: Float // 年卡价格
 )
 
+// 客诉严重程度枚举
+enum class ComplaintSeverity(val displayName: String, val workload: Int, val dailyFanLoss: Int, val overdueThreshold: Int) {
+    LOW("低", 80, 10, 15),       // 80工作量，每天扣10粉丝，15天超时（给玩家充足的发现和处理时间）
+    MEDIUM("中", 200, 25, 12),   // 200工作量，每天扣25粉丝，12天超时（考虑多任务并行和调度时间）
+    HIGH("高", 350, 50, 8)       // 350工作量，每天扣50粉丝，8天超时（给玩家时间培养高级客服）
+}
+
+// 客诉类型枚举
+enum class ComplaintType(val displayName: String, val icon: String) {
+    BUG("游戏Bug", "🐛"),
+    BALANCE("平衡性问题", "⚖️"),
+    CONTENT("内容不满意", "📝"),
+    SERVER("服务器问题", "🖥️"),
+    PAYMENT("付费争议", "💰"),
+    OTHER("其他问题", "❓")
+}
+
+// 客诉状态枚举
+enum class ComplaintStatus {
+    PENDING,    // 待处理
+    IN_PROGRESS, // 处理中
+    COMPLETED,   // 已完成
+    OVERDUE      // 已超时
+}
+
+// 客诉数据类
+data class Complaint(
+    val id: String,               // 客诉ID
+    val gameId: String,           // 关联的游戏ID
+    val gameName: String,         // 游戏名称
+    val type: ComplaintType,      // 客诉类型
+    val severity: ComplaintSeverity, // 严重程度
+    val workload: Int,            // 需要处理的工作量
+    val currentProgress: Int = 0, // 当前处理进度
+    val assignedEmployeeId: Int? = null, // 分配的客服ID
+    val status: ComplaintStatus = ComplaintStatus.PENDING, // 状态
+    val createdYear: Int,         // 生成年份
+    val createdMonth: Int,        // 生成月份
+    val createdDay: Int           // 生成日期
+) {
+    /**
+     * 计算客诉存在天数
+     */
+    fun calculateExistingDays(currentYear: Int, currentMonth: Int, currentDay: Int): Int {
+        val yearDiff = currentYear - createdYear
+        val monthDiff = currentMonth - createdMonth
+        val dayDiff = currentDay - createdDay
+        return yearDiff * 360 + monthDiff * 30 + dayDiff // 简化计算：每月30天
+    }
+    
+    /**
+     * 判断是否已超时
+     */
+    fun isOverdue(currentYear: Int, currentMonth: Int, currentDay: Int): Boolean {
+        val existingDays = calculateExistingDays(currentYear, currentMonth, currentDay)
+        return existingDays > severity.overdueThreshold
+    }
+    
+    /**
+     * 计算当前应扣除的粉丝数
+     */
+    fun calculateFanLoss(currentYear: Int, currentMonth: Int, currentDay: Int): Int {
+        if (!isOverdue(currentYear, currentMonth, currentDay)) return 0
+        val overdueDays = calculateExistingDays(currentYear, currentMonth, currentDay) - severity.overdueThreshold
+        return overdueDays * severity.dailyFanLoss
+    }
+    
+    /**
+     * 获取处理进度百分比
+     */
+    fun getProgressPercentage(): Int {
+        return ((currentProgress.toFloat() / workload) * 100).toInt()
+    }
+    
+    /**
+     * 判断是否已完成
+     */
+    fun isCompleted(): Boolean {
+        return currentProgress >= workload
+    }
+}
+
 // 存档数据类
 data class SaveData(
     val companyName: String = "我的游戏公司",
     val companyLogo: String = "🎮", // 公司LOGO
     val founderName: String = "创始人",
-    val founderProfession: FounderProfession? = null, // 新增字段，向后兼容
+    val founderProfession: FounderProfession? = null, // 新增字段,向后兼容
     val money: Long = 1000000L,
     val fans: Int = 0,
     val currentYear: Int = 1,
@@ -323,6 +518,10 @@ data class SaveData(
     val competitors: List<CompetitorCompany> = emptyList(), // 竞争对手公司列表
     val competitorNews: List<CompetitorNews> = emptyList(), // 竞争对手动态新闻（最近30条）
     val serverData: Map<String, GameServerInfo> = emptyMap(), // 服务器数据（所有游戏的服务器信息）
+    val revenueData: Map<String, GameRevenue> = emptyMap(), // 收益数据（所有已发售游戏的收益信息）
+    val jobPostings: List<JobPosting> = emptyList(), // 招聘岗位列表
+    val complaints: List<Complaint> = emptyList(), // 客诉列表
+    val autoProcessComplaints: Boolean = false, // 新增：自动处理客诉开关（默认关闭）
     val saveTime: Long = System.currentTimeMillis(),
-    val version: String = "1.8.1" // 存档版本号
+    val version: String = "1.0.0" // 存档版本号（创建时会被覆盖为当前版本）
 )

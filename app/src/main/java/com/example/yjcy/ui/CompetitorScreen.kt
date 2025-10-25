@@ -53,7 +53,7 @@ fun CompetitorContent(
     saveData: SaveData
 ) {
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("📊 排行榜", "📰 动态新闻", "🏢 竞争对手")
+    val tabs = listOf("📊 排行榜", "📰 新闻", "🏢 对手")
     
     Column(
         modifier = Modifier
@@ -94,7 +94,9 @@ fun CompetitorContent(
                         Text(
                             text = title,
                             fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal,
-                            fontSize = 14.sp
+                            fontSize = 14.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     },
                     modifier = Modifier.background(
@@ -105,10 +107,12 @@ fun CompetitorContent(
         }
         
         // 内容区域
-        when (selectedTab) {
-            0 -> LeaderboardContent(saveData)
-            1 -> NewsContent(saveData)
-            2 -> CompetitorsListContent(saveData)
+        Box(modifier = Modifier.weight(1f)) {
+            when (selectedTab) {
+                0 -> LeaderboardContent(saveData)
+                1 -> NewsContent(saveData)
+                2 -> CompetitorsListContent(saveData)
+            }
         }
     }
 }
@@ -224,7 +228,7 @@ fun LeaderboardContent(saveData: SaveData) {
         
         // 显示选中的排行榜
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
@@ -548,7 +552,7 @@ fun getTopCompaniesByFans(saveData: SaveData): List<LeaderboardItem> {
  */
 fun getTopOnlineGames(saveData: SaveData): List<LeaderboardItem> {
     // 使用四元组存储：游戏名、公司名、活跃玩家数、总收入
-    val allOnlineGames = mutableListOf<Tuple4<String, String, Int, Double>>()
+    val allOnlineGames = mutableListOf<Tuple4<String, String, Long, Double>>()
     
     // 玩家的网游（包含已发售和已评分的游戏）
     saveData.games.filter { 
@@ -566,7 +570,7 @@ fun getTopOnlineGames(saveData: SaveData): List<LeaderboardItem> {
             } ?: 0.0
             
             allOnlineGames.add(
-                Tuple4<String, String, Int, Double>(
+                Tuple4<String, String, Long, Double>(
                     game.name,
                     saveData.companyName,
                     activePlayers,
@@ -580,7 +584,7 @@ fun getTopOnlineGames(saveData: SaveData): List<LeaderboardItem> {
         competitor.games.filter { it.businessModel == BusinessModel.ONLINE_GAME }
             .forEach { game ->
                 allOnlineGames.add(
-                    Tuple4<String, String, Int, Double>(
+                    Tuple4<String, String, Long, Double>(
                         game.name,
                         competitor.name,
                         game.activePlayers,
@@ -620,7 +624,7 @@ data class Tuple4<A, B, C, D>(
  */
 fun getTopOnlineGamesWithFluctuation(saveData: SaveData): List<LeaderboardItem> {
     // 使用四元组存储：游戏名、公司名、活跃玩家数、总收入
-    val allOnlineGames = mutableListOf<Tuple4<String, String, Int, Double>>()
+    val allOnlineGames = mutableListOf<Tuple4<String, String, Long, Double>>()
     
     // 玩家的网游（包含已发售和已评分的游戏）
     saveData.games.filter { 
@@ -632,7 +636,7 @@ fun getTopOnlineGamesWithFluctuation(saveData: SaveData): List<LeaderboardItem> 
             val basePlayers = com.example.yjcy.data.RevenueManager.getActivePlayers(game.id)
             // 添加±1-3%的随机波动
             val fluctuation = kotlin.random.Random.nextDouble(-0.03, 0.03)
-            val activePlayers = (basePlayers * (1 + fluctuation)).toInt().coerceAtLeast(0)
+            val activePlayers = (basePlayers * (1 + fluctuation)).toLong().coerceAtLeast(0L)
             
             // 获取总收入（累计值，不应该波动）
             val gameRevenue = com.example.yjcy.data.RevenueManager.getGameRevenue(game.id)
@@ -642,7 +646,7 @@ fun getTopOnlineGamesWithFluctuation(saveData: SaveData): List<LeaderboardItem> 
             } ?: 0.0
             
             allOnlineGames.add(
-                Tuple4<String, String, Int, Double>(
+                Tuple4<String, String, Long, Double>(
                     game.name,
                     saveData.companyName,
                     activePlayers,
@@ -657,10 +661,10 @@ fun getTopOnlineGamesWithFluctuation(saveData: SaveData): List<LeaderboardItem> 
             .forEach { game ->
                 // 添加±1-3%的随机波动（仅活跃玩家数）
                 val fluctuation = kotlin.random.Random.nextDouble(-0.03, 0.03)
-                val activePlayers = (game.activePlayers * (1 + fluctuation)).toInt().coerceAtLeast(0)
+                val activePlayers = (game.activePlayers * (1 + fluctuation)).toLong().coerceAtLeast(0L)
                 
                 allOnlineGames.add(
-                    Tuple4<String, String, Int, Double>(
+                    Tuple4<String, String, Long, Double>(
                         game.name,
                         competitor.name,
                         activePlayers,
@@ -688,7 +692,7 @@ fun getTopOnlineGamesWithFluctuation(saveData: SaveData): List<LeaderboardItem> 
  * 获取销量最高的单机游戏（前5）
  */
 fun getTopSinglePlayerGames(saveData: SaveData): List<LeaderboardItem> {
-    val allSinglePlayerGames = mutableListOf<Triple<String, String, Int>>()
+    val allSinglePlayerGames = mutableListOf<Triple<String, String, Long>>()
     
     // 玩家的单机游戏（包含已发售和已评分的游戏）
     saveData.games.filter { 
@@ -698,7 +702,7 @@ fun getTopSinglePlayerGames(saveData: SaveData): List<LeaderboardItem> {
     }.forEach { game ->
         // 从RevenueManager获取真实销量
         val gameRevenue = com.example.yjcy.data.RevenueManager.getGameRevenue(game.id)
-        val totalSales = gameRevenue?.getTotalSales() ?: 0
+        val totalSales = gameRevenue?.getTotalSales() ?: 0L
         allSinglePlayerGames.add(
             Triple(
                 game.name,

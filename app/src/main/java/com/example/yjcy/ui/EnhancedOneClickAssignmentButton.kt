@@ -195,6 +195,7 @@ fun EnhancedOneClickAssignmentButton(
         EnhancedAssignmentResultDialog(
             assignmentResult = assignmentResult!!,
             projectNames = projects.associate { it.id to it.name },
+            games = projects,
             onDismiss = {
                 showResultDialog = false
                 buttonState = EnhancedButtonState.NORMAL
@@ -374,6 +375,7 @@ fun CompactEnhancedAssignmentButton(
         EnhancedAssignmentResultDialog(
             assignmentResult = assignmentResult!!,
             projectNames = projects.associate { it.id to it.name },
+            games = projects,
             onDismiss = {
                 showResultDialog = false
                 buttonState = EnhancedButtonState.NORMAL

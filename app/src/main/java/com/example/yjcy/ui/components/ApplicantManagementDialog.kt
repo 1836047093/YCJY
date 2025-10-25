@@ -144,6 +144,54 @@ fun ApplicantManagementDialog(
                     
                     Spacer(modifier = Modifier.height(12.dp))
                     
+                    // 各职位当前人数
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp)
+                        ) {
+                            Text(
+                                text = "💼 各职位当前人数",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            // 统计各职位人数
+                            val positionCounts = mapOf(
+                                "程序员" to saveData.allEmployees.count { it.position == "程序员" },
+                                "策划师" to saveData.allEmployees.count { it.position == "策划师" },
+                                "美术师" to saveData.allEmployees.count { it.position == "美术师" },
+                                "音效师" to saveData.allEmployees.count { it.position == "音效师" },
+                                "客服" to saveData.allEmployees.count { it.position == "客服" }
+                            )
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                positionCounts.forEach { (position, count) ->
+                                    PositionCountChip(
+                                        position = position,
+                                        count = count,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
                     // 员工数量信息卡片
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -604,3 +652,57 @@ private fun InfoChip(
     }
 }
 
+/**
+ * 职位人数芯片组件
+ */
+@Composable
+private fun PositionCountChip(
+    position: String,
+    count: Int,
+    modifier: Modifier = Modifier
+) {
+    val icon = when (position) {
+        "程序员" -> ""
+        "策划师" -> ""
+        "美术师" -> ""
+        "音效师" -> ""
+        "客服" -> ""
+        else -> ""
+    }
+    
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+        shadowElevation = 2.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = icon,
+                fontSize = 20.sp
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = position,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 10.sp
+            )
+            Text(
+                text = count.toString(),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = if (count > 0) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
+            )
+        }
+    }
+}
