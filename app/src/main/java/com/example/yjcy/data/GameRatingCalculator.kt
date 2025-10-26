@@ -10,7 +10,7 @@ import kotlin.random.Random
  * 
  * 评分维度：
  * 1. 基础分：2.0分（降低起点）
- * 2. 技能评分：采用递减收益曲线（1-4分）
+ * 2. 技能评分：采用递减收益曲线（1-4.5分）
  * 3. 团队协作加成：多职位配合（0-1.5分）
  * 4. 主题匹配加成：技能与主题适配（0-1分）
  * 5. 复杂度惩罚：多平台/网游降低评分（-0-1.5分）
@@ -18,7 +18,7 @@ import kotlin.random.Random
  * 7. 精英团队加成：高级员工比例（0-0.5分）
  * 
  * 最终评分 = 基础分 + 技能评分 + 团队协作 + 主题匹配 - 复杂度惩罚 + 平衡性 + 精英加成
- * 上限：10.0分
+ * 理论最高分：10.0分（单平台单机，5职位满配，全员5级，完美主题匹配）
  */
 object GameRatingCalculator {
     const val BASE_SCORE = 2.0f
@@ -113,7 +113,7 @@ object GameRatingCalculator {
                 contribution = contribution
             )
         }
-        val skillScore = skillContributions.sumOf { it.contribution.toDouble() }.toFloat().coerceAtMost(4.0f)
+        val skillScore = skillContributions.sumOf { it.contribution.toDouble() }.toFloat().coerceAtMost(4.5f)
         
         // 2. 计算团队协作加成（多职位配合）
         val teamworkBonus = calculateTeamworkBonus(game.assignedEmployees)
@@ -156,7 +156,7 @@ object GameRatingCalculator {
      * 设计理念：
      * - 低级技能收益较低，鼓励培养高级员工
      * - 高级技能收益递减，但5级仍有明显优势
-     * - 5级员工对评分贡献0.85分，5个5级员工≈4.0分（封顶）
+     * - 5级员工对评分贡献0.85分，5个5级员工=4.25分（封顶4.5）
      * - 递增幅度：1→2(+0.20) > 2→3(+0.15) > 3→4(+0.10) > 4→5(+0.10)
      */
     private fun calculateSkillContribution(skillLevel: Int): Float {
@@ -323,7 +323,7 @@ object GameRatingCalculator {
         // 技能评分
         val skillScore = assignedEmployees.sumOf { employee ->
             calculateSkillContribution(employee.getSpecialtySkillLevel()).toDouble()
-        }.toFloat().coerceAtMost(4.0f)
+        }.toFloat().coerceAtMost(4.5f)
         
         // 团队协作加成
         val teamworkBonus = calculateTeamworkBonus(assignedEmployees)

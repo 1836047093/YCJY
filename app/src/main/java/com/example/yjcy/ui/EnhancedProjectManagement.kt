@@ -44,7 +44,8 @@ enum class ProjectDisplayType(val displayName: String) {
     DEVELOPING("正在开发"),
     UPDATING("正在更新"),
     RELEASED("已发售"),
-    REMOVED("已下架")
+    REMOVED("已下架"),
+    SUBSIDIARY("子公司游戏")
 }
 
 // 为 ProjectDisplayType 创建自定义 Saver
@@ -186,6 +187,10 @@ fun EnhancedProjectManagementContent(
             }
             ProjectDisplayType.REMOVED -> games.filter {
                 it.releaseStatus == GameReleaseStatus.REMOVED_FROM_MARKET
+            }
+            ProjectDisplayType.SUBSIDIARY -> games.filter { game ->
+                // 从竞争对手公司收购来的游戏（id以inherited_开头）
+                game.id.startsWith("inherited_")
             }
         }
     }
@@ -377,6 +382,7 @@ fun EnhancedProjectManagementContent(
                                 ProjectDisplayType.UPDATING -> "暂无正在更新的游戏"
                                 ProjectDisplayType.RELEASED -> "暂无已发售的游戏"
                                 ProjectDisplayType.REMOVED -> "暂无已下架的游戏"
+                                ProjectDisplayType.SUBSIDIARY -> "暂无子公司游戏"
                             },
                             color = Color.White.copy(alpha = 0.7f),
                             fontSize = 16.sp
@@ -387,6 +393,7 @@ fun EnhancedProjectManagementContent(
                                 ProjectDisplayType.UPDATING -> "已发售游戏开始更新后将在此显示"
                                 ProjectDisplayType.RELEASED -> "完成游戏开发并发售后将在此显示"
                                 ProjectDisplayType.REMOVED -> "下架的游戏将在此显示"
+                                ProjectDisplayType.SUBSIDIARY -> "收购竞争对手公司后，其旗下的游戏将在此显示"
                             },
                             color = Color.White.copy(alpha = 0.5f),
                             fontSize = 14.sp

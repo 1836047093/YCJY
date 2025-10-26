@@ -55,7 +55,9 @@ enum class LeaderboardType(
 @Composable
 fun CompetitorContent(
     saveData: SaveData,
-    onAcquisitionSuccess: (CompetitorCompany, Long, Long, Int, List<CompetitorGame>) -> Unit = { _, _, _, _, _ -> }
+    gameSpeed: Int = 1,
+    onAcquisitionSuccess: (CompetitorCompany, Long, Long, Int, List<CompetitorGame>) -> Unit = { _, _, _, _, _ -> },
+    onAIWin: (CompetitorCompany, CompetitorCompany, Long) -> Unit = { _, _, _ -> } // AI获胜回调
 ) {
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("📊 排行榜", "📰 新闻", "🏢 对手")
@@ -116,7 +118,7 @@ fun CompetitorContent(
             when (selectedTab) {
                 0 -> LeaderboardContent(saveData)
                 1 -> NewsContent(saveData)
-                2 -> CompetitorsListContent(saveData, onAcquisitionSuccess)
+                2 -> CompetitorsListContent(saveData, onAcquisitionSuccess, onAIWin)
             }
         }
     }
@@ -1037,7 +1039,8 @@ fun NewsCard(news: CompetitorNews) {
 @Composable
 fun CompetitorsListContent(
     saveData: SaveData,
-    onAcquisitionSuccess: (CompetitorCompany, Long, Long, Int, List<CompetitorGame>) -> Unit = { _, _, _, _, _ -> }
+    onAcquisitionSuccess: (CompetitorCompany, Long, Long, Int, List<CompetitorGame>) -> Unit = { _, _, _, _, _ -> },
+    onAIWin: (CompetitorCompany, CompetitorCompany, Long) -> Unit = { _, _, _ -> } // AI获胜回调
 ) {
     var selectedCompetitor by remember { mutableStateOf<CompetitorCompany?>(null) }
     var showPlayerDetail by remember { mutableStateOf(false) }
@@ -1103,6 +1106,11 @@ fun CompetitorsListContent(
                 // 收购成功后关闭对话框，并触发外层回调
                 selectedCompetitor = null
                 onAcquisitionSuccess(company, price, marketValueGain, fansGain, games)
+            },
+            onAIWin = { acquirer, acquired, price ->
+                // AI获胜后关闭对话框，并触发外层回调
+                selectedCompetitor = null
+                onAIWin(acquirer, acquired, price)
             }
         )
     }
@@ -1249,7 +1257,9 @@ fun CompetitorDetailDialog(
     competitor: CompetitorCompany,
     onDismiss: () -> Unit,
     saveData: SaveData,
-    onAcquisitionSuccess: (CompetitorCompany, Long, Long, Int, List<CompetitorGame>) -> Unit = { _, _, _, _, _ -> }
+    gameSpeed: Int = 1,
+    onAcquisitionSuccess: (CompetitorCompany, Long, Long, Int, List<CompetitorGame>) -> Unit = { _, _, _, _, _ -> },
+    onAIWin: (CompetitorCompany, CompetitorCompany, Long) -> Unit = { _, _, _ -> } // AI获胜回调
 ) {
     var showAcquisitionDialog by remember { mutableStateOf(false) }
     val playerMarketValue = calculatePlayerMarketValue(saveData)
@@ -1379,11 +1389,17 @@ fun CompetitorDetailDialog(
             targetCompany = competitor,
             saveData = saveData,
             playerMarketValue = playerMarketValue,
+            gameSpeed = gameSpeed,
             onDismiss = { showAcquisitionDialog = false },
             onSuccess = { finalPrice, marketValueGain, fansGain, inheritedGames ->
                 showAcquisitionDialog = false
                 onDismiss()
                 onAcquisitionSuccess(competitor, finalPrice, marketValueGain, fansGain, inheritedGames)
+            },
+            onAIWin = { acquirer, acquired, price ->
+                showAcquisitionDialog = false
+                onDismiss()
+                onAIWin(acquirer, acquired, price)
             }
         )
     }
@@ -1690,8 +1706,10 @@ fun AcquisitionDialog(
     targetCompany: CompetitorCompany,
     saveData: SaveData,
     playerMarketValue: Long,
+    gameSpeed: Int = 1,
     onDismiss: () -> Unit,
-    onSuccess: (Long, Long, Int, List<CompetitorGame>) -> Unit
+    onSuccess: (Long, Long, Int, List<CompetitorGame>) -> Unit,
+    onAIWin: (CompetitorCompany, CompetitorCompany, Long) -> Unit = { _, _, _ -> } // AI获胜回调：(收购方, 被收购方, 价格)
 ) {
     // 检查资格
     val eligibilityStatus = remember {
@@ -1739,6 +1757,17 @@ fun AcquisitionDialog(
     
     // 初始化竞价和处理AI轮次
     LaunchedEffect(eligibilityStatus, triggerAIBidding) {
+        // 根据游戏速度计算AI竞价延迟时间
+        // 1x速度: 2000ms (2秒)
+        // 2x速度: 1000ms (1秒)
+        // 3x速度: 400ms (0.4秒)
+        val aiRoundDelay = when (gameSpeed) {
+            1 -> 2000L
+            2 -> 1000L
+            3 -> 400L
+            else -> 2000L
+        }
+        
         // AI竞价处理函数
         suspend fun processAIRound() {
             val (hasAIBid, newPrice, aiCompany) = com.example.yjcy.data.CompetitorManager.processAIBidding(
@@ -1758,8 +1787,8 @@ fun AcquisitionDialog(
                     amount = newPrice
                 )
                 
-                // 继续下一轮
-                kotlinx.coroutines.delay(2000)
+                // 继续下一轮（使用根据速度调整的延迟）
+                kotlinx.coroutines.delay(aiRoundDelay)
                 processAIRound()
             } else {
                 // 竞价结束
@@ -1785,7 +1814,13 @@ fun AcquisitionDialog(
                     kotlinx.coroutines.delay(1000)
                     onSuccess(currentPrice, marketValueGain, fansGain, inheritedGames)
                 } else {
-                    // 玩家失败
+                    // AI获胜 - 触发AI收购逻辑
+                    val winnerCompany = biddingCompetitors.find { it.name == currentLeader }
+                    if (winnerCompany != null) {
+                        // 调用AI获胜回调，传递收购方、被收购方、价格
+                        onAIWin(winnerCompany, targetCompany, currentPrice)
+                    }
+                    
                     resultMessage = "😞 收购失败\n\n" +
                         "${currentLeader} 以 ${formatMoney(currentPrice)} 的价格\n" +
                         "成功收购了 ${targetCompany.name}"
@@ -1822,14 +1857,20 @@ fun AcquisitionDialog(
             
             // 如果有竞争对手，开始AI竞价
             if (competitors.isNotEmpty()) {
-                kotlinx.coroutines.delay(1500)
+                val initialDelay = when (gameSpeed) {
+                    1 -> 1500L
+                    2 -> 750L
+                    3 -> 300L
+                    else -> 1500L
+                }
+                kotlinx.coroutines.delay(initialDelay)
                 processAIRound()
             }
         }
         
         // 玩家加价后触发AI竞价
         if (triggerAIBidding > 0 && biddingPhase == "bidding") {
-            kotlinx.coroutines.delay(2000)
+            kotlinx.coroutines.delay(aiRoundDelay)
             processAIRound()
         }
     }
@@ -1860,7 +1901,7 @@ fun AcquisitionDialog(
                         fontSize = 32.sp,
                         modifier = Modifier.padding(end = 12.dp)
                     )
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "收购 ${targetCompany.name}",
                             color = Color.White,
@@ -1872,6 +1913,20 @@ fun AcquisitionDialog(
                             color = Color.White.copy(alpha = 0.7f),
                             fontSize = 12.sp
                         )
+                    }
+                    // 关闭按钮
+                    if (biddingPhase == "finished" || biddingPhase == "checking") {
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Text(
+                                text = "✕",
+                                color = Color.White,
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
                 

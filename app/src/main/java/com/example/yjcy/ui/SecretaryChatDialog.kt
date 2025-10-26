@@ -38,21 +38,16 @@ import kotlinx.coroutines.launch
 
 /**
  * 秘书聊天对话框（类似宣传中心样式）
+ * @param messages 聊天记录列表（从外部传入，对话框关闭后不会丢失）
+ * @param onMessagesChange 更新聊天记录的回调
+ * @param onDismiss 关闭对话框回调
  */
 @Composable
 fun SecretaryChatDialog(
+    messages: List<ChatMessage>,
+    onMessagesChange: (List<ChatMessage>) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var messages by remember { 
-        mutableStateOf<List<ChatMessage>>(
-            listOf(
-                ChatMessage(
-                    sender = MessageSender.SECRETARY,
-                    content = SecretaryReplyManager.WELCOME_MESSAGE
-                )
-            )
-        ) 
-    }
     var inputText by remember { mutableStateOf("") }
     var isTyping by remember { mutableStateOf(false) }
     
@@ -242,7 +237,7 @@ fun SecretaryChatDialog(
                                         sender = MessageSender.SECRETARY,
                                         content = "⚠️ 检测到敏感词，请不要讨论政治相关话题哦，老板！"
                                     )
-                                    messages = messages + warningMessage
+                                    onMessagesChange(messages + warningMessage)
                                     inputText = "" // 清空输入框
                                     return@IconButton
                                 }
@@ -252,7 +247,7 @@ fun SecretaryChatDialog(
                                     sender = MessageSender.PLAYER,
                                     content = messageContent
                                 )
-                                messages = messages + playerMessage
+                                onMessagesChange(messages + playerMessage)
                                 
                                 // 清空输入框
                                 inputText = ""
@@ -269,7 +264,7 @@ fun SecretaryChatDialog(
                                         sender = MessageSender.SECRETARY,
                                         content = reply
                                     )
-                                    messages = messages + secretaryMessage
+                                    onMessagesChange(messages + secretaryMessage)
                                 }
                             }
                         },

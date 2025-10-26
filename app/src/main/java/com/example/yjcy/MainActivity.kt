@@ -91,6 +91,7 @@ import com.example.yjcy.ui.ServerManagementContent
 import com.example.yjcy.ui.theme.YjcyTheme
 import com.example.yjcy.utils.formatMoney
 import com.example.yjcy.utils.formatMoneyWithDecimals
+import com.example.yjcy.utils.calculateGameYear
 import com.example.yjcy.service.JobPostingService
 import com.example.yjcy.service.CustomerServiceManager
 import com.example.yjcy.data.getUpdateContentName
@@ -110,6 +111,13 @@ import com.example.yjcy.ui.CompetitorContent
 import com.example.yjcy.ui.calculatePlayerMarketValue
 import com.example.yjcy.ui.SecretaryChatScreen
 import com.example.yjcy.ui.SecretaryChatDialog
+import com.example.yjcy.data.ChatMessage
+import com.example.yjcy.data.MessageSender
+import com.example.yjcy.data.SecretaryReplyManager
+import com.example.yjcy.ui.rememberTutorialState
+import com.example.yjcy.ui.TutorialDialog
+import com.example.yjcy.ui.TutorialTrigger
+import com.example.yjcy.data.TutorialId
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import dagger.hilt.android.AndroidEntryPoint
@@ -1200,6 +1208,16 @@ fun GameScreen(
     // 秘书聊天对话框状态
     var showSecretaryChat by remember { mutableStateOf(false) }
     
+    // 秘书聊天记录状态（保存在GameScreen级别，对话框关闭后不会丢失）
+    val chatMessages = remember { 
+        mutableStateListOf<ChatMessage>(
+            ChatMessage(
+                sender = MessageSender.SECRETARY,
+                content = SecretaryReplyManager.WELCOME_MESSAGE
+            )
+        )
+    }
+    
     // 员工状态管理 - 提升到GameScreen级别
     val allEmployees = remember { mutableStateListOf<Employee>() }
     
@@ -1215,6 +1233,12 @@ fun GameScreen(
     var unlockedAchievements by remember { mutableStateOf(saveData?.unlockedAchievements ?: emptyList()) }
     var pendingAchievementsToShow by remember { mutableStateOf<List<Achievement>>(emptyList()) }
     var hasCheckedInitialAchievements by remember { mutableStateOf(false) }
+    
+    // 教程系统状态
+    val tutorialState = rememberTutorialState(
+        completedTutorials = saveData?.completedTutorials ?: emptySet(),
+        skipTutorial = saveData?.skipTutorial ?: false
+    )
     
     // 获取待处理的应聘者数量
     val jobPostingService = remember { JobPostingService.getInstance() }
@@ -1892,6 +1916,7 @@ fun GameScreen(
                                 serverData = RevenueManager.exportServerData(),
                                 revenueData = RevenueManager.exportRevenueData()
                             ),
+                            gameSpeed = gameSpeed,
                             onAcquisitionSuccess = { acquiredCompany, finalPrice, marketValueGain, fansGain, inheritedGames ->
                                 // 扣除收购费用
                                 money -= finalPrice
@@ -1939,6 +1964,48 @@ fun GameScreen(
                                         type = com.example.yjcy.data.NewsType.COMPANY_MILESTONE,
                                         companyId = -1,
                                         companyName = companyName,
+                                        year = currentYear,
+                                        month = currentMonth,
+                                        day = currentDay
+                                    )
+                                ) + competitorNews).take(30)
+                            },
+                            onAIWin = { acquirer: com.example.yjcy.data.CompetitorCompany, acquired: com.example.yjcy.data.CompetitorCompany, price: Long ->
+                                // AI竞争对手收购成功
+                                
+                                // 1. 移除被收购的公司
+                                competitors = competitors.filter { it.id != acquired.id }
+                                
+                                // 2. 更新收购方公司的数据
+                                val (marketValueGain, fansGain, inheritedGames) = 
+                                    com.example.yjcy.data.CompetitorManager.completeAcquisition(
+                                        targetCompany = acquired,
+                                        finalPrice = price
+                                    )
+                                
+                                competitors = competitors.map { company ->
+                                    if (company.id == acquirer.id) {
+                                        // 更新收购方：增加市值、粉丝、游戏
+                                        company.copy(
+                                            marketValue = company.marketValue + marketValueGain,
+                                            fans = company.fans + fansGain,
+                                            games = company.games + inheritedGames
+                                        )
+                                    } else {
+                                        company
+                                    }
+                                }
+                                
+                                // 3. 生成收购新闻
+                                competitorNews = (listOf(
+                                    com.example.yjcy.data.CompetitorNews(
+                                        id = "news_${System.currentTimeMillis()}_${kotlin.random.Random.nextInt()}",
+                                        title = "${acquirer.name}成功收购${acquired.name}！",
+                                        content = "${acquirer.name}以${com.example.yjcy.utils.formatMoney(price)}的价格成功收购了${acquired.name}，" +
+                                                "继承了${inheritedGames.size}款热门游戏。这是游戏行业的一次重大并购事件。",
+                                        type = com.example.yjcy.data.NewsType.COMPANY_MILESTONE,
+                                        companyId = acquirer.id,
+                                        companyName = acquirer.name,
                                         year = currentYear,
                                         month = currentMonth,
                                         day = currentDay
@@ -2420,7 +2487,9 @@ fun GameScreen(
                             competitorNews = competitorNews,
                             complaints = complaints,
                             autoProcessComplaints = autoProcessComplaints,
-                            unlockedAchievements = unlockedAchievements
+                            unlockedAchievements = unlockedAchievements,
+                            completedTutorials = tutorialState.getCompletedTutorialsForSave(),
+                            skipTutorial = tutorialState.skipTutorial.value
                         )
                     }
                 }
@@ -2430,9 +2499,58 @@ fun GameScreen(
         // 秘书聊天对话框
         if (showSecretaryChat) {
             SecretaryChatDialog(
+                messages = chatMessages,
+                onMessagesChange = { newMessages ->
+                    chatMessages.clear()
+                    chatMessages.addAll(newMessages)
+                },
                 onDismiss = { showSecretaryChat = false }
             )
         }
+        
+        // 功能介绍对话框
+        if (tutorialState.showTutorialDialog.value && tutorialState.currentTutorialId.value != null) {
+            TutorialDialog(
+                tutorialId = tutorialState.currentTutorialId.value!!,
+                onDismiss = { tutorialState.dismissTutorial() },
+                onComplete = { tutorialState.completeTutorial() }
+            )
+        }
+        
+        // 公司概览教程触发器
+        TutorialTrigger(
+            tutorialId = TutorialId.COMPANY_OVERVIEW_INTRO,
+            tutorialState = tutorialState,
+            enabled = selectedTab == 0 && saveData == null // 只在新游戏且进入公司概览时触发
+        )
+        
+        // 员工管理教程触发器
+        TutorialTrigger(
+            tutorialId = TutorialId.EMPLOYEE_MANAGEMENT_INTRO,
+            tutorialState = tutorialState,
+            enabled = selectedTab == 1 // 进入员工管理时触发
+        )
+        
+        // 项目管理教程触发器
+        TutorialTrigger(
+            tutorialId = TutorialId.PROJECT_MANAGEMENT_INTRO,
+            tutorialState = tutorialState,
+            enabled = selectedTab == 2 // 进入项目管理时触发
+        )
+        
+        // 竞争对手教程触发器
+        TutorialTrigger(
+            tutorialId = TutorialId.COMPETITOR_INTRO,
+            tutorialState = tutorialState,
+            enabled = selectedTab == 3 // 进入竞争对手时触发
+        )
+        
+        // 服务器管理教程触发器
+        TutorialTrigger(
+            tutorialId = TutorialId.SERVER_MANAGEMENT_INTRO,
+            tutorialState = tutorialState,
+            enabled = selectedTab == 4 // 进入服务器管理时触发
+        )
         
         // 成就解锁弹窗
         if (pendingAchievementsToShow.isNotEmpty()) {
@@ -2789,11 +2907,18 @@ fun CompanyOverviewContent(
             releasedGames.filter { it.businessModel == BusinessModel.SINGLE_PLAYER }.forEach { game ->
                 val revenue = RevenueManager.getGameRevenue(game.id)
                 if (revenue != null && revenue.dailySalesList.isNotEmpty()) {
-                    // 筛选该年份的数据（基于索引：前365天是第1年，365-730天是第2年，以此类推）
-                    val startIndex = (selectedFinancialYear - 1) * 365
-                    val endIndex = selectedFinancialYear * 365
+                    // 筛选该年份的数据（基于date字段计算游戏内年份）
                     val yearRevenue = revenue.dailySalesList
-                        .filterIndexed { index, _ -> index in startIndex until endIndex }
+                        .filter { dailySales ->
+                            // 根据游戏上线日期计算游戏内年份
+                            val gameYear = calculateGameYear(
+                                releaseYear = revenue.releaseYear,
+                                releaseMonth = revenue.releaseMonth,
+                                releaseDay = revenue.releaseDay,
+                                recordDate = dailySales.date
+                            )
+                            gameYear == selectedFinancialYear
+                        }
                         .sumOf { it.revenue }
                     singlePlayerRevenue += yearRevenue
                 }
@@ -2804,11 +2929,18 @@ fun CompanyOverviewContent(
             releasedGames.filter { it.businessModel == BusinessModel.ONLINE_GAME }.forEach { game ->
                 val revenue = RevenueManager.getGameRevenue(game.id)
                 if (revenue != null && revenue.dailySalesList.isNotEmpty()) {
-                    // 筛选该年份的数据（基于索引：前365天是第1年，365-730天是第2年，以此类推）
-                    val startIndex = (selectedFinancialYear - 1) * 365
-                    val endIndex = selectedFinancialYear * 365
+                    // 筛选该年份的数据（基于date字段计算游戏内年份）
                     val yearRevenue = revenue.dailySalesList
-                        .filterIndexed { index, _ -> index in startIndex until endIndex }
+                        .filter { dailySales ->
+                            // 根据游戏上线日期计算游戏内年份
+                            val gameYear = calculateGameYear(
+                                releaseYear = revenue.releaseYear,
+                                releaseMonth = revenue.releaseMonth,
+                                releaseDay = revenue.releaseDay,
+                                recordDate = dailySales.date
+                            )
+                            gameYear == selectedFinancialYear
+                        }
                         .sumOf { it.revenue }
                     onlineGameRevenue += yearRevenue
                 }
@@ -2923,7 +3055,7 @@ fun CompanyInfoCardWithYearSelector(
     onYearChange: (Int) -> Unit,
     items: List<Pair<String, String>>
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var showYearDialog by remember { mutableStateOf(false) }
     
     Box(
         modifier = Modifier
@@ -2951,56 +3083,100 @@ fun CompanyInfoCardWithYearSelector(
                     fontWeight = FontWeight.Bold
                 )
                 
-                // 年份选择下拉框
-                Box {
-                    OutlinedButton(
-                        onClick = { expanded = !expanded },
-                        modifier = Modifier.height(36.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = Color.White.copy(alpha = 0.1f),
-                            contentColor = Color.White
-                        ),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f)),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text(
-                            text = "第${selectedYear}年",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = if (expanded) "▲" else "▼",
-                            fontSize = 10.sp
-                        )
-                    }
-                    
-                    DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false },
+                // 年份选择按钮
+                OutlinedButton(
+                    onClick = { showYearDialog = true },
+                    modifier = Modifier.height(36.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color.White.copy(alpha = 0.1f),
+                        contentColor = Color.White
+                    ),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f)),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "第${selectedYear}年",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "▼",
+                        fontSize = 10.sp
+                    )
+                }
+            }
+            
+            // 年份选择对话框
+            if (showYearDialog) {
+                Dialog(onDismissRequest = { showYearDialog = false }) {
+                    Box(
                         modifier = Modifier
-                            .background(Color(0xFF1F2937))
-                            .widthIn(min = 120.dp)
-                    ) {
-                        // 从第1年到当前年份
-                        (1..currentYear).reversed().forEach { year ->
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = "第${year}年",
-                                        color = if (year == selectedYear) Color(0xFFF59E0B) else Color.White,
-                                        fontSize = 14.sp,
-                                        fontWeight = if (year == selectedYear) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                },
-                                onClick = {
-                                    onYearChange(year)
-                                    expanded = false
-                                },
-                                modifier = Modifier.background(
-                                    if (year == selectedYear) Color.White.copy(alpha = 0.1f) else Color.Transparent
-                                )
+                            .fillMaxWidth(0.8f)
+                            .background(
+                                color = Color(0xFF1F2937),
+                                shape = RoundedCornerShape(16.dp)
                             )
+                            .padding(16.dp)
+                    ) {
+                        Column {
+                            Text(
+                                text = "选择年份",
+                                color = Color.White,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(bottom = 16.dp)
+                            )
+                            
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 400.dp)
+                            ) {
+                                items((1..currentYear).reversed().toList()) { year ->
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(
+                                                color = if (year == selectedYear) 
+                                                    Color(0xFFF59E0B).copy(alpha = 0.2f) 
+                                                else 
+                                                    Color.Transparent,
+                                                shape = RoundedCornerShape(8.dp)
+                                            )
+                                            .clickable {
+                                                onYearChange(year)
+                                                showYearDialog = false
+                                            }
+                                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                                    ) {
+                                        Text(
+                                            text = "第${year}年",
+                                            color = if (year == selectedYear) Color(0xFFF59E0B) else Color.White,
+                                            fontSize = 16.sp,
+                                            fontWeight = if (year == selectedYear) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    }
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            Button(
+                                onClick = { showYearDialog = false },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFFF59E0B)
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = "关闭",
+                                    color = Color.White,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }
@@ -3171,18 +3347,28 @@ fun ContinueScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(true) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var saveToDelete by remember { mutableStateOf<Pair<Int, SaveData?>?>(null) }
-    var showVersionWarningDialog by remember { mutableStateOf(false) }
-    var saveToLoad by remember { mutableStateOf<Pair<Int, SaveData>?>(null) }
+    var refreshKey by remember { mutableStateOf(0) }
     val coroutineScope = rememberCoroutineScope()
     
-    // 当前游戏版本（自动从BuildConfig读取）
-    val currentVersion = BuildConfig.VERSION_NAME
-    
-    // 异步加载存档
-    LaunchedEffect(Unit) {
+    // 异步加载存档 - 使用refreshKey作为key，确保每次显示都重新加载
+    LaunchedEffect(refreshKey) {
         isLoading = true
         saves = saveManager.getAllSavesAsync()
         isLoading = false
+    }
+    
+    // 监听导航状态，当界面重新可见时刷新存档列表
+    DisposableEffect(navController) {
+        val listener = NavController.OnDestinationChangedListener { controller, destination, _ ->
+            if (destination.route == "continue") {
+                refreshKey++
+            }
+        }
+        navController.addOnDestinationChangedListener(listener)
+        
+        onDispose {
+            navController.removeOnDestinationChangedListener(listener)
+        }
     }
     
     Box(
@@ -3241,18 +3427,10 @@ fun ContinueScreen(navController: NavController) {
                         slotIndex = slotIndex,
                         saveData = saves[slotIndex],
                         onLoadSave = { saveData ->
-                            // 检查存档版本号
-                            val saveVersion = saveData.version
-                            if (compareVersion(saveVersion, currentVersion) < 0) {
-                                // 存档版本低于当前版本，显示警告对话框
-                                saveToLoad = Pair(slotIndex, saveData)
-                                showVersionWarningDialog = true
-                            } else {
-                                // 版本号正常，直接加载
-                                currentLoadedSaveData = saveData
-                                Toast.makeText(context, "加载存档 $slotIndex", Toast.LENGTH_SHORT).show()
-                                navController.navigate("game/${saveData.companyName}/${saveData.founderName}/${saveData.companyLogo}/${saveData.founderProfession?.name ?: "PROGRAMMER"}")
-                            }
+                            // 直接加载存档，不再进行版本检查
+                            currentLoadedSaveData = saveData
+                            Toast.makeText(context, "加载存档 $slotIndex", Toast.LENGTH_SHORT).show()
+                            navController.navigate("game/${saveData.companyName}/${saveData.founderName}/${saveData.companyLogo}/${saveData.founderProfession?.name ?: "PROGRAMMER"}")
                         },
                         onDeleteSave = {
                             saveToDelete = Pair(slotIndex, saves[slotIndex])
@@ -3302,27 +3480,6 @@ fun ContinueScreen(navController: NavController) {
                 onDismiss = {
                     showDeleteConfirmDialog = false
                     saveToDelete = null
-                }
-            )
-        }
-        
-        // 版本号警告对话框
-        if (showVersionWarningDialog && saveToLoad != null) {
-            VersionWarningDialog(
-                slotIndex = saveToLoad!!.first,
-                saveData = saveToLoad!!.second,
-                currentVersion = currentVersion,
-                onConfirm = {
-                    // 用户确认后继续加载
-                    currentLoadedSaveData = saveToLoad!!.second
-                    Toast.makeText(context, "加载存档 ${saveToLoad!!.first}", Toast.LENGTH_SHORT).show()
-                    navController.navigate("game/${saveToLoad!!.second.companyName}/${saveToLoad!!.second.founderName}/${saveToLoad!!.second.companyLogo}/${saveToLoad!!.second.founderProfession?.name ?: "PROGRAMMER"}")
-                    showVersionWarningDialog = false
-                    saveToLoad = null
-                },
-                onDismiss = {
-                    showVersionWarningDialog = false
-                    saveToLoad = null
                 }
             )
         }
@@ -3819,183 +3976,6 @@ fun SettingsScreen(navController: NavController) {
     }
 }
 
-/**
- * 比较两个版本号
- * @return 如果version1 < version2返回负数，相等返回0，大于返回正数
- */
-fun compareVersion(version1: String, version2: String): Int {
-    val v1Parts = version1.split(".").map { it.toIntOrNull() ?: 0 }
-    val v2Parts = version2.split(".").map { it.toIntOrNull() ?: 0 }
-    
-    val maxLength = maxOf(v1Parts.size, v2Parts.size)
-    for (i in 0 until maxLength) {
-        val v1 = v1Parts.getOrNull(i) ?: 0
-        val v2 = v2Parts.getOrNull(i) ?: 0
-        if (v1 != v2) {
-            return v1 - v2
-        }
-    }
-    return 0
-}
-
-@Composable
-fun VersionWarningDialog(
-    slotIndex: Int,
-    saveData: SaveData,
-    currentVersion: String,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = "⚠️",
-                    fontSize = 24.sp
-                )
-                Text(
-                    text = "存档版本警告",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                )
-            }
-        },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFFFEF3C7).copy(alpha = 0.1f)
-                    ),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = "存档版本: ${saveData.version}",
-                            color = Color(0xFFFBBF24),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = "当前版本: $currentVersion",
-                            color = Color(0xFF10B981),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-                
-                Text(
-                    text = "当前存档版本低于最新版，可能会出现以下问题：",
-                    color = Color.White.copy(alpha = 0.9f),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = "•",
-                            color = Color(0xFFFBBF24),
-                            fontSize = 14.sp
-                        )
-                        Text(
-                            text = "旧存档游戏数据可能受到影响",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 13.sp
-                        )
-                    }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = "•",
-                            color = Color(0xFFFBBF24),
-                            fontSize = 14.sp
-                        )
-                        Text(
-                            text = "无法体验新版本的玩法或功能",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 13.sp
-                        )
-                    }
-                }
-                
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFF10B981).copy(alpha = 0.1f)
-                    ),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "💡",
-                            fontSize = 16.sp
-                        )
-                        Text(
-                            text = "建议开启新档游玩以获得最佳体验",
-                            color = Color(0xFF10B981),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Card(
-                modifier = Modifier.clickable { onConfirm() },
-                colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFFFBBF24).copy(alpha = 0.2f)
-                ),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text(
-                    text = "仍然加载",
-                    color = Color(0xFFFBBF24),
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        },
-        dismissButton = {
-            Card(
-                modifier = Modifier.clickable { onDismiss() },
-                colors = CardDefaults.cardColors(
-                    containerColor = Color.White.copy(alpha = 0.1f)
-                ),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text(
-                    text = "取消",
-                    color = Color.White,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        },
-        containerColor = Color(0xFF1F2937),
-        shape = RoundedCornerShape(16.dp)
-    )
-}
-
 // 存档管理类（异步版本，支持数据清理和压缩）
 class SaveManager(context: Context) {
     private val sharedPreferences = context.getSharedPreferences("game_saves", Context.MODE_PRIVATE)
@@ -4251,13 +4231,14 @@ fun InGameSettingsContent(
     competitorNews: List<CompetitorNews> = emptyList(),
     complaints: List<Complaint> = emptyList(),
     autoProcessComplaints: Boolean = false,
-    unlockedAchievements: List<UnlockedAchievement> = emptyList()
+    unlockedAchievements: List<UnlockedAchievement> = emptyList(),
+    completedTutorials: Set<String> = emptySet(), // 新增：教程进度
+    skipTutorial: Boolean = false // 新增：跳过教程状态
 ) {
     val context = LocalContext.current
     val saveManager = remember { SaveManager(context) }
     var showSaveDialog by remember { mutableStateOf(false) }
     var showExitConfirmDialog by remember { mutableStateOf(false) }
-    var shouldReturnToMenuAfterSave by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
     var isLoadingSaveSlots by remember { mutableStateOf(false) }
     var saveSlots by remember { mutableStateOf<Map<Int, SaveData?>>(emptyMap()) }
@@ -4274,9 +4255,11 @@ fun InGameSettingsContent(
             onClick = {
                 isLoadingSaveSlots = true
                 showSaveDialog = true
+                Log.d("GameSave", "打开保存对话框，开始加载存档列表")
                 // 异步加载存档列表
                 coroutineScope.launch {
                     saveSlots = saveManager.getAllSavesAsync()
+                    Log.d("GameSave", "存档列表加载完成: slot1=${saveSlots[1] != null}, slot2=${saveSlots[2] != null}, slot3=${saveSlots[3] != null}")
                     isLoadingSaveSlots = false
                 }
             },
@@ -4406,13 +4389,17 @@ fun InGameSettingsContent(
                                 complaints = complaints, // 保存客诉数据
                                 autoProcessComplaints = autoProcessComplaints, // 保存自动处理开关状态
                                 unlockedAchievements = unlockedAchievements, // 保存已解锁成就
+                                completedTutorials = completedTutorials, // 保存已完成教程
+                                skipTutorial = skipTutorial, // 保存跳过教程状态
                                 saveTime = System.currentTimeMillis(),
                                 version = BuildConfig.VERSION_NAME // 使用当前游戏版本号
                             )
                             val slotToSave = selectedSlotNumber
                             isSaving = true
+                            Log.d("GameSave", "开始保存游戏到存档位 $slotToSave（覆盖模式）")
                             coroutineScope.launch {
                                 val result = saveManager.saveGameAsync(slotToSave, saveData)
+                                Log.d("GameSave", "保存结果: success=${result.success}, error=${result.errorMessage}")
                                 withContext(Dispatchers.Main) {
                                     isSaving = false
                                     if (result.success) {
@@ -4421,13 +4408,10 @@ fun InGameSettingsContent(
                                         } else 0.0
                                         val message = "游戏已保存！\n压缩前: ${String.format("%.1f", result.originalSizeKB)} KB\n压缩后: ${String.format("%.1f", result.compressedSizeKB)} KB\n压缩率: ${String.format("%.1f", compressionRatio)}%"
                                         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                                        // 重新加载存档列表以更新UI
+                                        saveSlots = saveManager.getAllSavesAsync()
                                         showSaveDialog = false
                                         showOverwriteConfirmDialog = false
-                                        // 如果需要在保存后返回主菜单
-                                        if (shouldReturnToMenuAfterSave) {
-                                            shouldReturnToMenuAfterSave = false
-                                            navController.navigate("main_menu")
-                                        }
                                     } else {
                                         Toast.makeText(context, result.errorMessage ?: "保存失败，请重试", Toast.LENGTH_LONG).show()
                                     }
@@ -4523,12 +4507,16 @@ fun InGameSettingsContent(
                                             complaints = complaints, // 保存客诉数据
                                             autoProcessComplaints = autoProcessComplaints, // 保存自动处理开关状态
                                             unlockedAchievements = unlockedAchievements, // 保存已解锁成就
+                                            completedTutorials = completedTutorials, // 保存已完成教程
+                                            skipTutorial = skipTutorial, // 保存跳过教程状态
                                             saveTime = System.currentTimeMillis(),
                                             version = BuildConfig.VERSION_NAME // 使用当前游戏版本号
                                         )
                                         isSaving = true
+                                        Log.d("GameSave", "开始保存游戏到存档位 $slotNumber（新存档）")
                                         coroutineScope.launch {
                                             val result = saveManager.saveGameAsync(slotNumber, saveData)
+                                            Log.d("GameSave", "保存结果: success=${result.success}, error=${result.errorMessage}")
                                             withContext(Dispatchers.Main) {
                                                 isSaving = false
                                                 if (result.success) {
@@ -4537,12 +4525,9 @@ fun InGameSettingsContent(
                                                     } else 0.0
                                                     val message = "游戏已保存！\n压缩前: ${String.format("%.1f", result.originalSizeKB)} KB\n压缩后: ${String.format("%.1f", result.compressedSizeKB)} KB\n压缩率: ${String.format("%.1f", compressionRatio)}%"
                                                     Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                                                    // 重新加载存档列表以更新UI
+                                                    saveSlots = saveManager.getAllSavesAsync()
                                                     showSaveDialog = false
-                                                    // 如果需要在保存后返回主菜单
-                                                    if (shouldReturnToMenuAfterSave) {
-                                                        shouldReturnToMenuAfterSave = false
-                                                        navController.navigate("main_menu")
-                                                    }
                                                 } else {
                                                     Toast.makeText(context, result.errorMessage ?: "保存失败，请重试", Toast.LENGTH_LONG).show()
                                                 }
@@ -4620,40 +4605,21 @@ fun InGameSettingsContent(
             },
             text = {
                 Text(
-                    text = "当前游戏进度尚未保存，是否要先保存游戏再返回主菜单？",
+                    text = "确定要返回主菜单吗？\n\n💡 提示：请记得使用「保存游戏」按钮保存进度",
                     color = Color.White.copy(alpha = 0.8f)
                 )
             },
             confirmButton = {
-                Row {
-                    // 保存并返回按钮
-                    TextButton(
-                        onClick = {
-                            showExitConfirmDialog = false
-                            shouldReturnToMenuAfterSave = true
-                            showSaveDialog = true
-                        }
-                    ) {
-                        Text(
-                            text = "保存并返回",
-                            color = Color(0xFF10B981)
-                        )
+                TextButton(
+                    onClick = {
+                        showExitConfirmDialog = false
+                        navController.navigate("main_menu")
                     }
-                    
-                    Spacer(modifier = Modifier.width(8.dp))
-                    
-                    // 直接返回按钮
-                    TextButton(
-                        onClick = {
-                            showExitConfirmDialog = false
-                            navController.navigate("main_menu")
-                        }
-                    ) {
-                        Text(
-                            text = "直接返回",
-                            color = Color(0xFFEF4444)
-                        )
-                    }
+                ) {
+                    Text(
+                        text = "返回",
+                        color = Color(0xFFEF4444)
+                    )
                 }
             },
             dismissButton = {

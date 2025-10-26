@@ -553,6 +553,8 @@ data class SaveData(
     val complaints: List<Complaint> = emptyList(), // 客诉列表
     val autoProcessComplaints: Boolean = false, // 新增：自动处理客诉开关（默认关闭）
     val unlockedAchievements: List<UnlockedAchievement> = emptyList(), // 新增：已解锁的成就列表
+    val completedTutorials: Set<String> = emptySet(), // 新增：已完成的教程ID集合（使用String存储以便序列化）
+    val skipTutorial: Boolean = false, // 新增：是否跳过所有教程（默认不跳过）
     val saveTime: Long = System.currentTimeMillis(),
     val version: String = "1.0.0" // 存档版本号（创建时会被覆盖为当前版本）
 )
