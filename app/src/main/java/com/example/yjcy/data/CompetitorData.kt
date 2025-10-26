@@ -77,7 +77,10 @@ data class CompetitorGame(
     val releaseYear: Int = 1, // 发售年份
     val releaseMonth: Int = 1, // 发售月份
     val totalRevenue: Double = 0.0, // 累计总收入
-    val monetizationRevenue: Double = 0.0 // 累计付费内容收入（仅网游）
+    val monetizationRevenue: Double = 0.0, // 累计付费内容收入（仅网游）
+    val currentTournament: EsportsTournament? = null, // 当前进行中的赛事
+    val lastTournamentDate: GameDate? = null, // 上次举办赛事的日期
+    val tournamentHistory: List<EsportsTournament>? = emptyList() // 赛事历史记录
 )
 
 /**
@@ -447,14 +450,16 @@ object CompetitorManager {
                 )
             }
             
-            // AI举办电竞赛事
-            val tournamentNews = tryHostTournamentForCompetitor(
-                company, 
+            // AI举办电竞赛事并更新游戏进度
+            val (gamesAfterTournament, tournamentNews) = updateCompetitorTournaments(
                 updatedGames,
+                company,
                 currentYear, 
                 currentMonth, 
                 currentDay
             )
+            updatedGames.clear()
+            updatedGames.addAll(gamesAfterTournament)
             if (tournamentNews != null) {
                 newsList.add(tournamentNews)
             }
@@ -865,8 +870,88 @@ object CompetitorManager {
     }
     
     /**
+     * 更新竞争对手的赛事进度并尝试举办新赛事
+     */
+    private fun updateCompetitorTournaments(
+        games: List<CompetitorGame>,
+        company: CompetitorCompany,
+        currentYear: Int,
+        currentMonth: Int,
+        currentDay: Int
+    ): Pair<List<CompetitorGame>, CompetitorNews?> {
+        val updatedGames = mutableListOf<CompetitorGame>()
+        var tournamentNews: CompetitorNews? = null
+        
+        for (game in games) {
+            var updatedGame = game
+            
+            // 更新进行中的赛事
+            game.currentTournament?.let { tournament ->
+                if (tournament.status == TournamentStatus.ONGOING) {
+                    val newDay = tournament.currentDay + 1
+                    
+                    if (newDay >= tournament.type.duration) {
+                        // 赛事结束，设置为完成状态
+                        val completedTournament = tournament.copy(
+                            status = TournamentStatus.COMPLETED,
+                            currentDay = tournament.type.duration
+                        )
+                        
+                        // 添加到历史记录
+                        val history = game.tournamentHistory?.toMutableList() ?: mutableListOf()
+                        history.add(0, completedTournament)
+                        if (history.size > 5) {
+                            history.removeAt(history.size - 1)
+                        }
+                        
+                        updatedGame = game.copy(
+                            currentTournament = null,
+                            tournamentHistory = history
+                        )
+                    } else {
+                        // 继续进行
+                        updatedGame = game.copy(
+                            currentTournament = tournament.copy(currentDay = newDay)
+                        )
+                    }
+                }
+            }
+            
+            updatedGames.add(updatedGame)
+        }
+        
+        // 尝试举办新赛事
+        val newsAndGame = tryHostTournamentForCompetitor(
+            company, 
+            updatedGames,
+            currentYear, 
+            currentMonth, 
+            currentDay
+        )
+        
+        if (newsAndGame != null) {
+            val (selectedGameId, selectedTournament, news) = newsAndGame
+            // 更新对应游戏的赛事信息
+            val finalGames = updatedGames.map { game ->
+                if (game.id == selectedGameId) {
+                    game.copy(
+                        currentTournament = selectedTournament,
+                        lastTournamentDate = GameDate(currentYear, currentMonth, currentDay)
+                    )
+                } else {
+                    game
+                }
+            }
+            return Pair(finalGames, news)
+        }
+        
+        return Pair(updatedGames, null)
+    }
+    
+    /**
      * AI竞争对手尝试举办赛事
      * 每月调用，5-10%概率举办
+     * @return Triple(游戏ID, 赛事对象, 新闻) 或 null
      */
     private fun tryHostTournamentForCompetitor(
         company: CompetitorCompany,
@@ -874,8 +959,8 @@ object CompetitorManager {
         currentYear: Int,
         currentMonth: Int,
         currentDay: Int
-    ): CompetitorNews? {
-        // 筛选可以举办赛事的游戏（竞技类网游，评分≥6.0，活跃玩家≥1万）
+    ): Triple<String, EsportsTournament, CompetitorNews>? {
+        // 筛选可以举办赛事的游戏（竞技类网游，评分≥6.0，活跃玩家≥1万，且没有进行中的赛事）
         val eligibleGames = games.filter { game ->
             // 必须是竞技类游戏
             val isCompetitive = game.theme in listOf(
@@ -891,8 +976,10 @@ object CompetitorManager {
             val goodRating = game.rating >= 6.0f
             // 活跃玩家≥1万
             val enoughPlayers = game.activePlayers >= 10000L
+            // 没有进行中的赛事
+            val noOngoingTournament = game.currentTournament == null
             
-            isCompetitive && isOnline && goodRating && enoughPlayers
+            isCompetitive && isOnline && goodRating && enoughPlayers && noOngoingTournament
         }
         
         if (eligibleGames.isEmpty()) {
@@ -934,8 +1021,23 @@ object CompetitorManager {
             else -> TournamentType.REGIONAL
         }
         
+        // 创建赛事对象
+        val tournament = EsportsTournament(
+            id = "comp_tournament_${System.currentTimeMillis()}_${Random.nextInt()}",
+            gameId = selectedGame.id,
+            gameName = selectedGame.name,
+            type = tournamentType,
+            status = TournamentStatus.ONGOING,
+            startYear = currentYear,
+            startMonth = currentMonth,
+            startDay = currentDay,
+            currentDay = 1,
+            investment = tournamentType.baseCost,
+            champion = ""
+        )
+        
         // 生成赛事新闻
-        return CompetitorNews(
+        val news = CompetitorNews(
             id = "news_tournament_${System.currentTimeMillis()}_${Random.nextInt()}",
             title = "${company.name}为《${selectedGame.name}》举办${tournamentType.displayName}！",
             content = "${company.name}宣布将为旗下热门游戏《${selectedGame.name}》举办${tournamentType.displayName}，" +
@@ -950,6 +1052,8 @@ object CompetitorManager {
             month = currentMonth,
             day = currentDay
         )
+        
+        return Triple(selectedGame.id, tournament, news)
     }
     
     /**

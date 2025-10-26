@@ -26,6 +26,7 @@ fun GVAScreen(
     onBack: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(0) }
+    var showHelpDialog by remember { mutableStateOf(false) }
     
     Column(
         modifier = Modifier
@@ -33,7 +34,10 @@ fun GVAScreen(
             .background(Color(0xFF1a1a2e))
     ) {
         // 顶部标题栏
-        GVATopBar(onBack = onBack)
+        GVATopBar(
+            onBack = onBack,
+            onHelp = { showHelpDialog = true }
+        )
         
         // 标签页
         PrimaryScrollableTabRow(
@@ -66,13 +70,18 @@ fun GVAScreen(
             2 -> ReputationTab(saveData)
         }
     }
+    
+    // 功能介绍对话框
+    if (showHelpDialog) {
+        GVAHelpDialog(onDismiss = { showHelpDialog = false })
+    }
 }
 
 /**
  * 顶部标题栏
  */
 @Composable
-private fun GVATopBar(onBack: () -> Unit) {
+private fun GVATopBar(onBack: () -> Unit, onHelp: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -90,6 +99,14 @@ private fun GVATopBar(onBack: () -> Unit) {
             fontWeight = FontWeight.Bold,
             color = Color(0xFFFFD700)
         )
+        Spacer(modifier = Modifier.weight(1f))
+        TextButton(onClick = onHelp) {
+            SingleLineText(
+                text = "❓",
+                fontSize = 20.sp,
+                color = Color(0xFFFFD700)
+            )
+        }
     }
 }
 
@@ -308,21 +325,22 @@ private fun WinnerCard(winner: NomineeInfo) {
                 fontWeight = FontWeight.Bold,
                 color = Color.White
             )
+            SingleLineText(
+                text = if (winner.isPlayerGame) "你的公司" else winner.companyName,
+                fontSize = 12.sp,
+                color = if (winner.isPlayerGame) Color(0xFF4CAF50) else Color.Gray
+            )
+            Spacer(modifier = Modifier.height(4.dp))
             Row {
                 SingleLineText(
-                    text = "${if (winner.isPlayerGame) "你的公司" else winner.companyName} | ",
+                    text = "⭐开发质量 ${String.format("%.1f", winner.rating)} | ",
                     fontSize = 12.sp,
-                    color = if (winner.isPlayerGame) Color(0xFF4CAF50) else Color.Gray
+                    color = Color(0xFFFFD700)
                 )
                 SingleLineText(
-                    text = "评分：${String.format("%.1f", winner.rating)} | ",
+                    text = "📊综合得分 ${String.format("%.1f", winner.totalScore)}",
                     fontSize = 12.sp,
-                    color = Color.Gray
-                )
-                SingleLineText(
-                    text = "综合得分：${String.format("%.1f", winner.totalScore)}",
-                    fontSize = 12.sp,
-                    color = Color.Gray
+                    color = Color(0xFF64B5F6)
                 )
             }
         }
@@ -353,16 +371,21 @@ private fun NomineeItem(nominee: NomineeInfo, rank: String) {
                 fontSize = 14.sp,
                 color = Color.White
             )
+            SingleLineText(
+                text = if (nominee.isPlayerGame) "你的公司" else nominee.companyName,
+                fontSize = 11.sp,
+                color = if (nominee.isPlayerGame) Color(0xFF4CAF50) else Color.Gray
+            )
             Row {
                 SingleLineText(
-                    text = "${if (nominee.isPlayerGame) "你的公司" else nominee.companyName} | ",
+                    text = "⭐开发质量 ${String.format("%.1f", nominee.rating)} | ",
                     fontSize = 11.sp,
-                    color = if (nominee.isPlayerGame) Color(0xFF4CAF50) else Color.Gray
+                    color = Color(0xFFFFD700)
                 )
                 SingleLineText(
-                    text = "${String.format("%.1f", nominee.totalScore)}分",
+                    text = "📊综合得分 ${String.format("%.1f", nominee.totalScore)}",
                     fontSize = 11.sp,
-                    color = Color.Gray
+                    color = Color(0xFF64B5F6)
                 )
             }
         }
@@ -620,6 +643,142 @@ private fun StatItem(label: String, value: String, color: Color) {
             text = label,
             fontSize = 12.sp,
             color = Color.Gray
+        )
+    }
+}
+
+/**
+ * 功能介绍对话框
+ */
+@Composable
+private fun GVAHelpDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SingleLineText(
+                    text = "🏆",
+                    fontSize = 24.sp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                SingleLineText(
+                    text = "GVA游戏大奖 - 功能介绍",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        text = {
+            LazyColumn(
+                modifier = Modifier.heightIn(max = 500.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // 什么是GVA
+                item {
+                    HelpSection(
+                        title = "📖 什么是GVA？",
+                        content = "GVA（Game Video Awards）是游戏内年度评选系统，每年12月会评选出当年最优秀的游戏作品。你的游戏可以和AI竞争对手同台竞技，争夺21个不同奖项！"
+                    )
+                }
+                
+                // 参赛条件
+                item {
+                    HelpSection(
+                        title = "🎯 自动参赛条件",
+                        content = "✅ 游戏已发售\n✅ 评分≥6.0\n✅ 在当年1-12月发售\n\n符合条件的游戏会自动参与评选，无需手动报名！"
+                    )
+                }
+                
+                // 评选时间线
+                item {
+                    HelpSection(
+                        title = "📅 评选时间线",
+                        content = "• 12月15日：公布初步提名（前3名）\n• 12月16-30日：最后冲刺期\n• 12月31日：颁奖典礼！\n  - 确定获奖者（第1名）\n  - 自动发放奖励\n  - 弹出颁奖对话框"
+                    )
+                }
+                
+                // 奖项分类
+                item {
+                    HelpSection(
+                        title = "🏅 21个奖项",
+                        content = "🎮 综合类（4个）：\n• 🏆 年度游戏：¥50万\n• 💎 最佳独立：¥20万\n• ❤️ 最受玩家喜爱：¥15万\n• 🌐 最佳网游：¥30万\n\n🎯 主题类（12个）：\n每个游戏类型都有专属奖项\n奖励：¥10万 + 5千粉丝\n\n⭐ 特殊成就（5个）：\n• 💡 创新先锋（团队≤3人）\n• ⭐ 完美品质（评分≥9.0）\n• 💰 商业奇迹（百万销量）\n• 🌲 长青树（运营≥2年）\n• 🎭 文化影响力（50万粉丝）"
+                    )
+                }
+                
+                // 奖励说明
+                item {
+                    HelpSection(
+                        title = "🎁 奖励发放",
+                        content = "🏆 获奖（第1名）：\n• 100%奖金和粉丝\n• 游戏添加奖项徽章\n• 增加公司声望\n\n🥈 提名（第2-3名）：\n• 20%奖金和粉丝\n• 10点声望\n\n所有奖励自动发放！"
+                    )
+                }
+                
+                // 声望系统
+                item {
+                    HelpSection(
+                        title = "👑 声望等级",
+                        content = "声望提供永久加成：\n\n🏢 无名小厂（0点）\n🌱 新兴工作室（100点）：招聘+5%\n⭐ 知名厂商（300点）：招聘+10%，粉丝+10%\n🏆 一线大厂（600点）：招聘+15%，粉丝+20%，销量+10%\n👑 业界传奇（1000点）：招聘+25%，粉丝+30%，销量+20%"
+                    )
+                }
+                
+                // 获奖策略
+                item {
+                    HelpSection(
+                        title = "💡 获奖策略",
+                        content = "🌟 新手期：瞄准主题类奖项\n• 评分7.0-8.0\n• 专注单一类型\n\n💎 成长期：挑战最佳独立\n• 小团队（≤3人）\n• 评分≥8.5\n\n🏆 成熟期：冲击年度游戏\n• 满配团队\n• 评分9.0+\n• 大量宣传\n\n🎯 长期：特殊成就\n• 商业奇迹：百万销量\n• 长青树：运营2年+\n• 文化影响：50万粉丝"
+                    )
+                }
+                
+                // 底部提示
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFD700).copy(alpha = 0.2f))
+                    ) {
+                        MultiLineText(
+                            text = "💡 提示：一款游戏可以同时获得多个奖项，所有奖励会叠加发放！",
+                            fontSize = 13.sp,
+                            color = Color(0xFFFFD700),
+                            modifier = Modifier.padding(12.dp),
+                            maxLines = 3
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                SingleLineText(
+                    text = "我知道了",
+                    color = Color(0xFF4CAF50),
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        containerColor = Color(0xFF16213e),
+        titleContentColor = Color.White,
+        textContentColor = Color.White
+    )
+}
+
+/**
+ * 帮助章节
+ */
+@Composable
+private fun HelpSection(title: String, content: String) {
+    Column {
+        SingleLineText(
+            text = title,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFFFFD700)
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        MultiLineText(
+            text = content,
+            fontSize = 13.sp,
+            color = Color.White.copy(alpha = 0.9f),
+            maxLines = 50
         )
     }
 }

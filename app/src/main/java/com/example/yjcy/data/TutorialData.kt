@@ -37,12 +37,16 @@ enum class TutorialId {
     COMPETITOR_NEWS,                  // 动态新闻
     COMPETITOR_ACQUISITION,           // 收购功能
     
-    // 服务器管理相关（35-39）
+    // 电竞赛事相关（35-39）
+    TOURNAMENT_INTRO,                 // 电竞赛事介绍
+    GVA_CONFERENCE_INTRO,             // GVA大会介绍
+    
+    // 服务器管理相关（40-44）
     SERVER_MANAGEMENT_INTRO,          // 服务器管理介绍
     SERVER_PURCHASE,                  // 购买服务器
     SERVER_ALLOCATION,                // 服务器分配
     
-    // 游戏机制相关（40-49）
+    // 游戏机制相关（45-49）
     TIME_SYSTEM,                      // 时间系统
     REVENUE_SYSTEM,                   // 收益系统
     FAN_SYSTEM,                       // 粉丝系统

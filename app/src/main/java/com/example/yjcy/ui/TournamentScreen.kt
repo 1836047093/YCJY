@@ -19,6 +19,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.yjcy.data.*
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.DropdownMenuItem
 
 /**
  * 赛事中心主界面
@@ -31,9 +34,11 @@ fun TournamentScreen(
     currentDate: GameDate,
     money: Long,
     fans: Int,
+    competitors: List<CompetitorCompany> = emptyList(),
+    initialTab: Int = 0,
     onHostTournament: (String, TournamentType) -> Unit
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by remember(initialTab) { mutableStateOf(initialTab) }
     val tabs = listOf("🏆 可举办", "⏳ 进行中", "📊 历史记录")
     
     // 筛选游戏
@@ -114,7 +119,8 @@ fun TournamentScreen(
                 1 -> OngoingTournamentsTab(
                     games = ongoingGames,
                     revenueDataMap = revenueDataMap,
-                    currentDate = currentDate
+                    currentDate = currentDate,
+                    competitors = competitors
                 )
                 2 -> TournamentHistoryTab(
                     games = completedGames
@@ -401,35 +407,118 @@ fun TournamentTypeCard(
 /**
  * 进行中的赛事标签页
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OngoingTournamentsTab(
     games: List<Game>,
     revenueDataMap: Map<String, GameRevenue>,
-    currentDate: GameDate
+    currentDate: GameDate,
+    competitors: List<CompetitorCompany>
 ) {
-    if (games.isEmpty()) {
-        EmptyStateView(
-            icon = "⏳",
-            title = "暂无进行中的赛事",
-            message = "去可举办页面创建新赛事吧！"
-        )
-        return
+    // 下拉选择器状态：0=我的公司，1=竞争对手
+    var selectedOption by remember { mutableStateOf(0) }
+    var expanded by remember { mutableStateOf(false) }
+    
+    // 构建选择列表（只有两个选项）
+    val companyOptions = listOf("我的公司", "竞争对手")
+    
+    // 根据选择获取对应的游戏和公司名称
+    val (displayGames, companyName) = if (selectedOption == 0) {
+        // 显示玩家的游戏
+        Pair(games, "我的公司")
+    } else {
+        // 显示所有竞争对手的游戏（合并显示）
+        val allCompetitorGames = competitors.flatMap { competitor ->
+            competitor.games.filter { it.currentTournament != null }.map { compGame ->
+                // 创建一个临时的Game对象用于显示
+                Game(
+                    id = compGame.id,
+                    name = "${competitor.name} - ${compGame.name}", // 显示公司名+游戏名
+                    theme = compGame.theme,
+                    platforms = compGame.platforms,
+                    businessModel = compGame.businessModel,
+                    isCompleted = true,
+                    releaseStatus = GameReleaseStatus.RELEASED,
+                    rating = compGame.rating,
+                    currentTournament = compGame.currentTournament
+                )
+            }
+        }
+        Pair(allCompetitorGames, "竞争对手")
     }
     
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        items(games) { game ->
-            game.currentTournament?.let { tournament ->
-                OngoingTournamentCard(
-                    tournament = tournament,
-                    game = game,
-                    revenueData = revenueDataMap[game.id],
-                    currentDate = currentDate
-                )
+    Column(modifier = Modifier.fillMaxSize()) {
+        // 下拉选择器
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            OutlinedTextField(
+                value = companyOptions[selectedOption],
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("查看公司") },
+                trailingIcon = {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                },
+                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    focusedBorderColor = Color(0xFF64B5F6),
+                    unfocusedBorderColor = Color(0xFF90CAF9),
+                    focusedLabelColor = Color(0xFF64B5F6),
+                    unfocusedLabelColor = Color(0xFF90CAF9)
+                ),
+                modifier = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth()
+            )
+            
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                companyOptions.forEachIndexed { index, name ->
+                    DropdownMenuItem(
+                        text = { Text(name) },
+                        onClick = {
+                            selectedOption = index
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+        
+        // 赛事列表
+        if (displayGames.isEmpty()) {
+            EmptyStateView(
+                icon = "⏳",
+                title = "暂无进行中的赛事",
+                message = if (selectedOption == 0) "去可举办页面创建新赛事吧！" else "竞争对手暂无进行中的赛事"
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(displayGames) { game ->
+                    game.currentTournament?.let { tournament ->
+                        OngoingTournamentCard(
+                            tournament = tournament,
+                            game = game,
+                            revenueData = if (selectedOption == 0) revenueDataMap[game.id] else null,
+                            currentDate = currentDate,
+                            isCompetitor = selectedOption != 0,
+                            companyName = if (selectedOption != 0) companyName else null
+                        )
+                    }
+                }
             }
         }
     }
@@ -443,7 +532,9 @@ fun OngoingTournamentCard(
     tournament: EsportsTournament,
     game: Game,
     revenueData: GameRevenue?,
-    currentDate: GameDate
+    currentDate: GameDate,
+    isCompetitor: Boolean = false,
+    companyName: String? = null
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -451,16 +542,36 @@ fun OngoingTournamentCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "${tournament.type.icon} ${tournament.type.displayName}",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = tournament.gameName,
-                fontSize = 14.sp,
-                color = Color.Gray
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "${tournament.type.icon} ${tournament.type.displayName}",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = tournament.gameName,
+                        fontSize = 14.sp,
+                        color = Color.Gray
+                    )
+                }
+                
+                // 显示公司名称（仅竞争对手）
+                if (companyName != null) {
+                    Text(
+                        text = companyName,
+                        fontSize = 12.sp,
+                        color = Color.White,
+                        modifier = Modifier
+                            .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
             
             Spacer(modifier = Modifier.height(12.dp))
             

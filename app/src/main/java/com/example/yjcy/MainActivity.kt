@@ -29,6 +29,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -118,10 +119,12 @@ import com.example.yjcy.ui.SecretaryChatDialog
 import com.example.yjcy.data.ChatMessage
 import com.example.yjcy.data.MessageSender
 import com.example.yjcy.ui.GVAScreen
+import com.example.yjcy.ui.GVAAwardDialog
 import com.example.yjcy.data.GVAManager
 import com.example.yjcy.data.CompanyReputation
 import com.example.yjcy.data.AwardRecord
 import com.example.yjcy.data.AwardReward
+import com.example.yjcy.data.AwardNomination
 import com.example.yjcy.data.SecretaryReplyManager
 import com.example.yjcy.ui.rememberTutorialState
 import com.example.yjcy.ui.TutorialDialog
@@ -1177,6 +1180,8 @@ fun GameScreen(
     var gameSpeed by remember { mutableIntStateOf(1) }
     var selectedTab by remember { mutableIntStateOf(0) }
     var isPaused by remember { mutableStateOf(false) }
+    var showTournamentMenu by remember { mutableStateOf(false) }
+    var tournamentInitialTab by remember { mutableIntStateOf(0) }
     
     // 上次月结算的年月（防止重复结算）
     var lastSettlementYear by remember { mutableIntStateOf(saveData?.currentYear ?: 1) }
@@ -1238,6 +1243,14 @@ fun GameScreen(
     var complaints by remember { mutableStateOf(saveData?.complaints ?: emptyList()) }
     var autoProcessComplaints by remember { mutableStateOf(saveData?.autoProcessComplaints ?: false) }
     
+    // GVA颁奖对话框状态
+    var showGVAAwardDialog by remember { mutableStateOf(false) }
+    var gvaAwardYear by remember { mutableIntStateOf(1) }
+    var gvaAwardNominations by remember { mutableStateOf<List<AwardNomination>>(emptyList()) }
+    var gvaPlayerWonCount by remember { mutableIntStateOf(0) }
+    var gvaPlayerTotalReward by remember { mutableLongStateOf(0L) }
+    var gvaPlayerFansGain by remember { mutableIntStateOf(0) }
+    
     // 赛事完成弹窗状态
     var showTournamentResultDialog by remember { mutableStateOf(false) }
     var tournamentResult by remember { mutableStateOf<com.example.yjcy.data.EsportsTournament?>(null) }
@@ -1253,11 +1266,19 @@ fun GameScreen(
         skipTutorial = saveData?.skipTutorial ?: false
     )
     
-    // GVA游戏大奖系统状态
-    var companyReputation by remember { mutableStateOf(saveData?.companyReputation ?: CompanyReputation()) }
-    var gvaHistory by remember { mutableStateOf(saveData?.gvaHistory ?: emptyList()) }
-    var currentYearNominations by remember { mutableStateOf(saveData?.currentYearNominations ?: emptyList()) }
-    var gvaAnnouncedDate by remember { mutableStateOf<GameDate?>(saveData?.gvaAnnouncedDate) }
+    // GVA游戏大奖系统状态  
+    var companyReputation by remember(saveData) { 
+        mutableStateOf(saveData?.companyReputation ?: CompanyReputation()) 
+    }
+    var gvaHistory by remember(saveData) { 
+        mutableStateOf(saveData?.gvaHistory ?: emptyList<AwardNomination>()) 
+    }
+    var currentYearNominations by remember(saveData) { 
+        mutableStateOf(saveData?.currentYearNominations ?: emptyList<AwardNomination>()) 
+    }
+    var gvaAnnouncedDate by remember(saveData) { 
+        mutableStateOf<GameDate?>(saveData?.gvaAnnouncedDate) 
+    }
     
     // 获取待处理的应聘者数量
     val jobPostingService = remember { JobPostingService.getInstance() }
@@ -1410,13 +1431,30 @@ fun GameScreen(
     
     // 初始化竞争对手（只执行一次）
     LaunchedEffect(Unit) {
-        if (saveData == null && competitors.isEmpty()) {
-            // 生成初始竞争对手
+        if (competitors.isEmpty()) {
+            // 生成初始竞争对手（新游戏或继承后的存档都会触发）
             competitors = CompetitorManager.generateInitialCompetitors(
                 companyName, 
                 currentYear, 
                 currentMonth
             )
+            Log.d("MainActivity", "初始化竞争对手：生成${competitors.size}家竞争公司")
+        }
+    }
+    
+    // 🔧 GVA历史记录补偿机制（游戏加载时执行一次）
+    LaunchedEffect(Unit) {
+        // 检测条件：当年提名不为空 + 历史记录为空 + 提名已经是最终结果
+        if (currentYearNominations.isNotEmpty() && 
+            gvaHistory.isEmpty() && 
+            currentYearNominations.any { it.isFinal }) {
+            
+            Log.d("MainActivity", "🔧 [启动时检测] GVA历史记录丢失，执行数据补偿...")
+            
+            // 将当年最终提名添加到历史记录
+            gvaHistory = currentYearNominations
+            
+            Log.d("MainActivity", "✅ GVA历史记录补偿完成，恢复${gvaHistory.size}条记录（年份：${currentYearNominations.firstOrNull()?.year}）")
         }
     }
     
@@ -1471,7 +1509,9 @@ fun GameScreen(
             
             // 更新日期
             currentDay++
-            if (currentDay > 30) {
+            // 12月特殊处理：有31天（为了GVA颁奖典礼）
+            val maxDaysInMonth = if (currentMonth == 12) 31 else 30
+            if (currentDay > maxDaysInMonth) {
                 currentDay = 1
                 currentMonth++
                 // 检查月份是否超过12，需要进入下一年
@@ -1496,6 +1536,27 @@ fun GameScreen(
             }
             
             if (currentDay == 1) {
+                // GVA新年清理：1月1日清空本年度提名，开始新一年的评选
+                if (currentMonth == 1 && currentYearNominations.isNotEmpty()) {
+                    Log.d("MainActivity", "🎊 GVA：新年开始，清空上一年的提名数据")
+                    currentYearNominations = emptyList()
+                }
+                
+                // 🔧 GVA历史记录补偿机制：修复旧版本bug导致的数据丢失
+                // 检测条件：当年提名不为空 + 历史记录为空 + 提名已经是最终结果 + 不是当年1月（避免误判）
+                if (currentYearNominations.isNotEmpty() && 
+                    gvaHistory.isEmpty() && 
+                    currentYearNominations.any { it.isFinal } &&
+                    currentMonth != 1) {
+                    
+                    Log.d("MainActivity", "🔧 检测到GVA历史记录丢失，执行数据补偿...")
+                    
+                    // 将当年最终提名添加到历史记录
+                    gvaHistory = currentYearNominations
+                    
+                    Log.d("MainActivity", "✅ GVA历史记录补偿完成，恢复${gvaHistory.size}条记录")
+                }
+                
                 // 检查是否需要进行月结算（避免读档后重复结算）
                 val needSettlement = (currentYear != lastSettlementYear || currentMonth != lastSettlementMonth)
                 
@@ -1747,13 +1808,16 @@ fun GameScreen(
                 
                 Log.d("MainActivity", "🏆 GVA：玩家获得${wonCount}个奖项，奖金${totalCashReward}，粉丝${totalFansReward}")
                 
-                // 提示消息
-                if (wonCount > 0) {
-                    messageText = "🎉 恭喜！您的游戏获得${wonCount}个GVA奖项！\n💰 +${formatMoney(totalCashReward)}  👥 +${totalFansReward}粉丝"
-                } else {
-                    messageText = "GVA ${currentYear}年获奖名单已公布"
-                }
-                showMessage = true
+                // 设置颁奖对话框数据并显示
+                gvaAwardYear = currentYear
+                gvaAwardNominations = finalNominations
+                gvaPlayerWonCount = wonCount
+                gvaPlayerTotalReward = totalCashReward
+                gvaPlayerFansGain = totalFansReward
+                showGVAAwardDialog = true
+                
+                // 暂停游戏，让玩家查看颁奖结果
+                isPaused = true
             }
             
             if (currentDay == 1) {
@@ -2330,6 +2394,8 @@ fun GameScreen(
                             currentDate = GameDate(currentYear, currentMonth, currentDay),
                             money = money,
                             fans = fans,
+                            competitors = competitors,
+                            initialTab = tournamentInitialTab,
                             onHostTournament = { gameId, tournamentType ->
                                 // 举办赛事
                                 val game = games.find { it.id == gameId }
@@ -2398,11 +2464,31 @@ fun GameScreen(
             }
             
             // 底部导航栏 - 使用优化版本（字体加粗+黑色）
-            EnhancedBottomNavigationBar(
-                selectedTab = selectedTab,
-                onTabSelected = { selectedTab = it },
-                pendingApplicantsCount = pendingApplicantsCount,
-                pendingAssignmentCount = pendingAssignmentCount
+            // 在GVA界面时隐藏底部导航栏
+            if (selectedTab != 6) {
+                EnhancedBottomNavigationBar(
+                    selectedTab = selectedTab,
+                    onTabSelected = { selectedTab = it },
+                    pendingApplicantsCount = pendingApplicantsCount,
+                    pendingAssignmentCount = pendingAssignmentCount,
+                    onTournamentClick = { showTournamentMenu = true }
+                )
+            }
+        }
+        
+        // 赛事菜单
+        if (showTournamentMenu) {
+            TournamentMenuDialog(
+                onDismiss = { showTournamentMenu = false },
+                onTournamentManagement = {
+                    tournamentInitialTab = 0
+                    selectedTab = 4
+                    showTournamentMenu = false
+                },
+                onGVAConference = {
+                    selectedTab = 6
+                    showTournamentMenu = false
+                }
             )
         }
         
@@ -2524,11 +2610,21 @@ fun GameScreen(
                 gameRating = pendingRatingGame!!.gameRating!!,
                 gameName = pendingRatingGame!!.name,
                 onDismiss = {
-                    // 评分对话框关闭时，更新游戏状态为已评分
+                    // 评分对话框关闭时，只有当游戏还未发售时才更新状态为RATED
                     games = games.map { existingGame ->
                         if (existingGame.id == pendingRatingGame!!.id) {
+                            // 检查游戏是否已经发售（RELEASED状态）
+                            val currentStatus = existingGame.releaseStatus
+                            val newStatus = if (currentStatus == GameReleaseStatus.RELEASED) {
+                                // 已发售的游戏保持RELEASED状态，不要改回RATED
+                                GameReleaseStatus.RELEASED
+                            } else {
+                                // 未发售的游戏设置为RATED（这种情况理论上不应该发生）
+                                GameReleaseStatus.RATED
+                            }
+                            
                             val ratedGame = existingGame.copy(
-                                releaseStatus = GameReleaseStatus.RATED
+                                releaseStatus = newStatus
                             )
                             
                             // 根据评分更新收益数据
@@ -2871,7 +2967,11 @@ fun GameScreen(
                             autoProcessComplaints = autoProcessComplaints,
                             unlockedAchievements = unlockedAchievements,
                             completedTutorials = tutorialState.getCompletedTutorialsForSave(),
-                            skipTutorial = tutorialState.skipTutorial.value
+                            skipTutorial = tutorialState.skipTutorial.value,
+                            companyReputation = companyReputation,
+                            gvaHistory = gvaHistory,
+                            currentYearNominations = currentYearNominations,
+                            gvaAnnouncedDate = gvaAnnouncedDate
                         )
                     }
                 }
@@ -2927,11 +3027,18 @@ fun GameScreen(
             enabled = selectedTab == 3 // 进入竞争对手时触发
         )
         
+        // 赛事教程触发器
+        TutorialTrigger(
+            tutorialId = TutorialId.TOURNAMENT_INTRO,
+            tutorialState = tutorialState,
+            enabled = selectedTab == 4 // 进入赛事时触发
+        )
+        
         // 服务器管理教程触发器
         TutorialTrigger(
             tutorialId = TutorialId.SERVER_MANAGEMENT_INTRO,
             tutorialState = tutorialState,
-            enabled = selectedTab == 4 // 进入服务器管理时触发
+            enabled = selectedTab == 5 // 进入服务器管理时触发
         )
         
         // 赛事完成弹窗
@@ -2941,6 +3048,21 @@ fun GameScreen(
                 onDismiss = {
                     showTournamentResultDialog = false
                     tournamentResult = null
+                }
+            )
+        }
+        
+        // GVA颁奖典礼对话框
+        if (showGVAAwardDialog) {
+            GVAAwardDialog(
+                year = gvaAwardYear,
+                nominations = gvaAwardNominations,
+                playerWonCount = gvaPlayerWonCount,
+                playerTotalReward = gvaPlayerTotalReward,
+                playerFansGain = gvaPlayerFansGain,
+                onDismiss = {
+                    showGVAAwardDialog = false
+                    isPaused = false // 关闭对话框后恢复游戏
                 }
             )
         }
@@ -3633,7 +3755,8 @@ fun EnhancedBottomNavigationBar(
     selectedTab: Int,
     onTabSelected: (Int) -> Unit,
     pendingApplicantsCount: Int = 0, // 待处理应聘者数量
-    pendingAssignmentCount: Int = 0 // 待分配项目数量
+    pendingAssignmentCount: Int = 0, // 待分配项目数量
+    onTournamentClick: () -> Unit = {} // 赛事按钮点击事件
 ) {
     Box(
         modifier = Modifier
@@ -3690,7 +3813,7 @@ fun EnhancedBottomNavigationBar(
                 icon = "🏆",
                 label = "赛事",
                 isSelected = selectedTab == 4,
-                onClick = { onTabSelected(4) }
+                onClick = onTournamentClick // 点击显示菜单
             )
             
             EnhancedBottomNavItem(
@@ -3698,13 +3821,6 @@ fun EnhancedBottomNavigationBar(
                 label = "服务器",
                 isSelected = selectedTab == 5,
                 onClick = { onTabSelected(5) }
-            )
-            
-            EnhancedBottomNavItem(
-                icon = "🏅",
-                label = "GVA",
-                isSelected = selectedTab == 6,
-                onClick = { onTabSelected(6) }
             )
         }
     }
@@ -3781,6 +3897,8 @@ fun ContinueScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(true) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var saveToDelete by remember { mutableStateOf<Pair<Int, SaveData?>?>(null) }
+    var showInheritDialog by remember { mutableStateOf(false) }
+    var legacySaveData by remember { mutableStateOf<SaveData?>(null) }
     var refreshKey by remember { mutableStateOf(0) }
     val coroutineScope = rememberCoroutineScope()
     
@@ -3861,10 +3979,18 @@ fun ContinueScreen(navController: NavController) {
                         slotIndex = slotIndex,
                         saveData = saves[slotIndex],
                         onLoadSave = { saveData ->
-                            // 直接加载存档，不再进行版本检查
-                            currentLoadedSaveData = saveData
-                            Toast.makeText(context, "加载存档 $slotIndex", Toast.LENGTH_SHORT).show()
-                            navController.navigate("game/${saveData.companyName}/${saveData.founderName}/${saveData.companyLogo}/${saveData.founderProfession?.name ?: "PROGRAMMER"}")
+                            // 检查是否为旧版本存档
+                            val currentVersion = BuildConfig.VERSION_NAME
+                            if (isOlderVersion(saveData.version, currentVersion)) {
+                                // 旧版本存档，弹出继承对话框
+                                legacySaveData = saveData
+                                showInheritDialog = true
+                            } else {
+                                // 新版本或同版本，直接加载
+                                currentLoadedSaveData = saveData
+                                Toast.makeText(context, "加载存档 $slotIndex", Toast.LENGTH_SHORT).show()
+                                navController.navigate("game/${saveData.companyName}/${saveData.founderName}/${saveData.companyLogo}/${saveData.founderProfession?.name ?: "PROGRAMMER"}")
+                            }
                         },
                         onDeleteSave = {
                             saveToDelete = Pair(slotIndex, saves[slotIndex])
@@ -3883,6 +4009,37 @@ fun ContinueScreen(navController: NavController) {
             )
             
             Spacer(modifier = Modifier.height(16.dp))
+        }
+        
+        // 旧存档继承对话框
+        if (showInheritDialog && legacySaveData != null) {
+            LegacySaveInheritDialog(
+                legacySaveData = legacySaveData!!,
+                onConfirm = { selectedGames ->
+                    try {
+                        Log.d("MainActivity", "开始继承存档，版本: ${legacySaveData!!.version} -> ${BuildConfig.VERSION_NAME}")
+                        Log.d("MainActivity", "继承员工数: ${legacySaveData!!.allEmployees.size}, 游戏数: ${selectedGames.size}")
+                        
+                        // 创建继承后的新存档数据
+                        currentLoadedSaveData = createInheritedSaveData(legacySaveData!!, selectedGames)
+                        
+                        Log.d("MainActivity", "继承成功！新存档游戏数: ${currentLoadedSaveData?.games?.size}")
+                        
+                        showInheritDialog = false
+                        Toast.makeText(context, "已继承员工和 ${selectedGames.size} 款游戏", Toast.LENGTH_SHORT).show()
+                        navController.navigate("game/${legacySaveData!!.companyName}/${legacySaveData!!.founderName}/${legacySaveData!!.companyLogo}/${legacySaveData!!.founderProfession?.name ?: "PROGRAMMER"}")
+                    } catch (e: Exception) {
+                        Log.e("MainActivity", "继承存档失败", e)
+                        e.printStackTrace()
+                        showInheritDialog = false
+                        Toast.makeText(context, "继承失败: ${e.message}", Toast.LENGTH_LONG).show()
+                    }
+                },
+                onCancel = {
+                    showInheritDialog = false
+                    legacySaveData = null
+                }
+            )
         }
         
         // 删除存档确认对话框
@@ -3997,6 +4154,380 @@ fun DeleteSaveConfirmDialog(
         },
         containerColor = Color(0xFF1F2937),
         shape = RoundedCornerShape(16.dp)
+    )
+}
+
+// 旧存档继承对话框
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LegacySaveInheritDialog(
+    legacySaveData: SaveData,
+    onConfirm: (List<Game>) -> Unit,
+    onCancel: () -> Unit
+) {
+    // 筛选已发售的游戏
+    val releasedGames = legacySaveData.games.filter { it.releaseStatus == GameReleaseStatus.RELEASED }
+    var selectedGames by remember { mutableStateOf<Set<String>>(emptySet()) }
+    
+    AlertDialog(
+        onDismissRequest = onCancel,
+        modifier = Modifier.fillMaxWidth(0.95f)
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1F2937)),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+            ) {
+                // 标题
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "🎮",
+                        fontSize = 28.sp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "旧存档继承",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 说明
+                Text(
+                    text = "检测到这是旧版本存档（${legacySaveData.version}），当前版本为 ${BuildConfig.VERSION_NAME}",
+                    fontSize = 14.sp,
+                    color = Color(0xFFFFB74D),
+                    lineHeight = 20.sp
+                )
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Text(
+                    text = "可继承内容：",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // 员工信息卡片
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF10B981).copy(alpha = 0.2f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "👥", fontSize = 24.sp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = "全部员工",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF10B981)
+                            )
+                            Text(
+                                text = "${legacySaveData.allEmployees.size} 名员工将被继承",
+                                fontSize = 12.sp,
+                                color = Color.White.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // 游戏选择
+                Text(
+                    text = "选择要继承的游戏（最多3款）：",
+                    fontSize = 14.sp,
+                    color = Color.White.copy(alpha = 0.8f)
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                if (releasedGames.isEmpty()) {
+                    Text(
+                        text = "暂无已发售的游戏可继承",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.5f),
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                } else {
+                    // 游戏列表（可滚动）
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 300.dp)
+                    ) {
+                        items(releasedGames) { game ->
+                            val isSelected = selectedGames.contains(game.id)
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                                    .clickable {
+                                        if (isSelected) {
+                                            selectedGames = selectedGames - game.id
+                                        } else {
+                                            if (selectedGames.size < 3) {
+                                                selectedGames = selectedGames + game.id
+                                            }
+                                        }
+                                    },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isSelected) Color(0xFF3B82F6).copy(alpha = 0.3f) else Color(0xFF374151)
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = isSelected,
+                                        onCheckedChange = null,
+                                        colors = CheckboxDefaults.colors(
+                                            checkedColor = Color(0xFF3B82F6),
+                                            uncheckedColor = Color.White.copy(alpha = 0.5f)
+                                        )
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = game.name,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = "${game.theme.displayName} | ${game.businessModel.displayName} | 评分: ${String.format("%.1f", game.rating)}",
+                                            fontSize = 11.sp,
+                                            color = Color.White.copy(alpha = 0.6f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Text(
+                    text = "已选择: ${selectedGames.size}/3",
+                    fontSize = 12.sp,
+                    color = if (selectedGames.size == 3) Color(0xFF10B981) else Color.White.copy(alpha = 0.6f),
+                    fontWeight = if (selectedGames.size == 3) FontWeight.Bold else FontWeight.Normal
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 操作按钮
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // 取消按钮
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { onCancel() },
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color.White.copy(alpha = 0.1f)
+                        )
+                    ) {
+                        Text(
+                            text = "取消",
+                            color = Color.White,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                    }
+                    
+                    // 确认继承按钮
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable {
+                                val selected = releasedGames.filter { selectedGames.contains(it.id) }
+                                onConfirm(selected)
+                            },
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF10B981).copy(alpha = 0.2f)
+                        )
+                    ) {
+                        Text(
+                            text = "开始继承",
+                            color = Color(0xFF10B981),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// 版本比较函数：判断saveVersion是否旧于currentVersion
+fun isOlderVersion(saveVersion: String, currentVersion: String): Boolean {
+    try {
+        val saveParts = saveVersion.split(".").map { it.toIntOrNull() ?: 0 }
+        val currentParts = currentVersion.split(".").map { it.toIntOrNull() ?: 0 }
+        
+        val maxLength = maxOf(saveParts.size, currentParts.size)
+        for (i in 0 until maxLength) {
+            val saveNum = saveParts.getOrNull(i) ?: 0
+            val currentNum = currentParts.getOrNull(i) ?: 0
+            
+            if (saveNum < currentNum) return true
+            if (saveNum > currentNum) return false
+        }
+        
+        return false // 版本相同
+    } catch (e: Exception) {
+        return false // 解析失败，视为相同版本
+    }
+}
+
+// 创建继承后的存档数据
+fun createInheritedSaveData(legacySaveData: SaveData, selectedGames: List<Game>): SaveData {
+    try {
+        Log.d("createInheritedSaveData", "开始创建继承存档")
+        Log.d("createInheritedSaveData", "旧存档版本: ${legacySaveData.version}")
+        Log.d("createInheritedSaveData", "员工数: ${legacySaveData.allEmployees.size}")
+        Log.d("createInheritedSaveData", "选中游戏数: ${selectedGames.size}")
+        
+        selectedGames.forEachIndexed { index, game ->
+            Log.d("createInheritedSaveData", "游戏${index + 1}: ${game.name}, 主题: ${game.theme}, 平台: ${game.platforms.size}个")
+        }
+    } catch (e: Exception) {
+        Log.e("createInheritedSaveData", "日志记录失败，但继续执行", e)
+    }
+    
+    return SaveData(
+        // 基础信息使用旧存档
+        companyName = legacySaveData.companyName,
+        companyLogo = legacySaveData.companyLogo,
+        founderName = legacySaveData.founderName,
+        founderProfession = legacySaveData.founderProfession,
+        
+        // 重置游戏进度
+        money = 3000000L, // 初始资金
+        fans = 0,
+        currentYear = 1,
+        currentMonth = 1,
+        currentDay = 1,
+        
+        // 继承员工
+        allEmployees = legacySaveData.allEmployees,
+        
+        // 继承选中的游戏（保持已完成状态，但需要重新发售）
+        // 显式设置所有字段，确保向后兼容性，防止旧存档缺失字段导致闪退
+        games = selectedGames.map { game ->
+            game.copy(
+                // 基础信息保留
+                id = game.id,
+                name = game.name,
+                theme = game.theme,
+                platforms = game.platforms,
+                businessModel = game.businessModel,
+                
+                // 开发进度设为完成
+                isCompleted = true,
+                developmentProgress = 100f,
+                currentPhase = DevelopmentPhase.PROGRAMMING, // 最终阶段
+                phaseProgress = 100f,
+                
+                // 发售状态：准备发售（玩家可以直接点击发售）
+                releaseStatus = GameReleaseStatus.READY_FOR_RELEASE,
+                releasePrice = null, // 重置价格
+                releaseYear = null, // 重置发售日期
+                releaseMonth = null,
+                releaseDay = null,
+                
+                // 清空分配的员工
+                assignedEmployees = emptyList(),
+                
+                // 保留评分信息
+                rating = game.rating,
+                gameRating = game.gameRating,
+                
+                // 重置收益和成本
+                revenue = 0L,
+                developmentCost = game.developmentCost ?: 0L,
+                
+                // 保留付费内容配置（网游需要），确保不为null
+                monetizationItems = game.monetizationItems ?: emptyList(),
+                
+                // 清空服务器信息（重新发售时会重新配置）
+                serverInfo = null,
+                
+                // 重置宣传和更新相关
+                promotionIndex = 0f,
+                autoUpdate = false,
+                version = 1.0f, // 重置版本号
+                
+                // 确保更新历史不为null（兼容旧存档）
+                updateHistory = game.updateHistory ?: emptyList(),
+                
+                // 清空赛事相关（重新开始）
+                currentTournament = null,
+                lastTournamentDate = null,
+                tournamentHistory = game.tournamentHistory ?: emptyList(),
+                
+                // 保留GVA奖项（体现游戏历史荣誉）
+                awards = game.awards ?: emptyList()
+            )
+        },
+        
+        // 重置其他游戏相关数据
+        competitors = emptyList(),
+        competitorNews = emptyList(),
+        serverData = emptyMap(),
+        revenueData = emptyMap(),
+        jobPostings = emptyList(),
+        complaints = emptyList(),
+        autoProcessComplaints = false,
+        unlockedAchievements = emptyList(),
+        completedTutorials = emptySet(),
+        skipTutorial = false,
+        companyReputation = com.example.yjcy.data.CompanyReputation(),
+        gvaHistory = emptyList(),
+        currentYearNominations = emptyList(),
+        gvaAnnouncedDate = null,
+        
+        // 更新存档信息
+        saveTime = System.currentTimeMillis(),
+        version = BuildConfig.VERSION_NAME
     )
 }
 
@@ -4430,25 +4961,73 @@ class SaveManager(context: Context) {
      */
     private fun fixLegacySaveData(saveData: SaveData): SaveData {
         try {
-            // 修复游戏数据：确保赛事相关字段不为null
+            Log.d("SaveManager", "开始修复旧存档数据，版本: ${saveData.version}")
+            
+            // 修复游戏数据：确保所有可空字段和新增字段都有正确的默认值
             val fixedGames = saveData.games.map { game ->
                 game.copy(
+                    // 赛事相关字段（可空）
                     currentTournament = game.currentTournament,
                     lastTournamentDate = game.lastTournamentDate,
-                    tournamentHistory = game.tournamentHistory ?: emptyList()
+                    tournamentHistory = game.tournamentHistory ?: emptyList(),
+                    
+                    // 更新历史（可空）
+                    updateHistory = game.updateHistory ?: emptyList(),
+                    
+                    // GVA奖项（可能缺失）
+                    awards = game.awards ?: emptyList(),
+                    
+                    // 付费内容（网游必需）
+                    monetizationItems = game.monetizationItems ?: emptyList(),
+                    
+                    // 其他可能缺失的字段
+                    developmentCost = game.developmentCost ?: 0L,
+                    promotionIndex = game.promotionIndex ?: 0f,
+                    autoUpdate = game.autoUpdate ?: false,
+                    version = game.version ?: 1.0f
                 )
             }
             
-            return saveData.copy(
+            // 修复SaveData级别的字段
+            val fixedSaveData = saveData.copy(
                 games = fixedGames,
-                // 确保其他可能缺失的字段有默认值
+                
+                // 教程和成就系统（可空）
                 completedTutorials = saveData.completedTutorials ?: emptySet(),
                 unlockedAchievements = saveData.unlockedAchievements ?: emptyList(),
                 skipTutorial = saveData.skipTutorial ?: false,
-                autoProcessComplaints = saveData.autoProcessComplaints ?: false
+                
+                // 客服中心
+                autoProcessComplaints = saveData.autoProcessComplaints ?: false,
+                complaints = saveData.complaints ?: emptyList(),
+                
+                // GVA系统（可能缺失）
+                companyReputation = saveData.companyReputation ?: com.example.yjcy.data.CompanyReputation(),
+                gvaHistory = saveData.gvaHistory ?: emptyList(),
+                currentYearNominations = saveData.currentYearNominations ?: emptyList(),
+                gvaAnnouncedDate = saveData.gvaAnnouncedDate,
+                
+                // 竞争对手系统
+                competitors = saveData.competitors ?: emptyList(),
+                competitorNews = saveData.competitorNews ?: emptyList(),
+                
+                // 招聘系统
+                jobPostings = saveData.jobPostings ?: emptyList(),
+                
+                // 服务器和收益数据
+                serverData = saveData.serverData ?: emptyMap(),
+                revenueData = saveData.revenueData ?: emptyMap(),
+                
+                // 创始人职业（可空）
+                founderProfession = saveData.founderProfession
             )
+            
+            Log.d("SaveManager", "修复完成：游戏${fixedGames.size}个，员工${fixedSaveData.allEmployees.size}人")
+            return fixedSaveData
+            
         } catch (e: Exception) {
-            Log.e("SaveManager", "修复存档数据时出错", e)
+            Log.e("SaveManager", "修复存档数据时出错，返回原始数据", e)
+            e.printStackTrace()
             return saveData
         }
     }
@@ -4701,7 +5280,11 @@ fun InGameSettingsContent(
     autoProcessComplaints: Boolean = false,
     unlockedAchievements: List<UnlockedAchievement> = emptyList(),
     completedTutorials: Set<String> = emptySet(), // 新增：教程进度
-    skipTutorial: Boolean = false // 新增：跳过教程状态
+    skipTutorial: Boolean = false, // 新增：跳过教程状态
+    companyReputation: CompanyReputation = CompanyReputation(), // GVA：公司声望
+    gvaHistory: List<AwardNomination> = emptyList(), // GVA：历史记录
+    currentYearNominations: List<AwardNomination> = emptyList(), // GVA：当年提名
+    gvaAnnouncedDate: GameDate? = null // GVA：颁奖日期
 ) {
     val context = LocalContext.current
     val saveManager = remember { SaveManager(context) }
@@ -4859,6 +5442,10 @@ fun InGameSettingsContent(
                                 unlockedAchievements = unlockedAchievements, // 保存已解锁成就
                                 completedTutorials = completedTutorials, // 保存已完成教程
                                 skipTutorial = skipTutorial, // 保存跳过教程状态
+                                companyReputation = companyReputation, // 保存公司声望
+                                gvaHistory = gvaHistory, // 保存GVA历史记录
+                                currentYearNominations = currentYearNominations, // 保存当年提名
+                                gvaAnnouncedDate = gvaAnnouncedDate, // 保存颁奖日期
                                 saveTime = System.currentTimeMillis(),
                                 version = BuildConfig.VERSION_NAME // 使用当前游戏版本号
                             )
@@ -4977,6 +5564,10 @@ fun InGameSettingsContent(
                                             unlockedAchievements = unlockedAchievements, // 保存已解锁成就
                                             completedTutorials = completedTutorials, // 保存已完成教程
                                             skipTutorial = skipTutorial, // 保存跳过教程状态
+                                            companyReputation = companyReputation, // 保存公司声望
+                                            gvaHistory = gvaHistory, // 保存GVA历史记录
+                                            currentYearNominations = currentYearNominations, // 保存当年提名
+                                            gvaAnnouncedDate = gvaAnnouncedDate, // 保存颁奖日期
                                             saveTime = System.currentTimeMillis(),
                                             version = BuildConfig.VERSION_NAME // 使用当前游戏版本号
                                         )
@@ -5459,6 +6050,119 @@ fun GameSpeedDropdown(
                         .animateContentSize()
                 )
             }
+        }
+    }
+}
+
+/**
+ * 赛事菜单对话框（从底部弹出）
+ */
+@Composable
+fun TournamentMenuDialog(
+    onDismiss: () -> Unit,
+    onTournamentManagement: () -> Unit,
+    onGVAConference: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.5f))
+            .clickable(onClick = onDismiss),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    color = Color(0xFF1a1a2e),
+                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+                )
+                .padding(vertical = 16.dp)
+                .clickable(
+                    onClick = {},
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                )
+        ) {
+            // 标题
+            Text(
+                text = "🏆 赛事功能",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 8.dp)
+            )
+            
+            Divider(
+                color = Color.White.copy(alpha = 0.1f),
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+            
+            // 赛事管理选项
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onTournamentManagement)
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "🏆",
+                    fontSize = 24.sp,
+                    modifier = Modifier.padding(end = 16.dp)
+                )
+                Column {
+                    Text(
+                        text = "赛事管理",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "举办和管理游戏赛事",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.6f)
+                    )
+                }
+            }
+            
+            // 分隔线
+            Divider(
+                color = Color.White.copy(alpha = 0.1f),
+                modifier = Modifier.padding(horizontal = 24.dp)
+            )
+            
+            // GVA大会选项
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onGVAConference)
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "🏅",
+                    fontSize = 24.sp,
+                    modifier = Modifier.padding(end = 16.dp)
+                )
+                Column {
+                    Text(
+                        text = "GVA大会",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFFFFD700)
+                    )
+                    Text(
+                        text = "年度游戏行业盛会",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.6f)
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }

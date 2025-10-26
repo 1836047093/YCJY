@@ -44,7 +44,8 @@ object GVAManager {
             generateNominationForAward(
                 award = award,
                 eligibleGames = eligibleGames,
-                isFinal = false
+                isFinal = false,
+                currentYear = year
             )
         }
     }
@@ -77,7 +78,8 @@ object GVAManager {
             generateNominationForAward(
                 award = award,
                 eligibleGames = eligibleGames,
-                isFinal = true
+                isFinal = true,
+                currentYear = year
             )
         }
     }
@@ -212,7 +214,8 @@ object GVAManager {
     private fun generateNominationForAward(
         award: GVAAward,
         eligibleGames: List<EligibleGame>,
-        isFinal: Boolean
+        isFinal: Boolean,
+        currentYear: Int
     ): AwardNomination {
         // 筛选符合该奖项的游戏
         val candidates = filterCandidatesForAward(award, eligibleGames)
@@ -239,7 +242,7 @@ object GVAManager {
         val winner = if (isFinal && nominees.isNotEmpty()) nominees.first() else null
         
         return AwardNomination(
-            year = eligibleGames.firstOrNull()?.releaseYear ?: 1,
+            year = currentYear, // 使用当前年份而不是游戏发售年份
             award = award,
             nominees = nominees,
             winner = winner,
