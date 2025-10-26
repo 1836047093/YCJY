@@ -907,6 +907,15 @@ object RevenueManager {
     }
     
     /**
+     * 更新游戏价格（不覆盖历史数据）
+     */
+    fun updateGamePrice(gameId: String, newPrice: Double) {
+        val existingRevenue = gameRevenueMap[gameId] ?: return
+        gameRevenueMap[gameId] = existingRevenue.copy(releasePrice = newPrice)
+        saveRevenueData()
+    }
+    
+    /**
      * 为已发售游戏添加新的一天收益数据
      * @param gameId 游戏ID
      * @param gameRating 游戏评分（0-10），用于计算注册数加成
@@ -921,7 +930,8 @@ object RevenueManager {
         fanCount: Int = 0,
         currentYear: Int = 1,
         currentMonth: Int = 1,
-        currentDay: Int = 1
+        currentDay: Int = 1,
+        reputationBonus: Float = 0f  // 新增：声望带来的初期销量加成（0-0.2）
     ): Double {
         val gameRevenue = gameRevenueMap[gameId] ?: return 0.0
         var currentGameRevenue = gameRevenue
@@ -986,7 +996,9 @@ object RevenueManager {
                 // 根据游戏评分添加加成
                 val withRatingBonus = applyRatingBonus(baseRegistrations, gameRating)
                 // 根据粉丝数量添加加成
-                applyFansBonus(withRatingBonus, fanCount)
+                val withFansBonus = applyFansBonus(withRatingBonus, fanCount)
+                // 根据声望添加加成（初期销量提升）
+                (withFansBonus * (1f + reputationBonus)).toInt()
             } else {
                 // 单机：根据价格调整首日销量（已下调基础值）
                 val baseSalesForPrice = when {
@@ -998,7 +1010,9 @@ object RevenueManager {
                 val ratingMultiplier = if (gameRating != null) calculateRatingMultiplier(gameRating) else 1.0f
                 val withRatingMultiplier = (baseSalesForPrice * ratingMultiplier).toInt()
                 // 单机游戏也应用粉丝加成（效果低于网游）
-                applyFansBonusForSinglePlayer(withRatingMultiplier, fanCount)
+                val withFansBonus = applyFansBonusForSinglePlayer(withRatingMultiplier, fanCount)
+                // 根据声望添加加成（初期销量提升）
+                (withFansBonus * (1f + reputationBonus)).toInt()
             }
             
             val firstDayRevenue = baseSales * currentGameRevenue.releasePrice
@@ -1481,7 +1495,7 @@ object RevenueManager {
      * @param currentDay 当前日期
      * @return 上线天数
      */
-    private fun calculateDaysSinceLaunch(
+    public fun calculateDaysSinceLaunch(
         releaseYear: Int,
         releaseMonth: Int,
         releaseDay: Int,

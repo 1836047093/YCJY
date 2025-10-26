@@ -92,7 +92,7 @@ fun GameCommunityDialog(
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 // 内容区域
-                if (game.updateHistory.isEmpty()) {
+                if (game.updateHistory.isNullOrEmpty()) {
                     // 空状态
                     Box(
                         modifier = Modifier
@@ -128,11 +128,11 @@ fun GameCommunityDialog(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        items(game.updateHistory.reversed()) { update ->
+                        items((game.updateHistory ?: emptyList()).reversed()) { update ->
                             UpdateCard(
                                 update = update,
                                 onCommentLike = { commentId ->
-                                    val updateIndex = game.updateHistory.indexOf(update)
+                                    val updateIndex = (game.updateHistory ?: emptyList()).indexOf(update)
                                     onCommentLike(updateIndex, commentId)
                                 }
                             )

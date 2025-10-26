@@ -447,6 +447,18 @@ object CompetitorManager {
                 )
             }
             
+            // AI举办电竞赛事
+            val tournamentNews = tryHostTournamentForCompetitor(
+                company, 
+                updatedGames,
+                currentYear, 
+                currentMonth, 
+                currentDay
+            )
+            if (tournamentNews != null) {
+                newsList.add(tournamentNews)
+            }
+            
             updatedCompetitors.add(
                 company.copy(
                     marketValue = newMarketValue,
@@ -724,12 +736,6 @@ object CompetitorManager {
             return AcquisitionStatus.CANNOT_ACQUIRE_SELF
         }
         
-        // 市值要求：玩家市值 ≥ 目标市值 × 1.5倍
-        val requiredMarketValue = (targetCompany.marketValue * 1.5).toLong()
-        if (playerMarketValue < requiredMarketValue) {
-            return AcquisitionStatus.INSUFFICIENT_MARKET_VALUE
-        }
-        
         // 资金要求：玩家资金 ≥ 目标市值 × 1.2倍（最低收购价）
         val minimumBidPrice = (targetCompany.marketValue * 1.2).toLong()
         if (playerMoney < minimumBidPrice) {
@@ -856,5 +862,105 @@ object CompetitorManager {
             .take(inheritedGamesCount)
         
         return Triple(marketValueGain, fansGain, inheritedGames)
+    }
+    
+    /**
+     * AI竞争对手尝试举办赛事
+     * 每月调用，5-10%概率举办
+     */
+    private fun tryHostTournamentForCompetitor(
+        company: CompetitorCompany,
+        games: List<CompetitorGame>,
+        currentYear: Int,
+        currentMonth: Int,
+        currentDay: Int
+    ): CompetitorNews? {
+        // 筛选可以举办赛事的游戏（竞技类网游，评分≥6.0，活跃玩家≥1万）
+        val eligibleGames = games.filter { game ->
+            // 必须是竞技类游戏
+            val isCompetitive = game.theme in listOf(
+                GameTheme.MOBA,
+                GameTheme.SHOOTER,
+                GameTheme.SPORTS,
+                GameTheme.RACING,
+                GameTheme.STRATEGY
+            )
+            // 必须是网络游戏
+            val isOnline = game.businessModel == BusinessModel.ONLINE_GAME
+            // 评分≥6.0
+            val goodRating = game.rating >= 6.0f
+            // 活跃玩家≥1万
+            val enoughPlayers = game.activePlayers >= 10000L
+            
+            isCompetitive && isOnline && goodRating && enoughPlayers
+        }
+        
+        if (eligibleGames.isEmpty()) {
+            return null
+        }
+        
+        // 基础概率：5%
+        var probability = 0.05
+        
+        // 活跃玩家 > 50万：+3%
+        if (eligibleGames.any { it.activePlayers > 500000L }) {
+            probability += 0.03
+        }
+        
+        // 平均评分 > 8.0：+2%
+        val avgRating = eligibleGames.map { it.rating }.average()
+        if (avgRating > 8.0) {
+            probability += 0.02
+        }
+        
+        // 公司市值 > 5000万：+2%
+        if (company.marketValue > 50000000L) {
+            probability += 0.02
+        }
+        
+        // 随机判断是否举办
+        if (Random.nextDouble() > probability) {
+            return null
+        }
+        
+        // 选择活跃玩家最多的游戏
+        val selectedGame = eligibleGames.maxByOrNull { it.activePlayers } ?: return null
+        
+        // 根据活跃玩家数决定赛事规模
+        val tournamentType = when {
+            selectedGame.activePlayers >= 500000L -> TournamentType.WORLD_FINALS
+            selectedGame.activePlayers >= 200000L -> TournamentType.INTERNATIONAL
+            selectedGame.activePlayers >= 50000L -> TournamentType.NATIONAL
+            else -> TournamentType.REGIONAL
+        }
+        
+        // 生成赛事新闻
+        return CompetitorNews(
+            id = "news_tournament_${System.currentTimeMillis()}_${Random.nextInt()}",
+            title = "${company.name}为《${selectedGame.name}》举办${tournamentType.displayName}！",
+            content = "${company.name}宣布将为旗下热门游戏《${selectedGame.name}》举办${tournamentType.displayName}，" +
+                    "投入${formatTournamentCost(tournamentType.baseCost)}，预计吸引数十万玩家观看。" +
+                    "这是该公司首次举办如此规模的电竞赛事，展现了其在电竞领域的雄心。",
+            type = NewsType.COMPANY_MILESTONE,
+            companyId = company.id,
+            companyName = company.name,
+            gameId = selectedGame.id,
+            gameName = selectedGame.name,
+            year = currentYear,
+            month = currentMonth,
+            day = currentDay
+        )
+    }
+    
+    /**
+     * 格式化赛事成本
+     */
+    private fun formatTournamentCost(cost: Long): String {
+        return when {
+            cost >= 10000000L -> "${cost / 10000000}千万元"
+            cost >= 1000000L -> "${cost / 1000000}百万元"
+            cost >= 10000L -> "${cost / 10000}万元"
+            else -> "${cost}元"
+        }
     }
 }

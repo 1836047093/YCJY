@@ -329,7 +329,14 @@ data class Game(
     val version: Float = 1.0f, // 新增：游戏版本号，每次更新+0.1
     val currentPhase: DevelopmentPhase = DevelopmentPhase.DESIGN, // 当前开发阶段
     val phaseProgress: Float = 0f, // 当前阶段进度（0-1）
-    val updateHistory: List<GameUpdate> = emptyList() // 游戏更新历史记录
+    val updateHistory: List<GameUpdate>? = emptyList(), // 游戏更新历史记录，可空类型以兼容旧存档
+    val currentTournament: EsportsTournament? = null, // 当前进行中的赛事
+    val lastTournamentDate: GameDate? = null, // 上次举办赛事的日期
+    val tournamentHistory: List<EsportsTournament>? = emptyList(), // 赛事历史记录（最近5场），可空类型以兼容旧存档
+    val awards: List<GVAAward> = emptyList(), // 获得的GVA奖项列表
+    val releaseYear: Int? = null, // 发售年份
+    val releaseMonth: Int? = null, // 发售月份
+    val releaseDay: Int? = null // 发售日期
 ) {
     /**
      * 计算游戏开发成本
@@ -508,9 +515,17 @@ data class GameDate(
     val year: Int,
     val month: Int,
     val day: Int
-) {
+) : Comparable<GameDate> {
     override fun toString(): String {
         return "${year}年${month}月${day}日"
+    }
+    
+    override fun compareTo(other: GameDate): Int {
+        return when {
+            year != other.year -> year.compareTo(other.year)
+            month != other.month -> month.compareTo(other.month)
+            else -> day.compareTo(other.day)
+        }
     }
 }
 
@@ -538,7 +553,7 @@ data class SaveData(
     val companyLogo: String = "🎮", // 公司LOGO
     val founderName: String = "创始人",
     val founderProfession: FounderProfession? = null, // 新增字段,向后兼容
-    val money: Long = 1000000L,
+    val money: Long = 3000000L,
     val fans: Int = 0,
     val currentYear: Int = 1,
     val currentMonth: Int = 1,
@@ -555,6 +570,10 @@ data class SaveData(
     val unlockedAchievements: List<UnlockedAchievement> = emptyList(), // 新增：已解锁的成就列表
     val completedTutorials: Set<String> = emptySet(), // 新增：已完成的教程ID集合（使用String存储以便序列化）
     val skipTutorial: Boolean = false, // 新增：是否跳过所有教程（默认不跳过）
+    val companyReputation: CompanyReputation = CompanyReputation(), // GVA：公司声望系统
+    val gvaHistory: List<AwardNomination> = emptyList(), // GVA：历史获奖记录（最近10年）
+    val currentYearNominations: List<AwardNomination> = emptyList(), // GVA：当年提名（12月15日生成）
+    val gvaAnnouncedDate: GameDate? = null, // GVA：最近一次颁奖日期
     val saveTime: Long = System.currentTimeMillis(),
     val version: String = "1.0.0" // 存档版本号（创建时会被覆盖为当前版本）
 )

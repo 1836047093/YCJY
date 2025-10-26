@@ -56,14 +56,16 @@ fun EnhancedGameProjectCard(
 ) {
     var showRevenueDialog by remember { mutableStateOf(false) }
     
-    // 检查游戏是否已发售
-    val isReleased = game.releaseStatus == GameReleaseStatus.RELEASED || game.releaseStatus == GameReleaseStatus.RATED
+    // 检查游戏是否已发售（只有RELEASED状态才算真正发售）
+    val isReleased = game.releaseStatus == GameReleaseStatus.RELEASED
     
     // 检查游戏是否已下架
     val isRemoved = game.releaseStatus == GameReleaseStatus.REMOVED_FROM_MARKET
     
-    // 检查是否准备发售
-    val isReadyForRelease = game.releaseStatus == GameReleaseStatus.READY_FOR_RELEASE
+    // 检查是否准备发售（包含READY_FOR_RELEASE和RATED状态）
+    // RATED状态表示已评分但未发售，需要玩家手动点击"发售"按钮
+    val isReadyForRelease = game.releaseStatus == GameReleaseStatus.READY_FOR_RELEASE || 
+                           game.releaseStatus == GameReleaseStatus.RATED
     
     // 检查是否正在开发中（未完成、未发售也未下架）
     val isDeveloping = !isReleased && !isRemoved && !isReadyForRelease
@@ -105,6 +107,29 @@ fun EnhancedGameProjectCard(
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold
                     )
+                    
+                    // 获奖图标（如果有）
+                    if (game.awards.isNotEmpty()) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            game.awards.take(3).forEach { award ->
+                                Text(
+                                    text = award.icon,
+                                    fontSize = 16.sp
+                                )
+                            }
+                            if (game.awards.size > 3) {
+                                Text(
+                                    text = "+${game.awards.size - 3}",
+                                    fontSize = 10.sp,
+                                    color = Color(0xFFFFD700),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
                     
                     // 项目状态指示器
                     if (isDeveloping) {
@@ -779,7 +804,7 @@ fun EnhancedGameProjectCard(
                 // 已发售或已下架的游戏：显示收益按钮和游戏社区按钮
                 if (isReleased || isRemoved) {
                     // 如果有更新历史，显示并排按钮；否则只显示收益按钮
-                    if (game.updateHistory.isNotEmpty()) {
+                    if (!game.updateHistory.isNullOrEmpty()) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -835,7 +860,7 @@ fun EnhancedGameProjectCard(
                                     onDismiss = { showCommunityDialog = false },
                                     onCommentLike = { updateIndex, commentId ->
                                         // 处理评论点赞
-                                        val updatedHistory = game.updateHistory.toMutableList()
+                                        val updatedHistory = (game.updateHistory ?: emptyList()).toMutableList()
                                         if (updateIndex in updatedHistory.indices) {
                                             val update = updatedHistory[updateIndex]
                                             val updatedComments = update.comments.map { comment ->
@@ -912,7 +937,7 @@ fun EnhancedGameProjectCard(
                                     onDismiss = { showCommunityDialog = false },
                                     onCommentLike = { updateIndex, commentId ->
                                         // 处理评论点赞
-                                        val updatedHistory = game.updateHistory.toMutableList()
+                                        val updatedHistory = (game.updateHistory ?: emptyList()).toMutableList()
                                         if (updateIndex in updatedHistory.indices) {
                                             val update = updatedHistory[updateIndex]
                                             val updatedComments = update.comments.map { comment ->

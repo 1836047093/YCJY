@@ -1734,6 +1734,9 @@ fun AcquisitionDialog(
     // 玩家加价触发器
     var triggerAIBidding by remember { mutableStateOf(0) }
     
+    // 倒计时状态（秒）
+    var countdown by remember { mutableStateOf(0) }
+    
     // 玩家加价函数
     fun playerRaiseBid() {
         val increaseRate = 0.1
@@ -1757,16 +1760,8 @@ fun AcquisitionDialog(
     
     // 初始化竞价和处理AI轮次
     LaunchedEffect(eligibilityStatus, triggerAIBidding) {
-        // 根据游戏速度计算AI竞价延迟时间
-        // 1x速度: 2000ms (2秒)
-        // 2x速度: 1000ms (1秒)
-        // 3x速度: 400ms (0.4秒)
-        val aiRoundDelay = when (gameSpeed) {
-            1 -> 2000L
-            2 -> 1000L
-            3 -> 400L
-            else -> 2000L
-        }
+        // AI竞价延迟时间固定为5秒（不受游戏速度影响）
+        val aiRoundDelay = 5000L
         
         // AI竞价处理函数
         suspend fun processAIRound() {
@@ -1787,8 +1782,13 @@ fun AcquisitionDialog(
                     amount = newPrice
                 )
                 
-                // 继续下一轮（使用根据速度调整的延迟）
-                kotlinx.coroutines.delay(aiRoundDelay)
+                // 继续下一轮（固定5秒延迟，并显示倒计时）
+                countdown = 5
+                for (i in 5 downTo 1) {
+                    countdown = i
+                    kotlinx.coroutines.delay(1000L)
+                }
+                countdown = 0
                 processAIRound()
             } else {
                 // 竞价结束
@@ -1855,22 +1855,21 @@ fun AcquisitionDialog(
             
             biddingPhase = "bidding"
             
-            // 如果有竞争对手，开始AI竞价
+            // 如果有竞争对手，开始AI竞价（初始延迟2秒）
             if (competitors.isNotEmpty()) {
-                val initialDelay = when (gameSpeed) {
-                    1 -> 1500L
-                    2 -> 750L
-                    3 -> 300L
-                    else -> 1500L
-                }
-                kotlinx.coroutines.delay(initialDelay)
+                kotlinx.coroutines.delay(2000L)
                 processAIRound()
             }
         }
         
-        // 玩家加价后触发AI竞价
+        // 玩家加价后触发AI竞价（固定5秒延迟，并显示倒计时）
         if (triggerAIBidding > 0 && biddingPhase == "bidding") {
-            kotlinx.coroutines.delay(aiRoundDelay)
+            countdown = 5
+            for (i in 5 downTo 1) {
+                countdown = i
+                kotlinx.coroutines.delay(1000L)
+            }
+            countdown = 0
             processAIRound()
         }
     }
@@ -1914,6 +1913,32 @@ fun AcquisitionDialog(
                             fontSize = 12.sp
                         )
                     }
+                    
+                    // 倒计时显示（竞价进行中且有倒计时时）
+                    if (biddingPhase == "bidding" && countdown > 0) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(
+                                    color = Color(0xFFFF6B6B).copy(alpha = 0.3f),
+                                    shape = CircleShape
+                                )
+                                .border(
+                                    width = 2.dp,
+                                    color = Color(0xFFFF6B6B),
+                                    shape = CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = countdown.toString(),
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 20.sp
+                            )
+                        }
+                    }
+                    
                     // 关闭按钮
                     if (biddingPhase == "finished" || biddingPhase == "checking") {
                         IconButton(

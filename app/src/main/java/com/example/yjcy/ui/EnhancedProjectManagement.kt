@@ -345,6 +345,8 @@ fun EnhancedProjectManagementContent(
                         text = "👥 可用员工: ${availableEmployees.size}人",
                         color = Color.White,
                         fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
