@@ -5,15 +5,15 @@ package com.example.yjcy.data
  */
 enum class ServerType(
     val displayName: String,
-    val capacity: Int,      // 容量（万人）
+    val capacity: Long,      // 容量（万人）- 使用Long避免超过21亿时溢出
     val cost: Long,          // 费用（元）
     val description: String
 ) {
-    BASIC("星尘-D型服务器", 10, 500000L, "适合小规模运营，10万容量"),
-    INTERMEDIATE("星尘-C型服务器", 50, 1000000L, "适合中等规模，50万容量"),
-    ADVANCED("星尘-B型服务器", 200, 5000000L, "适合大规模运营，200万容量"),
-    CLOUD("星尘-A型服务器", 500, 10000000L, "最高性能，500万容量"),
-    SUPER("星尘-S型服务器", 1000, 20000000L, "超级服务器，1000万容量")
+    BASIC("星尘-D型服务器", 10L, 500000L, "适合小规模运营，10万容量"),
+    INTERMEDIATE("星尘-C型服务器", 50L, 1000000L, "适合中等规模，50万容量"),
+    ADVANCED("星尘-B型服务器", 200L, 5000000L, "适合大规模运营，200万容量"),
+    CLOUD("星尘-A型服务器", 500L, 10000000L, "最高性能，500万容量"),
+    SUPER("星尘-S型服务器", 1000L, 20000000L, "超级服务器，1000万容量")
 }
 
 /**
@@ -33,7 +33,7 @@ data class ServerInstance(
     /**
      * 获取服务器总容量（万人）
      */
-    fun getCapacity(): Int = type.capacity
+    fun getCapacity(): Long = type.capacity
     
     /**
      * 获取服务器购买费用
@@ -51,7 +51,7 @@ data class GameServerInfo(
     /**
      * 计算总容量（万人）
      */
-    fun getTotalCapacity(): Int {
+    fun getTotalCapacity(): Long {
         return servers.filter { it.isActive }.sumOf { it.getCapacity() }
     }
     

@@ -1052,7 +1052,7 @@ fun FilterOptionCard(
 @Composable
 fun CapacityWarningDialog(
     totalActivePlayers: Long,
-    totalCapacity: Int,
+    totalCapacity: Long,
     onDismiss: () -> Unit,
     onOpenPurchase: () -> Unit
 ) {

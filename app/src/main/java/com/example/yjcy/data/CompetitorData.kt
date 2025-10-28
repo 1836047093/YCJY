@@ -140,7 +140,7 @@ sealed class AcquisitionResult {
     data class Success(
         val acquiredCompany: CompetitorCompany,
         val finalPrice: Long,
-        val inheritedGames: List<CompetitorGame>,
+        val inheritedIPs: List<GameIP>,  // 改为继承IP而不是游戏
         val marketValueGain: Long,
         val fansGain: Int
     ) : AcquisitionResult()
@@ -848,25 +848,36 @@ object CompetitorManager {
     }
     
     /**
-     * 完成收购，返回收购结果
+     * 完成收购，返回收购结果（改为返回IP列表而不是游戏列表）
      */
     fun completeAcquisition(
         targetCompany: CompetitorCompany,
-        finalPrice: Long
-    ): Triple<Long, Int, List<CompetitorGame>> {
+        finalPrice: Long,
+        acquiredYear: Int,
+        acquiredMonth: Int
+    ): Triple<Long, Int, List<GameIP>> {
         // 市值增加：目标市值 × 60%
         val marketValueGain = (targetCompany.marketValue * 0.6).toLong()
         
         // 粉丝增加：目标粉丝 × 40%
         val fansGain = (targetCompany.fans * 0.4).toInt()
         
-        // 继承热门游戏（1-2个评分最高的游戏）
-        val inheritedGamesCount = Random.nextInt(1, minOf(3, targetCompany.games.size + 1))
-        val inheritedGames = targetCompany.games
-            .sortedByDescending { it.rating }
-            .take(inheritedGamesCount)
+        // 将游戏转换为IP（所有游戏都转换为IP，不是继承游戏）
+        val inheritedIPs = targetCompany.games.map { game ->
+            GameIP(
+                id = "ip_${game.id}",
+                name = game.name,
+                originalCompany = targetCompany.name,
+                theme = game.theme,
+                originalRating = game.rating,
+                acquiredYear = acquiredYear,
+                acquiredMonth = acquiredMonth,
+                platforms = game.platforms,
+                businessModel = game.businessModel
+            )
+        }
         
-        return Triple(marketValueGain, fansGain, inheritedGames)
+        return Triple(marketValueGain, fansGain, inheritedIPs)
     }
     
     /**

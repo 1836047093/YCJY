@@ -44,8 +44,7 @@ enum class ProjectDisplayType(val displayName: String) {
     DEVELOPING("正在开发"),
     UPDATING("正在更新"),
     RELEASED("已发售"),
-    REMOVED("已下架"),
-    SUBSIDIARY("子公司游戏")
+    REMOVED("已下架")
 }
 
 // 为 ProjectDisplayType 创建自定义 Saver
@@ -147,7 +146,8 @@ fun EnhancedProjectManagementContent(
     onAutoProcessToggle: (Boolean) -> Unit = {},  // 新增：自动处理开关回调
     currentYear: Int = 1,  // 新增：当前年份
     currentMonth: Int = 1,  // 新增：当前月份
-    currentDay: Int = 1  // 新增：当前日期
+    currentDay: Int = 1,  // 新增：当前日期
+    ownedIPs: List<com.example.yjcy.data.GameIP> = emptyList()  // 新增：拥有的IP列表
 ) {
     var showGameDevelopmentDialog by remember { mutableStateOf(false) }
     var showPromotionCenterDialog by remember { mutableStateOf(false) }
@@ -187,10 +187,6 @@ fun EnhancedProjectManagementContent(
             }
             ProjectDisplayType.REMOVED -> games.filter {
                 it.releaseStatus == GameReleaseStatus.REMOVED_FROM_MARKET
-            }
-            ProjectDisplayType.SUBSIDIARY -> games.filter { game ->
-                // 从竞争对手公司收购来的游戏（id以inherited_开头）
-                game.id.startsWith("inherited_")
             }
         }
     }
@@ -380,11 +376,10 @@ fun EnhancedProjectManagementContent(
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = when (selectedProjectType) {
-                                ProjectDisplayType.DEVELOPING -> "暂无正在开发的项目"
+                                ProjectDisplayType.DEVELOPING -> "暂无正在开发的游戏"
                                 ProjectDisplayType.UPDATING -> "暂无正在更新的游戏"
                                 ProjectDisplayType.RELEASED -> "暂无已发售的游戏"
                                 ProjectDisplayType.REMOVED -> "暂无已下架的游戏"
-                                ProjectDisplayType.SUBSIDIARY -> "暂无子公司游戏"
                             },
                             color = Color.White.copy(alpha = 0.7f),
                             fontSize = 16.sp
@@ -395,7 +390,6 @@ fun EnhancedProjectManagementContent(
                                 ProjectDisplayType.UPDATING -> "已发售游戏开始更新后将在此显示"
                                 ProjectDisplayType.RELEASED -> "完成游戏开发并发售后将在此显示"
                                 ProjectDisplayType.REMOVED -> "下架的游戏将在此显示"
-                                ProjectDisplayType.SUBSIDIARY -> "收购竞争对手公司后，其旗下的游戏将在此显示"
                             },
                             color = Color.White.copy(alpha = 0.5f),
                             fontSize = 14.sp
@@ -453,6 +447,7 @@ fun EnhancedProjectManagementContent(
     if (showGameDevelopmentDialog) {
         SuperEnhancedGameDevelopmentDialog(
             money = money,
+            ownedIPs = ownedIPs,
             onDismiss = { showGameDevelopmentDialog = false },
             onGameCreated = { newGame ->
                 // 扣除开发费用
@@ -650,6 +645,7 @@ fun AnimatedThemeGrid(
 @Composable
 fun SuperEnhancedGameDevelopmentDialog(
     money: Long,
+    ownedIPs: List<com.example.yjcy.data.GameIP> = emptyList(),
     onDismiss: () -> Unit,
     onGameCreated: (Game) -> Unit
 ) {
@@ -661,10 +657,24 @@ fun SuperEnhancedGameDevelopmentDialog(
     var selectedPlatforms by remember { mutableStateOf(setOf<Platform>()) }
     var selectedBusinessModel by remember { mutableStateOf<BusinessModel?>(null) }
     var monetizationItems by remember { mutableStateOf<List<com.example.yjcy.data.MonetizationItem>>(emptyList()) }
+    var selectedIP by remember { mutableStateOf<com.example.yjcy.data.GameIP?>(null) }
     
-    // 计算总步骤数：网络游戏需要额外的付费内容步骤
-    val totalSteps = if (selectedBusinessModel == BusinessModel.ONLINE_GAME) 4 else 3
-    val isLastStep = currentStep == totalSteps - 1
+    // 计算总步骤数：基础步骤 + (有IP时+1步) + (网游时+1步)
+    val hasIPStep = ownedIPs.isNotEmpty()
+    val hasMonetizationStep = selectedBusinessModel == BusinessModel.ONLINE_GAME
+    val totalSteps = 2 + (if (hasIPStep) 1 else 0) + 1 + (if (hasMonetizationStep) 1 else 0)
+    // 步骤0：主题和名称
+    // 步骤1（可选）：IP选择（如果有IP）
+    // 步骤N：平台和商业模式
+    // 步骤N+1（可选）：付费内容（仅网游）
+    // 步骤最后：确认
+    
+    // 步骤索引计算
+    val ipStepIndex = if (hasIPStep) 1 else -1
+    val platformStepIndex = if (hasIPStep) 2 else 1
+    val monetizationStepIndex = if (hasMonetizationStep) platformStepIndex + 1 else -1
+    val confirmStepIndex = platformStepIndex + (if (hasMonetizationStep) 2 else 1)
+    val isLastStep = currentStep >= totalSteps - 1
     
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -707,8 +717,8 @@ fun SuperEnhancedGameDevelopmentDialog(
                 // 步骤标题已删除
                 
                 // 步骤内容
-                when (currentStep) {
-                    0 -> ThemeAndNameInputStep(
+                when {
+                    currentStep == 0 -> ThemeAndNameInputStep(
                         selectedTheme = selectedTheme,
                         onThemeSelected = { selectedTheme = it },
                         gameName = gameName,
@@ -736,7 +746,15 @@ fun SuperEnhancedGameDevelopmentDialog(
                         isGameNameValid = isGameNameValid,
                         gameNameError = gameNameError
                     )
-                    1 -> PlatformAndBusinessModelStep(
+                    currentStep == ipStepIndex -> {
+                        // IP选择步骤（如果有IP可用）
+                        IPSelectionStep(
+                            ownedIPs = ownedIPs,
+                            selectedIP = selectedIP,
+                            onIPSelected = { selectedIP = it }
+                        )
+                    }
+                    currentStep == platformStepIndex -> PlatformAndBusinessModelStep(
                         selectedPlatforms = selectedPlatforms,
                         selectedBusinessModel = selectedBusinessModel,
                         onPlatformToggle = { platform ->
@@ -749,31 +767,22 @@ fun SuperEnhancedGameDevelopmentDialog(
                         onBusinessModelSelected = { selectedBusinessModel = it },
                         money = money
                     )
-                    2 -> {
-                        // 如果是网络游戏，显示付费内容选择
-                        if (selectedBusinessModel == BusinessModel.ONLINE_GAME) {
-                            MonetizationSelectionStep(
-                                selectedTheme = selectedTheme,
-                                monetizationItems = monetizationItems,
-                                onMonetizationItemsChange = { monetizationItems = it }
-                            )
-                        } else {
-                            // 单机游戏直接显示确认页
-                            GameConfirmationStep(
-                                gameName = gameName,
-                                theme = selectedTheme,
-                                platforms = selectedPlatforms.toList(),
-                                businessModel = selectedBusinessModel
-                            )
-                        }
+                    currentStep == monetizationStepIndex -> {
+                        // 网络游戏的付费内容选择
+                        MonetizationSelectionStep(
+                            selectedTheme = selectedTheme,
+                            monetizationItems = monetizationItems,
+                            onMonetizationItemsChange = { monetizationItems = it }
+                        )
                     }
-                    3 -> {
-                        // 网络游戏的确认步骤
-                        GameConfirmationStep(
+                    else -> {
+                        // 确认步骤（单机游戏在平台选择后直接到这里，网游在付费内容后到这里）
+                        GameConfirmationStepWithIP(
                             gameName = gameName,
                             theme = selectedTheme,
                             platforms = selectedPlatforms.toList(),
-                            businessModel = selectedBusinessModel
+                            businessModel = selectedBusinessModel,
+                            selectedIP = selectedIP
                         )
                     }
                 }
@@ -827,7 +836,8 @@ fun SuperEnhancedGameDevelopmentDialog(
                                     isCompleted = false,
                                     revenue = 0L,
                                     assignedEmployees = emptyList(),
-                                    monetizationItems = monetizationItems
+                                    monetizationItems = monetizationItems,
+                                    fromIP = selectedIP
                                 ).let { game ->
                                     // 计算平台开发费用
                                     val totalPlatformCost = selectedPlatforms.sumOf { it.developmentCost.toLong() }
@@ -839,12 +849,13 @@ fun SuperEnhancedGameDevelopmentDialog(
                             currentStep++
                         }
                     },
-                    enabled = when (currentStep) {
-                        0 -> gameName.isNotBlank() && isGameNameValid
-                        1 -> selectedTheme != null
-                        2 -> selectedPlatforms.isNotEmpty() && selectedBusinessModel != null
+                    enabled = when {
+                        currentStep == 0 -> gameName.isNotBlank() && isGameNameValid && selectedTheme != null
+                        currentStep == ipStepIndex -> true  // IP选择是可选的
+                        currentStep == platformStepIndex -> selectedPlatforms.isNotEmpty() && selectedBusinessModel != null
+                        currentStep == monetizationStepIndex -> true  // 付费内容是可选的
                         else -> {
-                            // 最后一步：检查资金是否足够
+                            // 最后一步（确认）：检查资金是否足够
                             val totalCost = selectedPlatforms.sumOf { it.developmentCost.toLong() }
                             money >= totalCost
                         }
@@ -860,10 +871,11 @@ fun SuperEnhancedGameDevelopmentDialog(
                     
                     Text(
                         text = buttonText,
-                        color = if (when (currentStep) {
-                            0 -> gameName.isNotBlank() && isGameNameValid
-                            1 -> selectedTheme != null
-                            2 -> selectedPlatforms.isNotEmpty() && selectedBusinessModel != null
+                        color = if (when {
+                            currentStep == 0 -> gameName.isNotBlank() && isGameNameValid && selectedTheme != null
+                            currentStep == ipStepIndex -> true
+                            currentStep == platformStepIndex -> selectedPlatforms.isNotEmpty() && selectedBusinessModel != null
+                            currentStep == monetizationStepIndex -> true
                             else -> canAfford
                         }) Color(0xFF10B981) else Color.White.copy(alpha = 0.5f)
                     )
@@ -1877,6 +1889,267 @@ fun GameConfirmationStep(
                     text = "商业模式: ${businessModel?.displayName ?: "未选择"}",
                     color = Color.White,
                     fontSize = 14.sp
+                )
+                
+                val developmentCost = platforms.sumOf { it.developmentCost }
+                Text(
+                    text = "开发费用: ${formatMoneyWithDecimals(developmentCost.toDouble())}",
+                    color = Color(0xFFF59E0B),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+/**
+ * IP选择步骤 - 可选择使用已有IP或原创游戏
+ */
+@Composable
+fun IPSelectionStep(
+    ownedIPs: List<com.example.yjcy.data.GameIP>,
+    selectedIP: com.example.yjcy.data.GameIP?,
+    onIPSelected: (com.example.yjcy.data.GameIP?) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            text = "选择游戏IP (可选):",
+            color = Color.White,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium
+        )
+        
+        Text(
+            text = "使用已有IP可以获得销量加成",
+            color = Color.White.copy(alpha = 0.6f),
+            fontSize = 12.sp,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+        
+        Spacer(modifier = Modifier.height(12.dp))
+        
+        // 原创选项
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onIPSelected(null) },
+            colors = CardDefaults.cardColors(
+                containerColor = if (selectedIP == null) 
+                    Color(0xFF10B981).copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f)
+            ),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "✨",
+                    fontSize = 20.sp,
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "原创游戏",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "不使用IP，全新原创作品",
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 12.sp
+                    )
+                }
+                if (selectedIP == null) {
+                    Text(
+                        text = "✓",
+                        color = Color(0xFF10B981),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        // 拥有的IP列表
+        ownedIPs.forEach { ip ->
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onIPSelected(ip) },
+                colors = CardDefaults.cardColors(
+                    containerColor = if (selectedIP?.id == ip.id) 
+                        Color(0xFF10B981).copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f)
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "🎯",
+                        fontSize = 20.sp,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = ip.name,
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "来自: ${ip.originalCompany}",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 12.sp
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(top = 4.dp)
+                        ) {
+                            // IP等级
+                            Text(
+                                text = ip.getIPLevel(),
+                                color = when {
+                                    ip.originalRating >= 9.0f -> Color(0xFFFFD700) // 金色
+                                    ip.originalRating >= 8.0f -> Color(0xFFC0C0C0) // 银色
+                                    else -> Color(0xFFCD7F32) // 铜色
+                                },
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            // 评分
+                            Text(
+                                text = "评分${String.format("%.1f", ip.originalRating)}",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 12.sp
+                            )
+                            // 加成
+                            Text(
+                                text = "+${(ip.calculateIPBonus() * 100).toInt()}%销量",
+                                color = Color(0xFF10B981),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    if (selectedIP?.id == ip.id) {
+                        Text(
+                            text = "✓",
+                            color = Color(0xFF10B981),
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+        }
+    }
+}
+
+/**
+ * 游戏确认步骤 - 显示所有选择的信息，包括IP
+ */
+@Composable
+fun GameConfirmationStepWithIP(
+    gameName: String,
+    theme: GameTheme?,
+    platforms: List<Platform>,
+    businessModel: BusinessModel?,
+    selectedIP: com.example.yjcy.data.GameIP?
+) {
+    Column {
+        Text(
+            text = "确认游戏信息:",
+            color = Color.White,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium
+        )
+        
+        Spacer(modifier = Modifier.height(12.dp))
+        
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = Color.White.copy(alpha = 0.1f)
+            ),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = "游戏名称: $gameName",
+                    color = Color.White,
+                    fontSize = 14.sp
+                )
+                Text(
+                    text = "主题: ${theme?.displayName ?: "未选择"}",
+                    color = Color.White,
+                    fontSize = 14.sp
+                )
+                Text(
+                    text = "平台: ${platforms.joinToString(", ") { it.displayName }}",
+                    color = Color.White,
+                    fontSize = 14.sp
+                )
+                Text(
+                    text = "商业模式: ${businessModel?.displayName ?: "未选择"}",
+                    color = Color.White,
+                    fontSize = 14.sp
+                )
+                
+                // IP信息
+                if (selectedIP != null) {
+                    HorizontalDivider(
+                        color = Color.White.copy(alpha = 0.2f),
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                    Text(
+                        text = "使用IP: ${selectedIP.name}",
+                        color = Color(0xFF10B981),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "IP等级: ${selectedIP.getIPLevel()}",
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        text = "销量加成: +${(selectedIP.calculateIPBonus() * 100).toInt()}%",
+                        color = Color(0xFF10B981),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                } else {
+                    HorizontalDivider(
+                        color = Color.White.copy(alpha = 0.2f),
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                    Text(
+                        text = "原创游戏 (不使用IP)",
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 14.sp
+                    )
+                }
+                
+                HorizontalDivider(
+                    color = Color.White.copy(alpha = 0.2f),
+                    modifier = Modifier.padding(vertical = 8.dp)
                 )
                 
                 val developmentCost = platforms.sumOf { it.developmentCost }

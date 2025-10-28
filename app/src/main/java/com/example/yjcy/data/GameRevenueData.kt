@@ -149,6 +149,8 @@ object RevenueManager {
     private val gameInfoMap = mutableMapOf<String, Pair<com.example.yjcy.ui.BusinessModel, List<MonetizationItem>>>()
     // 存储游戏服务器信息
     private val gameServerMap = mutableMapOf<String, GameServerInfo>()
+    // 存储游戏IP信息（用于销量加成计算）
+    private val gameIPMap = mutableMapOf<String, GameIP>()
     
     // SharedPreferences用于持久化
     private var sharedPreferences: android.content.SharedPreferences? = null
@@ -530,16 +532,25 @@ object RevenueManager {
         releaseDay: Int = 1,
         promotionIndex: Float = 0f  // 新增：宣传指数（0-1）
     ): GameRevenue {
+        // 使用游戏内时间创建发售日期
         val calendar = Calendar.getInstance()
-        calendar.add(Calendar.DAY_OF_YEAR, -daysOnMarket)
+        calendar.set(Calendar.YEAR, releaseYear)
+        calendar.set(Calendar.MONTH, releaseMonth - 1) // Calendar月份从0开始
+        calendar.set(Calendar.DAY_OF_MONTH, releaseDay)
+        calendar.set(Calendar.HOUR_OF_DAY, 0)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
         val releaseDate = calendar.time
         val dailySalesList = mutableListOf<DailySales>()
         
         // 生成模拟的每日销量数据
         for (i in 0 until daysOnMarket) {
-            calendar.time = releaseDate
-            calendar.add(Calendar.DAY_OF_YEAR, i)
-            val date = calendar.time
+            // 为每一天创建游戏内日期
+            val dayCalendar = Calendar.getInstance()
+            dayCalendar.time = releaseDate
+            dayCalendar.add(Calendar.DAY_OF_YEAR, i)
+            val date = dayCalendar.time
             
             // 模拟销量衰减：首日最高，然后逐渐下降，偶有波动
             val baseSales = when {
@@ -549,7 +560,14 @@ object RevenueManager {
                     // 宣传指数100%时，首发销量/注册提升25%（已下调，原50%）
                     // 低于100%也有提升，但效果没有100%多
                     val promotionBonus = 1f + (promotionIndex * 0.25f)
-                    (baseValue * promotionBonus).toInt()
+                    val withPromotionBonus = (baseValue * promotionBonus).toInt()
+                    // 应用IP加成（如果有）
+                    val ipBonus = getIPBonus(gameId)
+                    if (ipBonus > 0f) {
+                        (withPromotionBonus * (1f + ipBonus)).toInt()
+                    } else {
+                        withPromotionBonus
+                    }
                 }
                 i <= 7 -> Random.nextInt(300, 600) // 首周
                 i <= 14 -> Random.nextInt(150, 350) // 第二周
@@ -663,7 +681,7 @@ object RevenueManager {
             
             // 更新带来新玩家：增加10-20%的总注册人数
             val newPlayersRatio = Random.nextDouble(0.1, 0.2)
-            val newPlayers = (current.totalRegisteredPlayers * newPlayersRatio).toInt()
+            val newPlayers = (current.totalRegisteredPlayers * newPlayersRatio).toLong()
             newTotalRegisteredPlayers = current.totalRegisteredPlayers + newPlayers
         }
 
@@ -907,6 +925,24 @@ object RevenueManager {
     }
     
     /**
+     * 更新游戏IP信息（用于销量加成）
+     */
+    fun updateGameIP(gameId: String, gameIP: GameIP?) {
+        if (gameIP != null) {
+            gameIPMap[gameId] = gameIP
+        } else {
+            gameIPMap.remove(gameId)
+        }
+    }
+    
+    /**
+     * 获取游戏的IP加成（如果游戏使用了IP）
+     */
+    fun getIPBonus(gameId: String): Float {
+        return gameIPMap[gameId]?.calculateIPBonus() ?: 0f
+    }
+    
+    /**
      * 更新游戏价格（不覆盖历史数据）
      */
     fun updateGamePrice(gameId: String, newPrice: Double) {
@@ -987,7 +1023,16 @@ object RevenueManager {
         
         // 如果是第一天（没有历史数据），初始化首日销量
         if (latestSales == null) {
-            val firstDayDate = currentGameRevenue.releaseDate
+            // 使用游戏内时间创建 Date 对象，而不是系统时间
+            val calendar = Calendar.getInstance()
+            calendar.set(Calendar.YEAR, currentGameRevenue.releaseYear)
+            calendar.set(Calendar.MONTH, currentGameRevenue.releaseMonth - 1) // Calendar月份从0开始
+            calendar.set(Calendar.DAY_OF_MONTH, currentGameRevenue.releaseDay)
+            calendar.set(Calendar.HOUR_OF_DAY, 0)
+            calendar.set(Calendar.MINUTE, 0)
+            calendar.set(Calendar.SECOND, 0)
+            calendar.set(Calendar.MILLISECOND, 0)
+            val firstDayDate = calendar.time
             
             // 首日销量/注册：根据商业模式调整
             val baseSales = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
@@ -997,8 +1042,15 @@ object RevenueManager {
                 val withRatingBonus = applyRatingBonus(baseRegistrations, gameRating)
                 // 根据粉丝数量添加加成
                 val withFansBonus = applyFansBonus(withRatingBonus, fanCount)
+                // 根据IP添加加成
+                val ipBonus = getIPBonus(gameId)
+                val withIPBonus = if (ipBonus > 0f) {
+                    (withFansBonus * (1f + ipBonus)).toInt()
+                } else {
+                    withFansBonus
+                }
                 // 根据声望添加加成（初期销量提升）
-                (withFansBonus * (1f + reputationBonus)).toInt()
+                (withIPBonus * (1f + reputationBonus)).toInt()
             } else {
                 // 单机：根据价格调整首日销量（已下调基础值）
                 val baseSalesForPrice = when {
@@ -1011,8 +1063,15 @@ object RevenueManager {
                 val withRatingMultiplier = (baseSalesForPrice * ratingMultiplier).toInt()
                 // 单机游戏也应用粉丝加成（效果低于网游）
                 val withFansBonus = applyFansBonusForSinglePlayer(withRatingMultiplier, fanCount)
+                // 根据IP添加加成
+                val ipBonus = getIPBonus(gameId)
+                val withIPBonus = if (ipBonus > 0f) {
+                    (withFansBonus * (1f + ipBonus)).toInt()
+                } else {
+                    withFansBonus
+                }
                 // 根据声望添加加成（初期销量提升）
-                (withFansBonus * (1f + reputationBonus)).toInt()
+                (withIPBonus * (1f + reputationBonus)).toInt()
             }
             
             val firstDayRevenue = baseSales * currentGameRevenue.releasePrice
@@ -1056,9 +1115,15 @@ object RevenueManager {
         }
         
         // 生成新的一天的销量数据（基于前一天的数据，但略有波动）
+        // 使用游戏内时间创建当天的 Date 对象
         val calendar = Calendar.getInstance()
-        calendar.time = latestSales.date
-        calendar.add(Calendar.DAY_OF_YEAR, 1)
+        calendar.set(Calendar.YEAR, currentYear)
+        calendar.set(Calendar.MONTH, currentMonth - 1) // Calendar月份从0开始
+        calendar.set(Calendar.DAY_OF_MONTH, currentDay)
+        calendar.set(Calendar.HOUR_OF_DAY, 0)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
         val newDate = calendar.time
         
         // 计算新增销量/注册
@@ -1314,7 +1379,7 @@ object RevenueManager {
     /**
      * 检查服务器容量是否足够
      */
-    fun hasEnoughServerCapacity(gameId: String, requiredCapacity: Int): Boolean {
+    fun hasEnoughServerCapacity(gameId: String, requiredCapacity: Long): Boolean {
         val serverInfo = gameServerMap[gameId] ?: return false
         return serverInfo.getTotalCapacity() >= requiredCapacity
     }
@@ -1806,6 +1871,76 @@ object RevenueManager {
         // 立即同步到SharedPreferences，确保数据持久化
         saveRevenueData()
         android.util.Log.d("RevenueManager", "===== 收益数据已同步到SharedPreferences =====")
+    }
+    
+    /**
+     * 数据迁移：修复旧存档中使用系统时间的 DailySales 日期
+     * 
+     * 问题：旧版本代码使用系统时间创建 DailySales.date，导致与 releaseYear/releaseMonth/releaseDay（游戏内时间）无法匹配
+     * 解决：根据 dailySalesList 的索引和 releaseYear/releaseMonth/releaseDay，重建每条记录的游戏内日期
+     */
+    fun migrateDateToGameTime() {
+        android.util.Log.d("RevenueManager", "===== 开始数据迁移：修复DailySales日期 =====")
+        
+        var migratedCount = 0
+        gameRevenueMap.forEach { (gameId, revenue) ->
+            if (revenue.dailySalesList.isEmpty()) return@forEach
+            
+            // 检查是否需要迁移：如果首日销量的date年份与releaseYear相同，说明已经使用游戏内时间，无需迁移
+            val firstDate = revenue.dailySalesList.first().date
+            val firstCalendar = Calendar.getInstance()
+            firstCalendar.time = firstDate
+            val firstYear = firstCalendar.get(Calendar.YEAR)
+            
+            if (firstYear == revenue.releaseYear) {
+                // 已经是游戏内时间，无需迁移
+                android.util.Log.d("RevenueManager", "游戏 ${revenue.gameName} (${gameId}) 已使用游戏内时间，跳过")
+                return@forEach
+            }
+            
+            // 需要迁移：根据索引重建日期
+            android.util.Log.d("RevenueManager", "游戏 ${revenue.gameName} (${gameId}) 需要迁移，共 ${revenue.dailySalesList.size} 条记录")
+            
+            val calendar = Calendar.getInstance()
+            calendar.set(Calendar.YEAR, revenue.releaseYear)
+            calendar.set(Calendar.MONTH, revenue.releaseMonth - 1) // Calendar月份从0开始
+            calendar.set(Calendar.DAY_OF_MONTH, revenue.releaseDay)
+            calendar.set(Calendar.HOUR_OF_DAY, 0)
+            calendar.set(Calendar.MINUTE, 0)
+            calendar.set(Calendar.SECOND, 0)
+            calendar.set(Calendar.MILLISECOND, 0)
+            
+            val migratedDailySales = revenue.dailySalesList.mapIndexed { index, dailySales ->
+                // 为每一天创建游戏内日期
+                val dayCalendar = Calendar.getInstance()
+                dayCalendar.time = calendar.time
+                dayCalendar.add(Calendar.DAY_OF_YEAR, index)
+                val newDate = dayCalendar.time
+                
+                // 创建新的 DailySales，保留销量和收益，只修改日期
+                dailySales.copy(date = newDate)
+            }
+            
+            // 更新 releaseDate 为游戏内时间
+            val newReleaseDate = calendar.time
+            
+            // 更新 GameRevenue
+            gameRevenueMap[gameId] = revenue.copy(
+                releaseDate = newReleaseDate,
+                dailySalesList = migratedDailySales
+            )
+            
+            migratedCount++
+            android.util.Log.d("RevenueManager", "  ✓ 已迁移：首日从 ${firstDate} 改为 ${newReleaseDate}")
+        }
+        
+        if (migratedCount > 0) {
+            // 保存迁移后的数据
+            saveRevenueData()
+            android.util.Log.d("RevenueManager", "===== 数据迁移完成，共迁移 $migratedCount 个游戏 =====")
+        } else {
+            android.util.Log.d("RevenueManager", "===== 无需迁移，所有游戏已使用游戏内时间 =====")
+        }
     }
     
 }

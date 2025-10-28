@@ -104,6 +104,7 @@ import com.example.yjcy.ui.BusinessModel
 import com.example.yjcy.data.CompetitorCompany
 import com.example.yjcy.data.CompetitorNews
 import com.example.yjcy.data.CompetitorManager
+import com.example.yjcy.data.GameIP
 import com.example.yjcy.data.Complaint
 import com.example.yjcy.data.ComplaintStatus
 import com.example.yjcy.data.Achievement
@@ -130,6 +131,17 @@ import com.example.yjcy.ui.rememberTutorialState
 import com.example.yjcy.ui.TutorialDialog
 import com.example.yjcy.ui.TutorialTrigger
 import com.example.yjcy.data.TutorialId
+import com.example.yjcy.data.EsportsTournament
+import com.example.yjcy.data.TournamentStatus
+import com.example.yjcy.data.TournamentManager
+import com.example.yjcy.data.MonetizationConfig
+import com.example.yjcy.data.MonetizationItem
+import com.example.yjcy.data.GameUpdate
+import com.example.yjcy.utils.CommentGenerator
+import com.example.yjcy.utils.SensitiveWordFilter
+import com.example.yjcy.utils.SignatureHelper
+import com.example.yjcy.data.NewsType
+import com.example.yjcy.taptap.TapUpdateManager
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import dagger.hilt.android.AndroidEntryPoint
@@ -155,10 +167,13 @@ class MainActivity : ComponentActivity() {
         Log.d("MainActivity", "MainActivity onCreate 开始")
         
         // 打印当前签名信息（用于TapTap SDK配置）
-        com.example.yjcy.utils.SignatureHelper.logAppInfo(this)
+        SignatureHelper.logAppInfo(this)
         
         // 初始化RevenueManager以支持数据持久化
         RevenueManager.initialize(this)
+        
+        // 数据迁移：修复旧存档中使用系统时间的 DailySales 日期（针对旧存档的一次性迁移）
+        RevenueManager.migrateDateToGameTime()
         
         // 启动时检查并修复服务器扣费（针对旧存档的一次性迁移）
         Log.d("MainActivity", "检查服务器扣费状态...")
@@ -180,7 +195,7 @@ class MainActivity : ComponentActivity() {
             // 延迟500ms后检查更新，确保SDK完全初始化
             android.os.Handler(mainLooper).postDelayed({
                 Log.d("MainActivity", "开始检查TapTap更新...")
-                com.example.yjcy.taptap.TapUpdateManager.checkForceUpdate()
+                TapUpdateManager.checkForceUpdate()
             }, 500)
         } else {
             Log.d("MainActivity", "用户未同意隐私政策，等待用户同意后再初始化SDK")
@@ -265,7 +280,7 @@ class MainActivity : ComponentActivity() {
                         // 从所有存档中加载已解锁的成就
                         val context = LocalContext.current
                         val saveManager = remember { SaveManager(context) }
-                        var allUnlockedAchievements by remember { mutableStateOf<List<UnlockedAchievement>>(emptyList()) }
+                        var allUnlockedAchievements by remember { mutableStateOf(emptyList<UnlockedAchievement>()) }
                         var maxMoney by remember { mutableLongStateOf(0L) }
                         var isLoading by remember { mutableStateOf(true) }
                         
@@ -371,7 +386,7 @@ fun ForcedTapLoginScreen(
     val context = LocalContext.current
     val activity = context as? Activity
     
-    var showMessage by remember { mutableStateOf<String?>(null) }
+    var showMessage by remember { mutableStateOf(null as String?) }
     
     Box(
         modifier = Modifier
@@ -915,7 +930,7 @@ fun GameSetupScreen(navController: NavController) {
     var companyName by remember { mutableStateOf("") }
     var founderName by remember { mutableStateOf("") }
     var selectedLogo by remember { mutableStateOf("🎮") }
-    var selectedProfession by remember { mutableStateOf<FounderProfession?>(null) }
+    var selectedProfession by remember { mutableStateOf(null as FounderProfession?) }
     var isCompanyNameValid by remember { mutableStateOf(true) }
     var companyNameError by remember { mutableStateOf("") }
     
@@ -975,7 +990,7 @@ fun GameSetupScreen(navController: NavController) {
                                 isCompanyNameValid = false
                                 companyNameError = "只能输入字符和数字"
                             }
-                            com.example.yjcy.utils.SensitiveWordFilter.containsSensitiveCompanyName(newValue) -> {
+                            SensitiveWordFilter.containsSensitiveCompanyName(newValue) -> {
                                 isCompanyNameValid = false
                                 companyNameError = "存在敏感词汇，请换个公司名"
                             }
@@ -1201,14 +1216,14 @@ fun GameScreen(
     // 游戏发售相关状态
     var showReleaseDialog by remember { mutableStateOf(false) }
     var showRatingDialog by remember { mutableStateOf(false) }
-    var pendingReleaseGame by remember { mutableStateOf<Game?>(null) }
+    var pendingReleaseGame by remember { mutableStateOf(null as Game?) }
     var revenueRefreshTrigger by remember { mutableIntStateOf(0) } // 用于触发收益数据刷新
     var jobPostingRefreshTrigger by remember { mutableIntStateOf(0) } // 用于触发岗位应聘者数据刷新
-    var pendingRatingGame by remember { mutableStateOf<Game?>(null) }
+    var pendingRatingGame by remember { mutableStateOf(null as Game?) }
     
     // 废弃游戏相关状态
     var showAbandonDialog by remember { mutableStateOf(false) }
-    var pendingAbandonGame by remember { mutableStateOf<Game?>(null) }
+    var pendingAbandonGame by remember { mutableStateOf(null as Game?) }
     
     // 退出游戏确认对话框状态
     var showExitDialog by remember { mutableStateOf(false) }
@@ -1238,26 +1253,30 @@ fun GameScreen(
     // 竞争对手数据状态
     var competitors by remember { mutableStateOf(saveData?.competitors ?: emptyList()) }
     var competitorNews by remember { mutableStateOf(saveData?.competitorNews ?: emptyList()) }
+    var ownedIPs by remember { mutableStateOf(saveData?.ownedIPs ?: emptyList()) } // 拥有的游戏IP列表
     
     // 客诉数据状态
     var complaints by remember { mutableStateOf(saveData?.complaints ?: emptyList()) }
     var autoProcessComplaints by remember { mutableStateOf(saveData?.autoProcessComplaints ?: false) }
     
+    // GM模式状态
+    var gmModeEnabled by remember { mutableStateOf(saveData?.gmModeEnabled ?: false) }
+    
     // GVA颁奖对话框状态
     var showGVAAwardDialog by remember { mutableStateOf(false) }
     var gvaAwardYear by remember { mutableIntStateOf(1) }
-    var gvaAwardNominations by remember { mutableStateOf<List<AwardNomination>>(emptyList()) }
+    var gvaAwardNominations by remember { mutableStateOf(emptyList<AwardNomination>()) }
     var gvaPlayerWonCount by remember { mutableIntStateOf(0) }
     var gvaPlayerTotalReward by remember { mutableLongStateOf(0L) }
     var gvaPlayerFansGain by remember { mutableIntStateOf(0) }
     
     // 赛事完成弹窗状态
     var showTournamentResultDialog by remember { mutableStateOf(false) }
-    var tournamentResult by remember { mutableStateOf<com.example.yjcy.data.EsportsTournament?>(null) }
+    var tournamentResult by remember { mutableStateOf(null as EsportsTournament?) }
     
     // 成就系统状态
     var unlockedAchievements by remember { mutableStateOf(saveData?.unlockedAchievements ?: emptyList()) }
-    var pendingAchievementsToShow by remember { mutableStateOf<List<Achievement>>(emptyList()) }
+    var pendingAchievementsToShow by remember { mutableStateOf(emptyList<Achievement>()) }
     var hasCheckedInitialAchievements by remember { mutableStateOf(false) }
     
     // 教程系统状态
@@ -1277,7 +1296,7 @@ fun GameScreen(
         mutableStateOf(saveData?.currentYearNominations ?: emptyList<AwardNomination>()) 
     }
     var gvaAnnouncedDate by remember(saveData) { 
-        mutableStateOf<GameDate?>(saveData?.gvaAnnouncedDate) 
+        mutableStateOf(saveData?.gvaAnnouncedDate) 
     }
     
     // 获取待处理的应聘者数量
@@ -1352,6 +1371,8 @@ fun GameScreen(
                             releasedGame.businessModel,
                             releasedGame.monetizationItems
                         )
+                        // 初始化游戏IP信息（用于销量加成）
+                        RevenueManager.updateGameIP(releasedGame.id, releasedGame.fromIP)
                     } else {
                         // 收益数据存在，更新游戏信息（商业模式和付费内容）
                         RevenueManager.updateGameInfo(
@@ -1359,6 +1380,8 @@ fun GameScreen(
                             releasedGame.businessModel,
                             releasedGame.monetizationItems
                         )
+                        // 更新游戏IP信息（用于销量加成）
+                        RevenueManager.updateGameIP(releasedGame.id, releasedGame.fromIP)
                     }
                 }
             
@@ -1366,13 +1389,13 @@ fun GameScreen(
             var needUpdateGames = false
             val updatedGames = saveData.games.map { game ->
                 if (game.id.startsWith("inherited_") && 
-                    game.businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME &&
+                    game.businessModel == BusinessModel.ONLINE_GAME &&
                     game.monetizationItems.isEmpty()) {
                     // 子公司网游没有付费内容，自动生成
                     needUpdateGames = true
-                    val recommendedTypes = com.example.yjcy.data.MonetizationConfig.getRecommendedItems(game.theme)
+                    val recommendedTypes = MonetizationConfig.getRecommendedItems(game.theme)
                     val monetizationItems = recommendedTypes.map { itemType ->
-                        com.example.yjcy.data.MonetizationItem(
+                        MonetizationItem(
                             type = itemType,
                             price = itemType.getRecommendedPrice(),
                             isEnabled = true
@@ -1653,6 +1676,13 @@ fun GameScreen(
                     // 更新上次月结算时间
                     lastSettlementYear = currentYear
                     lastSettlementMonth = currentMonth
+                    
+                    // 月结算：扣除员工工资
+                    val totalSalaryCost = allEmployees.sumOf { it.salary }
+                    if (totalSalaryCost > 0) {
+                        money -= totalSalaryCost
+                        Log.d("MainActivity", "💰 月结算工资扣除: -¥$totalSalaryCost (员工数:${allEmployees.size}, 扣费后:¥$money)")
+                    }
                     
                     // 月结算：检查成就
                     val currentSaveData = SaveData(
@@ -1940,16 +1970,16 @@ fun GameScreen(
                         // 创建游戏更新记录
                         val newUpdateHistory = if (completedTask != null) {
                             val updateNumber = (releasedGame.updateHistory ?: emptyList()).size + 1
-                            val updateDate = com.example.yjcy.data.GameDate(currentYear, currentMonth, currentDay)
+                            val updateDate = GameDate(currentYear, currentMonth, currentDay)
                             
                             // 生成玩家评论
-                            val comments = com.example.yjcy.utils.CommentGenerator.generateComments(
+                            val comments = CommentGenerator.generateComments(
                                 updateContent = completedTask.features,
                                 commentCount = kotlin.random.Random.nextInt(5, 11)
                             )
                             
                             // 创建更新记录
-                            val gameUpdate = com.example.yjcy.data.GameUpdate(
+                            val gameUpdate = GameUpdate(
                                 updateNumber = updateNumber,
                                 updateDate = updateDate,
                                 updateContent = completedTask.features,
@@ -1982,14 +2012,14 @@ fun GameScreen(
                                     .distinct()
                             } else {
                                 // 单机游戏：根据游戏主题获取推荐的付费内容类型作为更新内容
-                                val recommendedItems = com.example.yjcy.data.MonetizationConfig.getRecommendedItems(releasedGame.theme)
+                                val recommendedItems = MonetizationConfig.getRecommendedItems(releasedGame.theme)
                                 recommendedItems.map { it.getUpdateContentName() }
                             }
                             
                             // 如果有可用的更新内容，自动创建新的更新任务
                             if (autoUpdateFeatures.isNotEmpty()) {
                                 // 自动更新使用默认公告
-                                val autoAnnouncement = com.example.yjcy.utils.CommentGenerator.generateDefaultAnnouncement(autoUpdateFeatures)
+                                val autoAnnouncement = CommentGenerator.generateDefaultAnnouncement(autoUpdateFeatures)
                                 RevenueManager.createUpdateTask(releasedGame.id, autoUpdateFeatures, autoAnnouncement)
                                 println("【自动更新】已自动创建下一次更新任务，共${autoUpdateFeatures.size}项内容")
                             }
@@ -2036,35 +2066,35 @@ fun GameScreen(
             // 每日更新赛事
             games = games.map { game ->
                 val tournament = game.currentTournament
-                if (tournament != null && tournament.status != com.example.yjcy.data.TournamentStatus.COMPLETED) {
-                    val updatedTournament = com.example.yjcy.data.TournamentManager.updateTournament(
+                if (tournament != null && tournament.status != TournamentStatus.COMPLETED) {
+                    val updatedTournament = TournamentManager.updateTournament(
                         tournament,
                         GameDate(currentYear, currentMonth, currentDay)
                     )
                     
                     // 检查是否刚完成
-                    if (updatedTournament.status == com.example.yjcy.data.TournamentStatus.COMPLETED && 
-                        tournament.status != com.example.yjcy.data.TournamentStatus.COMPLETED) {
+                    if (updatedTournament.status == TournamentStatus.COMPLETED && 
+                        tournament.status != TournamentStatus.COMPLETED) {
                         // 结算赛事
                         val revenueData = RevenueManager.getGameRevenue(game.id)
                         if (revenueData != null) {
                             // 确定成功等级
-                            val successLevel = com.example.yjcy.data.TournamentManager.determineTournamentSuccess(
+                            val successLevel = TournamentManager.determineTournamentSuccess(
                                 updatedTournament, game, 50f // TODO: 使用公司声誉
                             )
                             
                             // 计算收益
-                            val revenue = com.example.yjcy.data.TournamentManager.calculateTournamentRevenue(
+                            val revenue = TournamentManager.calculateTournamentRevenue(
                                 updatedTournament, game, revenueData, successLevel
                             )
                             
                             // 应用效果
-                            val (fansGained, playersGained, interestBonus) = com.example.yjcy.data.TournamentManager.applyTournamentEffects(
+                            val (fansGained, playersGained, interestBonus) = TournamentManager.applyTournamentEffects(
                                 updatedTournament, game, revenueData, fans, successLevel
                             )
                             
                             // 生成随机事件
-                            val (eventDesc, _) = com.example.yjcy.data.TournamentManager.generateRandomEvent()
+                            val (eventDesc, _) = TournamentManager.generateRandomEvent()
                             
                             // 更新数据
                             money += revenue.totalRevenue
@@ -2087,7 +2117,7 @@ fun GameScreen(
                             
                             val history = ((game.tournamentHistory ?: emptyList()) + completedTournament).takeLast(5)
                             
-                            Log.d("MainActivity", "🏆 赛事完成: ${game.name} - ${updatedTournament.type.displayName}, 收益: ${com.example.yjcy.utils.formatMoney(revenue.totalRevenue)}, 粉丝+$fansGained")
+                            Log.d("MainActivity", "🏆 赛事完成: ${game.name} - ${updatedTournament.type.displayName}, 收益: ${formatMoney(revenue.totalRevenue)}, 粉丝+$fansGained")
                             
                             // 显示赛事完成弹窗
                             tournamentResult = completedTournament
@@ -2242,7 +2272,7 @@ fun GameScreen(
                                 revenueData = RevenueManager.exportRevenueData()
                             ),
                             gameSpeed = gameSpeed,
-                            onAcquisitionSuccess = { acquiredCompany, finalPrice, marketValueGain, fansGain, inheritedGames ->
+                            onAcquisitionSuccess = { acquiredCompany: CompetitorCompany, finalPrice: Long, marketValueGain: Long, fansGain: Int, inheritedIPs: List<GameIP> ->
                                 // 扣除收购费用
                                 money -= finalPrice
                                 
@@ -2252,91 +2282,22 @@ fun GameScreen(
                                 // 移除被收购的公司
                                 competitors = competitors.filter { it.id != acquiredCompany.id }
                                 
-                                // 继承游戏（转换为玩家的游戏）
-                                // 状态设置为RATED（已评分但未发售），需要玩家在子公司手动点击"发售"按钮
-                                val inheritedPlayerGames = inheritedGames.map { competitorGame ->
-                                    // 为网游自动生成付费内容
-                                    val monetizationItems = if (competitorGame.businessModel == BusinessModel.ONLINE_GAME) {
-                                        // 根据游戏主题获取推荐的付费内容类型
-                                        val recommendedTypes = com.example.yjcy.data.MonetizationConfig.getRecommendedItems(competitorGame.theme)
-                                        // 为每个类型生成付费内容，使用推荐价格并启用
-                                        recommendedTypes.map { itemType ->
-                                            com.example.yjcy.data.MonetizationItem(
-                                                type = itemType,
-                                                price = itemType.getRecommendedPrice(), // 使用推荐价格
-                                                isEnabled = true // 默认启用
-                                            )
-                                        }
-                                    } else {
-                                        emptyList() // 单机游戏不需要付费内容
-                                    }
-                                    
-                                    Game(
-                                        id = "inherited_${System.currentTimeMillis()}_${kotlin.random.Random.nextInt()}",
-                                        name = competitorGame.name,
-                                        theme = competitorGame.theme,
-                                        platforms = competitorGame.platforms,
-                                        businessModel = competitorGame.businessModel,
-                                        assignedEmployees = emptyList(),
-                                        releaseStatus = GameReleaseStatus.RELEASED, // ✅ 继承的游戏本来就在运营，直接设为已发售
-                                        developmentProgress = 100f,
-                                        isCompleted = true,
-                                        currentPhase = DevelopmentPhase.PROGRAMMING,
-                                        phaseProgress = 100f,
-                                        rating = competitorGame.rating,
-                                        releasePrice = 50f,
-                                        promotionIndex = 0f,
-                                        version = 1.0f,
-                                        monetizationItems = monetizationItems
-                                    )
-                                }
-                                games = games + inheritedPlayerGames
+                                // 将获得的IP添加到玩家的IP库
+                                ownedIPs = ownedIPs + inheritedIPs
                                 
-                                // 为继承的游戏初始化收益数据（修复子公司游戏收入不计入财务状况的bug）
-                                inheritedPlayerGames.forEach { inheritedGame ->
-                                    val originalCompetitorGame = inheritedGames.find { it.name == inheritedGame.name }
-                                    if (originalCompetitorGame != null) {
-                                        // 计算游戏已运营天数（从发售到收购日）
-                                        val operatingDays = RevenueManager.calculateDaysSinceLaunch(
-                                            releaseYear = originalCompetitorGame.releaseYear,
-                                            releaseMonth = originalCompetitorGame.releaseMonth,
-                                            releaseDay = 1,
-                                            currentYear = currentYear,
-                                            currentMonth = currentMonth,
-                                            currentDay = currentDay
-                                        ).coerceAtLeast(30) // 至少30天历史数据，确保能看到收入
-                                        
-                                        // 初始化收益数据结构（生成历史数据）
-                                        RevenueManager.generateRevenueData(
-                                            gameId = inheritedGame.id,
-                                            gameName = inheritedGame.name,
-                                            releasePrice = inheritedGame.releasePrice?.toDouble() ?: 50.0,
-                                            daysOnMarket = operatingDays, // 生成已运营天数的历史数据
-                                            releaseYear = originalCompetitorGame.releaseYear,
-                                            releaseMonth = originalCompetitorGame.releaseMonth,
-                                            releaseDay = 1, // 竞争对手游戏没有具体日期，使用1号
-                                            promotionIndex = inheritedGame.promotionIndex
-                                        )
-                                        
-                                        // 更新游戏信息（商业模式和付费内容）
-                                        RevenueManager.updateGameInfo(
-                                            inheritedGame.id,
-                                            inheritedGame.businessModel,
-                                            inheritedGame.monetizationItems
-                                        )
-                                        
-                                        Log.d("MainActivity", "✓ 为继承游戏 ${inheritedGame.name} 初始化收益数据（发售日期：${originalCompetitorGame.releaseYear}年${originalCompetitorGame.releaseMonth}月，已运营${operatingDays}天）")
-                                    }
+                                Log.d("MainActivity", "收购成功：获得${inheritedIPs.size}个IP")
+                                inheritedIPs.forEach { ip: GameIP ->
+                                    Log.d("MainActivity", "  - IP: ${ip.name} (${ip.getIPLevel()}, 评分${ip.originalRating}, 加成${(ip.calculateIPBonus() * 100).toInt()}%)")
                                 }
                                 
                                 // 生成收购新闻
                                 competitorNews = (listOf(
-                                    com.example.yjcy.data.CompetitorNews(
+                                    CompetitorNews(
                                         id = "news_${System.currentTimeMillis()}_${kotlin.random.Random.nextInt()}",
                                         title = "${companyName}成功收购${acquiredCompany.name}！",
-                                        content = "${companyName}以${com.example.yjcy.utils.formatMoney(finalPrice)}的价格成功收购了${acquiredCompany.name}，" +
-                                                "继承了${inheritedGames.size}款热门游戏，市值大幅增长。这是游戏行业的重大并购事件。",
-                                        type = com.example.yjcy.data.NewsType.COMPANY_MILESTONE,
+                                        content = "${companyName}以${formatMoney(finalPrice)}的价格成功收购了${acquiredCompany.name}，" +
+                                                "获得了${inheritedIPs.size}个游戏IP，市值大幅增长。这是游戏行业的重大并购事件。",
+                                        type = NewsType.COMPANY_MILESTONE,
                                         companyId = -1,
                                         companyName = companyName,
                                         year = currentYear,
@@ -2345,26 +2306,27 @@ fun GameScreen(
                                     )
                                 ) + competitorNews).take(30)
                             },
-                            onAIWin = { acquirer: com.example.yjcy.data.CompetitorCompany, acquired: com.example.yjcy.data.CompetitorCompany, price: Long ->
+                            onAIWin = { acquirer: CompetitorCompany, acquired: CompetitorCompany, price: Long ->
                                 // AI竞争对手收购成功
                                 
                                 // 1. 移除被收购的公司
                                 competitors = competitors.filter { it.id != acquired.id }
                                 
-                                // 2. 更新收购方公司的数据
-                                val (marketValueGain, fansGain, inheritedGames) = 
-                                    com.example.yjcy.data.CompetitorManager.completeAcquisition(
+                                // 2. 更新收购方公司的数据（AI收购不获得IP，只增加市值和粉丝）
+                                val (marketValueGain, fansGain, _) = 
+                                    CompetitorManager.completeAcquisition(
                                         targetCompany = acquired,
-                                        finalPrice = price
+                                        finalPrice = price,
+                                        acquiredYear = currentYear,
+                                        acquiredMonth = currentMonth
                                     )
                                 
                                 competitors = competitors.map { company ->
                                     if (company.id == acquirer.id) {
-                                        // 更新收购方：增加市值、粉丝、游戏
+                                        // 更新收购方：只增加市值、粉丝（AI不继承游戏或IP）
                                         company.copy(
                                             marketValue = company.marketValue + marketValueGain,
-                                            fans = company.fans + fansGain,
-                                            games = company.games + inheritedGames
+                                            fans = company.fans + fansGain
                                         )
                                     } else {
                                         company
@@ -2373,12 +2335,11 @@ fun GameScreen(
                                 
                                 // 3. 生成收购新闻
                                 competitorNews = (listOf(
-                                    com.example.yjcy.data.CompetitorNews(
+                                    CompetitorNews(
                                         id = "news_${System.currentTimeMillis()}_${kotlin.random.Random.nextInt()}",
                                         title = "${acquirer.name}成功收购${acquired.name}！",
-                                        content = "${acquirer.name}以${com.example.yjcy.utils.formatMoney(price)}的价格成功收购了${acquired.name}，" +
-                                                "继承了${inheritedGames.size}款热门游戏。这是游戏行业的一次重大并购事件。",
-                                        type = com.example.yjcy.data.NewsType.COMPANY_MILESTONE,
+                                        content = "${acquirer.name}以${formatMoney(price)}的价格成功收购了${acquired.name}。这是游戏行业的一次重大并购事件。",
+                                        type = NewsType.COMPANY_MILESTONE,
                                         companyId = acquirer.id,
                                         companyName = acquirer.name,
                                         year = currentYear,
@@ -2413,7 +2374,7 @@ fun GameScreen(
                                     games = games.map { g ->
                                         if (g.id == gameId) {
                                             g.copy(
-                                                currentTournament = tournament.copy(status = com.example.yjcy.data.TournamentStatus.ONGOING),
+                                                currentTournament = tournament.copy(status = TournamentStatus.ONGOING),
                                                 lastTournamentDate = GameDate(currentYear, currentMonth, currentDay)
                                             )
                                         } else {
@@ -2421,7 +2382,7 @@ fun GameScreen(
                                         }
                                     }
                                     
-                                    messageText = "成功举办${tournament.type.displayName}，投入${com.example.yjcy.utils.formatMoney(tournament.investment)}"
+                                    messageText = "成功举办${tournament.type.displayName}，投入${formatMoney(tournament.investment)}"
                                     showMessage = true
                                 }
                             }
@@ -2588,6 +2549,9 @@ fun GameScreen(
                                 releasedGame.businessModel,
                                 releasedGame.monetizationItems
                             )
+                            
+                            // 更新游戏IP信息（用于销量加成）
+                            RevenueManager.updateGameIP(releasedGame.id, releasedGame.fromIP)
                             
                             releasedGame
                         } else {
@@ -2971,7 +2935,27 @@ fun GameScreen(
                             companyReputation = companyReputation,
                             gvaHistory = gvaHistory,
                             currentYearNominations = currentYearNominations,
-                            gvaAnnouncedDate = gvaAnnouncedDate
+                            gvaAnnouncedDate = gvaAnnouncedDate,
+                            gmModeEnabled = gmModeEnabled,
+                            onGMToggle = { enabled -> gmModeEnabled = enabled },
+                            onMaxEmployees = {
+                                // 一键将所有员工技能设置为5级
+                                val maxedEmployees = allEmployees.map { employee ->
+                                    employee.copy(
+                                        skillDevelopment = 5,
+                                        skillDesign = 5,
+                                        skillArt = 5,
+                                        skillMusic = 5,
+                                        skillService = 5
+                                    )
+                                }
+                                allEmployees.clear()
+                                allEmployees.addAll(maxedEmployees)
+                            },
+                            onAddMoney = {
+                                // 一键增加1000万
+                                money += 10000000L
+                            }
                         )
                     }
                 }
@@ -3411,84 +3395,130 @@ fun CompanyOverviewContent(
             // 财务状况（带年份选择）
             var selectedFinancialYear by remember { mutableIntStateOf(currentYear) }
             
-            val releasedGames = games.filter { 
-                it.releaseStatus == GameReleaseStatus.RELEASED || 
-                it.releaseStatus == GameReleaseStatus.RATED 
+            // 记录上次的游戏数和日期，用于日志
+            LaunchedEffect(games.size, currentYear, currentMonth, currentDay) {
+                Log.d("MainActivity", "财务状况：检测到数据变化（游戏数：${games.size}，日期：${currentYear}年${currentMonth}月${currentDay}日）")
             }
             
-            // 根据选择的年份筛选收入数据
-            // 计算单机游戏该年收入（自研游戏）
-            var singlePlayerRevenue = 0.0
-            releasedGames.filter { 
-                it.businessModel == BusinessModel.SINGLE_PLAYER && !it.id.startsWith("inherited_")
-            }.forEach { game ->
-                val revenue = RevenueManager.getGameRevenue(game.id)
-                if (revenue != null && revenue.dailySalesList.isNotEmpty()) {
-                    // 筛选该年份的数据（基于date字段计算游戏内年份）
-                    val yearRevenue = revenue.dailySalesList
-                        .filter { dailySales ->
-                            // 根据游戏上线日期计算游戏内年份
-                            val gameYear = calculateGameYear(
-                                releaseYear = revenue.releaseYear,
-                                releaseMonth = revenue.releaseMonth,
-                                releaseDay = revenue.releaseDay,
-                                recordDate = dailySales.date
-                            )
-                            gameYear == selectedFinancialYear
+            // 使用 derivedStateOf 计算财务数据，确保依赖变化时自动更新
+            val financialData = remember(games.size, currentYear, currentMonth, currentDay, selectedFinancialYear) {
+                derivedStateOf {
+                    Log.d("MainActivity", "===== 财务状况计算开始 =====")
+                    Log.d("MainActivity", "查询年份: 第${selectedFinancialYear}年")
+                    
+                    val releasedGames = games.filter { 
+                        it.releaseStatus == GameReleaseStatus.RELEASED || 
+                        it.releaseStatus == GameReleaseStatus.RATED 
+                    }
+                    Log.d("MainActivity", "已发售游戏数量: ${releasedGames.size}")
+                    
+                    // 计算单机游戏该年收入
+                    var singlePlayerRevenue = 0.0
+                    val singlePlayerGames = releasedGames.filter { 
+                        it.businessModel == BusinessModel.SINGLE_PLAYER
+                    }
+                    Log.d("MainActivity", "单机游戏数量: ${singlePlayerGames.size}")
+                    
+                    singlePlayerGames.forEach { game ->
+                        Log.d("MainActivity", "  - 单机游戏: ${game.name} (${game.id})")
+                        val revenue = RevenueManager.getGameRevenue(game.id)
+                        if (revenue == null) {
+                            Log.d("MainActivity", "    ⚠ 没有收益数据")
+                        } else if (revenue.dailySalesList.isEmpty()) {
+                            Log.d("MainActivity", "    ⚠ dailySalesList为空")
+                        } else {
+                            Log.d("MainActivity", "    ℹ 发售日期: ${revenue.releaseYear}年${revenue.releaseMonth}月${revenue.releaseDay}日")
+                            Log.d("MainActivity", "    ℹ 销售记录数: ${revenue.dailySalesList.size}")
+                            
+                            // 显示前3条记录的日期和计算出的年份
+                            revenue.dailySalesList.take(3).forEachIndexed { index, dailySales ->
+                                val gameYear = calculateGameYear(
+                                    releaseYear = revenue.releaseYear,
+                                    releaseMonth = revenue.releaseMonth,
+                                    releaseDay = revenue.releaseDay,
+                                    recordDate = dailySales.date
+                                )
+                                Log.d("MainActivity", "      [${index+1}] 日期=${dailySales.date}, 计算年份=${gameYear}, 收益=${dailySales.revenue}")
+                            }
+                            
+                            val matchingRecords = revenue.dailySalesList.filter { dailySales ->
+                                val gameYear = calculateGameYear(
+                                    releaseYear = revenue.releaseYear,
+                                    releaseMonth = revenue.releaseMonth,
+                                    releaseDay = revenue.releaseDay,
+                                    recordDate = dailySales.date
+                                )
+                                gameYear == selectedFinancialYear
+                            }
+                            
+                            Log.d("MainActivity", "    ✓ 匹配第${selectedFinancialYear}年的记录: ${matchingRecords.size}条")
+                            
+                            val yearRevenue = matchingRecords.sumOf { it.revenue }
+                            if (yearRevenue > 0) {
+                                Log.d("MainActivity", "    ✓ 该年收益: ¥${formatMoneyWithDecimals(yearRevenue)}")
+                            }
+                            singlePlayerRevenue += yearRevenue
                         }
-                        .sumOf { it.revenue }
-                    singlePlayerRevenue += yearRevenue
-                }
-            }
-            
-            // 计算网游该年收入（自研游戏）
-            var onlineGameRevenue = 0.0
-            releasedGames.filter { 
-                it.businessModel == BusinessModel.ONLINE_GAME && !it.id.startsWith("inherited_")
-            }.forEach { game ->
-                val revenue = RevenueManager.getGameRevenue(game.id)
-                if (revenue != null && revenue.dailySalesList.isNotEmpty()) {
-                    // 筛选该年份的数据（基于date字段计算游戏内年份）
-                    val yearRevenue = revenue.dailySalesList
-                        .filter { dailySales ->
-                            // 根据游戏上线日期计算游戏内年份
-                            val gameYear = calculateGameYear(
-                                releaseYear = revenue.releaseYear,
-                                releaseMonth = revenue.releaseMonth,
-                                releaseDay = revenue.releaseDay,
-                                recordDate = dailySales.date
-                            )
-                            gameYear == selectedFinancialYear
+                    }
+                    
+                    // 计算网游该年收入
+                    var onlineGameRevenue = 0.0
+                    val onlineGames = releasedGames.filter { 
+                        it.businessModel == BusinessModel.ONLINE_GAME
+                    }
+                    Log.d("MainActivity", "网游数量: ${onlineGames.size}")
+                    
+                    onlineGames.forEach { game ->
+                        Log.d("MainActivity", "  - 网游: ${game.name} (${game.id})")
+                        val revenue = RevenueManager.getGameRevenue(game.id)
+                        if (revenue == null) {
+                            Log.d("MainActivity", "    ⚠ 没有收益数据")
+                        } else if (revenue.dailySalesList.isEmpty()) {
+                            Log.d("MainActivity", "    ⚠ dailySalesList为空")
+                        } else {
+                            Log.d("MainActivity", "    ℹ 发售日期: ${revenue.releaseYear}年${revenue.releaseMonth}月${revenue.releaseDay}日")
+                            Log.d("MainActivity", "    ℹ 销售记录数: ${revenue.dailySalesList.size}")
+                            
+                            // 显示前3条记录的日期和计算出的年份
+                            revenue.dailySalesList.take(3).forEachIndexed { index, dailySales ->
+                                val gameYear = calculateGameYear(
+                                    releaseYear = revenue.releaseYear,
+                                    releaseMonth = revenue.releaseMonth,
+                                    releaseDay = revenue.releaseDay,
+                                    recordDate = dailySales.date
+                                )
+                                Log.d("MainActivity", "      [${index+1}] 日期=${dailySales.date}, 计算年份=${gameYear}, 收益=${dailySales.revenue}")
+                            }
+                            
+                            val matchingRecords = revenue.dailySalesList.filter { dailySales ->
+                                val gameYear = calculateGameYear(
+                                    releaseYear = revenue.releaseYear,
+                                    releaseMonth = revenue.releaseMonth,
+                                    releaseDay = revenue.releaseDay,
+                                    recordDate = dailySales.date
+                                )
+                                gameYear == selectedFinancialYear
+                            }
+                            
+                            Log.d("MainActivity", "    ✓ 匹配第${selectedFinancialYear}年的记录: ${matchingRecords.size}条")
+                            
+                            val yearRevenue = matchingRecords.sumOf { it.revenue }
+                            if (yearRevenue > 0) {
+                                Log.d("MainActivity", "    ✓ 该年收益: ¥${formatMoneyWithDecimals(yearRevenue)}")
+                            }
+                            onlineGameRevenue += yearRevenue
                         }
-                        .sumOf { it.revenue }
-                    onlineGameRevenue += yearRevenue
+                    }
+                    
+                    val yearTotalRevenue = singlePlayerRevenue + onlineGameRevenue
+                    
+                    Log.d("MainActivity", "财务状况计算完成（第${selectedFinancialYear}年）：单机¥${formatMoneyWithDecimals(singlePlayerRevenue)} + 网游¥${formatMoneyWithDecimals(onlineGameRevenue)} = 总收入¥${formatMoneyWithDecimals(yearTotalRevenue)}")
+                    
+                    Triple(singlePlayerRevenue, onlineGameRevenue, yearTotalRevenue)
                 }
-            }
+            }.value
             
-            // 计算子公司游戏该年收入（从竞争对手收购来的游戏）
-            var subsidiaryRevenue = 0.0
-            releasedGames.filter { it.id.startsWith("inherited_") }.forEach { game ->
-                val revenue = RevenueManager.getGameRevenue(game.id)
-                if (revenue != null && revenue.dailySalesList.isNotEmpty()) {
-                    // 筛选该年份的数据（基于date字段计算游戏内年份）
-                    val yearRevenue = revenue.dailySalesList
-                        .filter { dailySales ->
-                            // 根据游戏上线日期计算游戏内年份
-                            val gameYear = calculateGameYear(
-                                releaseYear = revenue.releaseYear,
-                                releaseMonth = revenue.releaseMonth,
-                                releaseDay = revenue.releaseDay,
-                                recordDate = dailySales.date
-                            )
-                            gameYear == selectedFinancialYear
-                        }
-                        .sumOf { it.revenue }
-                    subsidiaryRevenue += yearRevenue
-                }
-            }
-            
-            // 计算该年总收入
-            val yearTotalRevenue = singlePlayerRevenue + onlineGameRevenue + subsidiaryRevenue
+            val (singlePlayerRevenue, onlineGameRevenue, yearTotalRevenue) = financialData
             
             CompanyInfoCardWithYearSelector(
                 title = "财务状况",
@@ -3498,7 +3528,6 @@ fun CompanyOverviewContent(
                 items = listOf(
                     "单机收入" to "¥${formatMoneyWithDecimals(singlePlayerRevenue)}",
                     "网游收入" to "¥${formatMoneyWithDecimals(onlineGameRevenue)}",
-                    "子公司收入" to "¥${formatMoneyWithDecimals(subsidiaryRevenue)}",
                     "总收入" to "¥${formatMoneyWithDecimals(yearTotalRevenue)}"
                 )
             )
@@ -3595,7 +3624,8 @@ fun CompanyInfoCardWithYearSelector(
     currentYear: Int,
     selectedYear: Int,
     onYearChange: (Int) -> Unit,
-    items: List<Pair<String, String>>
+    items: List<Pair<String, String>>,
+    onRefresh: (() -> Unit)? = null
 ) {
     var showYearDialog by remember { mutableStateOf(false) }
     
@@ -3610,7 +3640,7 @@ fun CompanyInfoCardWithYearSelector(
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            // 标题行（包含年份选择器）
+            // 标题行（包含年份选择器和刷新按钮）
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -3625,27 +3655,46 @@ fun CompanyInfoCardWithYearSelector(
                     fontWeight = FontWeight.Bold
                 )
                 
-                // 年份选择按钮
-                OutlinedButton(
-                    onClick = { showYearDialog = true },
-                    modifier = Modifier.height(36.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = Color.White.copy(alpha = 0.1f),
-                        contentColor = Color.White
-                    ),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f)),
-                    shape = RoundedCornerShape(8.dp)
+                // 右侧按钮组
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "第${selectedYear}年",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "▼",
-                        fontSize = 10.sp
-                    )
+                    // 刷新按钮（仅在有刷新回调时显示）
+                    if (onRefresh != null) {
+                        IconButton(
+                            onClick = onRefresh,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Text(
+                                text = "🔄",
+                                fontSize = 16.sp
+                            )
+                        }
+                    }
+                    
+                    // 年份选择按钮
+                    OutlinedButton(
+                        onClick = { showYearDialog = true },
+                        modifier = Modifier.height(36.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color.White.copy(alpha = 0.1f),
+                            contentColor = Color.White
+                        ),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f)),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = "第${selectedYear}年",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "▼",
+                            fontSize = 10.sp
+                        )
+                    }
                 }
             }
             
@@ -3893,12 +3942,10 @@ fun EnhancedBottomNavItem(
 fun ContinueScreen(navController: NavController) {
     val context = LocalContext.current
     val saveManager = remember { SaveManager(context) }
-    var saves by remember { mutableStateOf<Map<Int, SaveData?>>(emptyMap()) }
+    var saves by remember { mutableStateOf(emptyMap<Int, SaveData?>()) }
     var isLoading by remember { mutableStateOf(true) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
-    var saveToDelete by remember { mutableStateOf<Pair<Int, SaveData?>?>(null) }
-    var showInheritDialog by remember { mutableStateOf(false) }
-    var legacySaveData by remember { mutableStateOf<SaveData?>(null) }
+    var saveToDelete by remember { mutableStateOf(null as Pair<Int, SaveData?>?) }
     var refreshKey by remember { mutableStateOf(0) }
     val coroutineScope = rememberCoroutineScope()
     
@@ -3979,18 +4026,10 @@ fun ContinueScreen(navController: NavController) {
                         slotIndex = slotIndex,
                         saveData = saves[slotIndex],
                         onLoadSave = { saveData ->
-                            // 检查是否为旧版本存档
-                            val currentVersion = BuildConfig.VERSION_NAME
-                            if (isOlderVersion(saveData.version, currentVersion)) {
-                                // 旧版本存档，弹出继承对话框
-                                legacySaveData = saveData
-                                showInheritDialog = true
-                            } else {
-                                // 新版本或同版本，直接加载
-                                currentLoadedSaveData = saveData
-                                Toast.makeText(context, "加载存档 $slotIndex", Toast.LENGTH_SHORT).show()
-                                navController.navigate("game/${saveData.companyName}/${saveData.founderName}/${saveData.companyLogo}/${saveData.founderProfession?.name ?: "PROGRAMMER"}")
-                            }
+                            // 直接加载存档，不再进行版本检查
+                            currentLoadedSaveData = saveData
+                            Toast.makeText(context, "加载存档 $slotIndex", Toast.LENGTH_SHORT).show()
+                            navController.navigate("game/${saveData.companyName}/${saveData.founderName}/${saveData.companyLogo}/${saveData.founderProfession?.name ?: "PROGRAMMER"}")
                         },
                         onDeleteSave = {
                             saveToDelete = Pair(slotIndex, saves[slotIndex])
@@ -4009,37 +4048,6 @@ fun ContinueScreen(navController: NavController) {
             )
             
             Spacer(modifier = Modifier.height(16.dp))
-        }
-        
-        // 旧存档继承对话框
-        if (showInheritDialog && legacySaveData != null) {
-            LegacySaveInheritDialog(
-                legacySaveData = legacySaveData!!,
-                onConfirm = { selectedGames ->
-                    try {
-                        Log.d("MainActivity", "开始继承存档，版本: ${legacySaveData!!.version} -> ${BuildConfig.VERSION_NAME}")
-                        Log.d("MainActivity", "继承员工数: ${legacySaveData!!.allEmployees.size}, 游戏数: ${selectedGames.size}")
-                        
-                        // 创建继承后的新存档数据
-                        currentLoadedSaveData = createInheritedSaveData(legacySaveData!!, selectedGames)
-                        
-                        Log.d("MainActivity", "继承成功！新存档游戏数: ${currentLoadedSaveData?.games?.size}")
-                        
-                        showInheritDialog = false
-                        Toast.makeText(context, "已继承员工和 ${selectedGames.size} 款游戏", Toast.LENGTH_SHORT).show()
-                        navController.navigate("game/${legacySaveData!!.companyName}/${legacySaveData!!.founderName}/${legacySaveData!!.companyLogo}/${legacySaveData!!.founderProfession?.name ?: "PROGRAMMER"}")
-                    } catch (e: Exception) {
-                        Log.e("MainActivity", "继承存档失败", e)
-                        e.printStackTrace()
-                        showInheritDialog = false
-                        Toast.makeText(context, "继承失败: ${e.message}", Toast.LENGTH_LONG).show()
-                    }
-                },
-                onCancel = {
-                    showInheritDialog = false
-                    legacySaveData = null
-                }
-            )
         }
         
         // 删除存档确认对话框
@@ -4154,380 +4162,6 @@ fun DeleteSaveConfirmDialog(
         },
         containerColor = Color(0xFF1F2937),
         shape = RoundedCornerShape(16.dp)
-    )
-}
-
-// 旧存档继承对话框
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun LegacySaveInheritDialog(
-    legacySaveData: SaveData,
-    onConfirm: (List<Game>) -> Unit,
-    onCancel: () -> Unit
-) {
-    // 筛选已发售的游戏
-    val releasedGames = legacySaveData.games.filter { it.releaseStatus == GameReleaseStatus.RELEASED }
-    var selectedGames by remember { mutableStateOf<Set<String>>(emptySet()) }
-    
-    AlertDialog(
-        onDismissRequest = onCancel,
-        modifier = Modifier.fillMaxWidth(0.95f)
-    ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1F2937)),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp)
-            ) {
-                // 标题
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "🎮",
-                        fontSize = 28.sp
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "旧存档继承",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // 说明
-                Text(
-                    text = "检测到这是旧版本存档（${legacySaveData.version}），当前版本为 ${BuildConfig.VERSION_NAME}",
-                    fontSize = 14.sp,
-                    color = Color(0xFFFFB74D),
-                    lineHeight = 20.sp
-                )
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                Text(
-                    text = "可继承内容：",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                // 员工信息卡片
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF10B981).copy(alpha = 0.2f))
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(text = "👥", fontSize = 24.sp)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text(
-                                text = "全部员工",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF10B981)
-                            )
-                            Text(
-                                text = "${legacySaveData.allEmployees.size} 名员工将被继承",
-                                fontSize = 12.sp,
-                                color = Color.White.copy(alpha = 0.7f)
-                            )
-                        }
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                // 游戏选择
-                Text(
-                    text = "选择要继承的游戏（最多3款）：",
-                    fontSize = 14.sp,
-                    color = Color.White.copy(alpha = 0.8f)
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                if (releasedGames.isEmpty()) {
-                    Text(
-                        text = "暂无已发售的游戏可继承",
-                        fontSize = 12.sp,
-                        color = Color.White.copy(alpha = 0.5f),
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    )
-                } else {
-                    // 游戏列表（可滚动）
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 300.dp)
-                    ) {
-                        items(releasedGames) { game ->
-                            val isSelected = selectedGames.contains(game.id)
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp)
-                                    .clickable {
-                                        if (isSelected) {
-                                            selectedGames = selectedGames - game.id
-                                        } else {
-                                            if (selectedGames.size < 3) {
-                                                selectedGames = selectedGames + game.id
-                                            }
-                                        }
-                                    },
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (isSelected) Color(0xFF3B82F6).copy(alpha = 0.3f) else Color(0xFF374151)
-                                )
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Checkbox(
-                                        checked = isSelected,
-                                        onCheckedChange = null,
-                                        colors = CheckboxDefaults.colors(
-                                            checkedColor = Color(0xFF3B82F6),
-                                            uncheckedColor = Color.White.copy(alpha = 0.5f)
-                                        )
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = game.name,
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Text(
-                                            text = "${game.theme.displayName} | ${game.businessModel.displayName} | 评分: ${String.format("%.1f", game.rating)}",
-                                            fontSize = 11.sp,
-                                            color = Color.White.copy(alpha = 0.6f)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                Text(
-                    text = "已选择: ${selectedGames.size}/3",
-                    fontSize = 12.sp,
-                    color = if (selectedGames.size == 3) Color(0xFF10B981) else Color.White.copy(alpha = 0.6f),
-                    fontWeight = if (selectedGames.size == 3) FontWeight.Bold else FontWeight.Normal
-                )
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // 操作按钮
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // 取消按钮
-                    Card(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable { onCancel() },
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color.White.copy(alpha = 0.1f)
-                        )
-                    ) {
-                        Text(
-                            text = "取消",
-                            color = Color.White,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(14.dp),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
-                        )
-                    }
-                    
-                    // 确认继承按钮
-                    Card(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable {
-                                val selected = releasedGames.filter { selectedGames.contains(it.id) }
-                                onConfirm(selected)
-                            },
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFF10B981).copy(alpha = 0.2f)
-                        )
-                    ) {
-                        Text(
-                            text = "开始继承",
-                            color = Color(0xFF10B981),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(14.dp),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-// 版本比较函数：判断saveVersion是否旧于currentVersion
-fun isOlderVersion(saveVersion: String, currentVersion: String): Boolean {
-    try {
-        val saveParts = saveVersion.split(".").map { it.toIntOrNull() ?: 0 }
-        val currentParts = currentVersion.split(".").map { it.toIntOrNull() ?: 0 }
-        
-        val maxLength = maxOf(saveParts.size, currentParts.size)
-        for (i in 0 until maxLength) {
-            val saveNum = saveParts.getOrNull(i) ?: 0
-            val currentNum = currentParts.getOrNull(i) ?: 0
-            
-            if (saveNum < currentNum) return true
-            if (saveNum > currentNum) return false
-        }
-        
-        return false // 版本相同
-    } catch (e: Exception) {
-        return false // 解析失败，视为相同版本
-    }
-}
-
-// 创建继承后的存档数据
-fun createInheritedSaveData(legacySaveData: SaveData, selectedGames: List<Game>): SaveData {
-    try {
-        Log.d("createInheritedSaveData", "开始创建继承存档")
-        Log.d("createInheritedSaveData", "旧存档版本: ${legacySaveData.version}")
-        Log.d("createInheritedSaveData", "员工数: ${legacySaveData.allEmployees.size}")
-        Log.d("createInheritedSaveData", "选中游戏数: ${selectedGames.size}")
-        
-        selectedGames.forEachIndexed { index, game ->
-            Log.d("createInheritedSaveData", "游戏${index + 1}: ${game.name}, 主题: ${game.theme}, 平台: ${game.platforms.size}个")
-        }
-    } catch (e: Exception) {
-        Log.e("createInheritedSaveData", "日志记录失败，但继续执行", e)
-    }
-    
-    return SaveData(
-        // 基础信息使用旧存档
-        companyName = legacySaveData.companyName,
-        companyLogo = legacySaveData.companyLogo,
-        founderName = legacySaveData.founderName,
-        founderProfession = legacySaveData.founderProfession,
-        
-        // 重置游戏进度
-        money = 3000000L, // 初始资金
-        fans = 0,
-        currentYear = 1,
-        currentMonth = 1,
-        currentDay = 1,
-        
-        // 继承员工
-        allEmployees = legacySaveData.allEmployees,
-        
-        // 继承选中的游戏（保持已完成状态，但需要重新发售）
-        // 显式设置所有字段，确保向后兼容性，防止旧存档缺失字段导致闪退
-        games = selectedGames.map { game ->
-            game.copy(
-                // 基础信息保留
-                id = game.id,
-                name = game.name,
-                theme = game.theme,
-                platforms = game.platforms,
-                businessModel = game.businessModel,
-                
-                // 开发进度设为完成
-                isCompleted = true,
-                developmentProgress = 100f,
-                currentPhase = DevelopmentPhase.PROGRAMMING, // 最终阶段
-                phaseProgress = 100f,
-                
-                // 发售状态：准备发售（玩家可以直接点击发售）
-                releaseStatus = GameReleaseStatus.READY_FOR_RELEASE,
-                releasePrice = null, // 重置价格
-                releaseYear = null, // 重置发售日期
-                releaseMonth = null,
-                releaseDay = null,
-                
-                // 清空分配的员工
-                assignedEmployees = emptyList(),
-                
-                // 保留评分信息
-                rating = game.rating,
-                gameRating = game.gameRating,
-                
-                // 重置收益和成本
-                revenue = 0L,
-                developmentCost = game.developmentCost ?: 0L,
-                
-                // 保留付费内容配置（网游需要），确保不为null
-                monetizationItems = game.monetizationItems ?: emptyList(),
-                
-                // 清空服务器信息（重新发售时会重新配置）
-                serverInfo = null,
-                
-                // 重置宣传和更新相关
-                promotionIndex = 0f,
-                autoUpdate = false,
-                version = 1.0f, // 重置版本号
-                
-                // 确保更新历史不为null（兼容旧存档）
-                updateHistory = game.updateHistory ?: emptyList(),
-                
-                // 清空赛事相关（重新开始）
-                currentTournament = null,
-                lastTournamentDate = null,
-                tournamentHistory = game.tournamentHistory ?: emptyList(),
-                
-                // 保留GVA奖项（体现游戏历史荣誉）
-                awards = game.awards ?: emptyList()
-            )
-        },
-        
-        // 重置其他游戏相关数据
-        competitors = emptyList(),
-        competitorNews = emptyList(),
-        serverData = emptyMap(),
-        revenueData = emptyMap(),
-        jobPostings = emptyList(),
-        complaints = emptyList(),
-        autoProcessComplaints = false,
-        unlockedAchievements = emptyList(),
-        completedTutorials = emptySet(),
-        skipTutorial = false,
-        companyReputation = com.example.yjcy.data.CompanyReputation(),
-        gvaHistory = emptyList(),
-        currentYearNominations = emptyList(),
-        gvaAnnouncedDate = null,
-        
-        // 更新存档信息
-        saveTime = System.currentTimeMillis(),
-        version = BuildConfig.VERSION_NAME
     )
 }
 
@@ -4952,7 +4586,6 @@ class SaveManager(context: Context) {
     companion object {
         private const val MAX_DAILY_SALES_DAYS = 365 // 每个游戏最多保留365天的每日数据
         private const val MAX_COMPETITOR_NEWS = 50 // 最多保留50条竞争对手新闻
-        private const val MAX_JSON_SIZE_MB = 5 // 警告阈值：5MB
     }
     
     /**
@@ -4969,22 +4602,22 @@ class SaveManager(context: Context) {
                     // 赛事相关字段（可空）
                     currentTournament = game.currentTournament,
                     lastTournamentDate = game.lastTournamentDate,
-                    tournamentHistory = game.tournamentHistory ?: emptyList(),
+                    tournamentHistory = game.tournamentHistory,
                     
                     // 更新历史（可空）
-                    updateHistory = game.updateHistory ?: emptyList(),
+                    updateHistory = game.updateHistory,
                     
                     // GVA奖项（可能缺失）
-                    awards = game.awards ?: emptyList(),
+                    awards = game.awards,
                     
                     // 付费内容（网游必需）
-                    monetizationItems = game.monetizationItems ?: emptyList(),
+                    monetizationItems = game.monetizationItems,
                     
                     // 其他可能缺失的字段
-                    developmentCost = game.developmentCost ?: 0L,
-                    promotionIndex = game.promotionIndex ?: 0f,
-                    autoUpdate = game.autoUpdate ?: false,
-                    version = game.version ?: 1.0f
+                    developmentCost = game.developmentCost,
+                    promotionIndex = game.promotionIndex,
+                    autoUpdate = game.autoUpdate,
+                    version = game.version
                 )
             }
             
@@ -4993,30 +4626,30 @@ class SaveManager(context: Context) {
                 games = fixedGames,
                 
                 // 教程和成就系统（可空）
-                completedTutorials = saveData.completedTutorials ?: emptySet(),
-                unlockedAchievements = saveData.unlockedAchievements ?: emptyList(),
-                skipTutorial = saveData.skipTutorial ?: false,
+                completedTutorials = saveData.completedTutorials,
+                unlockedAchievements = saveData.unlockedAchievements,
+                skipTutorial = saveData.skipTutorial,
                 
                 // 客服中心
-                autoProcessComplaints = saveData.autoProcessComplaints ?: false,
-                complaints = saveData.complaints ?: emptyList(),
+                autoProcessComplaints = saveData.autoProcessComplaints,
+                complaints = saveData.complaints,
                 
                 // GVA系统（可能缺失）
-                companyReputation = saveData.companyReputation ?: com.example.yjcy.data.CompanyReputation(),
-                gvaHistory = saveData.gvaHistory ?: emptyList(),
-                currentYearNominations = saveData.currentYearNominations ?: emptyList(),
+                companyReputation = saveData.companyReputation,
+                gvaHistory = saveData.gvaHistory,
+                currentYearNominations = saveData.currentYearNominations,
                 gvaAnnouncedDate = saveData.gvaAnnouncedDate,
                 
                 // 竞争对手系统
-                competitors = saveData.competitors ?: emptyList(),
-                competitorNews = saveData.competitorNews ?: emptyList(),
+                competitors = saveData.competitors,
+                competitorNews = saveData.competitorNews,
                 
                 // 招聘系统
-                jobPostings = saveData.jobPostings ?: emptyList(),
+                jobPostings = saveData.jobPostings,
                 
                 // 服务器和收益数据
-                serverData = saveData.serverData ?: emptyMap(),
-                revenueData = saveData.revenueData ?: emptyMap(),
+                serverData = saveData.serverData,
+                revenueData = saveData.revenueData,
                 
                 // 创始人职业（可空）
                 founderProfession = saveData.founderProfession
@@ -5103,14 +4736,14 @@ class SaveManager(context: Context) {
             val jsonSizeKB = json.length / 1024.0
             val jsonSizeMB = jsonSizeKB / 1024.0
             
-            Log.d("SaveManager", "JSON大小: ${String.format("%.2f", jsonSizeKB)} KB (${String.format("%.2f", jsonSizeMB)} MB)")
+            Log.d("SaveManager", "JSON大小: ${String.format(java.util.Locale.US, "%.2f", jsonSizeKB)} KB (${String.format(java.util.Locale.US, "%.2f", jsonSizeMB)} MB)")
             
             // 3. GZIP压缩
             val compressed = compressString(json)
             val compressedSizeKB = compressed.size / 1024.0
             val compressionRatio = (1 - compressedSizeKB / jsonSizeKB) * 100
             
-            Log.d("SaveManager", "压缩后大小: ${String.format("%.2f", compressedSizeKB)} KB, 压缩率: ${String.format("%.1f", compressionRatio)}%")
+            Log.d("SaveManager", "压缩后大小: ${String.format(java.util.Locale.US, "%.2f", compressedSizeKB)} KB, 压缩率: ${String.format(java.util.Locale.US, "%.1f", compressionRatio)}%")
             
             // 4. Base64编码后存储（因为SharedPreferences只能存字符串）
             val base64Encoded = android.util.Base64.encodeToString(compressed, android.util.Base64.DEFAULT)
@@ -5284,7 +4917,11 @@ fun InGameSettingsContent(
     companyReputation: CompanyReputation = CompanyReputation(), // GVA：公司声望
     gvaHistory: List<AwardNomination> = emptyList(), // GVA：历史记录
     currentYearNominations: List<AwardNomination> = emptyList(), // GVA：当年提名
-    gvaAnnouncedDate: GameDate? = null // GVA：颁奖日期
+    gvaAnnouncedDate: GameDate? = null, // GVA：颁奖日期
+    gmModeEnabled: Boolean = false, // GM模式是否开启
+    onGMToggle: (Boolean) -> Unit = {}, // GM模式切换回调
+    onMaxEmployees: () -> Unit = {}, // 一键满配员工回调
+    onAddMoney: () -> Unit = {} // 一键加钱回调
 ) {
     val context = LocalContext.current
     val saveManager = remember { SaveManager(context) }
@@ -5292,7 +4929,7 @@ fun InGameSettingsContent(
     var showExitConfirmDialog by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
     var isLoadingSaveSlots by remember { mutableStateOf(false) }
-    var saveSlots by remember { mutableStateOf<Map<Int, SaveData?>>(emptyMap()) }
+    var saveSlots by remember { mutableStateOf(emptyMap<Int, SaveData?>()) }
     val coroutineScope = rememberCoroutineScope()
     
     Column(
@@ -5362,13 +4999,164 @@ fun InGameSettingsContent(
                 )
             }
         }
+        
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        // 兑换码区域
+        if (!gmModeEnabled) {
+            var redeemCode by remember { mutableStateOf("") }
+            var showRedeemError by remember { mutableStateOf(false) }
+            
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.White.copy(alpha = 0.05f)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "🎁 兑换码",
+                        color = Color(0xFFF59E0B),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    OutlinedTextField(
+                        value = redeemCode,
+                        onValueChange = { 
+                            redeemCode = it
+                            showRedeemError = false
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("请输入兑换码", color = Color.White.copy(alpha = 0.4f)) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF10B981),
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.3f),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        singleLine = true,
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    
+                    if (showRedeemError) {
+                        Text(
+                            text = "❌ 兑换码错误，请重新输入",
+                            color = Color(0xFFEF4444),
+                            fontSize = 14.sp
+                        )
+                    }
+                    
+                    Button(
+                        onClick = {
+                            if (redeemCode.lowercase() == "progm") {
+                                onGMToggle(true)
+                                redeemCode = ""
+                            } else {
+                                showRedeemError = true
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF10B981)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("兑换", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+        
+        // GM工具箱
+        if (gmModeEnabled) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFFFF6B6B).copy(alpha = 0.2f)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "🛠️ GM工具箱",
+                        color = Color(0xFFFF6B6B),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    Text(
+                        text = "GM模式已激活",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 14.sp
+                    )
+                    
+                    // 一键满配员工
+                    Button(
+                        onClick = onMaxEmployees,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF8B5CF6)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "👥",
+                                fontSize = 18.sp,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                            Text(
+                                text = "一键满配员工",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    
+                    // 一键加1000万
+                    Button(
+                        onClick = onAddMoney,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFF59E0B)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "💰",
+                                fontSize = 18.sp,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                            Text(
+                                text = "一键加1000万",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
     
     // 保存游戏对话框
     if (showSaveDialog) {
         var showOverwriteConfirmDialog by remember { mutableStateOf(false) }
         var selectedSlotNumber by remember { mutableIntStateOf(0) }
-        var selectedExistingSave by remember { mutableStateOf<SaveData?>(null) }
+        var selectedExistingSave by remember { mutableStateOf(null as SaveData?) }
         
         // 覆盖确认对话框
         if (showOverwriteConfirmDialog && selectedExistingSave != null) {
@@ -5446,6 +5234,7 @@ fun InGameSettingsContent(
                                 gvaHistory = gvaHistory, // 保存GVA历史记录
                                 currentYearNominations = currentYearNominations, // 保存当年提名
                                 gvaAnnouncedDate = gvaAnnouncedDate, // 保存颁奖日期
+                                gmModeEnabled = gmModeEnabled, // 保存GM模式状态
                                 saveTime = System.currentTimeMillis(),
                                 version = BuildConfig.VERSION_NAME // 使用当前游戏版本号
                             )
@@ -5461,7 +5250,7 @@ fun InGameSettingsContent(
                                         val compressionRatio = if (result.originalSizeKB > 0) {
                                             (1 - result.compressedSizeKB / result.originalSizeKB) * 100
                                         } else 0.0
-                                        val message = "游戏已保存！\n压缩前: ${String.format("%.1f", result.originalSizeKB)} KB\n压缩后: ${String.format("%.1f", result.compressedSizeKB)} KB\n压缩率: ${String.format("%.1f", compressionRatio)}%"
+                                        val message = "游戏已保存！\n压缩前: ${String.format(java.util.Locale.US, "%.1f", result.originalSizeKB)} KB\n压缩后: ${String.format(java.util.Locale.US, "%.1f", result.compressedSizeKB)} KB\n压缩率: ${String.format(java.util.Locale.US, "%.1f", compressionRatio)}%"
                                         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                                         // 重新加载存档列表以更新UI
                                         saveSlots = saveManager.getAllSavesAsync()
@@ -5568,6 +5357,7 @@ fun InGameSettingsContent(
                                             gvaHistory = gvaHistory, // 保存GVA历史记录
                                             currentYearNominations = currentYearNominations, // 保存当年提名
                                             gvaAnnouncedDate = gvaAnnouncedDate, // 保存颁奖日期
+                                            gmModeEnabled = gmModeEnabled, // 保存GM模式状态
                                             saveTime = System.currentTimeMillis(),
                                             version = BuildConfig.VERSION_NAME // 使用当前游戏版本号
                                         )
@@ -5582,7 +5372,7 @@ fun InGameSettingsContent(
                                                     val compressionRatio = if (result.originalSizeKB > 0) {
                                                         (1 - result.compressedSizeKB / result.originalSizeKB) * 100
                                                     } else 0.0
-                                                    val message = "游戏已保存！\n压缩前: ${String.format("%.1f", result.originalSizeKB)} KB\n压缩后: ${String.format("%.1f", result.compressedSizeKB)} KB\n压缩率: ${String.format("%.1f", compressionRatio)}%"
+                                                    val message = "游戏已保存！\n压缩前: ${String.format(java.util.Locale.US, "%.1f", result.originalSizeKB)} KB\n压缩后: ${String.format(java.util.Locale.US, "%.1f", result.compressedSizeKB)} KB\n压缩率: ${String.format(java.util.Locale.US, "%.1f", compressionRatio)}%"
                                                     Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                                                     // 重新加载存档列表以更新UI
                                                     saveSlots = saveManager.getAllSavesAsync()
@@ -6095,7 +5885,7 @@ fun TournamentMenuDialog(
                     .padding(horizontal = 24.dp, vertical = 8.dp)
             )
             
-            Divider(
+            HorizontalDivider(
                 color = Color.White.copy(alpha = 0.1f),
                 modifier = Modifier.padding(vertical = 8.dp)
             )
@@ -6129,7 +5919,7 @@ fun TournamentMenuDialog(
             }
             
             // 分隔线
-            Divider(
+            HorizontalDivider(
                 color = Color.White.copy(alpha = 0.1f),
                 modifier = Modifier.padding(horizontal = 24.dp)
             )

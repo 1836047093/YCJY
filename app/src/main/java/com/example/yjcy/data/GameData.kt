@@ -336,7 +336,8 @@ data class Game(
     val awards: List<GVAAward> = emptyList(), // 获得的GVA奖项列表
     val releaseYear: Int? = null, // 发售年份
     val releaseMonth: Int? = null, // 发售月份
-    val releaseDay: Int? = null // 发售日期
+    val releaseDay: Int? = null, // 发售日期
+    val fromIP: GameIP? = null // 使用的IP（null表示原创游戏）
 ) {
     /**
      * 计算游戏开发成本
@@ -547,6 +548,51 @@ data class GameUpdate(
     val comments: List<PlayerComment> = emptyList()  // 玩家评论
 )
 
+// 游戏IP数据类（收购竞争对手后获得的IP）
+data class GameIP(
+    val id: String,  // IP唯一ID
+    val name: String,  // IP名称（原游戏名）
+    val originalCompany: String,  // 原公司名称
+    val theme: GameTheme,  // 游戏主题
+    val originalRating: Float,  // 原游戏评分（影响IP知名度）
+    val acquiredYear: Int,  // 收购年份
+    val acquiredMonth: Int,  // 收购月份
+    val platforms: List<Platform> = emptyList(),  // 原游戏平台（参考信息）
+    val businessModel: BusinessModel = BusinessModel.SINGLE_PLAYER  // 原游戏类型（参考信息）
+) {
+    /**
+     * 计算IP知名度加成
+     * 基于原游戏评分：评分越高，知名度越高，销量加成越大
+     * 加成范围：10%-50%
+     */
+    fun calculateIPBonus(): Float {
+        return when {
+            originalRating >= 9.0f -> 0.50f  // 9分以上：+50%销量
+            originalRating >= 8.5f -> 0.40f  // 8.5-9分：+40%销量
+            originalRating >= 8.0f -> 0.30f  // 8-8.5分：+30%销量
+            originalRating >= 7.5f -> 0.25f  // 7.5-8分：+25%销量
+            originalRating >= 7.0f -> 0.20f  // 7-7.5分：+20%销量
+            originalRating >= 6.5f -> 0.15f  // 6.5-7分：+15%销量
+            else -> 0.10f  // 6.5分以下：+10%销量（保底加成）
+        }
+    }
+    
+    /**
+     * 获取IP等级描述
+     */
+    fun getIPLevel(): String {
+        return when {
+            originalRating >= 9.0f -> "传奇IP"
+            originalRating >= 8.5f -> "顶级IP"
+            originalRating >= 8.0f -> "优质IP"
+            originalRating >= 7.5f -> "知名IP"
+            originalRating >= 7.0f -> "热门IP"
+            originalRating >= 6.5f -> "普通IP"
+            else -> "小众IP"
+        }
+    }
+}
+
 // 存档数据类
 data class SaveData(
     val companyName: String = "我的游戏公司",
@@ -574,6 +620,8 @@ data class SaveData(
     val gvaHistory: List<com.example.yjcy.data.AwardNomination> = emptyList(), // GVA：历史获奖记录（最近10年）
     val currentYearNominations: List<com.example.yjcy.data.AwardNomination> = emptyList(), // GVA：当年提名（12月15日生成）
     val gvaAnnouncedDate: GameDate? = null, // GVA：最近一次颁奖日期
+    val ownedIPs: List<GameIP> = emptyList(), // 拥有的游戏IP列表（收购竞争对手后获得）
+    val gmModeEnabled: Boolean = false, // GM模式开关（通过兑换码激活）
     val saveTime: Long = System.currentTimeMillis(),
     val version: String = "1.0.0" // 存档版本号（创建时会被覆盖为当前版本）
 )
