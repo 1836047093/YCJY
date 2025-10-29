@@ -7,7 +7,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -54,9 +53,7 @@ enum class ServerFilter {
 @Composable
 fun ServerManagementContent(
     games: List<Game>,
-    money: Long,
-    onPurchaseServer: (ServerType) -> Unit, // 购买服务器到公共池
-    onMoneyUpdate: (Long) -> Unit
+    onPurchaseServer: (ServerType) -> Unit // 购买服务器到公共池
 ) {
     var selectedFilter by remember { mutableStateOf(ServerFilter.ALL) }
     var showFilterDialog by remember { mutableStateOf(false) }
@@ -343,7 +340,6 @@ fun ServerManagementContent(
     // 快速购买对话框
     if (showQuickPurchaseDialog) {
         QuickPurchaseDialog(
-            money = money,
             onDismiss = { showQuickPurchaseDialog = false },
             onPurchase = { serverType ->
                 onPurchaseServer(serverType)
@@ -412,78 +408,6 @@ fun ServerOverviewItem(
 }
 
 @Composable
-fun ServerGameCard(
-    game: Game
-) {
-    val gameRevenue = remember { RevenueManager.getGameRevenue(game.id) }
-    
-    // 获取商业模式显示文本
-    val businessModelText = when (game.businessModel) {
-        BusinessModel.ONLINE_GAME -> "网游"
-        BusinessModel.SINGLE_PLAYER -> "单机"
-    }
-    
-    // 计算总利润
-    val totalProfit = remember(gameRevenue) {
-        if (gameRevenue != null) {
-            val statistics = RevenueManager.calculateStatistics(gameRevenue)
-            statistics.totalRevenue
-        } else {
-            0.0
-        }
-    }
-    
-    // 格式化总利润为K/M格式
-    val formattedProfit = remember(totalProfit) {
-        when {
-            totalProfit >= 1_000_000 -> String.format("%.1fM", totalProfit / 1_000_000)
-            totalProfit >= 1_000 -> String.format("%.1fK", totalProfit / 1_000)
-            else -> String.format("%.0f", totalProfit)
-        }
-    }
-    
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White.copy(alpha = 0.1f)
-        ),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = game.name,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    ServerInfoChip(
-                        icon = "🎮",
-                        text = businessModelText
-                    )
-                    ServerInfoChip(
-                        icon = "💰",
-                        text = "¥$formattedProfit"
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
 fun ServerInfoChip(
     icon: String,
     text: String
@@ -505,7 +429,7 @@ fun ServerInfoChip(
 }
 
 @Composable
-fun ServerManagementDialog(
+private fun ServerManagementDialog(
     game: Game,
     money: Long,
     onDismiss: () -> Unit,
@@ -645,7 +569,7 @@ fun ServerMgmtStatItem(
 }
 
 @Composable
-fun ServerMgmtItemCard(server: com.example.yjcy.data.ServerInstance) {
+fun ServerMgmtItemCard(server: ServerInstance) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -760,7 +684,6 @@ fun PurchaseServerCard(
  */
 @Composable
 fun QuickPurchaseDialog(
-    money: Long,
     onDismiss: () -> Unit,
     onPurchase: (ServerType) -> Unit
 ) {
@@ -852,7 +775,6 @@ fun RentedServerCard(
     serverDetail: ServerDetail
 ) {
     val server = serverDetail.server
-    val isPublicPool = serverDetail.gameId == "SERVER_PUBLIC_POOL"
     
     Card(
         modifier = Modifier.fillMaxWidth(),

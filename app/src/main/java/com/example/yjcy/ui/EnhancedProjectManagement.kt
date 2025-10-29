@@ -209,13 +209,13 @@ fun EnhancedProjectManagementContent(
                     )
                 )
             )
-            .padding(16.dp)
+            .padding(horizontal = 8.dp, vertical = 8.dp)
     ) {
         // 客服中心和宣传中心按钮
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 16.dp),
+                .padding(bottom = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // 客服中心按钮
@@ -307,7 +307,7 @@ fun EnhancedProjectManagementContent(
             }
         }
         
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(12.dp))
         
         // 项目列表标题行
         Row(
@@ -360,51 +360,42 @@ fun EnhancedProjectManagementContent(
                 modifier = Modifier.fillMaxSize()
             )
         } else if (filteredGames.isEmpty()) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = Color.White.copy(alpha = 0.1f)
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                shape = RoundedCornerShape(12.dp)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(32.dp),
-                    contentAlignment = Alignment.Center
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "📝",
-                            fontSize = 48.sp
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = when (selectedProjectType) {
-                                ProjectDisplayType.DEVELOPING -> "暂无正在开发的游戏"
-                                ProjectDisplayType.UPDATING -> "暂无正在更新的游戏"
-                                ProjectDisplayType.RELEASED -> "暂无已发售的游戏"
-                                ProjectDisplayType.REMOVED -> "暂无已下架的游戏"
-                                ProjectDisplayType.IP_LIBRARY -> "" // 不会显示，因为有IP库组件
-                            },
-                            color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 16.sp
-                        )
-                        Text(
-                            text = when (selectedProjectType) {
-                                ProjectDisplayType.DEVELOPING -> "点击上方按钮开始开发新游戏"
-                                ProjectDisplayType.UPDATING -> "已发售游戏开始更新后将在此显示"
-                                ProjectDisplayType.RELEASED -> "完成游戏开发并发售后将在此显示"
-                                ProjectDisplayType.REMOVED -> "下架的游戏将在此显示"
-                                ProjectDisplayType.IP_LIBRARY -> "" // 不会显示，因为有IP库组件
-                            },
-                            color = Color.White.copy(alpha = 0.5f),
-                            fontSize = 14.sp
-                        )
-                    }
+                    Text(
+                        text = "📝",
+                        fontSize = 48.sp
+                    )
+                    Text(
+                        text = when (selectedProjectType) {
+                            ProjectDisplayType.DEVELOPING -> "暂无正在开发的游戏"
+                            ProjectDisplayType.UPDATING -> "暂无正在更新的游戏"
+                            ProjectDisplayType.RELEASED -> "暂无已发售的游戏"
+                            ProjectDisplayType.REMOVED -> "暂无已下架的游戏"
+                            ProjectDisplayType.IP_LIBRARY -> "" // 不会显示，因为有IP库组件
+                        },
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 16.sp
+                    )
+                    Text(
+                        text = when (selectedProjectType) {
+                            ProjectDisplayType.DEVELOPING -> "点击上方按钮开始开发新游戏"
+                            ProjectDisplayType.UPDATING -> "已发售游戏开始更新后将在此显示"
+                            ProjectDisplayType.RELEASED -> "完成游戏开发并发售后将在此显示"
+                            ProjectDisplayType.REMOVED -> "下架的游戏将在此显示"
+                            ProjectDisplayType.IP_LIBRARY -> "" // 不会显示，因为有IP库组件
+                        },
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 14.sp
+                    )
                 }
             }
         } else {
@@ -2032,9 +2023,9 @@ fun IPSelectionStep(
                             Text(
                                 text = ip.getIPLevel(),
                                 color = when {
-                                    ip.originalRating >= 9.0f -> Color(0xFFFFD700) // 金色
-                                    ip.originalRating >= 8.0f -> Color(0xFFC0C0C0) // 银色
-                                    else -> Color(0xFFCD7F32) // 铜色
+                                    ip.originalRating >= 7.5f -> Color(0xFF4CAF50) // 绿色 - 知名IP
+                                    ip.originalRating >= 6.5f -> Color(0xFF9E9E9E) // 灰色 - 普通IP
+                                    else -> Color(0xFF757575) // 深灰色 - 小众IP
                                 },
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold

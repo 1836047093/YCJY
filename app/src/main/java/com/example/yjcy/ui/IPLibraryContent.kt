@@ -26,11 +26,7 @@ import com.example.yjcy.data.GameIP
  */
 enum class IPFilterType(val displayName: String) {
     ALL("全部"),
-    LEGENDARY("传奇IP"),
-    TOP_TIER("顶级IP"),
-    HIGH_QUALITY("优质IP"),
     POPULAR("知名IP"),
-    HOT("热门IP"),
     COMMON("普通IP"),
     NICHE("小众IP")
 }
@@ -49,12 +45,8 @@ fun IPLibraryContent(
     val filteredIPs = remember(ownedIPs, selectedFilter) {
         when (selectedFilter) {
             IPFilterType.ALL -> ownedIPs
-            IPFilterType.LEGENDARY -> ownedIPs.filter { it.originalRating >= 9.0f }
-            IPFilterType.TOP_TIER -> ownedIPs.filter { it.originalRating >= 8.5f && it.originalRating < 9.0f }
-            IPFilterType.HIGH_QUALITY -> ownedIPs.filter { it.originalRating >= 8.0f && it.originalRating < 8.5f }
-            IPFilterType.POPULAR -> ownedIPs.filter { it.originalRating >= 7.5f && it.originalRating < 8.0f }
-            IPFilterType.HOT -> ownedIPs.filter { it.originalRating >= 7.0f && it.originalRating < 7.5f }
-            IPFilterType.COMMON -> ownedIPs.filter { it.originalRating >= 6.5f && it.originalRating < 7.0f }
+            IPFilterType.POPULAR -> ownedIPs.filter { it.originalRating >= 7.5f }
+            IPFilterType.COMMON -> ownedIPs.filter { it.originalRating >= 6.5f && it.originalRating < 7.5f }
             IPFilterType.NICHE -> ownedIPs.filter { it.originalRating < 6.5f }
         }
     }
@@ -95,40 +87,28 @@ fun IPLibraryContent(
         
         // IP统计信息
         if (ownedIPs.isNotEmpty()) {
-            Card(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = Color.White.copy(alpha = 0.1f)
-                ),
-                shape = RoundedCornerShape(12.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    IPStatItem(
-                        label = "IP总数",
-                        value = "${ownedIPs.size}",
-                        icon = "📚"
-                    )
-                    IPStatItem(
-                        label = "传奇IP",
-                        value = "${ownedIPs.count { it.originalRating >= 9.0f }}",
-                        icon = "⭐"
-                    )
-                    IPStatItem(
-                        label = "平均评分",
-                        value = String.format("%.1f", ownedIPs.map { it.originalRating }.average()),
-                        icon = "⭐"
-                    )
-                }
+                IPStatItem(
+                    label = "IP总数",
+                    value = "${ownedIPs.size}",
+                    icon = "📚"
+                )
+                IPStatItem(
+                    label = "知名IP",
+                    value = "${ownedIPs.count { it.originalRating >= 7.5f }}",
+                    icon = "⭐"
+                )
+                IPStatItem(
+                    label = "平均评分",
+                    value = String.format("%.1f", ownedIPs.map { it.originalRating }.average()),
+                    icon = "⭐"
+                )
             }
-            
-            Spacer(modifier = Modifier.height(8.dp))
         }
         
         // IP列表
@@ -163,8 +143,8 @@ fun IPLibraryContent(
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 items(filteredIPs) { ip ->
                     IPCard(ip = ip)
@@ -281,103 +261,95 @@ fun IPCard(ip: GameIP) {
     val bonusPercent = (ip.calculateIPBonus() * 100).toInt()
     val ipLevel = ip.getIPLevel()
     
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White.copy(alpha = 0.1f)
-        ),
-        shape = RoundedCornerShape(12.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+        // IP名称和等级
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // IP名称和等级
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = ip.name,
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
-                )
-                
-                // IP等级标签
-                Box(
-                    modifier = Modifier
-                        .background(
-                            getIPLevelColor(ip.originalRating),
-                            RoundedCornerShape(4.dp)
-                        )
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = ipLevel,
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-            
-            // IP详细信息
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // 原游戏评分
-                IPInfoItem(
-                    label = "原评分",
-                    value = String.format("%.1f", ip.originalRating),
-                    icon = "⭐"
-                )
-                
-                // 销量加成
-                IPInfoItem(
-                    label = "销量加成",
-                    value = "+$bonusPercent%",
-                    icon = "📈"
-                )
-                
-                // 收购时间
-                IPInfoItem(
-                    label = "收购时间",
-                    value = "${ip.acquiredYear}年${ip.acquiredMonth}月",
-                    icon = "📅"
-                )
-            }
-            
-            Divider(
-                color = Color.White.copy(alpha = 0.2f),
-                modifier = Modifier.padding(vertical = 4.dp)
+            Text(
+                text = ip.name,
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f)
             )
             
-            // 原公司、主题、平台等信息
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                UIInfoChip(
-                    text = "来自: ${ip.originalCompany}",
-                    icon = "🏢"
-                )
-                UIInfoChip(
-                    text = ip.theme.displayName,
-                    icon = ip.theme.icon
-                )
-                if (ip.platforms.isNotEmpty()) {
-                    UIInfoChip(
-                        text = ip.platforms.first().displayName,
-                        icon = ip.platforms.first().icon
+            // IP等级标签
+            Box(
+                modifier = Modifier
+                    .background(
+                        getIPLevelColor(ip.originalRating),
+                        RoundedCornerShape(4.dp)
                     )
-                }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = ipLevel,
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+        
+        // IP详细信息
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // 原游戏评分
+            IPInfoItem(
+                label = "原评分",
+                value = String.format("%.1f", ip.originalRating),
+                icon = "⭐"
+            )
+            
+            // 销量加成
+            IPInfoItem(
+                label = "销量加成",
+                value = "+$bonusPercent%",
+                icon = "📈"
+            )
+            
+            // 收购时间
+            IPInfoItem(
+                label = "收购时间",
+                value = "${ip.acquiredYear}年${ip.acquiredMonth}月",
+                icon = "📅"
+            )
+        }
+        
+        Divider(
+            color = Color.White.copy(alpha = 0.2f),
+            modifier = Modifier.padding(vertical = 4.dp)
+        )
+        
+        // 原公司、主题、平台等信息
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            UIInfoChip(
+                text = "来自: ${ip.originalCompany}",
+                icon = "🏢"
+            )
+            UIInfoChip(
+                text = ip.theme.displayName,
+                icon = ip.theme.icon
+            )
+            if (ip.platforms.isNotEmpty()) {
+                UIInfoChip(
+                    text = ip.platforms.first().displayName,
+                    icon = ip.platforms.first().icon
+                )
             }
         }
     }
@@ -454,11 +426,7 @@ fun UIInfoChip(
  */
 fun getIPLevelColor(rating: Float): Color {
     return when {
-        rating >= 9.0f -> Color(0xFFFFD700) // 金色 - 传奇IP
-        rating >= 8.5f -> Color(0xFFC0C0C0) // 银色 - 顶级IP
-        rating >= 8.0f -> Color(0xFFCD7F32) // 青铜色 - 优质IP
         rating >= 7.5f -> Color(0xFF4CAF50) // 绿色 - 知名IP
-        rating >= 7.0f -> Color(0xFF2196F3) // 蓝色 - 热门IP
         rating >= 6.5f -> Color(0xFF9E9E9E) // 灰色 - 普通IP
         else -> Color(0xFF757575) // 深灰色 - 小众IP
     }

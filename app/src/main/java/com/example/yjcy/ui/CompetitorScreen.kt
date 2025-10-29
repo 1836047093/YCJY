@@ -145,15 +145,42 @@ fun LeaderboardContent(saveData: SaveData) {
         }
     }
     
+    // 跟踪竞争对手数量变化，确保收购后排行榜立即更新
+    val competitorsCount = remember(saveData.competitors) {
+        saveData.competitors.size
+    }
+    
+    // 网游排行榜数据（响应 competitors 变化）
+    val onlineGameItems = remember(saveData.competitors, saveData.games) {
+        getTopOnlineGames(saveData)
+    }
+    
     // 定时更新机制：每3秒更新一次网游排行榜数据
-    // 当排行榜类型、竞争对手总收入、玩家游戏数量发生变化时，立即刷新一次
-    LaunchedEffect(selectedLeaderboard, competitorTotalRevenue, saveData.games.size) {
+    // 当排行榜类型、竞争对手总收入、玩家游戏数量、竞争对手数量发生变化时，立即刷新一次
+    LaunchedEffect(selectedLeaderboard, competitorTotalRevenue, saveData.games.size, competitorsCount) {
+        // 立即更新一次网游排行榜
+        if (selectedLeaderboard == LeaderboardType.ONLINE_GAME) {
+            liveLeaderboardItems = getTopOnlineGamesWithFluctuation(saveData)
+        }
         while (true) {
             if (selectedLeaderboard == LeaderboardType.ONLINE_GAME) {
                 liveLeaderboardItems = getTopOnlineGamesWithFluctuation(saveData)
             }
             kotlinx.coroutines.delay(3000L) // 每3秒更新一次
         }
+    }
+    
+    // 使用 remember 确保排行榜数据在 competitors 变化时重新计算
+    val marketValueItems = remember(saveData.competitors, saveData.companyName, saveData.fans) {
+        getTopCompaniesByMarketValue(saveData)
+    }
+    
+    val fansItems = remember(saveData.competitors, saveData.companyName, saveData.fans) {
+        getTopCompaniesByFans(saveData)
+    }
+    
+    val singlePlayerItems = remember(saveData.competitors, saveData.games) {
+        getTopSinglePlayerGames(saveData)
     }
     
     Column(
@@ -239,14 +266,14 @@ fun LeaderboardContent(saveData: SaveData) {
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item {
+            item(key = "leaderboard_${selectedLeaderboard}_${competitorsCount}") {
                 when (selectedLeaderboard) {
                     LeaderboardType.MARKET_VALUE -> {
                         LeaderboardCard(
                             title = "市值排行榜",
                             icon = "💰",
                             topColor = Color(0xFFFFD700),
-                            items = getTopCompaniesByMarketValue(saveData),
+                            items = marketValueItems,
                             leaderboardType = LeaderboardType.MARKET_VALUE
                         )
                     }
@@ -255,7 +282,7 @@ fun LeaderboardContent(saveData: SaveData) {
                             title = "粉丝排行榜",
                             icon = "❤️",
                             topColor = Color(0xFFFF6B6B),
-                            items = getTopCompaniesByFans(saveData),
+                            items = fansItems,
                             leaderboardType = LeaderboardType.FANS
                         )
                     }
@@ -264,7 +291,7 @@ fun LeaderboardContent(saveData: SaveData) {
                             title = "热门网游排行",
                             icon = "🎮",
                             topColor = Color(0xFF4ECDC4),
-                            items = liveLeaderboardItems.ifEmpty { getTopOnlineGames(saveData) },
+                            items = liveLeaderboardItems.ifEmpty { onlineGameItems },
                             leaderboardType = LeaderboardType.ONLINE_GAME
                         )
                     }
@@ -273,7 +300,7 @@ fun LeaderboardContent(saveData: SaveData) {
                             title = "畅销单机排行",
                             icon = "📦",
                             topColor = Color(0xFF95E1D3),
-                            items = getTopSinglePlayerGames(saveData),
+                            items = singlePlayerItems,
                             leaderboardType = LeaderboardType.SINGLE_PLAYER
                         )
                     }
@@ -1741,6 +1768,10 @@ fun AcquisitionDialog(
     // AI竞价处理中标志（防止并发执行）
     var isProcessingAIBidding by remember { mutableStateOf(false) }
     
+    // 收购成功结果状态（用于无竞争对手时的可靠回调）
+    var pendingSuccessResult by remember { mutableStateOf<Triple<Long, Long, Pair<Int, List<GameIP>>>?>(null) }
+    var hasTriggeredSuccessCallback by remember { mutableStateOf(false) }
+    
     // 玩家加价函数
     fun playerRaiseBid() {
         val increaseRate = 0.1
@@ -1901,8 +1932,9 @@ fun AcquisitionDialog(
                 
                 showResult = true
                 
-                kotlinx.coroutines.delay(1000)
-                onSuccess(currentPrice, marketValueGain, fansGain, inheritedIPs)
+                // 保存收购成功结果，在单独的LaunchedEffect中触发回调
+                // 避免LaunchedEffect被取消导致回调未执行
+                pendingSuccessResult = Triple(currentPrice, marketValueGain, Pair(fansGain, inheritedIPs))
             }
         }
         
@@ -1916,6 +1948,24 @@ fun AcquisitionDialog(
             }
             countdown = 0
             processAIRound()
+        }
+    }
+    
+    // 单独处理无竞争对手时的收购成功回调
+    LaunchedEffect(pendingSuccessResult, hasTriggeredSuccessCallback) {
+        if (pendingSuccessResult != null && !hasTriggeredSuccessCallback) {
+            val result = pendingSuccessResult!!
+            val (finalPrice, marketValueGain, fansAndIPs) = result
+            val (fansGain, inheritedIPs) = fansAndIPs
+            
+            // 延迟一小段时间，确保UI状态已更新
+            kotlinx.coroutines.delay(500)
+            
+            // 标记已触发，避免重复触发
+            hasTriggeredSuccessCallback = true
+            
+            // 触发收购成功回调
+            onSuccess(finalPrice, marketValueGain, fansGain, inheritedIPs)
         }
     }
     
@@ -2103,7 +2153,7 @@ fun AcquisitionDialog(
                                         modifier = Modifier.padding(bottom = 4.dp)
                                     )
                                     Text(
-                                        text = formatMoney(currentPrice),
+                                        text = formatMoneyWithDecimals(currentPrice.toDouble()),
                                         color = Color(0xFFFFD700),
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 24.sp,
@@ -2189,7 +2239,7 @@ fun AcquisitionDialog(
                                             text = if (currentLeader == saveData.companyName) {
                                                 "等待中..."
                                             } else if (saveData.money >= nextBid) {
-                                                "加价至 ${formatMoney(nextBid)}"
+                                                "加价至 ${formatMoneyWithDecimals(nextBid.toDouble())}"
                                             } else {
                                                 "资金不足"
                                             },
@@ -2240,7 +2290,7 @@ fun BidHistoryItem(bid: com.example.yjcy.data.AcquisitionBid, playerName: String
         )
         
         Text(
-            text = formatMoney(bid.amount),
+            text = formatMoneyWithDecimals(bid.amount.toDouble()),
             color = Color(0xFFFFD700),
             fontWeight = FontWeight.Bold,
             fontSize = 13.sp

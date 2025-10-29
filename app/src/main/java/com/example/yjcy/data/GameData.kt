@@ -563,17 +563,13 @@ data class GameIP(
     /**
      * 计算IP知名度加成
      * 基于原游戏评分：评分越高，知名度越高，销量加成越大
-     * 加成范围：10%-50%
+     * 加成范围：10%-35%
      */
     fun calculateIPBonus(): Float {
         return when {
-            originalRating >= 9.0f -> 0.50f  // 9分以上：+50%销量
-            originalRating >= 8.5f -> 0.40f  // 8.5-9分：+40%销量
-            originalRating >= 8.0f -> 0.30f  // 8-8.5分：+30%销量
-            originalRating >= 7.5f -> 0.25f  // 7.5-8分：+25%销量
-            originalRating >= 7.0f -> 0.20f  // 7-7.5分：+20%销量
-            originalRating >= 6.5f -> 0.15f  // 6.5-7分：+15%销量
-            else -> 0.10f  // 6.5分以下：+10%销量（保底加成）
+            originalRating >= 7.5f -> 0.35f  // 7.5分以上：+35%销量（知名IP）
+            originalRating >= 6.5f -> 0.20f  // 6.5-7.5分：+20%销量（普通IP）
+            else -> 0.10f  // 6.5分以下：+10%销量（小众IP，保底加成）
         }
     }
     
@@ -582,11 +578,7 @@ data class GameIP(
      */
     fun getIPLevel(): String {
         return when {
-            originalRating >= 9.0f -> "传奇IP"
-            originalRating >= 8.5f -> "顶级IP"
-            originalRating >= 8.0f -> "优质IP"
             originalRating >= 7.5f -> "知名IP"
-            originalRating >= 7.0f -> "热门IP"
             originalRating >= 6.5f -> "普通IP"
             else -> "小众IP"
         }

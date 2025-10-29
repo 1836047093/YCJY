@@ -2191,7 +2191,7 @@ fun GameScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(16.dp)
+                    .padding(horizontal = 8.dp, vertical = 8.dp)
             ) {
 
                     when (selectedTab) {
@@ -2270,7 +2270,8 @@ fun GameScreen(
                                 competitors = competitors,
                                 competitorNews = competitorNews,
                                 serverData = RevenueManager.exportServerData(),
-                                revenueData = RevenueManager.exportRevenueData()
+                                revenueData = RevenueManager.exportRevenueData(),
+                                ownedIPs = ownedIPs // 传递拥有的IP列表
                             ),
                             gameSpeed = gameSpeed,
                             onAcquisitionSuccess = { acquiredCompany: CompetitorCompany, finalPrice: Long, marketValueGain: Long, fansGain: Int, inheritedIPs: List<GameIP> ->
@@ -2390,7 +2391,6 @@ fun GameScreen(
                         )
                         5 -> ServerManagementContent(
                             games = games,
-                            money = money,
                             onPurchaseServer = { serverType ->
                                 // 购买服务器到公共池（不立即扣费，按购买日期每30天扣费）
                                 val publicPoolId = "SERVER_PUBLIC_POOL"
@@ -2401,8 +2401,7 @@ fun GameScreen(
                                     purchaseMonth = currentMonth,
                                     purchaseDay = currentDay
                                 )
-                            },
-                            onMoneyUpdate = { updatedMoney -> money = updatedMoney }
+                            }
                         )
                         6 -> GVAScreen(
                             saveData = SaveData(
@@ -2418,7 +2417,8 @@ fun GameScreen(
                                 companyReputation = companyReputation,
                                 gvaHistory = gvaHistory,
                                 currentYearNominations = currentYearNominations,
-                                gvaAnnouncedDate = gvaAnnouncedDate
+                                gvaAnnouncedDate = gvaAnnouncedDate,
+                                ownedIPs = ownedIPs // 传递拥有的IP列表
                             ),
                             onBack = { selectedTab = 0 }
                         )
@@ -2937,6 +2937,7 @@ fun GameScreen(
                             gvaHistory = gvaHistory,
                             currentYearNominations = currentYearNominations,
                             gvaAnnouncedDate = gvaAnnouncedDate,
+                            ownedIPs = ownedIPs, // 传递拥有的IP列表
                             gmModeEnabled = gmModeEnabled,
                             onGMToggle = { enabled -> gmModeEnabled = enabled },
                             onMaxEmployees = {
@@ -4919,6 +4920,7 @@ fun InGameSettingsContent(
     gvaHistory: List<AwardNomination> = emptyList(), // GVA：历史记录
     currentYearNominations: List<AwardNomination> = emptyList(), // GVA：当年提名
     gvaAnnouncedDate: GameDate? = null, // GVA：颁奖日期
+    ownedIPs: List<GameIP> = emptyList(), // 拥有的游戏IP列表（收购竞争对手后获得）
     gmModeEnabled: Boolean = false, // GM模式是否开启
     onGMToggle: (Boolean) -> Unit = {}, // GM模式切换回调
     onMaxEmployees: () -> Unit = {}, // 一键满配员工回调
@@ -5235,6 +5237,7 @@ fun InGameSettingsContent(
                                 gvaHistory = gvaHistory, // 保存GVA历史记录
                                 currentYearNominations = currentYearNominations, // 保存当年提名
                                 gvaAnnouncedDate = gvaAnnouncedDate, // 保存颁奖日期
+                                ownedIPs = ownedIPs, // 保存拥有的IP列表（收购竞争对手后获得）
                                 gmModeEnabled = gmModeEnabled, // 保存GM模式状态
                                 saveTime = System.currentTimeMillis(),
                                 version = BuildConfig.VERSION_NAME // 使用当前游戏版本号
@@ -5358,6 +5361,7 @@ fun InGameSettingsContent(
                                             gvaHistory = gvaHistory, // 保存GVA历史记录
                                             currentYearNominations = currentYearNominations, // 保存当年提名
                                             gvaAnnouncedDate = gvaAnnouncedDate, // 保存颁奖日期
+                                            ownedIPs = ownedIPs, // 保存拥有的IP列表（收购竞争对手后获得）
                                             gmModeEnabled = gmModeEnabled, // 保存GM模式状态
                                             saveTime = System.currentTimeMillis(),
                                             version = BuildConfig.VERSION_NAME // 使用当前游戏版本号
