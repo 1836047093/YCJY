@@ -2251,7 +2251,8 @@ fun GameScreen(
                             onAutoProcessToggle = { enabled -> autoProcessComplaints = enabled },
                             currentYear = currentYear,
                             currentMonth = currentMonth,
-                            currentDay = currentDay
+                            currentDay = currentDay,
+                            ownedIPs = ownedIPs
                         )
                         3 -> CompetitorContent(
                             saveData = SaveData(

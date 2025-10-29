@@ -44,7 +44,8 @@ enum class ProjectDisplayType(val displayName: String) {
     DEVELOPING("正在开发"),
     UPDATING("正在更新"),
     RELEASED("已发售"),
-    REMOVED("已下架")
+    REMOVED("已下架"),
+    IP_LIBRARY("IP库")
 }
 
 // 为 ProjectDisplayType 创建自定义 Saver
@@ -188,6 +189,7 @@ fun EnhancedProjectManagementContent(
             ProjectDisplayType.REMOVED -> games.filter {
                 it.releaseStatus == GameReleaseStatus.REMOVED_FROM_MARKET
             }
+            ProjectDisplayType.IP_LIBRARY -> emptyList() // IP库不显示游戏列表
         }
     }
     
@@ -351,7 +353,13 @@ fun EnhancedProjectManagementContent(
         
         Spacer(modifier = Modifier.height(12.dp))
         
-        if (filteredGames.isEmpty()) {
+        // IP库页面
+        if (selectedProjectType == ProjectDisplayType.IP_LIBRARY) {
+            IPLibraryContent(
+                ownedIPs = ownedIPs,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else if (filteredGames.isEmpty()) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -380,6 +388,7 @@ fun EnhancedProjectManagementContent(
                                 ProjectDisplayType.UPDATING -> "暂无正在更新的游戏"
                                 ProjectDisplayType.RELEASED -> "暂无已发售的游戏"
                                 ProjectDisplayType.REMOVED -> "暂无已下架的游戏"
+                                ProjectDisplayType.IP_LIBRARY -> "" // 不会显示，因为有IP库组件
                             },
                             color = Color.White.copy(alpha = 0.7f),
                             fontSize = 16.sp
@@ -390,6 +399,7 @@ fun EnhancedProjectManagementContent(
                                 ProjectDisplayType.UPDATING -> "已发售游戏开始更新后将在此显示"
                                 ProjectDisplayType.RELEASED -> "完成游戏开发并发售后将在此显示"
                                 ProjectDisplayType.REMOVED -> "下架的游戏将在此显示"
+                                ProjectDisplayType.IP_LIBRARY -> "" // 不会显示，因为有IP库组件
                             },
                             color = Color.White.copy(alpha = 0.5f),
                             fontSize = 14.sp

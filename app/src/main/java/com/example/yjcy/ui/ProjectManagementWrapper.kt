@@ -46,7 +46,8 @@ fun ProjectManagementWrapper(
     onAutoProcessToggle: (Boolean) -> Unit = {},  // 新增：自动处理开关回调
     currentYear: Int = 1,  // 新增：当前年份
     currentMonth: Int = 1,  // 新增：当前月份
-    currentDay: Int = 1  // 新增：当前日期
+    currentDay: Int = 1,  // 新增：当前日期
+    ownedIPs: List<GameIP> = emptyList()  // 新增：拥有的IP列表
 ) {
     // 移除本地状态管理，改为由外部（MainActivity）管理
     // 这样可以确保切换标签时状态不会丢失
@@ -78,6 +79,7 @@ fun ProjectManagementWrapper(
                     onAutoProcessToggle = onAutoProcessToggle,
                     currentYear = currentYear,
                     currentMonth = currentMonth,
-                    currentDay = currentDay
+                    currentDay = currentDay,
+                    ownedIPs = ownedIPs
     )
 }
