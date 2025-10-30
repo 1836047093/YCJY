@@ -423,15 +423,17 @@ fun OngoingTournamentsTab(
     val companyOptions = listOf("我的公司", "竞争对手")
     
     // 根据选择获取对应的游戏和公司名称
-    val (displayGames, companyName) = if (selectedOption == 0) {
+    val (displayGames, competitorGameDataMap) = if (selectedOption == 0) {
         // 显示玩家的游戏
-        Pair(games, "我的公司")
+        Pair(games, emptyMap<String, Pair<Long, String>>())
     } else {
         // 显示所有竞争对手的游戏（合并显示）
-        val allCompetitorGames = competitors.flatMap { competitor ->
-            competitor.games.filter { it.currentTournament != null }.map { compGame ->
-                // 创建一个临时的Game对象用于显示
-                Game(
+        val allCompetitorGames = mutableListOf<Game>()
+        val competitorDataMap = mutableMapOf<String, Pair<Long, String>>()
+        
+        competitors.forEach { competitor ->
+            competitor.games.filter { it.currentTournament != null }.forEach { compGame ->
+                val game = Game(
                     id = compGame.id,
                     name = "${competitor.name} - ${compGame.name}", // 显示公司名+游戏名
                     theme = compGame.theme,
@@ -442,9 +444,12 @@ fun OngoingTournamentsTab(
                     rating = compGame.rating,
                     currentTournament = compGame.currentTournament
                 )
+                allCompetitorGames.add(game)
+                // 保存活跃玩家数和公司名
+                competitorDataMap[compGame.id] = Pair(compGame.activePlayers, competitor.name)
             }
         }
-        Pair(allCompetitorGames, "竞争对手")
+        Pair(allCompetitorGames, competitorDataMap)
     }
     
     Column(modifier = Modifier.fillMaxSize()) {
@@ -509,13 +514,16 @@ fun OngoingTournamentsTab(
             ) {
                 items(displayGames) { game ->
                     game.currentTournament?.let { tournament ->
+                        // 对于竞争对手的游戏，使用原始游戏ID查找数据（game.id 就是 compGame.id）
+                        val competitorData = if (selectedOption != 0) competitorGameDataMap[game.id] else null
                         OngoingTournamentCard(
                             tournament = tournament,
                             game = game,
                             revenueData = if (selectedOption == 0) revenueDataMap[game.id] else null,
                             currentDate = currentDate,
                             isCompetitor = selectedOption != 0,
-                            companyName = if (selectedOption != 0) companyName else null
+                            companyName = competitorData?.second,
+                            competitorActivePlayers = competitorData?.first
                         )
                     }
                 }
@@ -534,7 +542,8 @@ fun OngoingTournamentCard(
     revenueData: GameRevenue?,
     currentDate: GameDate,
     isCompetitor: Boolean = false,
-    companyName: String? = null
+    companyName: String? = null,
+    competitorActivePlayers: Long? = null
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -607,8 +616,13 @@ fun OngoingTournamentCard(
             Spacer(modifier = Modifier.height(8.dp))
             
             // 实时数据
+            val activePlayers = if (isCompetitor && competitorActivePlayers != null) {
+                competitorActivePlayers
+            } else {
+                revenueData?.getActivePlayers() ?: 0L
+            }
             Text(
-                text = "👥 预计观看: ${formatPlayerCount((revenueData?.getActivePlayers() ?: 0L) / 2)}人",
+                text = "👥 预计观看: ${formatPlayerCount(activePlayers / 2)}人",
                 fontSize = 13.sp,
                 color = Color(0xFF666666)
             )

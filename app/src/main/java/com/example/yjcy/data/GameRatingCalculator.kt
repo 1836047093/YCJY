@@ -13,12 +13,12 @@ import kotlin.random.Random
  * 2. 技能评分：采用递减收益曲线（1-4.5分）
  * 3. 团队协作加成：多职位配合（0-1.5分）
  * 4. 主题匹配加成：技能与主题适配（0-1分）
- * 5. 复杂度惩罚：多平台/网游降低评分（-0-1.5分）
+ * 5. 复杂度惩罚：已移除，多平台和网游不再扣分
  * 6. 平衡性加成：员工技能均衡度（0-0.5分）
  * 7. 精英团队加成：高级员工比例（0-0.5分）
  * 
- * 最终评分 = 基础分 + 技能评分 + 团队协作 + 主题匹配 - 复杂度惩罚 + 平衡性 + 精英加成
- * 理论最高分：10.0分（单平台单机，5职位满配，全员5级，完美主题匹配）
+ * 最终评分 = 基础分 + 技能评分 + 团队协作 + 主题匹配 + 平衡性 + 精英加成
+ * 理论最高分：10.0分（5职位满配，全员5级，完美主题匹配）
  */
 object GameRatingCalculator {
     const val BASE_SCORE = 2.0f
@@ -223,28 +223,11 @@ object GameRatingCalculator {
     
     /**
      * 计算复杂度惩罚
-     * 更复杂的项目更难获得高评分
-     * 
-     * - 多平台：每增加1个平台 -0.2分（2个平台-0.2，3个-0.4，4个-0.6）
-     * - 网络游戏：额外 -0.5分（技术难度更高）
-     * 
-     * 最大惩罚：-1.5分（4平台网游）
+     * 多平台和网游不再扣分
      */
     private fun calculateComplexityPenalty(game: Game): Float {
-        var penalty = 0f
-        
-        // 多平台惩罚
-        val platformCount = game.platforms.size
-        if (platformCount > 1) {
-            penalty += (platformCount - 1) * 0.2f
-        }
-        
-        // 网络游戏惩罚
-        if (game.businessModel == BusinessModel.ONLINE_GAME) {
-            penalty += 0.5f
-        }
-        
-        return penalty.coerceAtMost(1.5f)
+        // 已移除多平台和网游的扣分逻辑
+        return 0f
     }
     
     /**

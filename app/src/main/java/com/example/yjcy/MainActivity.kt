@@ -2957,6 +2957,128 @@ fun GameScreen(
                             onAddMoney = {
                                 // 一键增加1000万
                                 money += 10000000L
+                            },
+                            onCreateTopEmployees = {
+                                // 创建各个职位6名5级专属技能员工
+                                val existingNames = allEmployees.map { it.name }.toSet().toMutableSet()
+                                val maxId = allEmployees.maxOfOrNull { it.id } ?: 0
+                                val newEmployees = mutableListOf<Employee>()
+                                
+                                // 职位列表
+                                val positions = listOf("程序员", "策划师", "美术师", "音效师", "客服")
+                                
+                                // 为每个职位创建6名5级专属技能员工
+                                for (position in positions) {
+                                    for (i in 1..6) {
+                                        val employeeName = com.example.yjcy.service.TalentMarketService.generateUniqueName(existingNames)
+                                        existingNames.add(employeeName)
+                                        
+                                        // 根据职位设置专属技能为5级，其他技能为0
+                                        val newEmployee = when (position) {
+                                            "程序员" -> Employee(
+                                                id = maxId + newEmployees.size + 1,
+                                                name = employeeName,
+                                                position = position,
+                                                skillDevelopment = 5,
+                                                skillDesign = 0,
+                                                skillArt = 0,
+                                                skillMusic = 0,
+                                                skillService = 0,
+                                                salary = 15000, // 5级技能对应薪资
+                                                experience = 100,
+                                                motivation = 100,
+                                                isFounder = false,
+                                                hireYear = currentYear,
+                                                hireMonth = currentMonth,
+                                                hireDay = currentDay
+                                            )
+                                            "策划师" -> Employee(
+                                                id = maxId + newEmployees.size + 1,
+                                                name = employeeName,
+                                                position = position,
+                                                skillDevelopment = 0,
+                                                skillDesign = 5,
+                                                skillArt = 0,
+                                                skillMusic = 0,
+                                                skillService = 0,
+                                                salary = 15000,
+                                                experience = 100,
+                                                motivation = 100,
+                                                isFounder = false,
+                                                hireYear = currentYear,
+                                                hireMonth = currentMonth,
+                                                hireDay = currentDay
+                                            )
+                                            "美术师" -> Employee(
+                                                id = maxId + newEmployees.size + 1,
+                                                name = employeeName,
+                                                position = position,
+                                                skillDevelopment = 0,
+                                                skillDesign = 0,
+                                                skillArt = 5,
+                                                skillMusic = 0,
+                                                skillService = 0,
+                                                salary = 15000,
+                                                experience = 100,
+                                                motivation = 100,
+                                                isFounder = false,
+                                                hireYear = currentYear,
+                                                hireMonth = currentMonth,
+                                                hireDay = currentDay
+                                            )
+                                            "音效师" -> Employee(
+                                                id = maxId + newEmployees.size + 1,
+                                                name = employeeName,
+                                                position = position,
+                                                skillDevelopment = 0,
+                                                skillDesign = 0,
+                                                skillArt = 0,
+                                                skillMusic = 5,
+                                                skillService = 0,
+                                                salary = 15000,
+                                                experience = 100,
+                                                motivation = 100,
+                                                isFounder = false,
+                                                hireYear = currentYear,
+                                                hireMonth = currentMonth,
+                                                hireDay = currentDay
+                                            )
+                                            "客服" -> Employee(
+                                                id = maxId + newEmployees.size + 1,
+                                                name = employeeName,
+                                                position = position,
+                                                skillDevelopment = 0,
+                                                skillDesign = 0,
+                                                skillArt = 0,
+                                                skillMusic = 0,
+                                                skillService = 5,
+                                                salary = 15000,
+                                                experience = 100,
+                                                motivation = 100,
+                                                isFounder = false,
+                                                hireYear = currentYear,
+                                                hireMonth = currentMonth,
+                                                hireDay = currentDay
+                                            )
+                                            else -> Employee(
+                                                id = maxId + newEmployees.size + 1,
+                                                name = employeeName,
+                                                position = position,
+                                                salary = 15000,
+                                                experience = 100,
+                                                motivation = 100,
+                                                isFounder = false,
+                                                hireYear = currentYear,
+                                                hireMonth = currentMonth,
+                                                hireDay = currentDay
+                                            )
+                                        }
+                                        newEmployees.add(newEmployee)
+                                    }
+                                }
+                                
+                                // 添加新员工到列表
+                                allEmployees.addAll(newEmployees)
                             }
                         )
                     }
@@ -3444,16 +3566,20 @@ fun CompanyOverviewContent(
                             }
                             
                             val matchingRecords = revenue.dailySalesList.filter { dailySales ->
-                                val gameYear = calculateGameYear(
-                                    releaseYear = revenue.releaseYear,
-                                    releaseMonth = revenue.releaseMonth,
-                                    releaseDay = revenue.releaseDay,
-                                    recordDate = dailySales.date
-                                )
-                                gameYear == selectedFinancialYear
+                                // 直接从recordDate中提取游戏内年份
+                                // recordDate是用游戏内时间创建的，所以其中的YEAR字段就是游戏内年份
+                                val recordCalendar = java.util.Calendar.getInstance()
+                                recordCalendar.time = dailySales.date
+                                val recordGameYear = recordCalendar.get(java.util.Calendar.YEAR)
+                                
+                                val matches = recordGameYear == selectedFinancialYear
+                                if (matches) {
+                                    Log.d("MainActivity", "      ✓ 匹配记录: 日期=${dailySales.date}, 游戏内年份=${recordGameYear}, 收益=${dailySales.revenue}")
+                                }
+                                matches
                             }
                             
-                            Log.d("MainActivity", "    ✓ 匹配第${selectedFinancialYear}年的记录: ${matchingRecords.size}条")
+                            Log.d("MainActivity", "    ✓ 匹配第${selectedFinancialYear}年的记录: ${matchingRecords.size}条 / 总记录数: ${revenue.dailySalesList.size}条")
                             
                             val yearRevenue = matchingRecords.sumOf { it.revenue }
                             if (yearRevenue > 0) {
@@ -3493,16 +3619,20 @@ fun CompanyOverviewContent(
                             }
                             
                             val matchingRecords = revenue.dailySalesList.filter { dailySales ->
-                                val gameYear = calculateGameYear(
-                                    releaseYear = revenue.releaseYear,
-                                    releaseMonth = revenue.releaseMonth,
-                                    releaseDay = revenue.releaseDay,
-                                    recordDate = dailySales.date
-                                )
-                                gameYear == selectedFinancialYear
+                                // 直接从recordDate中提取游戏内年份
+                                // recordDate是用游戏内时间创建的，所以其中的YEAR字段就是游戏内年份
+                                val recordCalendar = java.util.Calendar.getInstance()
+                                recordCalendar.time = dailySales.date
+                                val recordGameYear = recordCalendar.get(java.util.Calendar.YEAR)
+                                
+                                val matches = recordGameYear == selectedFinancialYear
+                                if (matches) {
+                                    Log.d("MainActivity", "      ✓ 匹配记录: 日期=${dailySales.date}, 游戏内年份=${recordGameYear}, 收益=${dailySales.revenue}")
+                                }
+                                matches
                             }
                             
-                            Log.d("MainActivity", "    ✓ 匹配第${selectedFinancialYear}年的记录: ${matchingRecords.size}条")
+                            Log.d("MainActivity", "    ✓ 匹配第${selectedFinancialYear}年的记录: ${matchingRecords.size}条 / 总记录数: ${revenue.dailySalesList.size}条")
                             
                             val yearRevenue = matchingRecords.sumOf { it.revenue }
                             if (yearRevenue > 0) {
@@ -4924,7 +5054,8 @@ fun InGameSettingsContent(
     gmModeEnabled: Boolean = false, // GM模式是否开启
     onGMToggle: (Boolean) -> Unit = {}, // GM模式切换回调
     onMaxEmployees: () -> Unit = {}, // 一键满配员工回调
-    onAddMoney: () -> Unit = {} // 一键加钱回调
+    onAddMoney: () -> Unit = {}, // 一键加钱回调
+    onCreateTopEmployees: () -> Unit = {} // 创建各职位6名5级专属技能员工回调
 ) {
     val context = LocalContext.current
     val saveManager = remember { SaveManager(context) }
@@ -5145,6 +5276,31 @@ fun InGameSettingsContent(
                             )
                             Text(
                                 text = "一键加1000万",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    
+                    // 创建各职位6名5级专属技能员工
+                    Button(
+                        onClick = onCreateTopEmployees,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF10B981)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "⭐",
+                                fontSize = 18.sp,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                            Text(
+                                text = "各职位6名5级员工",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
                             )

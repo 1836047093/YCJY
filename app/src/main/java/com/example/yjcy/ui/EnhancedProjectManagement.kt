@@ -7,6 +7,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -659,6 +661,7 @@ fun SuperEnhancedGameDevelopmentDialog(
     var selectedBusinessModel by remember { mutableStateOf<BusinessModel?>(null) }
     var monetizationItems by remember { mutableStateOf<List<com.example.yjcy.data.MonetizationItem>>(emptyList()) }
     var selectedIP by remember { mutableStateOf<com.example.yjcy.data.GameIP?>(null) }
+    var showStrategyDialog by remember { mutableStateOf(false) }
     
     // 计算总步骤数：基础步骤 + (有IP时+1步) + (网游时+1步)
     val hasIPStep = ownedIPs.isNotEmpty()
@@ -683,12 +686,33 @@ fun SuperEnhancedGameDevelopmentDialog(
         modifier = Modifier.fillMaxWidth(0.95f),
         title = {
             Column {
-                Text(
-                    text = "开发新游戏",
-                    color = Color.White,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "开发新游戏",
+                        color = Color.White,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    // 10分攻略问号按钮
+                    TextButton(
+                        onClick = { showStrategyDialog = true },
+                        modifier = Modifier.size(32.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = Color.White.copy(alpha = 0.7f)
+                        )
+                    ) {
+                        Text(
+                            text = "❓",
+                            fontSize = 20.sp
+                        )
+                    }
+                }
                 
                 // 步骤指示器
                 Row(
@@ -884,6 +908,13 @@ fun SuperEnhancedGameDevelopmentDialog(
             }
         }
     )
+    
+    // 10分攻略对话框
+    if (showStrategyDialog) {
+        GameTenPointStrategyDialog(
+            onDismiss = { showStrategyDialog = false }
+        )
+    }
 }
 
 @Composable
@@ -2159,6 +2190,171 @@ fun GameConfirmationStepWithIP(
                     color = Color(0xFFF59E0B),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 10分游戏开发攻略对话框
+ */
+@Composable
+fun GameTenPointStrategyDialog(
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1F2937),
+        title = {
+            Text(
+                text = "🎯 10分游戏攻略",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Box(modifier = Modifier.fillMaxWidth().height(300.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // 详细步骤说明
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color.White.copy(alpha = 0.1f)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "🚀 达成步骤",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            
+                            // 步骤1
+                            StrategyDetailItem(
+                                number = "1",
+                                title = "规划游戏类型与平台",
+                                detail = "任何游戏类型（单机或网游）和任何平台组合都不会影响评分。选择适合你团队配置和开发资源的类型即可，评分主要取决于团队技能和配置。"
+                            )
+                            
+                            // 步骤2
+                            StrategyDetailItem(
+                                number = "2",
+                                title = "招募4个不同职位的员工",
+                                detail = "必须包含：程序员（开发技能）、策划师（设计技能）、美术师（美术技能）、音效师（音效技能）。凑齐这4个职位可以获得团队协作加成（+1.2分）。"
+                            )
+                            
+                            // 步骤3
+                            StrategyDetailItem(
+                                number = "3",
+                                title = "培养所有员工到5级",
+                                detail = "通过分配员工到项目中工作来提升技能等级。当4个员工都达到5级时，技能总分可达3.4分（每个5级员工贡献约0.85分）。同时培养更多员工可以接近技能评分上限4.5分。"
+                            )
+                            
+                            // 步骤4
+                            StrategyDetailItem(
+                                number = "4",
+                                title = "选择匹配的游戏主题",
+                                detail = "开发时选择与核心职位（程序员、策划师、美术师）技能匹配的主题。如果这3个核心职位的平均等级高，可以获得最高+1.0分的主题匹配加成。"
+                            )
+                            
+                            // 步骤5
+                            StrategyDetailItem(
+                                number = "5",
+                                title = "保持团队技能平衡",
+                                detail = "确保4个员工的技能等级差距不要太大。如果技能等级较为均衡，可以获得最高+0.5分的平衡性加成。"
+                            )
+                            
+                            // 步骤6
+                            StrategyDetailItem(
+                                number = "6",
+                                title = "培养精英团队",
+                                detail = "确保至少80%的员工（即4个员工中至少3个）达到4级以上，可以获得最高+0.5分的精英加成。如果全员5级，则100%满足条件。"
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(
+                    text = "知道了",
+                    color = Color(0xFF10B981),
+                    fontSize = 14.sp
+                )
+            }
+        }
+    )
+}
+
+/**
+ * 详细攻略条目组件
+ */
+@Composable
+private fun StrategyDetailItem(
+    number: String,
+    title: String,
+    detail: String
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White.copy(alpha = 0.1f)
+        ),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 步骤编号
+            Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .background(
+                        color = Color(0xFF10B981),
+                        shape = RoundedCornerShape(4.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = number,
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            
+            // 内容
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = title,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = detail,
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp
                 )
             }
         }

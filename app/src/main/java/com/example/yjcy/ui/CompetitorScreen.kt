@@ -74,7 +74,7 @@ fun CompetitorContent(
                     )
                 )
             )
-            .padding(16.dp)
+            .padding(horizontal = 6.dp, vertical = 6.dp)
     ) {
         // 标题
         Text(
@@ -201,7 +201,7 @@ fun LeaderboardContent(saveData: SaveData) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { expanded = true }
-                    .padding(16.dp)
+                    .padding(20.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -264,7 +264,8 @@ fun LeaderboardContent(saveData: SaveData) {
         // 显示选中的排行榜
         LazyColumn(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
         ) {
             item(key = "leaderboard_${selectedLeaderboard}_${competitorsCount}") {
                 when (selectedLeaderboard) {
@@ -333,7 +334,7 @@ fun LeaderboardCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(horizontal = 28.dp, vertical = 24.dp)
         ) {
             // 标题
             Row(
@@ -369,7 +370,7 @@ fun LeaderboardCard(
                     leaderboardType = leaderboardType
                 )
                 if (index < items.size - 1) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
             }
             
@@ -519,7 +520,7 @@ fun LeaderboardItemRow(
                     Modifier
                 }
             )
-            .padding(8.dp),
+            .padding(horizontal = 18.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 超炫酷的动态图标区域（前3名）
@@ -977,7 +978,8 @@ fun NewsContent(saveData: SaveData) {
     } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
         ) {
             items(sortedNews) { news ->
                 NewsCard(news)
@@ -1021,7 +1023,7 @@ fun NewsCard(news: CompetitorNews) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp)
+                .padding(horizontal = 22.dp, vertical = 18.dp)
         ) {
             // 标题行
             Row(
@@ -1104,7 +1106,8 @@ fun CompetitorsListContent(
     } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
         ) {
             itemsIndexed(allCompanies) { index, company ->
                 val isPlayer = company.id == -1
@@ -1190,7 +1193,7 @@ fun CompetitorCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(horizontal = 20.dp, vertical = 18.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 排名
@@ -1607,7 +1610,7 @@ fun PlayerGameCard(game: com.example.yjcy.data.Game) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp)
+                .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -1666,7 +1669,7 @@ fun CompetitorGameCard(game: CompetitorGame) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp)
+                .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically
