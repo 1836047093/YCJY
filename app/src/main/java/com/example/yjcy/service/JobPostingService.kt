@@ -8,17 +8,18 @@ import kotlin.random.Random
  * 岗位发布服务
  * 处理岗位发布、应聘者生成和管理
  */
-class JobPostingService {
+class JobPostingService private constructor() {
     
     companion object {
-        // 单例实例
+        // 线程安全的单例实例（使用 @Volatile 和双重检查锁定）
+        @Volatile
         private var instance: JobPostingService? = null
         
         fun getInstance(): JobPostingService {
-            if (instance == null) {
-                instance = JobPostingService()
+            // 双重检查锁定（Double-Check Locking）
+            return instance ?: synchronized(this) {
+                instance ?: JobPostingService().also { instance = it }
             }
-            return instance!!
         }
         
         // 职位到技能类型的映射
@@ -34,8 +35,8 @@ class JobPostingService {
         val AVAILABLE_POSITIONS = listOf("程序员", "策划师", "美术师", "音效师", "客服")
     }
     
-    // 存储所有岗位发布
-    private val jobPostings = mutableMapOf<String, JobPosting>()
+    // 存储所有岗位发布（使用线程安全的集合）
+    private val jobPostings = java.util.concurrent.ConcurrentHashMap<String, JobPosting>()
     
     // 人才市场服务实例（用于生成候选人）
     private val talentMarketService = TalentMarketService()
@@ -470,6 +471,7 @@ class JobPostingService {
     /**
      * 清除所有数据（用于测试或加载新存档前）
      */
+    @Synchronized
     fun clearAllData() {
         jobPostings.clear()
     }
@@ -478,6 +480,7 @@ class JobPostingService {
      * 从存档加载招聘岗位数据
      * 在加载存档时调用，恢复招聘岗位状态
      */
+    @Synchronized
     fun loadFromSave(jobPostingsList: List<JobPosting>) {
         jobPostings.clear()
         jobPostingsList.forEach { posting ->

@@ -270,17 +270,45 @@ fun NewTalentMarketDialog(
     if (showApplicantDialog && selectedJob != null) {
         ApplicantManagementDialog(
             jobPosting = selectedJob!!,
-            saveData = saveData,
+            saveData = saveData,  // 直接使用最新的 saveData
             onDismiss = { 
                 showApplicantDialog = false
                 selectedJob = null
                 jobPostings = jobPostingService.getAllJobPostings().filter { it.status != JobPostingStatus.CLOSED }
             },
             onApplicantHired = { candidate ->
-                // 雇佣员工
-                onRecruitCandidate(candidate)
-                // 刷新岗位列表
-                jobPostings = jobPostingService.getAllJobPostings().filter { it.status != JobPostingStatus.CLOSED }
+                try {
+                    // 验证候选人数据
+                    if (candidate == null) {
+                        android.util.Log.e("NewTalentMarket", "候选人对象为空")
+                        return@ApplicantManagementDialog
+                    }
+                    
+                    if (candidate.name.isBlank()) {
+                        android.util.Log.e("NewTalentMarket", "候选人姓名为空")
+                        return@ApplicantManagementDialog
+                    }
+                    
+                    // 雇佣员工
+                    android.util.Log.d("NewTalentMarket", "准备调用 onRecruitCandidate 回调")
+                    onRecruitCandidate(candidate)
+                    android.util.Log.d("NewTalentMarket", "onRecruitCandidate 回调执行完成")
+                    
+                    // 刷新岗位列表
+                    android.util.Log.d("NewTalentMarket", "准备刷新岗位列表")
+                    try {
+                        jobPostings = jobPostingService.getAllJobPostings().filter { it.status != JobPostingStatus.CLOSED }
+                        android.util.Log.d("NewTalentMarket", "岗位列表刷新完成: ${jobPostings.size} 个岗位")
+                    } catch (e: Exception) {
+                        android.util.Log.e("NewTalentMarket", "刷新岗位列表失败", e)
+                    }
+                    
+                    android.util.Log.d("NewTalentMarket", "成功处理雇佣回调: ${candidate.name}")
+                } catch (e: Exception) {
+                    // 捕获所有异常，防止崩溃
+                    android.util.Log.e("NewTalentMarket", "处理雇佣回调时发生异常", e)
+                    e.printStackTrace()
+                }
             }
         )
     }

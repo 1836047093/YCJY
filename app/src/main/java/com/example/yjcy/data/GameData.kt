@@ -141,6 +141,11 @@ data class Employee(
     val salary: Int = 0,
     val experience: Int = 0,
     val motivation: Int = 100,
+    val stamina: Int = 100, // 体力值（0-100）
+    val loyalty: Int = 100, // 忠诚度（0-100）
+    val requestedSalary: Int? = null, // 员工要求的薪资（null表示未提出要求）
+    val lastSalaryRequestYear: Int? = null, // 上次提出涨薪要求的年份
+    val lastSalaryRequestMonth: Int? = null, // 上次提出涨薪要求的月份
     val isFounder: Boolean = false,
     val hireYear: Int = 1,  // 入职年份
     val hireMonth: Int = 1, // 入职月份
@@ -275,6 +280,132 @@ data class Employee(
         // 赔偿金额 = 月薪 × 赔偿月数
         return salary * compensationMonths
     }
+    
+    /**
+     * 计算工作消耗的体力值
+     * 体力消耗与技能等级相关：技能等级越高，工作更高效，体力消耗更少
+     * 
+     * 公式：基础消耗 × (1 - 技能等级 × 0.1)，最低30%消耗
+     * 基础消耗：15体力
+     * 
+     * 示例：
+     * - 1级：15 × (1 - 0.1) = 13.5 ≈ 14体力
+     * - 2级：15 × (1 - 0.2) = 12体力
+     * - 3级：15 × (1 - 0.3) = 10.5 ≈ 11体力
+     * - 4级：15 × (1 - 0.4) = 9体力
+     * - 5级：15 × (1 - 0.5) = 7.5 ≈ 8体力（最低30%消耗限制不生效）
+     * 
+     * @return 消耗的体力值
+     */
+    fun calculateWorkStaminaCost(): Int {
+        val skillLevel = getSpecialtySkillLevel()
+        val baseCost = 15 // 基础消耗15体力
+        
+        // 技能等级越高，消耗越少（最低30%）
+        val reductionFactor = (skillLevel * 0.1f).coerceAtMost(0.7f) // 最多减少70%
+        val cost = (baseCost * (1 - reductionFactor)).toInt()
+        
+        // 确保至少消耗5体力（33%），最高15体力
+        return cost.coerceIn(5, 15)
+    }
+    
+    /**
+     * 消耗体力值（工作后调用）
+     * @return 新的Employee对象，体力值已减少
+     */
+    fun consumeStamina(): Employee {
+        val cost = calculateWorkStaminaCost()
+        val newStamina = (stamina - cost).coerceAtLeast(0)
+        return this.copy(stamina = newStamina)
+    }
+    
+    /**
+     * 恢复体力值（每天恢复）
+     * @param amount 恢复的体力值（默认20）
+     * @return 新的Employee对象，体力值已恢复
+     */
+    fun restoreStamina(amount: Int = 20): Employee {
+        val newStamina = (stamina + amount).coerceAtMost(100)
+        return this.copy(stamina = newStamina)
+    }
+    
+    /**
+     * 检查员工是否体力不足（体力值低于30%）
+     * @return true表示体力不足
+     */
+    fun isStaminaLow(): Boolean {
+        return stamina < 30
+    }
+    
+    /**
+     * 获取体力值百分比
+     * @return 体力值百分比（0-100）
+     */
+    fun getStaminaPercentage(): Int {
+        return stamina
+    }
+    
+    /**
+     * 计算员工工作年数（用于判断是否满1年）
+     * @param currentYear 当前游戏年份
+     * @param currentMonth 当前游戏月份
+     * @param currentDay 当前游戏日期
+     * @return 工作年数（向下取整）
+     */
+    fun calculateWorkYears(currentYear: Int, currentMonth: Int, currentDay: Int): Int {
+        val workMonths = calculateWorkMonths(currentYear, currentMonth, currentDay)
+        return workMonths / 12
+    }
+    
+    /**
+     * 计算员工期望的薪资（基于技能等级）
+     * 公式：基础薪资 × (1 + 技能等级 × 0.15)
+     * 1级：115%，2级：130%，3级：145%，4级：160%，5级：175%
+     */
+    fun calculateExpectedSalary(baseSalary: Int): Int {
+        val skillLevel = getSpecialtySkillLevel()
+        val multiplier = 1.0 + (skillLevel * 0.15)
+        return (baseSalary * multiplier).toInt()
+    }
+    
+    /**
+     * 检查员工是否应该提出涨薪要求
+     * 条件：入职满1年，且未提出过要求或上次提出要求已过1年
+     */
+    fun shouldRequestSalaryIncrease(currentYear: Int, currentMonth: Int, currentDay: Int): Boolean {
+        if (isFounder) return false // 创始人不提要求
+        
+        val workYears = calculateWorkYears(currentYear, currentMonth, currentDay)
+        if (workYears < 1) return false // 未满1年
+        
+        // 如果从未提出过要求，或者上次提出要求已过1年
+        if (lastSalaryRequestYear == null) return true
+        
+        val yearsSinceLastRequest = currentYear - lastSalaryRequestYear!!
+        if (yearsSinceLastRequest >= 1) return true
+        
+        // 如果同一年但月份已过
+        if (yearsSinceLastRequest == 0 && currentMonth > (lastSalaryRequestMonth ?: 1)) {
+            return true
+        }
+        
+        return false
+    }
+    
+    /**
+     * 检查员工忠诚度是否过低（低于30）
+     */
+    fun isLoyaltyLow(): Boolean {
+        return loyalty < 30
+    }
+    
+    /**
+     * 获取忠诚度百分比
+     * @return 忠诚度百分比（0-100）
+     */
+    fun getLoyaltyPercentage(): Int {
+        return loyalty
+    }
 }
 
 // 创始人数据类
@@ -298,6 +429,8 @@ data class Founder(
             skillMusic = if (profession.specialtySkill == "音乐") SkillConstants.FOUNDER_SKILL_LEVEL else 0,
             skillService = if (profession.specialtySkill == "服务") SkillConstants.FOUNDER_SKILL_LEVEL else 0,
             salary = 0, // 创始人无薪资
+            stamina = 100, // 初始体力值100
+            loyalty = 100, // 创始人忠诚度100
             isFounder = true,
             hireYear = hireYear,
             hireMonth = hireMonth,

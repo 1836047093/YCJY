@@ -214,7 +214,8 @@ fun EmployeeManagementContent(
             onConfirm = { trainingCost ->
                 val updatedEmployees = allEmployees.map { emp ->
                     if (emp.id == selectedEmployee!!.id) {
-                        val skillBoost = Random.nextInt(1, 3)
+                        // 固定提升1级技能
+                        val skillBoost = 1
                         // 只提升专属技能
                         when (emp.getSpecialtySkillType()) {
                             "开发" -> emp.copy(
@@ -279,40 +280,100 @@ fun EmployeeManagementContent(
     
     // 新版人才市场（岗位发布系统）弹出式对话框
     if (showTalentMarketDialog) {
+        // 动态创建 SaveData，确保始终使用最新数据
+        // 不使用 remember 缓存，避免数据不一致
+        val currentSaveData = com.example.yjcy.data.SaveData(
+            money = money,
+            allEmployees = allEmployees.toList() // 每次都获取最新的员工列表
+        )
+        
         NewTalentMarketDialog(
-            saveData = com.example.yjcy.data.SaveData(
-                money = money,
-                allEmployees = allEmployees
-            ),
+            saveData = currentSaveData,
             onDismiss = { showTalentMarketDialog = false },
             jobPostingRefreshTrigger = jobPostingRefreshTrigger,
             onRecruitCandidate = { candidate ->
-                // 检查员工数量限制
-                if (allEmployees.size >= 30) {
-                    // 已达上限，不执行招聘
-                    // 可以显示提示消息（这里需要添加消息显示机制）
-                    return@NewTalentMarketDialog
+                try {
+                    android.util.Log.d("EmployeeManagement", "收到雇佣请求: ${candidate.name}, 职位: ${candidate.position}")
+                    
+                    // 检查候选人的必要字段
+                    if (candidate.name.isBlank()) {
+                        android.util.Log.e("EmployeeManagement", "候选人姓名为空，无法雇佣")
+                        return@NewTalentMarketDialog
+                    }
+                    
+                    if (candidate.position.isBlank()) {
+                        android.util.Log.e("EmployeeManagement", "候选人职位为空，无法雇佣")
+                        return@NewTalentMarketDialog
+                    }
+                    
+                    // 检查员工数量限制
+                    if (allEmployees.size >= 30) {
+                        android.util.Log.w("EmployeeManagement", "员工数量已达上限（${allEmployees.size}/30），无法继续招聘")
+                        return@NewTalentMarketDialog
+                    }
+                    
+                    // 生成新员工ID - 优化：只遍历一次列表
+                    val maxId = allEmployees.maxOfOrNull { it.id } ?: 0
+                    val newId = maxOf(1, maxId + 1)
+                    
+                    // 创建员工对象（减少重复检查）
+                    val newEmployee = try {
+                        android.util.Log.d("EmployeeManagement", "开始创建员工对象: ID=$newId, 候选人=${candidate.name}")
+                        
+                        val emp = candidate.toEmployee(
+                            newId = newId,
+                            hireYear = currentYear,
+                            hireMonth = currentMonth,
+                            hireDay = currentDay
+                        )
+                        
+                        android.util.Log.d("EmployeeManagement", "员工对象创建成功: ${emp.name}")
+                        emp
+                    } catch (e: Exception) {
+                        android.util.Log.e("EmployeeManagement", "toEmployee转换失败", e)
+                        e.printStackTrace()
+                        return@NewTalentMarketDialog
+                    }
+                    
+                    // 验证员工对象是否有效
+                    if (newEmployee.id <= 0 || newEmployee.name.isBlank()) {
+                        android.util.Log.e("EmployeeManagement", "创建的员工对象无效")
+                        return@NewTalentMarketDialog
+                    }
+                    
+                    // 创建新列表并添加员工（只遍历一次）
+                    val updatedEmployees = ArrayList<Employee>(allEmployees.size + 1)
+                    updatedEmployees.addAll(allEmployees)
+                    updatedEmployees.add(newEmployee)
+                    
+                    // 更新员工列表
+                    try {
+                        onEmployeesUpdate(updatedEmployees)
+                        android.util.Log.d("EmployeeManagement", "成功更新员工列表，当前员工数: ${updatedEmployees.size}")
+                    } catch (e: Exception) {
+                        android.util.Log.e("EmployeeManagement", "更新员工列表失败", e)
+                        e.printStackTrace()
+                        return@NewTalentMarketDialog
+                    }
+                    
+                    // 扣除招聘费用
+                    try {
+                        val recruitmentCost = candidate.expectedSalary.toLong() * 2L
+                        val newMoney = maxOf(0L, money - recruitmentCost)
+                        onMoneyUpdate(newMoney)
+                        android.util.Log.d("EmployeeManagement", "扣除招聘费用: ¥$recruitmentCost，剩余资金: ¥$newMoney")
+                    } catch (e: Exception) {
+                        android.util.Log.e("EmployeeManagement", "更新资金失败", e)
+                        e.printStackTrace()
+                    }
+                    
+                    // 不要立即关闭对话框，让用户可以继续招聘
+                    // showTalentMarketDialog = false
+                } catch (e: Exception) {
+                    // 捕获所有异常，防止崩溃
+                    android.util.Log.e("EmployeeManagement", "雇佣员工时发生未捕获的异常", e)
+                    e.printStackTrace()
                 }
-                
-                // 招聘候选人的逻辑
-                val newEmployee = candidate.toEmployee(
-                    newId = (allEmployees.maxOfOrNull { it.id } ?: 0) + 1,
-                    hireYear = currentYear,
-                    hireMonth = currentMonth,
-                    hireDay = currentDay
-                )
-                
-                // 添加新员工到列表
-                val updatedEmployees = allEmployees.toMutableList()
-                updatedEmployees.add(newEmployee)
-                onEmployeesUpdate(updatedEmployees)
-                
-                // 扣除招聘费用
-                val recruitmentCost = candidate.expectedSalary * 2
-                onMoneyUpdate(money - recruitmentCost)
-                
-                // 不要立即关闭对话框，让用户可以继续招聘
-                // showTalentMarketDialog = false
             }
         )
     }
@@ -420,18 +481,9 @@ fun EnhancedEmployeeCard(
     onTrainClick: () -> Unit,
     onFireClick: () -> Unit
 ) {
-    var isExpanded by remember { mutableStateOf(false) }
-    
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .animateContentSize(
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessLow
-                )
-            )
-            .clickable { isExpanded = !isExpanded }
             .background(
                 brush = Brush.horizontalGradient(
                     colors = listOf(
@@ -485,6 +537,60 @@ fun EnhancedEmployeeCard(
                             }
                         }
                     }
+                    
+                    Spacer(modifier = Modifier.height(4.dp))
+                    
+                    // 体力值快速指示器
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val stamina = employee.getStaminaPercentage()
+                        val staminaColor = when {
+                            stamina >= 70 -> Color(0xFF10B981)
+                            stamina >= 30 -> Color(0xFFF59E0B)
+                            else -> Color(0xFFEF4444)
+                        }
+                        Icon(
+                            imageVector = Icons.Default.Favorite,
+                            contentDescription = "体力值",
+                            tint = staminaColor,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "体力：$stamina%",
+                            fontSize = 11.sp,
+                            color = staminaColor.copy(alpha = 0.9f)
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(4.dp))
+                    
+                    // 忠诚度快速指示器
+                    if (!employee.isFounder) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val loyalty = employee.getLoyaltyPercentage()
+                            val loyaltyColor = when {
+                                loyalty >= 70 -> Color(0xFF10B981)
+                                loyalty >= 30 -> Color(0xFFF59E0B)
+                                else -> Color(0xFFEF4444)
+                            }
+                            Icon(
+                                imageVector = Icons.Default.Favorite,
+                                contentDescription = "忠诚度",
+                                tint = loyaltyColor,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "忠诚：$loyalty%",
+                                fontSize = 11.sp,
+                                color = loyaltyColor.copy(alpha = 0.9f)
+                            )
+                        }
+                    }
                 }
                 
                 Column(
@@ -523,68 +629,39 @@ fun EnhancedEmployeeCard(
                 }
             }
             
-            // 展开的详细信息
-            AnimatedVisibility(
-                visible = isExpanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
-            ) {
-                Column(
-                    modifier = Modifier.padding(top = 16.dp)
+            // 操作按钮（创始人不显示培训和解雇按钮，5级员工不显示培训按钮）
+            if (!employee.isFounder) {
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                val canTrain = employee.getSpecialtySkillLevel() < 5
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    HorizontalDivider(
-                        color = Color.White.copy(alpha = 0.2f),
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    )
-                    
-                    // 技能详情
-                    Text(
-                        text = "专属技能",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
-                    
-                    // 只显示该岗位的专属技能
-                    val specialtySkillType = employee.getSpecialtySkillType()
-                    val specialtySkillLevel = employee.getSpecialtySkillLevel()
-                    
-                    EnhancedSkillBar(
-                        skillName = specialtySkillType,
-                        skillLevel = specialtySkillLevel,
-                        maxLevel = SkillConstants.MAX_SKILL_LEVEL
-                    )
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    // 操作按钮（创始人不显示培训和解雇按钮）
-                    if (!employee.isFounder) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            ModernButton(
-                                text = "培训",
-                                icon = Icons.Default.School,
-                                onClick = onTrainClick,
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF3B82F6)
-                                )
+                    if (canTrain) {
+                        ModernButton(
+                            text = "培训",
+                            icon = Icons.Default.School,
+                            onClick = onTrainClick,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF3B82F6)
                             )
-                            
-                            ModernButton(
-                                text = "解雇",
-                                icon = Icons.Default.PersonRemove,
-                                onClick = onFireClick,
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFFEF4444)
-                                )
-                            )
-                        }
+                        )
                     }
+                    
+                    ModernButton(
+                        text = "解雇",
+                        icon = Icons.Default.PersonRemove,
+                        onClick = onFireClick,
+                        modifier = Modifier.weight(if (canTrain) 1f else 0f).then(
+                            if (!canTrain) Modifier.fillMaxWidth() else Modifier
+                        ),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFEF4444)
+                        )
+                    )
                 }
             }
         
@@ -592,6 +669,65 @@ fun EnhancedEmployeeCard(
         HorizontalDivider(
             color = Color.White.copy(alpha = 0.1f),
             modifier = Modifier.padding(top = 12.dp)
+        )
+    }
+}
+
+@Composable
+fun StaminaBar(
+    stamina: Int,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "体力",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+            modifier = Modifier.width(40.dp)
+        )
+        
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(8.dp)
+                .background(
+                    color = Color.Gray.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(4.dp)
+                )
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(stamina / 100f)
+                    .background(
+                        brush = Brush.horizontalGradient(
+                            colors = when {
+                                stamina >= 70 -> listOf(Color(0xFF10B981), Color(0xFF34D399)) // 绿色：体力充足
+                                stamina >= 30 -> listOf(Color(0xFFF59E0B), Color(0xFFFBBF24)) // 黄色：体力中等
+                                else -> listOf(Color(0xFFEF4444), Color(0xFFF87171)) // 红色：体力不足
+                            }
+                        ),
+                        shape = RoundedCornerShape(4.dp)
+                    )
+            )
+        }
+        
+        Text(
+            text = "$stamina%",
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = when {
+                stamina >= 70 -> Color(0xFF10B981)
+                stamina >= 30 -> Color(0xFFF59E0B)
+                else -> Color(0xFFEF4444)
+            },
+            modifier = Modifier.padding(start = 8.dp)
         )
     }
 }
@@ -659,8 +795,27 @@ fun EnhancedTrainingDialog(
     onConfirm: (Long) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val trainingCost = employee.salary.toLong() * 2
+    /**
+     * 计算培训费用（梯度费用）
+     * 根据员工当前技能等级计算：
+     * - 1级：月薪 × 1.5（基础培训）
+     * - 2级：月薪 × 2.0（进阶培训）
+     * - 3级：月薪 × 2.5（高级培训）
+     * - 4级：月薪 × 3.0（专家培训）
+     * - 5级：无法培训（已达最高等级）
+     */
+    val currentSkillLevel = employee.getSpecialtySkillLevel()
+    val trainingCost = when {
+        currentSkillLevel >= 5 -> 0L // 已达最高等级，无法培训
+        currentSkillLevel == 4 -> (employee.salary * 3.0).toLong() // 4级→5级：3倍月薪
+        currentSkillLevel == 3 -> (employee.salary * 2.5).toLong() // 3级→4级：2.5倍月薪
+        currentSkillLevel == 2 -> (employee.salary * 2.0).toLong() // 2级→3级：2倍月薪
+        else -> (employee.salary * 1.5).toLong() // 1级→2级：1.5倍月薪
+    }
+    
+    val canTrain = currentSkillLevel < 5 // 未达最高等级才能培训
     val canAfford = money >= trainingCost
+    val canProceed = canTrain && canAfford
     
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -706,17 +861,48 @@ fun EnhancedTrainingDialog(
                     text = "当前${employee.getSpecialtySkillType()}技能: ${employee.getSpecialtySkillLevel()}级",
                     fontSize = 14.sp,
                     color = Color.White.copy(alpha = 0.8f),
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    modifier = Modifier.padding(bottom = 4.dp)
                 )
                 
+                if (canTrain) {
+                    Text(
+                        text = "培训后等级: ${employee.getSpecialtySkillLevel() + 1}级",
+                        fontSize = 14.sp,
+                        color = Color(0xFF10B981),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+                
                 Text(
-                    text = "培训费用: ¥$trainingCost",
+                    text = if (canTrain) "培训费用: ¥$trainingCost" else "已达最高等级，无法培训",
                     fontSize = 14.sp,
-                    color = if (canAfford) Color.White else Color(0xFFEF4444),
+                    color = when {
+                        !canTrain -> Color(0xFFEF4444)
+                        !canAfford -> Color(0xFFEF4444)
+                        else -> Color.White
+                    },
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
                 
-                if (!canAfford) {
+                if (!canTrain) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = "警告",
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "员工已达到最高技能等级！",
+                            fontSize = 12.sp,
+                            color = Color(0xFFEF4444)
+                        )
+                    }
+                } else if (!canAfford) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(bottom = 16.dp)
@@ -753,7 +939,7 @@ fun EnhancedTrainingDialog(
                     
                     Button(
                         onClick = { onConfirm(trainingCost) },
-                        enabled = canAfford,
+                        enabled = canProceed,
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF10B981),

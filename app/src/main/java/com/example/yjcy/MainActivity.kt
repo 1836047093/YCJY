@@ -121,6 +121,9 @@ import com.example.yjcy.data.ChatMessage
 import com.example.yjcy.data.MessageSender
 import com.example.yjcy.ui.GVAScreen
 import com.example.yjcy.ui.GVAAwardDialog
+import com.example.yjcy.ui.SalaryRequestDialog
+import com.example.yjcy.ui.YearEndBonusDialog
+import com.example.yjcy.ui.YearEndStatistics
 import com.example.yjcy.data.GVAManager
 import com.example.yjcy.data.CompanyReputation
 import com.example.yjcy.data.AwardRecord
@@ -1304,6 +1307,12 @@ fun GameScreen(
         mutableStateOf(saveData?.gvaAnnouncedDate) 
     }
     
+    // 员工忠诚度和年终奖系统状态
+    var showSalaryRequestDialog by remember { mutableStateOf(false) }
+    var salaryRequestEmployee by remember { mutableStateOf(null as Employee?) }
+    var showYearEndBonusDialog by remember { mutableStateOf(false) }
+    var lastYearEndBonusYear by remember { mutableIntStateOf(0) } // 上次年终奖年份，防止重复触发
+    
     // 获取待处理的应聘者数量
     val jobPostingService = remember { JobPostingService.getInstance() }
     var pendingApplicantsCount by remember { mutableIntStateOf(0) }
@@ -1561,6 +1570,42 @@ fun GameScreen(
             if (serverBillingCost > 0) {
                 money -= serverBillingCost
                 Log.d("MainActivity", "💰 服务器计费: -¥$serverBillingCost (扣费前:¥$moneyBefore -> 扣费后:¥$money)")
+            }
+            
+            // 每日恢复所有员工体力值（每天恢复20点）
+            try {
+                val updatedEmployees = allEmployees.map { employee ->
+                    employee.restoreStamina(20)
+                }
+                allEmployees.clear()
+                allEmployees.addAll(updatedEmployees)
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "恢复员工体力值失败", e)
+            }
+            
+            // 每日检查：员工忠诚度变化（如果薪资低于期望薪资，忠诚度会逐渐降低）
+            try {
+                val updatedEmployees2 = allEmployees.map { employee ->
+                    if (!employee.isFounder && employee.requestedSalary == null) {
+                        // 计算员工期望的薪资
+                        val expectedSalary = employee.calculateExpectedSalary(employee.salary)
+                        if (employee.salary < expectedSalary) {
+                            // 薪资低于期望，每月降低1点忠诚度（每天约0.033点）
+                            val loyaltyLoss = if (currentDay == 1) 1 else 0 // 每月1日降低1点
+                            employee.copy(loyalty = (employee.loyalty - loyaltyLoss).coerceAtLeast(0))
+                        } else {
+                            // 薪资满足期望，每月恢复1点忠诚度（每天约0.033点）
+                            val loyaltyGain = if (currentDay == 1) 1 else 0 // 每月1日恢复1点
+                            employee.copy(loyalty = (employee.loyalty + loyaltyGain).coerceAtMost(100))
+                        }
+                    } else {
+                        employee
+                    }
+                }
+                allEmployees.clear()
+                allEmployees.addAll(updatedEmployees2)
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "更新员工忠诚度失败", e)
             }
             
             if (currentDay == 1) {
@@ -1960,6 +2005,146 @@ fun GameScreen(
                 isPaused = true
             }
             
+            // 年终奖系统：12月31日触发年度总结和年终奖分发
+            if (currentMonth == 12 && currentDay == 31 && currentYear != lastYearEndBonusYear) {
+                // 计算年度统计数据
+                val gamesReleasedThisYear = games.count { game ->
+                    game.releaseYear == currentYear && 
+                    (game.releaseStatus == GameReleaseStatus.RELEASED || 
+                     game.releaseStatus == GameReleaseStatus.RATED)
+                }
+                
+                // 计算年度总收入（从RevenueManager获取，统计所有已发售游戏在当年的收入）
+                val totalRevenue = RevenueManager.exportRevenueData()
+                    .values
+                    .flatMap { revenue ->
+                        revenue.dailySalesList.filter { dailySales ->
+                            // 直接从recordDate中提取游戏内年份
+                            // recordDate是用游戏内时间创建的，所以其中的YEAR字段就是游戏内年份
+                            val recordCalendar = java.util.Calendar.getInstance()
+                            recordCalendar.time = dailySales.date
+                            val recordGameYear = recordCalendar.get(java.util.Calendar.YEAR)
+                            recordGameYear == currentYear // 只统计当年的收入
+                        }
+                    }
+                    .sumOf { it.revenue.toLong() } // 转换为Long
+                
+                // 计算年度总支出（员工薪资 + 服务器费用 + 开发成本）
+                val totalSalary = allEmployees.sumOf { it.salary.toLong() } * 12L
+                
+                // 计算年度服务器费用（从服务器数据中获取）
+                val totalServerCost = RevenueManager.exportRevenueData()
+                    .values
+                    .sumOf { revenue ->
+                        // 获取该游戏的服务器信息
+                        val serverInfo = RevenueManager.getGameServerInfo(revenue.gameId)
+                        // 计算该游戏所有服务器的年度费用（12个月）
+                        serverInfo?.servers?.filter { it.isActive }?.sumOf { server ->
+                            server.type.cost * 12L
+                        } ?: 0L
+                    }
+                
+                val totalDevelopmentCost = games
+                    .filter { it.releaseYear == currentYear }
+                    .sumOf { it.developmentCost }
+                
+                val totalExpenses = totalSalary + totalServerCost + totalDevelopmentCost
+                val netProfit = totalRevenue - totalExpenses
+                
+                // 触发年终奖对话框（统计会在对话框内重新计算）
+                showYearEndBonusDialog = true
+                lastYearEndBonusYear = currentYear
+                isPaused = true // 暂停游戏
+                
+                Log.d("MainActivity", "💰 年终奖：${currentYear}年总结 - 游戏${gamesReleasedThisYear}款，收入¥$totalRevenue，利润¥$netProfit")
+            }
+            
+            // 每日检查：员工涨薪请求
+            if (!showSalaryRequestDialog) {
+                val employeeNeedingSalaryIncrease = allEmployees.firstOrNull { employee ->
+                    employee.shouldRequestSalaryIncrease(currentYear, currentMonth, currentDay) &&
+                    employee.requestedSalary == null
+                }
+                
+                if (employeeNeedingSalaryIncrease != null) {
+                    // 计算员工期望的薪资（基于技能等级）
+                    val expectedSalary = employeeNeedingSalaryIncrease.calculateExpectedSalary(
+                        employeeNeedingSalaryIncrease.salary
+                    )
+                    
+                    // 更新员工的涨薪要求
+                    val updatedEmployees = allEmployees.map { emp ->
+                        if (emp.id == employeeNeedingSalaryIncrease.id) {
+                            emp.copy(
+                                requestedSalary = expectedSalary,
+                                lastSalaryRequestYear = currentYear,
+                                lastSalaryRequestMonth = currentMonth
+                            )
+                        } else {
+                            emp
+                        }
+                    }
+                    allEmployees.clear()
+                    allEmployees.addAll(updatedEmployees)
+                    
+                    // 显示涨薪请求对话框
+                    salaryRequestEmployee = employeeNeedingSalaryIncrease.copy(
+                        requestedSalary = expectedSalary,
+                        lastSalaryRequestYear = currentYear,
+                        lastSalaryRequestMonth = currentMonth
+                    )
+                    showSalaryRequestDialog = true
+                    isPaused = true // 暂停游戏
+                    
+                    Log.d("MainActivity", "💼 涨薪请求：${employeeNeedingSalaryIncrease.name} 要求薪资从¥${employeeNeedingSalaryIncrease.salary}涨到¥$expectedSalary")
+                }
+            }
+            
+            // 每日检查：员工忠诚度过低触发离职和竞争对手争夺
+            val employeesToRemove = mutableListOf<Employee>()
+            allEmployees.forEach { employee ->
+                if (employee.isLoyaltyLow() && !employee.isFounder) {
+                    // 忠诚度过低，有概率离职或被竞争对手挖走
+                    val leaveChance = Random.nextFloat()
+                    if (leaveChance < 0.1f) { // 10%概率离职
+                        employeesToRemove.add(employee)
+                        
+                        // 生成竞争对手挖角的新闻
+                        val competitor = competitors.randomOrNull()
+                        if (competitor != null) {
+                            val news = CompetitorNews(
+                                id = "competitor_${System.currentTimeMillis()}_${Random.nextInt()}",
+                                title = "${competitor.name}挖走了${employee.name}",
+                                content = "${employee.name}因对公司不满，被${competitor.name}以更高薪资挖走。",
+                                type = NewsType.COMPANY_MILESTONE, // 使用公司里程碑类型
+                                companyId = competitor.id,
+                                companyName = competitor.name,
+                                timestamp = System.currentTimeMillis(),
+                                year = currentYear,
+                                month = currentMonth,
+                                day = currentDay
+                            )
+                            competitorNews = (competitorNews + news).takeLast(30)
+                        }
+                        
+                        Log.d("MainActivity", "⚠️ 员工离职：${employee.name}因忠诚度过低（${employee.loyalty}）而离职")
+                    }
+                }
+            }
+            
+            // 移除离职员工
+            if (employeesToRemove.isNotEmpty()) {
+                allEmployees.removeAll(employeesToRemove)
+                // 同时从游戏中移除这些员工
+                games = games.map { game ->
+                    game.copy(
+                        assignedEmployees = game.assignedEmployees.filter { emp ->
+                            emp.id !in employeesToRemove.map { it.id }
+                        }
+                    )
+                }
+            }
+            
             if (currentDay == 1) {
                 // 检查是否破产（负债达到50万）
                 if (money <= -500000L) {
@@ -1980,8 +2165,29 @@ fun GameScreen(
                         return@map game
                     }
                     
-                    // 计算当前阶段的进度增长
-                    val phaseProgressIncrease = currentPhase.calculateProgressSpeed(game.assignedEmployees)
+                    // 参与开发的员工消耗体力值
+                    try {
+                        val employeeIdsInGame = game.assignedEmployees.map { it.id }.toSet()
+                        val updatedEmployees3 = allEmployees.map { employee ->
+                            if (employee.id in employeeIdsInGame) {
+                                employee.consumeStamina()
+                            } else {
+                                employee
+                            }
+                        }
+                        allEmployees.clear()
+                        allEmployees.addAll(updatedEmployees3)
+                    } catch (e: Exception) {
+                        android.util.Log.e("MainActivity", "消耗员工体力值失败", e)
+                    }
+                    
+                    // 更新assignedEmployees中的员工信息（同步体力值）
+                    val updatedAssignedEmployees = game.assignedEmployees.map { assignedEmployee ->
+                        allEmployees.find { it.id == assignedEmployee.id } ?: assignedEmployee
+                    }
+                    
+                    // 计算当前阶段的进度增长（使用更新后的员工列表）
+                    val phaseProgressIncrease = currentPhase.calculateProgressSpeed(updatedAssignedEmployees)
                     val newPhaseProgress = (game.phaseProgress + phaseProgressIncrease).coerceAtMost(1.0f)
                     
                     // 检查当前阶段是否完成
@@ -2034,7 +2240,8 @@ fun GameScreen(
                         game.copy(
                             phaseProgress = newPhaseProgress,
                             developmentProgress = newTotalProgress,
-                            isCompleted = false
+                            isCompleted = false,
+                            assignedEmployees = updatedAssignedEmployees
                         )
                     }
                 } else {
@@ -2070,7 +2277,43 @@ fun GameScreen(
                     val completedTask = RevenueManager.getGameRevenue(releasedGame.id)?.updateTask
                     
                     // 若存在更新任务，根据已分配员工数量和技能等级推进进度
-                    val employeePoints = RevenueManager.calculateUpdateProgressPoints(releasedGame.assignedEmployees)
+                    var employeesForUpdate = releasedGame.assignedEmployees
+                    if (employeesForUpdate.isNotEmpty()) {
+                        // 参与更新的员工消耗体力值
+                        try {
+                            val employeeIdsInUpdate = employeesForUpdate.map { it.id }.toSet()
+                            val updatedEmployees4 = allEmployees.map { employee ->
+                                if (employee.id in employeeIdsInUpdate) {
+                                    employee.consumeStamina()
+                                } else {
+                                    employee
+                                }
+                            }
+                            allEmployees.clear()
+                            allEmployees.addAll(updatedEmployees4)
+                        } catch (e: Exception) {
+                            android.util.Log.e("MainActivity", "消耗更新员工体力值失败", e)
+                        }
+                        
+                        // 更新assignedEmployees中的员工信息（同步体力值）
+                        val updatedAssignedEmployees = employeesForUpdate.map { assignedEmployee ->
+                            allEmployees.find { it.id == assignedEmployee.id } ?: assignedEmployee
+                        }
+                        
+                        // 更新游戏中的assignedEmployees
+                        games = games.map { game ->
+                            if (game.id == releasedGame.id) {
+                                game.copy(assignedEmployees = updatedAssignedEmployees)
+                            } else {
+                                game
+                            }
+                        }
+                        
+                        // 使用更新后的员工列表计算进度
+                        employeesForUpdate = updatedAssignedEmployees
+                    }
+                    
+                    val employeePoints = RevenueManager.calculateUpdateProgressPoints(employeesForUpdate)
                     val updateJustCompleted = RevenueManager.progressUpdateTask(releasedGame.id, employeePoints)
                     
                     // 如果更新刚刚完成，版本号+0.1
@@ -2341,8 +2584,20 @@ fun GameScreen(
                         1 -> EmployeeManagementContent(
                             allEmployees = allEmployees,
                             onEmployeesUpdate = { updatedEmployees -> 
-                                allEmployees.clear()
-                                allEmployees.addAll(updatedEmployees)
+                                try {
+                                    android.util.Log.d("MainActivity", "更新员工列表: ${updatedEmployees.size} 个员工，当前: ${allEmployees.size} 个")
+                                    
+                                    // Compose 回调默认在主线程，直接更新即可
+                                    // 但需要捕获异常防止崩溃
+                                    allEmployees.clear()
+                                    allEmployees.addAll(updatedEmployees)
+                                    
+                                    android.util.Log.d("MainActivity", "员工列表更新成功: ${allEmployees.size} 个员工")
+                                } catch (e: Exception) {
+                                    android.util.Log.e("MainActivity", "更新员工列表时发生异常", e)
+                                    e.printStackTrace()
+                                    // 异常已记录，不抛出，避免崩溃
+                                }
                             },
                             money = money,
                             onMoneyUpdate = { updatedMoney -> money = updatedMoney },
@@ -3309,7 +3564,178 @@ fun GameScreen(
             )
         }
         
-        // 成就解锁弹窗
+        // GVA颁奖典礼对话框
+        if (showGVAAwardDialog) {
+            GVAAwardDialog(
+                year = gvaAwardYear,
+                nominations = gvaAwardNominations,
+                playerWonCount = gvaPlayerWonCount,
+                playerTotalReward = gvaPlayerTotalReward,
+                playerFansGain = gvaPlayerFansGain,
+                onDismiss = {
+                    showGVAAwardDialog = false
+                    isPaused = false // 关闭对话框后恢复游戏
+                }
+            )
+        }
+        
+        // 涨薪请求对话框
+        if (showSalaryRequestDialog && salaryRequestEmployee != null) {
+            val employee = salaryRequestEmployee!!
+            SalaryRequestDialog(
+                employee = employee,
+                currentMoney = money,
+                onAccept = {
+                    // 同意涨薪：更新员工薪资，提升忠诚度
+                    val updatedEmployees = allEmployees.map { emp ->
+                        if (emp.id == employee.id) {
+                            emp.copy(
+                                salary = employee.requestedSalary!!,
+                                requestedSalary = null,
+                                loyalty = (emp.loyalty + 10).coerceAtMost(100) // 提升10点忠诚度
+                            )
+                        } else {
+                            emp
+                        }
+                    }
+                    allEmployees.clear()
+                    allEmployees.addAll(updatedEmployees)
+                    
+                    showSalaryRequestDialog = false
+                    salaryRequestEmployee = null
+                    isPaused = false
+                    
+                    Log.d("MainActivity", "✅ 同意涨薪：${employee.name} 薪资涨到¥${employee.requestedSalary}")
+                },
+                onReject = {
+                    // 拒绝涨薪：降低忠诚度
+                    val updatedEmployees = allEmployees.map { emp ->
+                        if (emp.id == employee.id) {
+                            emp.copy(
+                                requestedSalary = null,
+                                loyalty = (emp.loyalty - 15).coerceAtLeast(0) // 降低15点忠诚度
+                            )
+                        } else {
+                            emp
+                        }
+                    }
+                    allEmployees.clear()
+                    allEmployees.addAll(updatedEmployees)
+                    
+                    showSalaryRequestDialog = false
+                    salaryRequestEmployee = null
+                    isPaused = false
+                    
+                    Log.d("MainActivity", "❌ 拒绝涨薪：${employee.name} 忠诚度降低")
+                }
+            )
+        }
+        
+        // 年终奖对话框
+        if (showYearEndBonusDialog) {
+            // 重新计算年度统计数据（确保数据最新）
+            val gamesReleasedThisYear = games.count { game ->
+                game.releaseYear == currentYear && 
+                (game.releaseStatus == GameReleaseStatus.RELEASED || 
+                 game.releaseStatus == GameReleaseStatus.RATED)
+            }
+            
+            // 计算年度总收入（从RevenueManager获取，统计所有已发售游戏在当年的收入）
+            val totalRevenue = RevenueManager.exportRevenueData()
+                .values
+                .flatMap { revenue ->
+                    revenue.dailySalesList.filter { dailySales ->
+                        // 直接从recordDate中提取游戏内年份
+                        // recordDate是用游戏内时间创建的，所以其中的YEAR字段就是游戏内年份
+                        val recordCalendar = java.util.Calendar.getInstance()
+                        recordCalendar.time = dailySales.date
+                        val recordGameYear = recordCalendar.get(java.util.Calendar.YEAR)
+                        recordGameYear == currentYear // 只统计当年的收入
+                    }
+                }
+                .sumOf { it.revenue.toLong() } // 转换为Long
+            
+            // 计算年度总支出（员工薪资 + 服务器费用 + 开发成本）
+            val totalSalary = allEmployees.sumOf { it.salary.toLong() } * 12L
+            
+            // 计算年度服务器费用（从服务器数据中获取）
+            val totalServerCost = RevenueManager.exportRevenueData()
+                .values
+                .sumOf { revenue ->
+                    // 获取该游戏的服务器信息
+                    val serverInfo = RevenueManager.getGameServerInfo(revenue.gameId)
+                    // 计算该游戏所有服务器的年度费用（12个月）
+                    serverInfo?.servers?.filter { it.isActive }?.sumOf { server ->
+                        server.type.cost * 12L
+                    } ?: 0L
+                }
+            
+            val totalDevelopmentCost = games
+                .filter { it.releaseYear == currentYear }
+                .sumOf { it.developmentCost }
+            
+            val totalExpenses = totalSalary + totalServerCost + totalDevelopmentCost
+            val netProfit = totalRevenue - totalExpenses
+            
+            val yearEndStatistics = YearEndStatistics(
+                year = currentYear,
+                gamesReleased = gamesReleasedThisYear,
+                totalRevenue = totalRevenue,
+                netProfit = netProfit,
+                totalEmployees = allEmployees.size
+            )
+            
+            YearEndBonusDialog(
+                statistics = yearEndStatistics,
+                currentMoney = money,
+                employeeCount = allEmployees.size,
+                averageSalary = if (allEmployees.isNotEmpty()) {
+                    allEmployees.map { it.salary }.average().toInt()
+                } else {
+                    5000 // 默认值
+                },
+                onDistributeBonus = { bonusAmount ->
+                    // 分发年终奖：扣除资金，提升所有员工忠诚度
+                    money -= bonusAmount
+                    
+                    val updatedEmployees = allEmployees.map { emp ->
+                        if (!emp.isFounder) {
+                            emp.copy(
+                                loyalty = (emp.loyalty + 20).coerceAtMost(100) // 提升20点忠诚度
+                            )
+                        } else {
+                            emp
+                        }
+                    }
+                    allEmployees.clear()
+                    allEmployees.addAll(updatedEmployees)
+                    
+                    showYearEndBonusDialog = false
+                    isPaused = false
+                    
+                    Log.d("MainActivity", "💰 发放年终奖：¥$bonusAmount，提升所有员工忠诚度")
+                },
+                onSkip = {
+                    // 跳过年终奖：降低所有员工忠诚度
+                    val updatedEmployees = allEmployees.map { emp ->
+                        if (!emp.isFounder) {
+                            emp.copy(
+                                loyalty = (emp.loyalty - 10).coerceAtLeast(0) // 降低10点忠诚度
+                            )
+                        } else {
+                            emp
+                        }
+                    }
+                    allEmployees.clear()
+                    allEmployees.addAll(updatedEmployees)
+                    
+                    showYearEndBonusDialog = false
+                    isPaused = false
+                    
+                    Log.d("MainActivity", "⚠️ 跳过年终奖：所有员工忠诚度降低")
+                }
+            )
+        }
         if (pendingAchievementsToShow.isNotEmpty()) {
             AchievementPopupQueue(
                 achievements = pendingAchievementsToShow,

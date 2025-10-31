@@ -15,7 +15,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -39,10 +41,10 @@ fun ApplicantManagementDialog(
 ) {
     // 员工人数上限
     val maxEmployees = 30
-    val currentEmployeeCount = saveData.allEmployees.size
-    val isEmployeeFull = currentEmployeeCount >= maxEmployees
+    // 直接使用 saveData，不缓存状态，确保始终是最新的
+    val isEmployeeFull = saveData.allEmployees.size >= maxEmployees
     val jobPostingService = remember { JobPostingService.getInstance() }
-    var currentJobPosting by remember { mutableStateOf(jobPosting) }
+    var currentJobPosting by remember(jobPosting.id) { mutableStateOf(jobPosting) }
     var showHireSuccessDialog by remember { mutableStateOf(false) }
     var hiredEmployeeName by remember { mutableStateOf("") }
     
@@ -59,25 +61,34 @@ fun ApplicantManagementDialog(
             dismissOnClickOutside = false
         )
     ) {
-        Card(
+        Box(
             modifier = modifier
                 .fillMaxWidth(0.95f)
-                .fillMaxHeight(0.9f),
-            shape = RoundedCornerShape(20.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
+                .fillMaxHeight(0.9f)
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFF1E293B),
+                            Color(0xFF0F172A)
+                        )
+                    ),
+                    shape = RoundedCornerShape(24.dp)
+                )
+                .clip(RoundedCornerShape(24.dp))
         ) {
             Column(
                 modifier = Modifier.fillMaxSize()
             ) {
-                // 标题栏
+                // 现代化标题栏
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(
                             brush = Brush.horizontalGradient(
                                 colors = listOf(
-                                    MaterialTheme.colorScheme.primaryContainer,
-                                    MaterialTheme.colorScheme.secondaryContainer
+                                    Color(0xFF3B82F6).copy(alpha = 0.15f),
+                                    Color(0xFF8B5CF6).copy(alpha = 0.1f),
+                                    Color(0xFFEC4899).copy(alpha = 0.15f)
                                 )
                             )
                         )
@@ -85,30 +96,48 @@ fun ApplicantManagementDialog(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 16.dp),
+                            .padding(horizontal = 24.dp, vertical = 20.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "应聘者管理",
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PersonSearch,
+                                    contentDescription = null,
+                                    tint = Color(0xFF60A5FA),
+                                    modifier = Modifier.size(26.dp)
+                                )
+                                Text(
+                                    text = "应聘者管理",
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = currentJobPosting.getDescription(),
-                                fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                fontSize = 13.sp,
+                                color = Color.White.copy(alpha = 0.7f)
                             )
                         }
                         
-                        IconButton(onClick = onDismiss) {
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier
+                                .background(
+                                    Color.White.copy(alpha = 0.1f),
+                                    shape = CircleShape
+                                )
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "关闭",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                tint = Color.White.copy(alpha = 0.9f)
                             )
                         }
                     }
@@ -117,179 +146,182 @@ fun ApplicantManagementDialog(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(16.dp)
+                        .padding(20.dp)
                 ) {
-                    // 统计信息
+                    // 现代化统计信息
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
                         StatCard(
                             icon = "📋",
                             label = "待雇佣",
                             value = currentJobPosting.getPendingApplicantsCount().toString(),
+                            gradientColors = listOf(
+                                Color(0xFF3B82F6).copy(alpha = 0.2f),
+                                Color(0xFF60A5FA).copy(alpha = 0.1f)
+                            ),
                             modifier = Modifier.weight(1f)
                         )
                         StatCard(
                             icon = "✅",
                             label = "已雇佣",
                             value = currentJobPosting.applicants.count { it.status == ApplicantStatus.HIRED }.toString(),
+                            gradientColors = listOf(
+                                Color(0xFF10B981).copy(alpha = 0.2f),
+                                Color(0xFF34D399).copy(alpha = 0.1f)
+                            ),
                             modifier = Modifier.weight(1f)
                         )
                         StatCard(
                             icon = "👥",
                             label = "总计",
                             value = currentJobPosting.applicants.size.toString(),
+                            gradientColors = listOf(
+                                Color(0xFF8B5CF6).copy(alpha = 0.2f),
+                                Color(0xFFA78BFA).copy(alpha = 0.1f)
+                            ),
                             modifier = Modifier.weight(1f)
                         )
                     }
                     
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
                     
-                    // 各职位当前人数
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
-                        ),
-                        shape = RoundedCornerShape(12.dp)
+                    // 各职位当前人数 - 现代化设计
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.padding(bottom = 16.dp)
                         ) {
+                            Icon(
+                                imageVector = Icons.Default.Work,
+                                contentDescription = null,
+                                tint = Color(0xFFF59E0B),
+                                modifier = Modifier.size(20.dp)
+                            )
                             Text(
-                                text = "💼 各职位当前人数",
-                                style = MaterialTheme.typography.titleMedium,
+                                text = "各职位当前人数",
+                                fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = Color.White
                             )
-                            
-                            Spacer(modifier = Modifier.height(8.dp))
-                            
-                            // 统计各职位人数
-                            val positionCounts = mapOf(
-                                "程序员" to saveData.allEmployees.count { it.position == "程序员" },
-                                "策划师" to saveData.allEmployees.count { it.position == "策划师" },
-                                "美术师" to saveData.allEmployees.count { it.position == "美术师" },
-                                "音效师" to saveData.allEmployees.count { it.position == "音效师" },
-                                "客服" to saveData.allEmployees.count { it.position == "客服" }
-                            )
-                            
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                positionCounts.forEach { (position, count) ->
-                                    PositionCountChip(
-                                        position = position,
-                                        count = count,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
+                        }
+                        
+                        // 统计各职位人数
+                        val positionCounts = mapOf(
+                            "程序员" to saveData.allEmployees.count { it.position == "程序员" },
+                            "策划师" to saveData.allEmployees.count { it.position == "策划师" },
+                            "美术师" to saveData.allEmployees.count { it.position == "美术师" },
+                            "音效师" to saveData.allEmployees.count { it.position == "音效师" },
+                            "客服" to saveData.allEmployees.count { it.position == "客服" }
+                        )
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            positionCounts.forEach { (position, count) ->
+                                PositionCountChip(
+                                    position = position,
+                                    count = count,
+                                    modifier = Modifier.weight(1f)
+                                )
                             }
                         }
                     }
                     
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
                     
-                    // 员工数量信息卡片
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (isEmployeeFull) {
-                                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-                            } else {
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                            }
-                        ),
-                        shape = RoundedCornerShape(12.dp)
+                    // 员工数量信息 - 现代化设计
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                brush = Brush.horizontalGradient(
+                                    colors = listOf(
+                                        Color(0xFF1E293B).copy(alpha = 0.8f),
+                                        Color(0xFF334155).copy(alpha = 0.6f)
+                                    )
+                                ),
+                                shape = RoundedCornerShape(16.dp)
+                            )
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Group,
+                                contentDescription = null,
+                                tint = if (isEmployeeFull) {
+                                    Color(0xFFEF4444)
+                                } else {
+                                    Color(0xFF60A5FA)
+                                },
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Text(
+                                text = "当前员工总数",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "${saveData.allEmployees.size}",
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isEmployeeFull) {
+                                    Color(0xFFEF4444)
+                                } else {
+                                    Color(0xFF60A5FA)
+                                }
+                            )
+                            Text(
+                                text = "/ $maxEmployees",
+                                fontSize = 16.sp,
+                                color = Color.White.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
+                    
+                    // 员工已满提示 - 现代化设计
+                    if (isEmployeeFull) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                                .background(
+                                    color = Color(0xFFEF4444).copy(alpha = 0.15f),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .padding(14.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Group,
-                                    contentDescription = null,
-                                    tint = if (isEmployeeFull) {
-                                        MaterialTheme.colorScheme.error
-                                    } else {
-                                        MaterialTheme.colorScheme.primary
-                                    },
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Text(
-                                    text = "当前员工总数",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Medium,
-                                    color = if (isEmployeeFull) {
-                                        MaterialTheme.colorScheme.error
-                                    } else {
-                                        MaterialTheme.colorScheme.primary
-                                    }
-                                )
-                            }
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    text = "$currentEmployeeCount",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isEmployeeFull) {
-                                        MaterialTheme.colorScheme.error
-                                    } else {
-                                        MaterialTheme.colorScheme.primary
-                                    }
-                                )
-                                Text(
-                                    text = "/ $maxEmployees",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                    
-                    // 员工已满提示
-                    if (isEmployeeFull) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp),
-                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Warning,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Text(
-                                    text = "⚠️ 员工人数已达上限（${maxEmployees}人），无法继续雇佣！",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = Color(0xFFEF4444),
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Text(
+                                text = "员工人数已达上限（${maxEmployees}人），无法继续雇佣！",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFFEF4444)
+                            )
                         }
                     }
                     
@@ -313,24 +345,27 @@ fun ApplicantManagementDialog(
                                     } else {
                                         "✅ 所有应聘者已处理完毕"
                                     },
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Medium
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
                                 )
+                                Spacer(modifier = Modifier.height(8.dp))
                                 Text(
                                     text = if (currentJobPosting.applicants.isEmpty()) {
                                         "随着时间推进，会有人才来应聘"
                                     } else {
                                         "已成功雇佣的应聘者不再显示"
                                     },
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    fontSize = 14.sp,
+                                    color = Color.White.copy(alpha = 0.7f)
                                 )
                             }
                         }
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            verticalArrangement = Arrangement.spacedBy(14.dp),
+                            contentPadding = PaddingValues(vertical = 4.dp)
                         ) {
                             items(
                                 items = pendingApplicants,
@@ -346,21 +381,73 @@ fun ApplicantManagementDialog(
                                             return@ApplicantCard
                                         }
                                         
-                                        // 先将应聘者标记为已通过，然后再雇佣
-                                        jobPostingService.updateApplicantStatus(
-                                            currentJobPosting.id,
-                                            applicant.id,
-                                            ApplicantStatus.ACCEPTED
-                                        )
-                                        val candidate = jobPostingService.hireApplicant(
-                                            currentJobPosting.id,
-                                            applicant.id
-                                        )
-                                        if (candidate != null) {
-                                            onApplicantHired(candidate)
-                                            hiredEmployeeName = candidate.name
-                                            showHireSuccessDialog = true
-                                            currentJobPosting = jobPostingService.getJobPosting(currentJobPosting.id) ?: currentJobPosting
+                                        try {
+                                            android.util.Log.d("ApplicantManagement", "开始雇佣流程: ${applicant.candidate.name}")
+                                            
+                                            // 先将应聘者标记为已通过，然后再雇佣
+                                            val updateSuccess = jobPostingService.updateApplicantStatus(
+                                                currentJobPosting.id,
+                                                applicant.id,
+                                                ApplicantStatus.ACCEPTED
+                                            )
+                                            
+                                            android.util.Log.d("ApplicantManagement", "更新应聘者状态: $updateSuccess")
+                                            
+                                            if (!updateSuccess) {
+                                                // 如果更新状态失败，不执行雇佣操作
+                                                android.util.Log.w("ApplicantManagement", "更新状态失败，取消雇佣")
+                                                return@ApplicantCard
+                                            }
+                                            
+                                            android.util.Log.d("ApplicantManagement", "调用 hireApplicant")
+                                            val candidate = jobPostingService.hireApplicant(
+                                                currentJobPosting.id,
+                                                applicant.id
+                                            )
+                                            
+                                            android.util.Log.d("ApplicantManagement", "hireApplicant 返回: ${candidate?.name ?: "null"}")
+                                            
+                                            if (candidate != null) {
+                                                // 安全地调用回调
+                                                try {
+                                                    // 验证候选人数据
+                                                    if (candidate.name.isBlank()) {
+                                                        android.util.Log.e("ApplicantManagement", "候选人姓名为空")
+                                                        return@ApplicantCard
+                                                    }
+                                                    
+                                                    // 先更新本地状态
+                                                    hiredEmployeeName = candidate.name
+                                                    
+                                                    // 直接调用回调（Compose 回调默认在主线程）
+                                                    android.util.Log.d("ApplicantManagement", "准备调用 onApplicantHired 回调")
+                                                    onApplicantHired(candidate)
+                                                    android.util.Log.d("ApplicantManagement", "onApplicantHired 回调执行完成")
+                                                    
+                                                    // 更新当前岗位信息
+                                                    android.util.Log.d("ApplicantManagement", "准备更新岗位信息")
+                                                    try {
+                                                        currentJobPosting = jobPostingService.getJobPosting(currentJobPosting.id) ?: currentJobPosting
+                                                        android.util.Log.d("ApplicantManagement", "岗位信息更新完成")
+                                                    } catch (e: Exception) {
+                                                        android.util.Log.e("ApplicantManagement", "更新岗位信息失败", e)
+                                                    }
+                                                    
+                                                    // 显示成功对话框
+                                                    android.util.Log.d("ApplicantManagement", "准备显示成功对话框")
+                                                    showHireSuccessDialog = true
+                                                    android.util.Log.d("ApplicantManagement", "成功对话框标志已设置")
+                                                } catch (e: Exception) {
+                                                    // 如果回调执行失败，记录错误但不崩溃
+                                                    android.util.Log.e("ApplicantManagement", "回调执行失败", e)
+                                                    e.printStackTrace()
+                                                }
+                                            } else {
+                                                android.util.Log.w("ApplicantManagement", "hireApplicant返回null，无法雇佣")
+                                            }
+                                        } catch (e: Exception) {
+                                            // 捕获所有异常，防止崩溃
+                                            e.printStackTrace()
                                         }
                                     }
                                 )
@@ -373,9 +460,12 @@ fun ApplicantManagementDialog(
     }
     
     // 成功雇佣提示对话框
-    if (showHireSuccessDialog) {
+    if (showHireSuccessDialog && hiredEmployeeName.isNotBlank()) {
         AlertDialog(
-            onDismissRequest = { showHireSuccessDialog = false },
+            onDismissRequest = { 
+                android.util.Log.d("ApplicantManagement", "关闭成功对话框")
+                showHireSuccessDialog = false
+            },
             title = {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -402,7 +492,10 @@ fun ApplicantManagementDialog(
             },
             confirmButton = {
                 Button(
-                    onClick = { showHireSuccessDialog = false },
+                    onClick = { 
+                        android.util.Log.d("ApplicantManagement", "点击确定按钮")
+                        showHireSuccessDialog = false 
+                    },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
                     )
@@ -417,50 +510,49 @@ fun ApplicantManagementDialog(
     }
 
 /**
- * 统计卡片
+ * 现代化统计卡片
  */
 @Composable
 private fun StatCard(
     icon: String,
     label: String,
     value: String,
+    gradientColors: List<Color>,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        ),
-        shape = RoundedCornerShape(12.dp)
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(
+                brush = Brush.verticalGradient(colors = gradientColors),
+                shape = RoundedCornerShape(18.dp)
+            )
+            .padding(vertical = 18.dp, horizontal = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = icon,
-                fontSize = 24.sp
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
+        Text(
+            text = icon,
+            fontSize = 32.sp
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = Color.White.copy(alpha = 0.8f),
+            fontWeight = FontWeight.Medium
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = value,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
     }
 }
 
 /**
- * 应聘者卡片
+ * 现代化应聘者卡片
  */
 @Composable
 private fun ApplicantCard(
@@ -471,191 +563,209 @@ private fun ApplicantCard(
 ) {
     val candidate = applicant.candidate
     
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = when (applicant.status) {
-                ApplicantStatus.HIRED -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                ApplicantStatus.REJECTED -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-                else -> MaterialTheme.colorScheme.surface
-            }
-        )
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF1E293B).copy(alpha = 0.8f),
+                        Color(0xFF334155).copy(alpha = 0.6f)
+                    )
+                ),
+                shape = RoundedCornerShape(20.dp)
+            )
+            .padding(20.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
+        // 候选人基本信息
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // 候选人基本信息
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    // 头像
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .background(
-                                brush = Brush.radialGradient(
-                                    colors = listOf(
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                                    )
+                // 现代化头像
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    Color(0xFF3B82F6).copy(alpha = 0.3f),
+                                    Color(0xFF8B5CF6).copy(alpha = 0.2f)
                                 )
                             )
-                            .border(
-                                width = 2.dp,
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                                shape = CircleShape
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                    
-                    Spacer(modifier = Modifier.width(12.dp))
-                    
-                    Column {
-                        Text(
-                            text = candidate.name,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = candidate.position,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        tint = Color(0xFF60A5FA),
+                        modifier = Modifier.size(28.dp)
+                    )
                 }
                 
-                // 状态标签
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = when (applicant.status) {
-                        ApplicantStatus.HIRED -> MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-                        ApplicantStatus.REJECTED -> MaterialTheme.colorScheme.error.copy(alpha = 0.3f)
-                        else -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f)
-                    }
-                ) {
+                Spacer(modifier = Modifier.width(12.dp))
+                
+                Column {
                     Text(
-                        text = when (applicant.status) {
-                            ApplicantStatus.HIRED -> "已雇佣"
-                            ApplicantStatus.REJECTED -> "已拒绝"
-                            else -> "待雇佣"
-                        },
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelMedium,
+                        text = candidate.name,
+                        fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
-                        color = when (applicant.status) {
-                            ApplicantStatus.HIRED -> MaterialTheme.colorScheme.primary
-                            ApplicantStatus.REJECTED -> MaterialTheme.colorScheme.error
-                            else -> MaterialTheme.colorScheme.onSurfaceVariant
-                        }
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = candidate.position,
+                        fontSize = 13.sp,
+                        color = Color.White.copy(alpha = 0.7f)
                     )
                 }
             }
             
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            // 技能和薪资信息
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                InfoChip(
-                    label = "最高技能",
-                    value = "Lv.${candidate.getMaxSkillLevel()}",
-                    icon = "⭐",
-                    modifier = Modifier.weight(1f)
-                )
-                InfoChip(
-                    label = "期望薪资",
-                    value = "¥${candidate.expectedSalary}",
-                    icon = "💰",
-                    modifier = Modifier.weight(1f)
-                )
-                InfoChip(
-                    label = "工作经验",
-                    value = "${candidate.experience}年",
-                    icon = "💼",
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            // 操作按钮
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                when (applicant.status) {
-                    ApplicantStatus.PENDING, ApplicantStatus.REVIEWING, ApplicantStatus.ACCEPTED -> {
-                        Button(
-                            onClick = onHireClick,
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp),
-                            enabled = !isEmployeeFull,
-                            colors = ButtonDefaults.buttonColors(
-                                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        ) {
-                            Icon(
-                                imageVector = if (isEmployeeFull) Icons.Default.Block else Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(if (isEmployeeFull) "已满员" else "雇佣")
-                        }
-                    }
-                    ApplicantStatus.REJECTED -> {
-                        Text(
-                            text = "已拒绝此应聘者",
-                            modifier = Modifier.fillMaxWidth(),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error
+            // 现代化状态标签
+            Text(
+                text = when (applicant.status) {
+                    ApplicantStatus.HIRED -> "已雇佣"
+                    ApplicantStatus.REJECTED -> "已拒绝"
+                    else -> "待雇佣"
+                },
+                modifier = Modifier
+                    .background(
+                        brush = Brush.horizontalGradient(
+                            colors = when (applicant.status) {
+                                ApplicantStatus.HIRED -> listOf(
+                                    Color(0xFF10B981).copy(alpha = 0.25f),
+                                    Color(0xFF34D399).copy(alpha = 0.15f)
+                                )
+                                ApplicantStatus.REJECTED -> listOf(
+                                    Color(0xFFEF4444).copy(alpha = 0.25f),
+                                    Color(0xFFF87171).copy(alpha = 0.15f)
+                                )
+                                else -> listOf(
+                                    Color(0xFF3B82F6).copy(alpha = 0.25f),
+                                    Color(0xFF60A5FA).copy(alpha = 0.15f)
+                                )
+                            }
+                        ),
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        HorizontalDivider(
+            color = Color.White.copy(alpha = 0.1f),
+            thickness = 1.dp
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // 技能和薪资信息
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            InfoChip(
+                label = "最高技能",
+                value = "Lv.${candidate.getMaxSkillLevel()}",
+                icon = "⭐",
+                modifier = Modifier.weight(1f)
+            )
+            InfoChip(
+                label = "期望薪资",
+                value = "¥${candidate.expectedSalary}",
+                icon = "💰",
+                modifier = Modifier.weight(1f)
+            )
+            InfoChip(
+                label = "工作经验",
+                value = "${candidate.experience}年",
+                icon = "💼",
+                modifier = Modifier.weight(1f)
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(12.dp))
+        
+        // 操作按钮
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            when (applicant.status) {
+                ApplicantStatus.PENDING, ApplicantStatus.REVIEWING, ApplicantStatus.ACCEPTED -> {
+                    Button(
+                        onClick = onHireClick,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        enabled = !isEmployeeFull,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isEmployeeFull) {
+                                Color(0xFF475569)
+                            } else {
+                                Color(0xFF3B82F6)
+                            },
+                            disabledContainerColor = Color(0xFF475569),
+                            disabledContentColor = Color.White.copy(alpha = 0.5f)
                         )
-                    }
-                    ApplicantStatus.HIRED -> {
+                    ) {
+                        Icon(
+                            imageVector = if (isEmployeeFull) Icons.Default.Block else Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = Color.White
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "✅ 已成功雇佣",
-                            modifier = Modifier.fillMaxWidth(),
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = if (isEmployeeFull) "已满员" else "雇佣",
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            color = Color.White
                         )
                     }
-                    else -> {}
                 }
+                ApplicantStatus.REJECTED -> {
+                    Text(
+                        text = "已拒绝此应聘者",
+                        modifier = Modifier.fillMaxWidth(),
+                        fontSize = 14.sp,
+                        color = Color(0xFFEF4444),
+                        textAlign = TextAlign.Center
+                    )
+                }
+                ApplicantStatus.HIRED -> {
+                    Text(
+                        text = "✅ 已成功雇佣",
+                        modifier = Modifier.fillMaxWidth(),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF10B981),
+                        textAlign = TextAlign.Center
+                    )
+                }
+                else -> {}
             }
         }
     }
 }
 
 /**
- * 信息芯片组件 - 优化设计
+ * 现代化信息芯片组件
  */
 @Composable
 private fun InfoChip(
@@ -664,43 +774,44 @@ private fun InfoChip(
     icon: String,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-        shadowElevation = 1.dp
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = icon,
-                fontSize = 18.sp
+    Row(
+        modifier = modifier
+            .background(
+                brush = Brush.horizontalGradient(
+                    colors = listOf(
+                        Color(0xFF1E293B).copy(alpha = 0.6f),
+                        Color(0xFF334155).copy(alpha = 0.4f)
+                    )
+                ),
+                shape = RoundedCornerShape(16.dp)
             )
-            Column {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 11.sp
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 14.sp
-                )
-            }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = icon,
+            fontSize = 22.sp
+        )
+        Column {
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                color = Color.White.copy(alpha = 0.7f)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = value,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
         }
     }
 }
 
 /**
- * 职位人数芯片组件
+ * 现代化职位人数芯片组件
  */
 @Composable
 private fun PositionCountChip(
@@ -709,47 +820,56 @@ private fun PositionCountChip(
     modifier: Modifier = Modifier
 ) {
     val icon = when (position) {
-        "程序员" -> ""
-        "策划师" -> ""
-        "美术师" -> ""
-        "音效师" -> ""
-        "客服" -> ""
-        else -> ""
+        "程序员" -> "💻"
+        "策划师" -> "📝"
+        "美术师" -> "🎨"
+        "音效师" -> "🎵"
+        "客服" -> "💬"
+        else -> "👤"
     }
     
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
-        shadowElevation = 2.dp
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = if (count > 0) {
+                        listOf(
+                            Color(0xFF3B82F6).copy(alpha = 0.2f),
+                            Color(0xFF60A5FA).copy(alpha = 0.1f)
+                        )
+                    } else {
+                        listOf(
+                            Color(0xFF1E293B).copy(alpha = 0.4f),
+                            Color(0xFF334155).copy(alpha = 0.2f)
+                        )
+                    }
+                ),
+                shape = RoundedCornerShape(16.dp)
+            )
+            .padding(vertical = 14.dp, horizontal = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = icon,
-                fontSize = 20.sp
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = position,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 10.sp
-            )
-            Text(
-                text = count.toString(),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = if (count > 0) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                }
-            )
-        }
+        Text(
+            text = icon,
+            fontSize = 24.sp
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = position,
+            fontSize = 11.sp,
+            color = Color.White.copy(alpha = 0.8f)
+        )
+        Spacer(modifier = Modifier.height(3.dp))
+        Text(
+            text = count.toString(),
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (count > 0) {
+                Color(0xFF60A5FA)
+            } else {
+                Color.White.copy(alpha = 0.5f)
+            }
+        )
     }
 }
