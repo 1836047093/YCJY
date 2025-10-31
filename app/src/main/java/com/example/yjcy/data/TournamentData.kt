@@ -159,7 +159,7 @@ data class EsportsTournament(
     val broadcastRevenue: Long = 0, // 转播权收入
     val viewerCount: Long = 0, // 观看人数
     val successLevel: TournamentSuccessLevel = TournamentSuccessLevel.SUCCESS,
-    val fansGained: Int = 0, // 获得的粉丝数
+    val fansGained: Long = 0L, // 获得的粉丝数
     val playersGained: Long = 0, // 获得的活跃玩家数
     val interestBonus: Double = 0.0, // 兴趣值恢复
     val reputationGained: Int = 0, // 声誉提升
@@ -412,15 +412,15 @@ object TournamentManager {
         tournament: EsportsTournament,
         game: Game,
         revenueData: GameRevenue,
-        currentFans: Int,
+        currentFans: Long,
         successLevel: TournamentSuccessLevel
-    ): Triple<Int, Long, Double> {
+    ): Triple<Long, Long, Double> {
         val type = tournament.type
         
         // 粉丝增长
         val fansGrowthRate = (type.fansGrowthMin + type.fansGrowthMax) / 2.0
         val randomFactor = 1.0 + Random.nextDouble(-0.1, 0.1)
-        val fansGained = (currentFans * fansGrowthRate * successLevel.effectMultiplier * randomFactor).toInt()
+        val fansGained = (currentFans * fansGrowthRate * successLevel.effectMultiplier * randomFactor).toLong()
         
         // 活跃玩家增长
         val activePlayers = revenueData.getActivePlayers()

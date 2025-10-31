@@ -712,6 +712,45 @@ object RevenueManager {
     }
 
     /**
+     * 计算更新任务的进度点（考虑员工技能等级）
+     * 游戏更新主要需要开发技能，但也需要设计、美工、音乐等技能
+     * @param employees 已分配的员工列表
+     * @return 每日进度点
+     */
+    fun calculateUpdateProgressPoints(employees: List<com.example.yjcy.data.Employee>): Int {
+        if (employees.isEmpty()) return 10 // 最少10点
+        
+        // 计算各技能的平均等级
+        val avgDevelopment = employees.map { it.skillDevelopment }.average().toFloat()
+        val avgDesign = employees.map { it.skillDesign }.average().toFloat()
+        val avgArt = employees.map { it.skillArt }.average().toFloat()
+        val avgMusic = employees.map { it.skillMusic }.average().toFloat()
+        
+        // 更新任务主要依赖开发技能（60%），其次是设计（20%）、美工（15%）、音乐（5%）
+        val weightedAvgSkill = (avgDevelopment * 0.6f + avgDesign * 0.2f + avgArt * 0.15f + avgMusic * 0.05f)
+        
+        // 基础进度：每人每天20点
+        val basePointsPerEmployee = 20
+        
+        // 技能倍率：1级=0.5x, 2级=0.8x, 3级=1.0x, 4级=1.3x, 5级=1.6x
+        val skillMultiplier = when {
+            weightedAvgSkill >= 5f -> 1.6f
+            weightedAvgSkill >= 4f -> 1.3f
+            weightedAvgSkill >= 3f -> 1.0f
+            weightedAvgSkill >= 2f -> 0.8f
+            else -> 0.5f
+        }
+        
+        // 人数倍率：1人=1.0x, 2人=1.2x, 3人=1.4x, 4人=1.6x, 5人=1.8x, 10人=3.0x（封顶）
+        val countMultiplier = (1.0f + (employees.size - 1) * 0.2f).coerceAtMost(3.0f)
+        
+        // 计算总进度点
+        val totalPoints = (employees.size * basePointsPerEmployee * skillMultiplier * countMultiplier).toInt()
+        
+        return totalPoints.coerceAtLeast(10) // 最少10点
+    }
+    
+    /**
      * 由外部（例如员工开发）推进更新任务的进度
      * @return 返回任务是否刚刚完成（从未完成到完成的状态转换）
      */
@@ -963,7 +1002,7 @@ object RevenueManager {
     fun addDailyRevenueForGame(
         gameId: String, 
         gameRating: Float? = null, 
-        fanCount: Int = 0,
+        fanCount: Long = 0L,
         currentYear: Int = 1,
         currentMonth: Int = 1,
         currentDay: Int = 1,
@@ -1036,8 +1075,14 @@ object RevenueManager {
             
             // 首日销量/注册：根据商业模式调整
             val baseSales = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
-                // 网游：免费游戏，首日注册人数较多
-                val baseRegistrations = Random.nextInt(1000, 2000)
+                // 网游：首日注册数根据评分调整，高评分游戏更多初始玩家
+                val baseRegistrations = when {
+                    gameRating != null && gameRating >= 9.0f -> Random.nextInt(3000, 6000)  // 9.0+分：3000-6000人
+                    gameRating != null && gameRating >= 8.5f -> Random.nextInt(2000, 4000) // 8.5-9.0分：2000-4000人
+                    gameRating != null && gameRating >= 8.0f -> Random.nextInt(1500, 3000) // 8.0-8.5分：1500-3000人
+                    gameRating != null && gameRating >= 7.0f -> Random.nextInt(1200, 2500) // 7.0-8.0分：1200-2500人
+                    else -> Random.nextInt(1000, 2000)                                    // 7.0分以下：1000-2000人（原值）
+                }
                 // 根据游戏评分添加加成
                 val withRatingBonus = applyRatingBonus(baseRegistrations, gameRating)
                 // 根据粉丝数量添加加成
@@ -1049,7 +1094,7 @@ object RevenueManager {
                 } else {
                     withFansBonus
                 }
-                // 根据声望添加加成（初期销量提升）
+                // 根据声望添加加成（初期注册提升）
                 (withIPBonus * (1f + reputationBonus)).toInt()
             } else {
                 // 单机：根据价格调整首日销量（已下调基础值）
@@ -1128,12 +1173,34 @@ object RevenueManager {
         
         // 计算新增销量/注册
         val newSales = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
-            // 网游：基于玩家兴趣值计算新增注册
-            val baseNewRegistrations = (latestSales.sales * 0.05).toInt() // 基础5%增长
-            val interestMultiplier = (currentGameRevenue.playerInterest / 100.0) // 兴趣值影响
-            val fluctuation = Random.nextDouble(0.8, 1.5) // 随机波动
+            // 网游：根据评分动态调整基础增长率，高评分游戏增长更快
+            val baseGrowthRate = when {
+                gameRating != null && gameRating >= 9.0f -> 0.12  // 9.0+分：12%增长
+                gameRating != null && gameRating >= 8.5f -> 0.10   // 8.5-9.0分：10%增长
+                gameRating != null && gameRating >= 8.0f -> 0.08   // 8.0-8.5分：8%增长
+                gameRating != null && gameRating >= 7.0f -> 0.06   // 7.0-8.0分：6%增长
+                else -> 0.05                                       // 7.0分以下：5%增长（原基础值）
+            }
+            
+            // 基础新增注册：前一天注册数 × 增长率
+            val baseNewRegistrations = (latestSales.sales * baseGrowthRate).toInt()
+            
+            // 兴趣值影响（高兴趣值增加增长，低兴趣值降低增长）
+            val interestMultiplier = when {
+                currentGameRevenue.playerInterest >= 80.0 -> 1.2   // 高兴趣：+20%
+                currentGameRevenue.playerInterest >= 70.0 -> 1.0   // 正常
+                currentGameRevenue.playerInterest >= 50.0 -> 0.8   // 下降：-20%
+                currentGameRevenue.playerInterest >= 30.0 -> 0.6   // 大幅下降：-40%
+                else -> 0.4                                       // 严重下降：-60%
+            }
+            
+            // 随机波动（缩小波动范围，让增长更稳定）
+            val fluctuation = Random.nextDouble(0.9, 1.3)
+            
+            // 计算基础增长
             val registrationsBeforeBonus = (baseNewRegistrations * interestMultiplier * fluctuation).toInt().coerceAtLeast(10)
-            // 根据游戏评分添加加成
+            
+            // 根据游戏评分添加加成（在基础增长上再次加成）
             val withRatingBonus = applyRatingBonus(registrationsBeforeBonus, gameRating)
             // 根据粉丝数量添加加成
             applyFansBonus(withRatingBonus, fanCount)
@@ -1699,7 +1766,7 @@ object RevenueManager {
      * @param fanCount 粉丝数量
      * @return 应用加成后的注册数
      */
-    private fun applyFansBonus(baseRegistrations: Int, fanCount: Int): Int {
+    private fun applyFansBonus(baseRegistrations: Int, fanCount: Long): Int {
         if (fanCount <= 0) return baseRegistrations
         
         // 计算粉丝加成百分比（分段递减，已下调）
@@ -1736,7 +1803,7 @@ object RevenueManager {
      * @param fanCount 粉丝数量
      * @return 应用加成后的销量
      */
-    private fun applyFansBonusForSinglePlayer(baseSales: Int, fanCount: Int): Int {
+    private fun applyFansBonusForSinglePlayer(baseSales: Int, fanCount: Long): Int {
         if (fanCount <= 0) return baseSales
         
         // 计算粉丝加成百分比（单机游戏加成较低，封顶30%）

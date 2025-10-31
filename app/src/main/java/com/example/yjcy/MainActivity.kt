@@ -142,7 +142,6 @@ import com.example.yjcy.utils.SensitiveWordFilter
 import com.example.yjcy.utils.SignatureHelper
 import com.example.yjcy.data.NewsType
 import com.example.yjcy.taptap.TapUpdateManager
-import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import dagger.hilt.android.AndroidEntryPoint
 import java.util.Locale
@@ -1188,7 +1187,7 @@ fun GameScreen(
     
     // 游戏状态数据 - 如果有存档数据则使用存档数据，否则使用默认值
     var money by remember { mutableLongStateOf(saveData?.money ?: 3000000L) }
-    var fans by remember { mutableIntStateOf(saveData?.fans ?: 0) }
+    var fans by remember { mutableLongStateOf(saveData?.fans ?: 0L) }
     var currentYear by remember { mutableIntStateOf(saveData?.currentYear ?: 1) }
     var currentMonth by remember { mutableIntStateOf(saveData?.currentMonth ?: 1) }
     var currentDay by remember { mutableIntStateOf(saveData?.currentDay ?: 1) }
@@ -1201,6 +1200,11 @@ fun GameScreen(
     // 上次月结算的年月（防止重复结算）
     var lastSettlementYear by remember { mutableIntStateOf(saveData?.currentYear ?: 1) }
     var lastSettlementMonth by remember { mutableIntStateOf(saveData?.currentMonth ?: 1) }
+    
+    // 上次自动宣传检查的日期（防止重复检查）
+    var lastAutoPromotionCheckYear by remember { mutableIntStateOf(saveData?.currentYear ?: 1) }
+    var lastAutoPromotionCheckMonth by remember { mutableIntStateOf(saveData?.currentMonth ?: 1) }
+    var lastAutoPromotionCheckDay by remember { mutableIntStateOf(saveData?.currentDay ?: 1) }
     
     // 项目管理界面的显示类型状态（使用 remember 保持在内存中）
     var selectedProjectType by remember { mutableStateOf(ProjectDisplayType.DEVELOPING) }
@@ -1239,7 +1243,7 @@ fun GameScreen(
     
     // 秘书聊天记录状态（保存在GameScreen级别，对话框关闭后不会丢失）
     val chatMessages = remember { 
-        mutableStateListOf<ChatMessage>(
+        mutableStateListOf(
             ChatMessage(
                 sender = MessageSender.SECRETARY,
                 content = SecretaryReplyManager.WELCOME_MESSAGE
@@ -1258,6 +1262,7 @@ fun GameScreen(
     // 客诉数据状态
     var complaints by remember { mutableStateOf(saveData?.complaints ?: emptyList()) }
     var autoProcessComplaints by remember { mutableStateOf(saveData?.autoProcessComplaints ?: false) }
+    var autoPromotionThreshold by remember { mutableFloatStateOf(saveData?.autoPromotionThreshold ?: 0.5f) }
     
     // GM模式状态
     var gmModeEnabled by remember { mutableStateOf(saveData?.gmModeEnabled ?: false) }
@@ -1268,7 +1273,7 @@ fun GameScreen(
     var gvaAwardNominations by remember { mutableStateOf(emptyList<AwardNomination>()) }
     var gvaPlayerWonCount by remember { mutableIntStateOf(0) }
     var gvaPlayerTotalReward by remember { mutableLongStateOf(0L) }
-    var gvaPlayerFansGain by remember { mutableIntStateOf(0) }
+    var gvaPlayerFansGain by remember { mutableLongStateOf(0L) }
     
     // 赛事完成弹窗状态
     var showTournamentResultDialog by remember { mutableStateOf(false) }
@@ -1290,10 +1295,10 @@ fun GameScreen(
         mutableStateOf(saveData?.companyReputation ?: CompanyReputation()) 
     }
     var gvaHistory by remember(saveData) { 
-        mutableStateOf(saveData?.gvaHistory ?: emptyList<AwardNomination>()) 
+        mutableStateOf(saveData?.gvaHistory ?: emptyList()) 
     }
     var currentYearNominations by remember(saveData) { 
-        mutableStateOf(saveData?.currentYearNominations ?: emptyList<AwardNomination>()) 
+        mutableStateOf(saveData?.currentYearNominations ?: emptyList()) 
     }
     var gvaAnnouncedDate by remember(saveData) { 
         mutableStateOf(saveData?.gvaAnnouncedDate) 
@@ -1597,9 +1602,9 @@ fun GameScreen(
                         val gameCountMultiplier = 1.0 + (releasedGames.size * 0.1) // 每个游戏增加10%增长率
                         
                         val baseFansGrowth = when {
-                            avgRating >= 8.0f -> (fans * 0.025).toInt() // 2.5%增长（高评分）（原5%）
-                            avgRating >= 6.0f -> (fans * 0.015).toInt() // 1.5%增长（中等评分）（原3%）
-                            else -> (fans * 0.005).toInt() // 0.5%增长（低评分）（原1%）
+                            avgRating >= 8.0f -> (fans * 0.025).toLong() // 2.5%增长（高评分）（原5%）
+                            avgRating >= 6.0f -> (fans * 0.015).toLong() // 1.5%增长（中等评分）（原3%）
+                            else -> (fans * 0.005).toLong() // 0.5%增长（低评分）（原1%）
                         }
                         
                         // 应用声望加成
@@ -1607,8 +1612,8 @@ fun GameScreen(
                         val reputationBonus = reputationLevel.fansBonus
                         val reputationMultiplier = 1.0 + reputationBonus
                         
-                        val totalFansGrowth = (baseFansGrowth * gameCountMultiplier * reputationMultiplier).toInt().coerceAtLeast(100)
-                        fans = (fans + totalFansGrowth).coerceAtLeast(0)
+                        val totalFansGrowth = (baseFansGrowth * gameCountMultiplier * reputationMultiplier).toLong().coerceAtLeast(100L)
+                        fans = (fans + totalFansGrowth).coerceAtLeast(0L)
                         
                         Log.d("MainActivity", "月结算粉丝增长: +$totalFansGrowth (游戏数:${releasedGames.size}, 平均评分:$avgRating, 声望加成:+${(reputationBonus*100).toInt()}%, 当前粉丝:$fans)")
                     }
@@ -1644,6 +1649,52 @@ fun GameScreen(
                             game.copy(promotionIndex = newPromotionIndex)
                         } else {
                             game
+                        }
+                    }
+                    
+                    // 月结算：自动宣传（检查开启自动宣传的游戏，如果宣传指数低于阈值则自动宣传）
+                    // 使用当前的阈值设置（从内存中的状态获取）
+                    val gamesNeedingPromotion = games.filter { game ->
+                        game.autoPromotion && 
+                        game.promotionIndex < autoPromotionThreshold &&
+                        (game.releaseStatus == GameReleaseStatus.DEVELOPMENT ||
+                         game.releaseStatus == GameReleaseStatus.READY_FOR_RELEASE ||
+                         game.releaseStatus == GameReleaseStatus.PRICE_SETTING ||
+                         game.releaseStatus == GameReleaseStatus.RELEASED ||
+                         game.releaseStatus == GameReleaseStatus.RATED)
+                    }
+                    
+                    if (gamesNeedingPromotion.isNotEmpty()) {
+                        // 根据资金选择最好的宣传方式
+                        // 从最贵的开始尝试，选择能够负担得起的最好的宣传方式
+                        val availablePromotionTypes = com.example.yjcy.ui.PromotionType.entries
+                            .sortedByDescending { it.promotionIndexGain } // 按宣传指数增益降序排列
+                        
+                        val selectedPromotionType = availablePromotionTypes.firstOrNull { promotionType ->
+                        val totalCost = promotionType.cost * gamesNeedingPromotion.size
+                            money >= totalCost
+                        } ?: com.example.yjcy.ui.PromotionType.SOCIAL_MEDIA // 如果都负担不起，至少尝试最便宜的
+                        
+                        val totalCost = selectedPromotionType.cost * gamesNeedingPromotion.size
+                        
+                        // 检查资金是否足够
+                        if (money >= totalCost) {
+                            money -= totalCost
+                            fans += selectedPromotionType.fansGain * gamesNeedingPromotion.size
+                            
+                            // 更新所有需要宣传的游戏的宣传指数
+                            games = games.map { game ->
+                                if (gamesNeedingPromotion.any { it.id == game.id }) {
+                                    val newPromotionIndex = (game.promotionIndex + selectedPromotionType.promotionIndexGain).coerceAtMost(1.0f)
+                                    game.copy(promotionIndex = newPromotionIndex)
+                                } else {
+                                    game
+                                }
+                            }
+                            
+                            Log.d("MainActivity", "自动宣传: 为${gamesNeedingPromotion.size}个游戏进行了${selectedPromotionType.displayName}，总费用¥${totalCost}，宣传指数提升${(selectedPromotionType.promotionIndexGain * 100).toInt()}%")
+                        } else {
+                            Log.d("MainActivity", "自动宣传: 资金不足（需要¥${totalCost}，当前¥${money}），跳过自动宣传")
                         }
                     }
                     
@@ -1715,6 +1766,65 @@ fun GameScreen(
                 } else {
                     Log.d("MainActivity", "⏭️ 跳过月结算（本月已结算）: ${currentYear}年${currentMonth}月")
                 }
+                
+                // 每日检查：自动宣传（检查开启自动宣传的游戏，如果宣传指数低于阈值则自动宣传）
+                // 每天检查一次，更及时地触发自动宣传
+                val needDailyAutoPromotionCheck = (
+                    currentYear != lastAutoPromotionCheckYear || 
+                    currentMonth != lastAutoPromotionCheckMonth || 
+                    currentDay != lastAutoPromotionCheckDay
+                )
+                
+                if (needDailyAutoPromotionCheck) {
+                    val gamesNeedingPromotion = games.filter { game ->
+                        game.autoPromotion && 
+                        game.promotionIndex < autoPromotionThreshold &&
+                        (game.releaseStatus == GameReleaseStatus.DEVELOPMENT ||
+                         game.releaseStatus == GameReleaseStatus.READY_FOR_RELEASE ||
+                         game.releaseStatus == GameReleaseStatus.PRICE_SETTING ||
+                         game.releaseStatus == GameReleaseStatus.RELEASED ||
+                         game.releaseStatus == GameReleaseStatus.RATED)
+                    }
+                    
+                    if (gamesNeedingPromotion.isNotEmpty()) {
+                        // 根据资金选择最好的宣传方式
+                        // 从最贵的开始尝试，选择能够负担得起的最好的宣传方式
+                        val availablePromotionTypes = com.example.yjcy.ui.PromotionType.entries
+                            .sortedByDescending { it.promotionIndexGain } // 按宣传指数增益降序排列
+                        
+                        val selectedPromotionType = availablePromotionTypes.firstOrNull { promotionType ->
+                            val totalCost = promotionType.cost * gamesNeedingPromotion.size
+                            money >= totalCost
+                        } ?: com.example.yjcy.ui.PromotionType.SOCIAL_MEDIA // 如果都负担不起，至少尝试最便宜的
+                        
+                        val totalCost = selectedPromotionType.cost * gamesNeedingPromotion.size
+                        
+                        // 检查资金是否足够
+                        if (money >= totalCost) {
+                            money -= totalCost
+                            fans += selectedPromotionType.fansGain * gamesNeedingPromotion.size
+                            
+                            // 更新所有需要宣传的游戏的宣传指数
+                            games = games.map { game ->
+                                if (gamesNeedingPromotion.any { it.id == game.id }) {
+                                    val newPromotionIndex = (game.promotionIndex + selectedPromotionType.promotionIndexGain).coerceAtMost(1.0f)
+                                    game.copy(promotionIndex = newPromotionIndex)
+                                } else {
+                                    game
+                                }
+                            }
+                            
+                            Log.d("MainActivity", "📢 每日自动宣传: 为${gamesNeedingPromotion.size}个游戏进行了${selectedPromotionType.displayName}，总费用¥${totalCost}，宣传指数提升${(selectedPromotionType.promotionIndexGain * 100).toInt()}%")
+                        } else {
+                            Log.d("MainActivity", "📢 每日自动宣传: 资金不足（需要¥${totalCost}，当前¥${money}），跳过自动宣传")
+                        }
+                        
+                        // 更新上次检查日期
+                        lastAutoPromotionCheckYear = currentYear
+                        lastAutoPromotionCheckMonth = currentMonth
+                        lastAutoPromotionCheckDay = currentDay
+                    }
+                }
             }
             
             // GVA评选逻辑：12月15日生成初步提名
@@ -1753,7 +1863,7 @@ fun GameScreen(
                 
                 // 计算玩家获奖情况并统计奖励
                 var totalCashReward = 0L
-                var totalFansReward = 0
+                var totalFansReward = 0L
                 var totalReputationGain = 0
                 
                 val winnerGameIds = mutableSetOf<String>()
@@ -1786,7 +1896,7 @@ fun GameScreen(
                             val baseReward = nomination.award.getReward()
                             val nominationReward = AwardReward(
                                 cashPrize = (baseReward.cashPrize * 0.2f).toInt(),
-                                fansGain = (baseReward.fansGain * 0.2f).toInt(),
+                                fansGain = (baseReward.fansGain * 0.2f).toLong(),
                                 reputationGain = 10
                             )
                             
@@ -1959,8 +2069,8 @@ fun GameScreen(
                     // 在推进进度前先获取更新任务信息（因为完成后会被清除）
                     val completedTask = RevenueManager.getGameRevenue(releasedGame.id)?.updateTask
                     
-                    // 若存在更新任务，根据已分配员工数量推进进度
-                    val employeePoints = (releasedGame.assignedEmployees.size * 20).coerceAtLeast(10)
+                    // 若存在更新任务，根据已分配员工数量和技能等级推进进度
+                    val employeePoints = RevenueManager.calculateUpdateProgressPoints(releasedGame.assignedEmployees)
                     val updateJustCompleted = RevenueManager.progressUpdateTask(releasedGame.id, employeePoints)
                     
                     // 如果更新刚刚完成，版本号+0.1
@@ -1975,7 +2085,7 @@ fun GameScreen(
                             // 生成玩家评论
                             val comments = CommentGenerator.generateComments(
                                 updateContent = completedTask.features,
-                                commentCount = kotlin.random.Random.nextInt(5, 11)
+                                commentCount = Random.nextInt(5, 11)
                             )
                             
                             // 创建更新记录
@@ -1992,17 +2102,9 @@ fun GameScreen(
                             releasedGame.updateHistory
                         }
                         
-                        val updatedGame = releasedGame.copy(
-                            version = releasedGame.version + 0.1f,
-                            assignedEmployees = emptyList(), // 清空分配的员工
-                            updateHistory = newUpdateHistory // 添加更新记录
-                        )
-                        games = games.map { if (it.id == updatedGame.id) updatedGame else it }
-                        
-                        // 如果开启了自动更新，自动创建下一次更新任务
+                        // 检查是否会自动创建下一个更新任务
+                        var willCreateNewTask = false
                         if (releasedGame.autoUpdate) {
-                            println("【自动更新】游戏《${releasedGame.name}》的更新已自动发布！版本升级至 V${String.format(Locale.getDefault(), "%.1f", updatedGame.version)}")
-                            
                             // 根据游戏类型生成更新选项
                             val autoUpdateFeatures = if (releasedGame.businessModel == BusinessModel.ONLINE_GAME) {
                                 // 网络游戏：使用已启用的付费内容
@@ -2016,13 +2118,39 @@ fun GameScreen(
                                 recommendedItems.map { it.getUpdateContentName() }
                             }
                             
-                            // 如果有可用的更新内容，自动创建新的更新任务
-                            if (autoUpdateFeatures.isNotEmpty()) {
+                            // 如果有可用的更新内容，标记会创建新任务
+                            willCreateNewTask = autoUpdateFeatures.isNotEmpty()
+                        }
+                        
+                        // 如果会自动创建新任务，保留员工分配；否则清空员工分配
+                        val updatedGame = releasedGame.copy(
+                            version = releasedGame.version + 0.1f,
+                            assignedEmployees = if (willCreateNewTask) releasedGame.assignedEmployees else emptyList(),
+                            updateHistory = newUpdateHistory // 添加更新记录
+                        )
+                        games = games.map { if (it.id == updatedGame.id) updatedGame else it }
+                        
+                        // 如果开启了自动更新，自动创建下一次更新任务
+                        if (releasedGame.autoUpdate && willCreateNewTask) {
+                            println("【自动更新】游戏《${releasedGame.name}》的更新已自动发布！版本升级至 V${String.format(Locale.getDefault(), "%.1f", updatedGame.version)}")
+                            
+                            // 根据游戏类型生成更新选项（重新计算，因为上面已经计算过了）
+                            val autoUpdateFeatures = if (releasedGame.businessModel == BusinessModel.ONLINE_GAME) {
+                                // 网络游戏：使用已启用的付费内容
+                                releasedGame.monetizationItems
+                                    .filter { it.isEnabled }
+                                    .map { it.type.getUpdateContentName() }
+                                    .distinct()
+                            } else {
+                                // 单机游戏：根据游戏主题获取推荐的付费内容类型作为更新内容
+                                val recommendedItems = MonetizationConfig.getRecommendedItems(releasedGame.theme)
+                                recommendedItems.map { it.getUpdateContentName() }
+                            }
+                            
                                 // 自动更新使用默认公告
                                 val autoAnnouncement = CommentGenerator.generateDefaultAnnouncement(autoUpdateFeatures)
                                 RevenueManager.createUpdateTask(releasedGame.id, autoUpdateFeatures, autoAnnouncement)
-                                println("【自动更新】已自动创建下一次更新任务，共${autoUpdateFeatures.size}项内容")
-                            }
+                            println("【自动更新】已自动创建下一次更新任务，共${autoUpdateFeatures.size}项内容，员工将继续工作")
                         }
                     }
                 }
@@ -2045,21 +2173,21 @@ fun GameScreen(
             }
             
             // 每日处理客诉
-            val (updatedComplaints, completedComplaints) = CustomerServiceManager.processDailyComplaints(
+            val (updatedComplaints, _) = CustomerServiceManager.processDailyComplaints(
                 complaints,
                 allEmployees
             )
             complaints = updatedComplaints
             
             // 计算超时客诉造成的粉丝损失
-            val fanLoss: Int = CustomerServiceManager.calculateOverdueFanLoss(
+            val fanLoss: Long = CustomerServiceManager.calculateOverdueFanLoss(
                 complaints,
                 currentYear,
                 currentMonth,
                 currentDay
             )
             if (fanLoss > 0) {
-                fans = (fans - fanLoss).coerceAtLeast(0)
+                fans = (fans - fanLoss).coerceAtLeast(0L)
                 Log.d("MainActivity", "客诉超时：粉丝流失 -$fanLoss，当前粉丝: $fans")
             }
             
@@ -2249,6 +2377,11 @@ fun GameScreen(
                             onComplaintsUpdate = { updatedComplaints -> complaints = updatedComplaints },
                             autoProcessComplaints = autoProcessComplaints,
                             onAutoProcessToggle = { enabled -> autoProcessComplaints = enabled },
+                            autoPromotionThreshold = autoPromotionThreshold,
+                            onAutoPromotionThresholdUpdate = { threshold ->
+                                // 更新本地状态中的阈值
+                                autoPromotionThreshold = threshold
+                            },
                             currentYear = currentYear,
                             currentMonth = currentMonth,
                             currentDay = currentDay,
@@ -2274,7 +2407,7 @@ fun GameScreen(
                                 ownedIPs = ownedIPs // 传递拥有的IP列表
                             ),
                             gameSpeed = gameSpeed,
-                            onAcquisitionSuccess = { acquiredCompany: CompetitorCompany, finalPrice: Long, marketValueGain: Long, fansGain: Int, inheritedIPs: List<GameIP> ->
+                            onAcquisitionSuccess = { acquiredCompany: CompetitorCompany, finalPrice: Long, marketValueGain: Long, fansGain: Long, inheritedIPs: List<GameIP> ->
                                 // 扣除收购费用
                                 money -= finalPrice
                                 
@@ -2295,7 +2428,7 @@ fun GameScreen(
                                 // 生成收购新闻
                                 competitorNews = (listOf(
                                     CompetitorNews(
-                                        id = "news_${System.currentTimeMillis()}_${kotlin.random.Random.nextInt()}",
+                                        id = "news_${System.currentTimeMillis()}_${Random.nextInt()}",
                                         title = "${companyName}成功收购${acquiredCompany.name}！",
                                         content = "${companyName}以${formatMoney(finalPrice)}的价格成功收购了${acquiredCompany.name}，" +
                                                 "获得了${inheritedIPs.size}个游戏IP，市值大幅增长。这是游戏行业的重大并购事件。",
@@ -2338,7 +2471,7 @@ fun GameScreen(
                                 // 3. 生成收购新闻
                                 competitorNews = (listOf(
                                     CompetitorNews(
-                                        id = "news_${System.currentTimeMillis()}_${kotlin.random.Random.nextInt()}",
+                                        id = "news_${System.currentTimeMillis()}_${Random.nextInt()}",
                                         title = "${acquirer.name}成功收购${acquired.name}！",
                                         content = "${acquirer.name}以${formatMoney(price)}的价格成功收购了${acquired.name}。这是游戏行业的一次重大并购事件。",
                                         type = NewsType.COMPANY_MILESTONE,
@@ -2363,7 +2496,7 @@ fun GameScreen(
                                 // 举办赛事
                                 val game = games.find { it.id == gameId }
                                 if (game != null) {
-                                    val tournament = com.example.yjcy.data.TournamentManager.createTournament(
+                                    val tournament = TournamentManager.createTournament(
                                         game, 
                                         tournamentType, 
                                         GameDate(currentYear, currentMonth, currentDay)
@@ -2609,26 +2742,26 @@ fun GameScreen(
                     val fansChange = when {
                         finalRating >= 9.0f -> {
                             // 评分>=9：神作级别（8000-20000）
-                            (8000..20000).random()
+                            (8000..20000).random().toLong()
                         }
                         finalRating >= 8.0f -> {
                             // 评分>=8：优秀作品（3000-10000）
-                            (3000..10000).random()
+                            (3000..10000).random().toLong()
                         }
                         finalRating >= 6.5f -> {
                             // 评分>=6.5：中等偏上（1000-4000）
-                            (1000..4000).random()
+                            (1000..4000).random().toLong()
                         }
                         finalRating >= 5.0f -> {
                             // 评分>=5：及格水平（500-2000）
-                            (500..2000).random()
+                            (500..2000).random().toLong()
                         }
                         else -> {
                             // 评分<5：口碑崩塌（-3000到-1000）
-                            (-3000..-1000).random()
+                            (-3000..-1000).random().toLong()
                         }
                     }
-                    fans = (fans + fansChange).coerceAtLeast(0) // 粉丝数不能为负
+                    fans = (fans + fansChange).coerceAtLeast(0L) // 粉丝数不能为负
                     
                     Log.d("MainActivity", "游戏发布-评分: $finalRating, 粉丝变化: $fansChange, 当前粉丝: $fans")
                     
@@ -2930,6 +3063,7 @@ fun GameScreen(
                             competitorNews = competitorNews,
                             complaints = complaints,
                             autoProcessComplaints = autoProcessComplaints,
+                            autoPromotionThreshold = autoPromotionThreshold,
                             unlockedAchievements = unlockedAchievements,
                             completedTutorials = tutorialState.getCompletedTutorialsForSave(),
                             skipTutorial = tutorialState.skipTutorial.value,
@@ -2969,7 +3103,7 @@ fun GameScreen(
                                 
                                 // 为每个职位创建6名5级专属技能员工
                                 for (position in positions) {
-                                    for (i in 1..6) {
+                                    repeat(6) {
                                         val employeeName = com.example.yjcy.service.TalentMarketService.generateUniqueName(existingNames)
                                         existingNames.add(employeeName)
                                         
@@ -3190,7 +3324,7 @@ fun GameScreen(
 @Composable
 fun TopInfoBar(
     money: Long,
-    fans: Int,
+    fans: Long,
     year: Int,
     month: Int,
     day: Int,
@@ -3198,8 +3332,8 @@ fun TopInfoBar(
     onSpeedChange: (Int) -> Unit,
     isPaused: Boolean,
     onPauseToggle: () -> Unit,
-    companyName: String = "我的游戏公司",
-    selectedLogo: String = "🎮",
+    @Suppress("UNUSED_PARAMETER") companyName: String = "我的游戏公司", // 保留用于未来功能
+    @Suppress("UNUSED_PARAMETER") selectedLogo: String = "🎮", // 保留用于未来功能
     onSettingsClick: () -> Unit = {}
 ) {
     Box(
@@ -3346,7 +3480,7 @@ fun CompanyOverviewContent(
     allEmployees: List<Employee> = emptyList(),
     games: List<Game> = emptyList(),
     money: Long = 0L,
-    fans: Int = 0,
+    fans: Long = 0L,
     currentYear: Int = 1,
     currentMonth: Int = 1,
     currentDay: Int = 1,
@@ -4078,7 +4212,7 @@ fun ContinueScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(true) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var saveToDelete by remember { mutableStateOf(null as Pair<Int, SaveData?>?) }
-    var refreshKey by remember { mutableStateOf(0) }
+    var refreshKey by remember { mutableIntStateOf(0) }
     val coroutineScope = rememberCoroutineScope()
     
     // 异步加载存档 - 使用refreshKey作为key，确保每次显示都重新加载
@@ -4576,7 +4710,7 @@ fun AchievementScreen(
 fun AchievementCard(
     achievement: Achievement,
     isUnlocked: Boolean,
-    progress: Float
+    @Suppress("UNUSED_PARAMETER") progress: Float // 保留用于未来显示进度功能
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -4665,8 +4799,6 @@ fun AchievementCard(
 
 @Composable
 fun SettingsScreen(navController: NavController) {
-    val context = LocalContext.current
-    
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -4712,7 +4844,7 @@ class SaveManager(context: Context) {
     private val sharedPreferences = context.getSharedPreferences("game_saves", Context.MODE_PRIVATE)
     private val gson = GsonBuilder()
         .serializeNulls() // 确保null值也被序列化，去除PrettyPrinting以减小体积
-        .setLenient() // 宽松模式，允许不完整的JSON
+        // setLenient()已弃用，移除以消除警告
         .create()
     
     companion object {
@@ -4749,6 +4881,7 @@ class SaveManager(context: Context) {
                     developmentCost = game.developmentCost,
                     promotionIndex = game.promotionIndex,
                     autoUpdate = game.autoUpdate,
+                    autoPromotion = game.autoPromotion,
                     version = game.version
                 )
             }
@@ -4765,6 +4898,9 @@ class SaveManager(context: Context) {
                 // 客服中心
                 autoProcessComplaints = saveData.autoProcessComplaints,
                 complaints = saveData.complaints,
+                
+                // 自动宣传设置
+                autoPromotionThreshold = saveData.autoPromotionThreshold,
                 
                 // GVA系统（可能缺失）
                 companyReputation = saveData.companyReputation,
@@ -4868,14 +5004,14 @@ class SaveManager(context: Context) {
             val jsonSizeKB = json.length / 1024.0
             val jsonSizeMB = jsonSizeKB / 1024.0
             
-            Log.d("SaveManager", "JSON大小: ${String.format(java.util.Locale.US, "%.2f", jsonSizeKB)} KB (${String.format(java.util.Locale.US, "%.2f", jsonSizeMB)} MB)")
+            Log.d("SaveManager", "JSON大小: ${String.format(Locale.US, "%.2f", jsonSizeKB)} KB (${String.format(Locale.US, "%.2f", jsonSizeMB)} MB)")
             
             // 3. GZIP压缩
             val compressed = compressString(json)
             val compressedSizeKB = compressed.size / 1024.0
             val compressionRatio = (1 - compressedSizeKB / jsonSizeKB) * 100
             
-            Log.d("SaveManager", "压缩后大小: ${String.format(java.util.Locale.US, "%.2f", compressedSizeKB)} KB, 压缩率: ${String.format(java.util.Locale.US, "%.1f", compressionRatio)}%")
+            Log.d("SaveManager", "压缩后大小: ${String.format(Locale.US, "%.2f", compressedSizeKB)} KB, 压缩率: ${String.format(Locale.US, "%.1f", compressionRatio)}%")
             
             // 4. Base64编码后存储（因为SharedPreferences只能存字符串）
             val base64Encoded = android.util.Base64.encodeToString(compressed, android.util.Base64.DEFAULT)
@@ -5029,7 +5165,7 @@ data class SaveResult(
 fun InGameSettingsContent(
     navController: NavController,
     money: Long = 10000L,
-    fans: Int = 0,
+    fans: Long = 0L,
     currentYear: Int = 1,
     currentMonth: Int = 1,
     currentDay: Int = 1,
@@ -5043,6 +5179,7 @@ fun InGameSettingsContent(
     competitorNews: List<CompetitorNews> = emptyList(),
     complaints: List<Complaint> = emptyList(),
     autoProcessComplaints: Boolean = false,
+    autoPromotionThreshold: Float = 0.5f, // 自动宣传阈值
     unlockedAchievements: List<UnlockedAchievement> = emptyList(),
     completedTutorials: Set<String> = emptySet(), // 新增：教程进度
     skipTutorial: Boolean = false, // 新增：跳过教程状态
@@ -5386,6 +5523,7 @@ fun InGameSettingsContent(
                                 jobPostings = JobPostingService.getInstance().getAllJobPostingsForSave(), // 导出招聘岗位数据
                                 complaints = complaints, // 保存客诉数据
                                 autoProcessComplaints = autoProcessComplaints, // 保存自动处理开关状态
+                                autoPromotionThreshold = autoPromotionThreshold, // 保存自动宣传阈值
                                 unlockedAchievements = unlockedAchievements, // 保存已解锁成就
                                 completedTutorials = completedTutorials, // 保存已完成教程
                                 skipTutorial = skipTutorial, // 保存跳过教程状态
@@ -5410,7 +5548,7 @@ fun InGameSettingsContent(
                                         val compressionRatio = if (result.originalSizeKB > 0) {
                                             (1 - result.compressedSizeKB / result.originalSizeKB) * 100
                                         } else 0.0
-                                        val message = "游戏已保存！\n压缩前: ${String.format(java.util.Locale.US, "%.1f", result.originalSizeKB)} KB\n压缩后: ${String.format(java.util.Locale.US, "%.1f", result.compressedSizeKB)} KB\n压缩率: ${String.format(java.util.Locale.US, "%.1f", compressionRatio)}%"
+                                        val message = "游戏已保存！\n压缩前: ${String.format(Locale.US, "%.1f", result.originalSizeKB)} KB\n压缩后: ${String.format(Locale.US, "%.1f", result.compressedSizeKB)} KB\n压缩率: ${String.format(Locale.US, "%.1f", compressionRatio)}%"
                                         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                                         // 重新加载存档列表以更新UI
                                         saveSlots = saveManager.getAllSavesAsync()
@@ -5510,6 +5648,7 @@ fun InGameSettingsContent(
                                             jobPostings = JobPostingService.getInstance().getAllJobPostingsForSave(), // 导出招聘岗位数据
                                             complaints = complaints, // 保存客诉数据
                                             autoProcessComplaints = autoProcessComplaints, // 保存自动处理开关状态
+                                            autoPromotionThreshold = autoPromotionThreshold, // 保存自动宣传阈值
                                             unlockedAchievements = unlockedAchievements, // 保存已解锁成就
                                             completedTutorials = completedTutorials, // 保存已完成教程
                                             skipTutorial = skipTutorial, // 保存跳过教程状态
@@ -5533,7 +5672,7 @@ fun InGameSettingsContent(
                                                     val compressionRatio = if (result.originalSizeKB > 0) {
                                                         (1 - result.compressedSizeKB / result.originalSizeKB) * 100
                                                     } else 0.0
-                                                    val message = "游戏已保存！\n压缩前: ${String.format(java.util.Locale.US, "%.1f", result.originalSizeKB)} KB\n压缩后: ${String.format(java.util.Locale.US, "%.1f", result.compressedSizeKB)} KB\n压缩率: ${String.format(java.util.Locale.US, "%.1f", compressionRatio)}%"
+                                                    val message = "游戏已保存！\n压缩前: ${String.format(Locale.US, "%.1f", result.originalSizeKB)} KB\n压缩后: ${String.format(Locale.US, "%.1f", result.compressedSizeKB)} KB\n压缩率: ${String.format(Locale.US, "%.1f", compressionRatio)}%"
                                                     Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                                                     // 重新加载存档列表以更新UI
                                                     saveSlots = saveManager.getAllSavesAsync()

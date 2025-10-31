@@ -140,13 +140,15 @@ fun EnhancedProjectManagementContent(
     selectedProjectType: ProjectDisplayType = ProjectDisplayType.DEVELOPING,  // 外部控制的标签页状态
     onProjectTypeChange: (ProjectDisplayType) -> Unit = {},  // 标签页变化回调
     money: Long = 0L,  // 新增：资金
-    fans: Int = 0,  // 新增：粉丝数
+    fans: Long = 0L,  // 新增：粉丝数
     onMoneyUpdate: (Long) -> Unit = {},  // 新增：资金更新回调
-    onFansUpdate: (Int) -> Unit = {},  // 新增：粉丝更新回调
+    onFansUpdate: (Long) -> Unit = {},  // 新增：粉丝更新回调
     complaints: List<Complaint> = emptyList(),  // 新增：客诉列表
     onComplaintsUpdate: (List<Complaint>) -> Unit = {},  // 新增：客诉更新回调
     autoProcessComplaints: Boolean = false,  // 新增：自动处理客诉开关
     onAutoProcessToggle: (Boolean) -> Unit = {},  // 新增：自动处理开关回调
+    autoPromotionThreshold: Float = 0.5f,  // 新增：自动宣传阈值
+    onAutoPromotionThresholdUpdate: (Float) -> Unit = {},  // 新增：自动宣传阈值更新回调
     currentYear: Int = 1,  // 新增：当前年份
     currentMonth: Int = 1,  // 新增：当前月份
     currentDay: Int = 1,  // 新增：当前日期
@@ -467,10 +469,12 @@ fun EnhancedProjectManagementContent(
             games = games,
             money = money,
             fans = fans,
+            autoPromotionThreshold = autoPromotionThreshold,
             onDismiss = { showPromotionCenterDialog = false },
             onMoneyUpdate = onMoneyUpdate,
             onFansUpdate = onFansUpdate,
-            onGamesUpdate = onGamesUpdate
+            onGamesUpdate = onGamesUpdate,
+            onAutoPromotionThresholdUpdate = onAutoPromotionThresholdUpdate
         )
     }
     
@@ -498,7 +502,7 @@ fun EnhancedProjectManagementContent(
 fun CustomerServiceDialog(
     complaints: List<Complaint>,
     employees: List<Employee>,
-    fans: Int,
+    fans: Long,
     currentYear: Int,
     currentMonth: Int,
     currentDay: Int,

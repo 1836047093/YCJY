@@ -23,7 +23,7 @@ data class CompetitorCompany(
     val name: String,
     val logo: String,
     val marketValue: Long, // 市值
-    val fans: Int, // 粉丝数
+    val fans: Long, // 粉丝数
     val games: List<CompetitorGame> = emptyList(), // 游戏列表
     val yearsFounded: Int = 0, // 成立年数
     val reputation: Float = 50f // 声誉 (0-100)
@@ -142,7 +142,7 @@ sealed class AcquisitionResult {
         val finalPrice: Long,
         val inheritedIPs: List<GameIP>,  // 改为继承IP而不是游戏
         val marketValueGain: Long,
-        val fansGain: Int
+        val fansGain: Long
     ) : AcquisitionResult()
     
     data class Failed(
@@ -213,11 +213,11 @@ object CompetitorManager {
             }
             
             val baseFans = when (yearsFounded) {
-                1 -> Random.nextInt(1000, 10000)       // 1K-10K
-                2 -> Random.nextInt(5000, 50000)       // 5K-50K
-                3 -> Random.nextInt(20000, 100000)     // 20K-100K
-                4 -> Random.nextInt(50000, 300000)     // 50K-300K
-                else -> Random.nextInt(100000, 800000) // 100K-800K
+                1 -> Random.nextLong(1000L, 10000L)       // 1K-10K
+                2 -> Random.nextLong(5000L, 50000L)       // 5K-50K
+                3 -> Random.nextLong(20000L, 100000L)     // 20K-100K
+                4 -> Random.nextLong(50000L, 300000L)     // 50K-300K
+                else -> Random.nextLong(100000L, 800000L) // 100K-800K
             }
             
             val reputation = Random.nextInt(40, 85).toFloat()
@@ -288,15 +288,25 @@ object CompetitorManager {
             
             val (activePlayers, salesCount, initialRevenue, initialMonetizationRevenue) = when (businessModel) {
                 BusinessModel.ONLINE_GAME -> {
-                    // 网游活跃玩家：基于评分和时间
-                    val baseActivePlayers = ((rating - 5) * 10000).toLong() // 评分影响基数
-                    val timeMultiplier = when {
-                        monthsSinceRelease <= 6 -> Random.nextDouble(0.8, 1.5)   // 新游戏
-                        monthsSinceRelease <= 12 -> Random.nextDouble(0.6, 1.2)  // 半年-1年
-                        monthsSinceRelease <= 24 -> Random.nextDouble(0.3, 0.8)  // 1-2年
-                        else -> Random.nextDouble(0.1, 0.5)                       // 2年以上
+                    // 网游活跃玩家：基于评分和时间，高评分游戏有更高的活跃玩家数
+                    // 基础活跃玩家数（根据评分梯度设置）
+                    val baseActivePlayers = when {
+                        rating >= 9.0f -> Random.nextLong(50000L, 150000L)  // 9.0+分：5万-15万
+                        rating >= 8.5f -> Random.nextLong(30000L, 80000L)   // 8.5-9.0分：3万-8万
+                        rating >= 8.0f -> Random.nextLong(20000L, 50000L)  // 8.0-8.5分：2万-5万
+                        rating >= 7.0f -> Random.nextLong(10000L, 30000L)   // 7.0-8.0分：1万-3万
+                        rating >= 6.0f -> Random.nextLong(5000L, 15000L)     // 6.0-7.0分：5千-1.5万
+                        else -> Random.nextLong(1000L, 5000L)              // 6.0分以下：1千-5千
                     }
-                    val activePlayers = (baseActivePlayers * timeMultiplier).toLong().coerceIn(500L, 500000L)
+                    
+                    // 时间倍率（发售越久，倍率越高）
+                    val timeMultiplier = when {
+                        monthsSinceRelease <= 6 -> Random.nextDouble(0.8, 1.2)   // 新游戏：80%-120%
+                        monthsSinceRelease <= 12 -> Random.nextDouble(1.0, 1.5)  // 半年-1年：100%-150%
+                        monthsSinceRelease <= 24 -> Random.nextDouble(1.5, 2.5)  // 1-2年：150%-250%
+                        else -> Random.nextDouble(2.0, 3.5)                      // 2年以上：200%-350%
+                    }
+                    val activePlayers = ((baseActivePlayers * timeMultiplier).toLong()).coerceIn(500L, 2000000L)
                     
                     // 使用付费内容系统计算累计收入
                     val monthlyMonetizationRevenue = calculateCompetitorMonetizationRevenue(activePlayers, theme)
@@ -308,10 +318,27 @@ object CompetitorManager {
                     Quadruple(activePlayers, 0L, totalRevenue, totalMonetizationRevenue)
                 }
                 BusinessModel.SINGLE_PLAYER -> {
-                    // 单机游戏销量：基于评分和时间累计
-                    val baseSales = ((rating - 5) * 5000).toLong()
-                    val timeSales = monthsSinceRelease * Random.nextInt(100, 500)
-                    val totalSales = (baseSales + timeSales).coerceIn(1000L, 1000000L)
+                    // 单机游戏销量：基于评分和时间更合理地计算，让高评分游戏有机会达到百万销量
+                    // 基础销量（评分影响更大）
+                    val ratingBase = when {
+                        rating >= 9.0f -> Random.nextLong(50000L, 150000L)  // 9.0+分：5万-15万
+                        rating >= 8.5f -> Random.nextLong(20000L, 80000L)   // 8.5-9.0分：2万-8万
+                        rating >= 8.0f -> Random.nextLong(10000L, 40000L)   // 8.0-8.5分：1万-4万
+                        rating >= 7.0f -> Random.nextLong(5000L, 20000L)    // 7.0-8.0分：5千-2万
+                        rating >= 6.0f -> Random.nextLong(2000L, 10000L)    // 6.0-7.0分：2千-1万
+                        else -> Random.nextLong(1000L, 5000L)              // 6.0分以下：1千-5千
+                    }
+                    
+                    // 时间累积销量（发售越久销量越高，但增速递减）
+                    val timeMultiplier = when {
+                        monthsSinceRelease <= 12 -> Random.nextDouble(0.5, 1.0)   // 1年内：50%-100%加成
+                        monthsSinceRelease <= 24 -> Random.nextDouble(1.0, 2.0)    // 1-2年：100%-200%加成
+                        monthsSinceRelease <= 36 -> Random.nextDouble(2.0, 3.5)    // 2-3年：200%-350%加成
+                        else -> Random.nextDouble(3.0, 5.0)                        // 3年以上：300%-500%加成
+                    }
+                    
+                    // 计算总销量：基础销量 × 时间倍率
+                    val totalSales = ((ratingBase * timeMultiplier).toLong()).coerceIn(1000L, 2000000L)
                     
                     // 单机收入 = 销量 × 单价（假设50元）
                     val totalRevenue = totalSales * 50.0
@@ -378,7 +405,7 @@ object CompetitorManager {
             val newMarketValue = (totalRevenue * marketValueMultiplier).toLong().coerceAtLeast(100000L)
             
             // 更新粉丝数 (+2%-10%)
-            val fansGrowth = (company.fans * Random.nextDouble(0.02, 0.10)).toInt()
+            val fansGrowth = (company.fans * Random.nextDouble(0.02, 0.10)).toLong()
             val newFans = company.fans + fansGrowth
             
             // 更新游戏数据
@@ -386,9 +413,31 @@ object CompetitorManager {
             for (game in company.games) {
                 when (game.businessModel) {
                     BusinessModel.ONLINE_GAME -> {
-                        // 网游活跃玩家数变化 (±10%-30%)
-                        val playerChange = (game.activePlayers * Random.nextDouble(-0.10, 0.30)).toLong()
-                        val newActivePlayers = (game.activePlayers + playerChange).coerceAtLeast(100L)
+                        // 网游活跃玩家数增长：根据评分动态调整增长率
+                        val baseGrowthRate = when {
+                            game.rating >= 9.0f -> Random.nextDouble(0.08, 0.15)   // 9.0+分：8%-15%增长/月
+                            game.rating >= 8.5f -> Random.nextDouble(0.06, 0.12)  // 8.5-9.0分：6%-12%增长/月
+                            game.rating >= 8.0f -> Random.nextDouble(0.04, 0.10) // 8.0-8.5分：4%-10%增长/月
+                            game.rating >= 7.0f -> Random.nextDouble(0.02, 0.08)  // 7.0-8.0分：2%-8%增长/月
+                            else -> Random.nextDouble(-0.05, 0.05)                // 7.0分以下：-5%-5%（可能下降）
+                        }
+                        
+                        // 计算增长：当前活跃玩家数 × 增长率
+                        val proportionalGrowth = (game.activePlayers * baseGrowthRate).toLong()
+                        
+                        // 保底增长（防止活跃玩家数太低的游戏增长过慢）
+                        val minGrowth = when {
+                            game.rating >= 9.0f -> Random.nextInt(2000, 5000).toLong()   // 高评分：2000-5000/月
+                            game.rating >= 8.0f -> Random.nextInt(1000, 3000).toLong()   // 中高评分：1000-3000/月
+                            game.rating >= 7.0f -> Random.nextInt(500, 1500).toLong()    // 中等评分：500-1500/月
+                            else -> Random.nextInt(-200, 500).toLong()                   // 低评分：-200-500/月（可能下降）
+                        }
+                        
+                        // 取两者中的较大值，但不超过当前活跃玩家数的10%（防止增长过快）
+                        val maxGrowth = (game.activePlayers * 0.10).toLong()
+                        val playerGrowth = maxOf(proportionalGrowth, minGrowth).coerceAtMost(maxGrowth)
+                        
+                        val newActivePlayers = (game.activePlayers + playerGrowth).coerceAtLeast(100L)
                         
                         // 使用付费内容系统计算本月收入
                         val monthlyMonetizationRevenue = calculateCompetitorMonetizationRevenue(newActivePlayers, game.theme)
@@ -412,8 +461,31 @@ object CompetitorManager {
                         ))
                     }
                     BusinessModel.SINGLE_PLAYER -> {
-                        // 单机游戏持续销售 (+100-1000)
-                        val salesGrowth = Random.nextInt(100, 1000).toLong()
+                        // 单机游戏持续销售：根据评分和当前销量动态计算增长
+                        // 基础增长：评分越高，增长越快
+                        val baseGrowthRate = when {
+                            game.rating >= 9.0f -> Random.nextDouble(0.8, 1.5)   // 9.0+分：0.8%-1.5%
+                            game.rating >= 8.5f -> Random.nextDouble(0.5, 1.0)   // 8.5-9.0分：0.5%-1.0%
+                            game.rating >= 8.0f -> Random.nextDouble(0.3, 0.7)   // 8.0-8.5分：0.3%-0.7%
+                            game.rating >= 7.0f -> Random.nextDouble(0.2, 0.5)   // 7.0-8.0分：0.2%-0.5%
+                            else -> Random.nextDouble(0.1, 0.3)                 // 7.0分以下：0.1%-0.3%
+                        }
+                        
+                        // 计算增长：当前销量 × 增长比例
+                        val proportionalGrowth = (game.salesCount * baseGrowthRate / 100.0).toLong()
+                        
+                        // 保底增长（防止销量太低的游戏增长过慢）
+                        val minGrowth = when {
+                            game.rating >= 9.0f -> Random.nextInt(2000, 5000)   // 高评分：2000-5000/月
+                            game.rating >= 8.0f -> Random.nextInt(1000, 3000)   // 中高评分：1000-3000/月
+                            game.rating >= 7.0f -> Random.nextInt(500, 1500)    // 中等评分：500-1500/月
+                            else -> Random.nextInt(100, 800)                    // 低评分：100-800/月
+                        }.toLong()
+                        
+                        // 取两者中的较大值，但不超过当前销量的5%（防止增长过快）
+                        val maxGrowth = (game.salesCount * 0.05).toLong()
+                        val salesGrowth = maxOf(proportionalGrowth, minGrowth).coerceAtMost(maxGrowth)
+                        
                         val newSalesCount = game.salesCount + salesGrowth
                         
                         // 累加单机收入：新销量 × 单价(50元)
@@ -589,13 +661,27 @@ object CompetitorManager {
         
         val (activePlayers, salesCount, initialRevenue, initialMonetizationRevenue) = when (businessModel) {
             BusinessModel.ONLINE_GAME -> {
-                val players = Random.nextInt(1000, 20000).toLong()
+                // 新发售游戏的初始活跃玩家数：根据评分设置合理的首发活跃玩家数
+                val players = when {
+                    rating >= 9.0f -> Random.nextInt(20000, 50000).toLong()    // 9.0+分：2万-5万首发
+                    rating >= 8.5f -> Random.nextInt(15000, 35000).toLong()     // 8.5-9.0分：1.5万-3.5万首发
+                    rating >= 8.0f -> Random.nextInt(10000, 25000).toLong()     // 8.0-8.5分：1万-2.5万首发
+                    rating >= 7.0f -> Random.nextInt(5000, 15000).toLong()      // 7.0-8.0分：5千-1.5万首发
+                    else -> Random.nextInt(1000, 8000).toLong()                 // 7.0分以下：1千-8千首发
+                }
                 // 使用付费内容系统计算首月收入
                 val monetizationRevenue = calculateCompetitorMonetizationRevenue(players, theme)
                 Quadruple(players, 0L, monetizationRevenue, monetizationRevenue)
             }
             BusinessModel.SINGLE_PLAYER -> {
-                val sales = Random.nextInt(2000, 10000).toLong()
+                // 新发售游戏的初始销量：根据评分设置合理的首发销量
+                val sales = when {
+                    rating >= 9.0f -> Random.nextInt(30000, 80000).toLong()   // 9.0+分：3万-8万首发
+                    rating >= 8.5f -> Random.nextInt(15000, 40000).toLong()    // 8.5-9.0分：1.5万-4万首发
+                    rating >= 8.0f -> Random.nextInt(8000, 20000).toLong()     // 8.0-8.5分：8千-2万首发
+                    rating >= 7.0f -> Random.nextInt(3000, 10000).toLong()    // 7.0-8.0分：3千-1万首发
+                    else -> Random.nextInt(1000, 5000).toLong()              // 7.0分以下：1千-5千首发
+                }
                 // 首月收入 = 销量 × 单价(50元)
                 val revenue = sales * 50.0
                 Quadruple(0L, sales, revenue, 0.0)
@@ -855,12 +941,12 @@ object CompetitorManager {
         finalPrice: Long,
         acquiredYear: Int,
         acquiredMonth: Int
-    ): Triple<Long, Int, List<GameIP>> {
+    ): Triple<Long, Long, List<GameIP>> {
         // 市值增加：目标市值 × 60%
         val marketValueGain = (targetCompany.marketValue * 0.6).toLong()
         
         // 粉丝增加：目标粉丝 × 40%
-        val fansGain = (targetCompany.fans * 0.4).toInt()
+        val fansGain = (targetCompany.fans * 0.4).toLong()
         
         // 将游戏转换为IP（所有游戏都转换为IP，不是继承游戏）
         val inheritedIPs = targetCompany.games.map { game ->

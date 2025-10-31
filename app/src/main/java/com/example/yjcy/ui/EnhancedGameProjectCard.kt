@@ -425,7 +425,9 @@ fun EnhancedGameProjectCard(
             }
             
             // 已分配员工信息（开发中始终显示，更新中仅在正在更新标签页显示）
-            if ((isDeveloping || (hasActiveUpdateTask && !showDataOverview)) && game.assignedEmployees.isNotEmpty()) {
+            if (isDeveloping || (hasActiveUpdateTask && !showDataOverview)) {
+                if (game.assignedEmployees.isNotEmpty()) {
+                    // 已分配员工
                 Text(
                     text = "已分配员工 (${game.assignedEmployees.size}人):",
                     color = Color.White.copy(alpha = 0.9f),
@@ -470,6 +472,27 @@ fun EnhancedGameProjectCard(
                         fontSize = 12.sp,
                         modifier = Modifier.padding(start = 24.dp)
                     )
+                    }
+                } else {
+                    // 未分配员工 - 显示提示
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Assignment,
+                            contentDescription = null,
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = if (hasActiveUpdateTask) "未分配员工 - 请点击下方按钮分配员工进行更新工作" else "未分配员工 - 请点击下方按钮分配员工进行开发",
+                            color = Color(0xFFEF4444).copy(alpha = 0.9f),
+                            fontSize = 13.sp,
+                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                        )
+                    }
                 }
                 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -801,8 +824,107 @@ fun EnhancedGameProjectCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // 已发售或已下架的游戏：显示收益按钮和游戏社区按钮
-                if (isReleased || isRemoved) {
+                // 有更新任务的游戏
+                if (hasActiveUpdateTask) {
+                    // 分配员工按钮（仅在正在更新标签页显示，不在数据概览模式显示）
+                    if (!showDataOverview) {
+                        EnhancedOneClickAssignmentButton(
+                            projects = listOf(game),
+                            employees = availableEmployees,
+                            onAssignmentComplete = { result ->
+                                // 处理智能分配结果
+                                result.assignments.forEach { (projectId, employees) ->
+                                    if (projectId == game.id) {
+                                        onEmployeeAssigned(game, employees)
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            text = if (game.assignedEmployees.isEmpty()) 
+                                "一键分配员工" else "重新分配员工"
+                        )
+                    }
+                    
+                    // 如果已发售，显示收益报告和社区按钮（在数据概览模式也显示）
+                    if (isReleased) {
+                        var showCommunityDialog by remember { mutableStateOf(false) }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // 收益报告按钮
+                            Button(
+                                onClick = { showRevenueDialog = true },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF10B981)
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.TrendingUp,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "收益报告",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                            
+                            // 游戏社区按钮
+                            Button(
+                                onClick = { showCommunityDialog = true },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF3B82F6)
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = "🎮",
+                                    fontSize = 16.sp
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "游戏社区",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                        
+                        // 游戏社区对话框
+                        if (showCommunityDialog) {
+                            GameCommunityDialog(
+                                game = game,
+                                onDismiss = { showCommunityDialog = false },
+                                onCommentLike = { updateIndex, commentId ->
+                                    // 处理评论点赞
+                                    val updatedHistory = (game.updateHistory ?: emptyList()).toMutableList()
+                                    if (updateIndex in updatedHistory.indices) {
+                                        val update = updatedHistory[updateIndex]
+                                        val updatedComments = update.comments.map { comment ->
+                                            if (comment.id == commentId && !comment.isLikedByUser) {
+                                                comment.copy(
+                                                    likes = comment.likes + 1,
+                                                    isLikedByUser = true
+                                                )
+                                            } else {
+                                                comment
+                                            }
+                                        }
+                                        updatedHistory[updateIndex] = update.copy(comments = updatedComments)
+                                        onGameUpdate(game.copy(updateHistory = updatedHistory))
+                                    }
+                                }
+                            )
+                        }
+                    }
+                } else if (isReleased || isRemoved) {
+                    // 已发售或已下架的游戏（无更新任务）：显示收益按钮和游戏社区按钮
                     // 如果有更新历史，显示并排按钮；否则只显示收益按钮
                     if (!game.updateHistory.isNullOrEmpty()) {
                         Row(
@@ -957,26 +1079,6 @@ fun EnhancedGameProjectCard(
                                 )
                             }
                         }
-                    }
-                } else if (hasActiveUpdateTask) {
-                    // 有更新任务的游戏
-                    // 智能分配按钮（仅在正在更新标签页显示）
-                    if (!showDataOverview) {
-                        EnhancedOneClickAssignmentButton(
-                            projects = listOf(game),
-                            employees = availableEmployees,
-                            onAssignmentComplete = { result ->
-                                // 处理智能分配结果
-                                result.assignments.forEach { (projectId, employees) ->
-                                    if (projectId == game.id) {
-                                        onEmployeeAssigned(game, employees)
-                                    }
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            text = if (game.assignedEmployees.isEmpty()) 
-                                "一键分配员工" else "重新分配员工"
-                        )
                     }
                 } else if (isReadyForRelease) {
                     // 游戏开发完成，准备发售 - 显示发售和废弃两个按钮

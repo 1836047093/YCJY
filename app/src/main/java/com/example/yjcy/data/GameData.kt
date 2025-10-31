@@ -326,6 +326,7 @@ data class Game(
     val serverInfo: GameServerInfo? = null, // 新增：服务器信息（仅网络游戏）
     val promotionIndex: Float = 0f, // 新增：宣传指数（0-1，表示0%-100%）
     val autoUpdate: Boolean = false, // 新增：自动更新开关（开启后更新完成会自动发布）
+    val autoPromotion: Boolean = false, // 新增：自动宣传开关（开启后宣传指数低于阈值时自动宣传）
     val version: Float = 1.0f, // 新增：游戏版本号，每次更新+0.1
     val currentPhase: DevelopmentPhase = DevelopmentPhase.DESIGN, // 当前开发阶段
     val phaseProgress: Float = 0f, // 当前阶段进度（0-1）
@@ -490,10 +491,10 @@ data class Complaint(
     /**
      * 计算当前应扣除的粉丝数
      */
-    fun calculateFanLoss(currentYear: Int, currentMonth: Int, currentDay: Int): Int {
-        if (!isOverdue(currentYear, currentMonth, currentDay)) return 0
+    fun calculateFanLoss(currentYear: Int, currentMonth: Int, currentDay: Int): Long {
+        if (!isOverdue(currentYear, currentMonth, currentDay)) return 0L
         val overdueDays = calculateExistingDays(currentYear, currentMonth, currentDay) - severity.overdueThreshold
-        return overdueDays * severity.dailyFanLoss
+        return overdueDays * severity.dailyFanLoss.toLong()
     }
     
     /**
@@ -592,7 +593,7 @@ data class SaveData(
     val founderName: String = "创始人",
     val founderProfession: FounderProfession? = null, // 新增字段,向后兼容
     val money: Long = 3000000L,
-    val fans: Int = 0,
+    val fans: Long = 0L,
     val currentYear: Int = 1,
     val currentMonth: Int = 1,
     val currentDay: Int = 1,
@@ -605,6 +606,7 @@ data class SaveData(
     val jobPostings: List<JobPosting> = emptyList(), // 招聘岗位列表
     val complaints: List<Complaint> = emptyList(), // 客诉列表
     val autoProcessComplaints: Boolean = false, // 新增：自动处理客诉开关（默认关闭）
+    val autoPromotionThreshold: Float = 0.5f, // 新增：自动宣传阈值（0-1，表示0%-100%，低于此值自动宣传）
     val unlockedAchievements: List<UnlockedAchievement> = emptyList(), // 新增：已解锁的成就列表
     val completedTutorials: Set<String> = emptySet(), // 新增：已完成的教程ID集合（使用String存储以便序列化）
     val skipTutorial: Boolean = false, // 新增：是否跳过所有教程（默认不跳过）

@@ -225,8 +225,8 @@ object CustomerServiceManager {
         currentYear: Int,
         currentMonth: Int,
         currentDay: Int
-    ): Int {
-        var totalLoss = 0
+    ): Long {
+        var totalLoss = 0L
         
         complaints.forEach { complaint ->
             if (complaint.status != ComplaintStatus.COMPLETED) {
@@ -234,7 +234,7 @@ object CustomerServiceManager {
                     val existingDays = complaint.calculateExistingDays(currentYear, currentMonth, currentDay)
                     val overdueDays = existingDays - complaint.severity.overdueThreshold
                     if (overdueDays > 0) {
-                        totalLoss += complaint.severity.dailyFanLoss
+                        totalLoss += complaint.severity.dailyFanLoss.toLong()
                     }
                 }
             }

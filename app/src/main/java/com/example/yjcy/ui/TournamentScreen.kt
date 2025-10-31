@@ -33,7 +33,7 @@ fun TournamentScreen(
     revenueDataMap: Map<String, GameRevenue>,
     currentDate: GameDate,
     money: Long,
-    fans: Int,
+    fans: Long,
     competitors: List<CompetitorCompany> = emptyList(),
     initialTab: Int = 0,
     onHostTournament: (String, TournamentType) -> Unit

@@ -16,8 +16,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -40,7 +38,7 @@ fun EmployeeManagementContent(
     currentYear: Int,
     currentMonth: Int,
     currentDay: Int,
-    onNavigateToTalentMarket: () -> Unit = {},
+    @Suppress("UNUSED_PARAMETER") onNavigateToTalentMarket: () -> Unit = {},
     jobPostingRefreshTrigger: Int = 0 // 用于触发应聘者数据刷新
 ) {
     var showTrainingDialog by remember { mutableStateOf(false) }
@@ -52,7 +50,7 @@ fun EmployeeManagementContent(
     
     // 获取待处理的应聘者数量
     val jobPostingService = remember { JobPostingService.getInstance() }
-    val pendingApplicantsCount = remember { mutableStateOf(jobPostingService.getTotalPendingApplicants()) }
+    val pendingApplicantsCount = remember { mutableIntStateOf(jobPostingService.getTotalPendingApplicants()) }
     
     // 刷新应聘者数量 - 监听刷新触发器和对话框打开状态
     LaunchedEffect(showTalentMarketDialog, jobPostingRefreshTrigger) {
@@ -97,14 +95,33 @@ fun EmployeeManagementContent(
             modifier = Modifier.padding(bottom = 16.dp)
         )
         
-        // 员工统计信息卡片
-        EmployeeStatsCard(allEmployees = allEmployees)
+        // 员工统计信息 - 无卡片设计
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            EmployeeStatItem(
+                value = "${allEmployees.size}/30",
+                label = "总员工数",
+                icon = Icons.Default.People,
+                color = Color(0xFF3B82F6)
+            )
+            
+            EmployeeStatItem(
+                value = "¥${allEmployees.sumOf { it.salary }}",
+                label = "月薪总额",
+                icon = Icons.Default.AccountBalanceWallet,
+                color = Color(0xFFEF4444)
+            )
+        }
         
         // 筛选和操作按钮区域
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 16.dp),
+                .padding(bottom = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // 筛选下拉菜单
@@ -170,7 +187,7 @@ fun EmployeeManagementContent(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
                 items(filteredEmployees) { employee ->
                     EnhancedEmployeeCard(
@@ -301,43 +318,6 @@ fun EmployeeManagementContent(
     }
 }
 
-@Composable
-fun EmployeeStatsCard(allEmployees: List<Employee>) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 16.dp)
-            .shadow(
-                elevation = 4.dp,
-                shape = RoundedCornerShape(16.dp)
-            ),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White.copy(alpha = 0.15f)
-        ),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            EmployeeStatItem(
-                value = "${allEmployees.size}/30",
-                label = "总员工数",
-                icon = Icons.Default.People,
-                color = Color(0xFF3B82F6)
-            )
-            
-            EmployeeStatItem(
-                value = "¥${allEmployees.sumOf { it.salary }}",
-                label = "月薪总额",
-                icon = Icons.Default.AccountBalanceWallet,
-                color = Color(0xFFEF4444)
-            )
-        }
-    }
-}
 
 @Composable
 fun EmployeeStatItem(
@@ -442,7 +422,7 @@ fun EnhancedEmployeeCard(
 ) {
     var isExpanded by remember { mutableStateOf(false) }
     
-    Card(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .animateContentSize(
@@ -451,25 +431,22 @@ fun EnhancedEmployeeCard(
                     stiffness = Spring.StiffnessLow
                 )
             )
-            .clickable { isExpanded = !isExpanded },
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White.copy(alpha = 0.15f)
-        ),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 4.dp
-        )
+            .clickable { isExpanded = !isExpanded }
+            .background(
+                brush = Brush.horizontalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.08f),
+                        Color.White.copy(alpha = 0.03f)
+                    )
+                )
+            )
+            .padding(vertical = 16.dp, horizontal = 12.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = employee.name,
@@ -513,7 +490,7 @@ fun EnhancedEmployeeCard(
                 Column(
                     horizontalAlignment = Alignment.End
                 ) {
-                    // 员工等级徽章（基于专属技能等级）
+                    // 员工等级徽章（基于专属技能等级）- 简化设计
                     val specialtyLevel = employee.getSpecialtySkillLevel()
                     val (grade, gradeColor) = when {
                         specialtyLevel >= 5 -> "S" to Color(0xFF10B981)
@@ -522,21 +499,18 @@ fun EnhancedEmployeeCard(
                         else -> "C" to Color(0xFFEF4444)
                     }
                     
-                    Box(
+                    Text(
+                        text = grade,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = gradeColor,
                         modifier = Modifier
                             .background(
-                                color = gradeColor,
-                                shape = RoundedCornerShape(12.dp)
+                                color = gradeColor.copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(8.dp)
                             )
-                            .padding(horizontal = 12.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = grade,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
                     
                     Spacer(modifier = Modifier.height(8.dp))
                     
@@ -613,7 +587,12 @@ fun EnhancedEmployeeCard(
                     }
                 }
             }
-        }
+        
+        // 底部分隔线
+        HorizontalDivider(
+            color = Color.White.copy(alpha = 0.1f),
+            modifier = Modifier.padding(top = 12.dp)
+        )
     }
 }
 

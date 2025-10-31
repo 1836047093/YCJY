@@ -24,7 +24,7 @@ object GVAManager {
         year: Int,
         playerGames: List<Game>,
         playerCompanyName: String,
-        playerFans: Int,
+        playerFans: Long,
         competitorCompanies: List<CompetitorCompany>,
         revenueData: Map<String, GameRevenue>
     ): List<AwardNomination> {
@@ -58,7 +58,7 @@ object GVAManager {
         year: Int,
         playerGames: List<Game>,
         playerCompanyName: String,
-        playerFans: Int,
+        playerFans: Long,
         competitorCompanies: List<CompetitorCompany>,
         revenueData: Map<String, GameRevenue>
     ): List<AwardNomination> {
@@ -90,7 +90,7 @@ object GVAManager {
     private fun filterEligibleGames(
         playerGames: List<Game>,
         playerCompanyName: String,
-        playerFans: Int,
+        playerFans: Long,
         competitorCompanies: List<CompetitorCompany>,
         revenueData: Map<String, GameRevenue>,
         startDate: GameDate,
@@ -457,7 +457,7 @@ object GVAManager {
                     val reward = nomination.award.getReward()
                     val nominationReward = AwardReward(
                         cashPrize = (reward.cashPrize * 0.2f).toInt(),
-                        fansGain = (reward.fansGain * 0.2f).toInt(),
+                        fansGain = (reward.fansGain * 0.2f).toLong(),
                         reputationGain = 10
                     )
                     
@@ -502,7 +502,7 @@ private data class EligibleGame(
     val rating: Float,
     val totalSales: Long,
     val activePlayers: Long,
-    val companyFans: Int,
+    val companyFans: Long,
     val isPlayerGame: Boolean,
     val releaseYear: Int,
     val releaseMonth: Int,

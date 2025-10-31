@@ -123,19 +123,22 @@ fun GameCommunityDialog(
                         }
                     }
                 } else {
-                    // 更新记录列表
+                    // 只显示最新的更新记录
+                    val latestUpdate = (game.updateHistory ?: emptyList()).lastOrNull()
+                    if (latestUpdate != null) {
                     LazyColumn(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        items((game.updateHistory ?: emptyList()).reversed()) { update ->
+                            item {
                             UpdateCard(
-                                update = update,
+                                    update = latestUpdate,
                                 onCommentLike = { commentId ->
-                                    val updateIndex = (game.updateHistory ?: emptyList()).indexOf(update)
+                                        val updateIndex = (game.updateHistory ?: emptyList()).indexOf(latestUpdate)
                                     onCommentLike(updateIndex, commentId)
                                 }
                             )
+                            }
                         }
                     }
                 }

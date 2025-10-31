@@ -30,7 +30,7 @@ import com.example.yjcy.utils.formatMoneyWithDecimals
 fun CustomerServiceContent(
     complaints: List<Complaint>,
     employees: List<Employee>,
-    fans: Int,
+    fans: Long,
     currentYear: Int,
     currentMonth: Int,
     currentDay: Int,

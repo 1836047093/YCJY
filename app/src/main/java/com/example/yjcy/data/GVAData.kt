@@ -110,7 +110,7 @@ data class AwardNomination(
  */
 data class AwardReward(
     val cashPrize: Int,      // 奖金
-    val fansGain: Int,       // 粉丝增长
+    val fansGain: Long,       // 粉丝增长
     val reputationGain: Int  // 声望增长
 )
 

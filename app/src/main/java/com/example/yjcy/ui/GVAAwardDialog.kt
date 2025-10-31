@@ -37,7 +37,7 @@ fun GVAAwardDialog(
     nominations: List<AwardNomination>,
     playerWonCount: Int,
     playerTotalReward: Long,
-    playerFansGain: Int,
+    playerFansGain: Long,
     onDismiss: () -> Unit
 ) {
     var isVisible by remember { mutableStateOf(false) }
@@ -288,7 +288,7 @@ private fun AnimatedTrophy(isVisible: Boolean) {
 private fun PlayerAwardSummary(
     wonCount: Int,
     totalReward: Long,
-    fansGain: Int
+    fansGain: Long
 ) {
     var isVisible by remember { mutableStateOf(false) }
     

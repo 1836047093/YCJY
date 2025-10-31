@@ -15,13 +15,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
+import java.util.Locale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -56,11 +56,11 @@ enum class LeaderboardType(
 @Composable
 fun CompetitorContent(
     saveData: SaveData,
-    gameSpeed: Int = 1,
-    onAcquisitionSuccess: (CompetitorCompany, Long, Long, Int, List<GameIP>) -> Unit = { _, _, _, _, _ -> },
+    @Suppress("UNUSED_PARAMETER") gameSpeed: Int = 1,
+    onAcquisitionSuccess: (CompetitorCompany, Long, Long, Long, List<GameIP>) -> Unit = { _, _, _, _, _ -> },
     onAIWin: (CompetitorCompany, CompetitorCompany, Long) -> Unit = { _, _, _ -> } // AI获胜回调
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("📊 排行榜", "📰 新闻", "🏢 对手")
     
     Column(
@@ -395,27 +395,27 @@ fun LeaderboardCard(
 fun LeaderboardItemRow(
     rank: Int,
     item: LeaderboardItem,
-    topColor: Color,
+    @Suppress("UNUSED_PARAMETER") topColor: Color,
     isTop: Boolean,
     isPlayer: Boolean = false,
     leaderboardType: LeaderboardType
 ) {
     // 为前3名设计专属的超炫酷图标组合
-    val rankIconData = when {
-        rank == 1 -> when (leaderboardType) {
+    val rankIconData = when (rank) {
+        1 -> when (leaderboardType) {
             LeaderboardType.MARKET_VALUE -> Triple("💎", "✨", listOf(Color(0xFFFFD700), Color(0xFFFFEB3B), Color(0xFFFFC107)))
             LeaderboardType.FANS -> Triple("❤️", "💕", listOf(Color(0xFFFF1744), Color(0xFFFF4081), Color(0xFFFF80AB)))
             LeaderboardType.ONLINE_GAME -> Triple("🔥", "⚡", listOf(Color(0xFFFF5722), Color(0xFFFF6F00), Color(0xFFFFD54F)))
             LeaderboardType.SINGLE_PLAYER -> Triple("👑", "💎", listOf(Color(0xFFFFD700), Color(0xFFFFEB3B), Color(0xFFFFF59D)))
         }
-        rank == 2 -> when (leaderboardType) {
+        2 -> when (leaderboardType) {
             LeaderboardType.MARKET_VALUE -> Triple("💰", "💸", listOf(Color(0xFFC0C0C0), Color(0xFFE0E0E0), Color(0xFFBDBDBD)))
             LeaderboardType.FANS -> Triple("💖", "💗", listOf(Color(0xFFFF4081), Color(0xFFFF80AB), Color(0xFFF48FB1)))
             LeaderboardType.ONLINE_GAME -> Triple("⚡", "🌟", listOf(Color(0xFFFFEB3B), Color(0xFFFFC107), Color(0xFFFFD54F)))
             LeaderboardType.SINGLE_PLAYER -> Triple("🎮", "🕹️", listOf(Color(0xFF5C6BC0), Color(0xFF7E57C2), Color(0xFF9575CD))) // 游戏手柄+摇杆，紫蓝色系
         }
-        rank == 3 -> when (leaderboardType) {
-            LeaderboardType.MARKET_VALUE -> Triple("💵", "💴", listOf(Color(0xFFCD7F32), Color(0xFFD4A574), Color(0xFFE6C9A8)))
+        3 -> when (leaderboardType) {
+            LeaderboardType.MARKET_VALUE -> Triple("💵", "💴", listOf(Color(0xFFFFA726), Color(0xFFFFB74D), Color(0xFFFFCC80))) // 使用更亮的橙金色，提高可见度
             LeaderboardType.FANS -> Triple("💕", "💝", listOf(Color(0xFFF06292), Color(0xFFF48FB1), Color(0xFFF8BBD0)))
             LeaderboardType.ONLINE_GAME -> Triple("⭐", "✨", listOf(Color(0xFF00BCD4), Color(0xFF26C6DA), Color(0xFF4DD0E1)))
             LeaderboardType.SINGLE_PLAYER -> Triple("🏆", "⭐", listOf(Color(0xFFFF6F00), Color(0xFFFF8A65), Color(0xFFFFAB91))) // 奖杯+星星，橙红色系
@@ -423,74 +423,124 @@ fun LeaderboardItemRow(
         else -> Triple("", "", emptyList())
     }
     
-    val (mainIcon, particleIcon, gradientColors) = rankIconData
+    val (@Suppress("UNUSED_VARIABLE") mainIcon, @Suppress("UNUSED_VARIABLE") particleIcon, gradientColors) = rankIconData
     
-    // 创建超强视觉冲击的动画效果
-    val infiniteTransition = rememberInfiniteTransition(label = "rank_animation_$rank")
+    // 静态图标 - 使用第一个渐变色作为主色
+    val primaryColor = if (gradientColors.isNotEmpty()) gradientColors[0] else Color.Gray
     
-    // 彩虹渐变色循环动画 - 超强视觉冲击
-    val colorProgress = if (isTop) {
+    // 创建边框动画效果
+    val infiniteTransition = rememberInfiniteTransition(label = "rank_border_animation_$rank")
+    
+    // LED光点位置（角度，0-360度）
+    val ledLightAngle = if (isTop) {
         infiniteTransition.animateFloat(
             initialValue = 0f,
-            targetValue = 1f,
+            targetValue = 360f,
             animationSpec = infiniteRepeatable(
-                animation = tween(2000, easing = LinearEasing),
+                animation = tween(
+                    durationMillis = when (rank) {
+                        1 -> 2000  // 第1名转得快
+                        2 -> 2500  // 第2名
+                        3 -> 3000  // 第3名
+                        else -> 2000
+                    },
+                    easing = LinearEasing
+                ),
                 repeatMode = RepeatMode.Restart
             ),
-            label = "color_animation"
+            label = "led_light_angle"
         ).value
     } else 0f
     
-    // 强烈闪光效果 - 快速闪烁
-    val flashAlpha = if (isTop) {
+    // LED光点强度（呼吸效果）
+    val ledLightIntensity = if (isTop) {
         infiniteTransition.animateFloat(
-            initialValue = 0f,
+            initialValue = 0.7f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(
+                    durationMillis = 1500,
+                    easing = FastOutSlowInEasing
+                ),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "led_light_intensity"
+        ).value
+    } else 1f
+    
+    // 边框宽度动画 - 呼吸效果（增强）
+    val borderWidth = if (isTop) {
+        infiniteTransition.animateFloat(
+            initialValue = 3f,
+            targetValue = 5f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(
+                    durationMillis = when (rank) {
+                        1 -> 1200
+                        2 -> 1400
+                        3 -> 1600
+                        else -> 1200
+                    },
+                    easing = FastOutSlowInEasing
+                ),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "border_width_animation"
+        ).value.dp
+    } else 2.dp
+    
+    // 外发光强度动画 - 强烈闪烁
+    val outerGlowAlpha = if (isTop) {
+        infiniteTransition.animateFloat(
+            initialValue = 0.5f,
             targetValue = 1f,
             animationSpec = infiniteRepeatable(
                 animation = keyframes {
                     durationMillis = when (rank) {
-                        1 -> 1000
-                        2 -> 1200
-                        3 -> 1400
-                        else -> 1000
+                        1 -> 1500
+                        2 -> 1700
+                        3 -> 1900
+                        else -> 1500
                     }
-                    0f at 0
-                    1f at 100 using FastOutSlowInEasing
-                    0.3f at 200
+                    0.5f at 0
                     1f at 300 using FastOutSlowInEasing
-                    0f at durationMillis
+                    0.7f at 600
+                    1f at 900 using FastOutSlowInEasing
+                    0.5f at durationMillis
                 },
                 repeatMode = RepeatMode.Restart
             ),
-            label = "flash_animation"
+            label = "outer_glow_animation"
         ).value
-    } else 0f
+    } else 0.5f
     
-    // 冲击波扩散效果
-    val shockwaveScale = if (isTop) {
+    // 内发光强度动画
+    val innerGlowAlpha = if (isTop) {
+        // 第3名使用更高的最小透明度，确保边框清晰可见
+        val minAlpha = if (rank == 3) 0.75f else 0.4f
+        val maxAlpha = 1f
         infiniteTransition.animateFloat(
-            initialValue = 0.5f,
-            targetValue = 2.5f,
+            initialValue = minAlpha,
+            targetValue = maxAlpha,
             animationSpec = infiniteRepeatable(
-                animation = tween(1500, easing = LinearOutSlowInEasing),
+                animation = keyframes {
+                    durationMillis = when (rank) {
+                        1 -> 1800
+                        2 -> 2000
+                        3 -> 2200
+                        else -> 1800
+                    }
+                    minAlpha at 0
+                    maxAlpha at 400 using FastOutSlowInEasing
+                    (minAlpha + 0.15f) at 800
+                    maxAlpha at 1200 using FastOutSlowInEasing
+                    minAlpha at durationMillis
+                },
                 repeatMode = RepeatMode.Restart
             ),
-            label = "shockwave_animation"
+            label = "inner_glow_animation"
         ).value
-    } else 1f
-    
-    // 计算当前渐变色
-    val currentGradientColor = if (gradientColors.isNotEmpty()) {
-        val colorIndex = (colorProgress * gradientColors.size).toInt() % gradientColors.size
-        val nextColorIndex = (colorIndex + 1) % gradientColors.size
-        val fraction = (colorProgress * gradientColors.size) % 1f
-        
-        androidx.compose.ui.graphics.lerp(
-            gradientColors[colorIndex],
-            gradientColors[nextColorIndex],
-            fraction
-        )
-    } else Color.Gray
+    } else 0.4f
     
     Row(
         modifier = Modifier
@@ -498,7 +548,7 @@ fun LeaderboardItemRow(
             .background(
                 color = when {
                     isPlayer -> Color(0xFF4CAF50).copy(alpha = 0.3f)
-                    isTop -> currentGradientColor.copy(alpha = 0.15f) // 使用渐变色作为背景
+                    isTop -> primaryColor.copy(alpha = 0.15f * innerGlowAlpha) // 使用主色作为背景，内发光效果
                     else -> Color.Transparent
                 },
                 shape = RoundedCornerShape(8.dp)
@@ -511,11 +561,88 @@ fun LeaderboardItemRow(
                         shape = RoundedCornerShape(8.dp)
                     )
                 } else if (isTop) {
-                    Modifier.border(
-                        width = 2.dp,
-                        brush = Brush.linearGradient(gradientColors),
-                        shape = RoundedCornerShape(8.dp)
-                    )
+                    // LED光效边框 - 光线围绕边框旋转
+                    Modifier
+                        .drawBehind {
+                            val centerX = size.width / 2f
+                            val centerY = size.height / 2f
+                            
+                            // 绘制多个LED光点，形成流光效果
+                            for (i in 0 until 4) {
+                                val angle = Math.toRadians((ledLightAngle + i * 90f).toDouble())
+                                val lightAlpha = ledLightIntensity * (1f - i * 0.2f).coerceIn(0.3f, 1f)
+                                
+                                // 计算光点在边框上的位置
+                                // 从中心向外延伸到边框边缘
+                                var x: Float
+                                var y: Float
+                                
+                                // 根据角度判断光点在哪条边上
+                                val cosValue = kotlin.math.cos(angle).toFloat()
+                                val sinValue = kotlin.math.sin(angle).toFloat()
+                                
+                                // 计算光线与边框的交点
+                                val slope = if (kotlin.math.abs(cosValue) > 0.001f) sinValue / cosValue else Float.MAX_VALUE
+                                
+                                when {
+                                    // 右边（0-45度或315-360度，或135-225度）
+                                    kotlin.math.abs(cosValue) > kotlin.math.abs(sinValue) && cosValue > 0 -> {
+                                        x = size.width - borderWidth.toPx() / 2f
+                                        y = centerY + (x - centerX) * slope
+                                    }
+                                    // 左边
+                                    kotlin.math.abs(cosValue) > kotlin.math.abs(sinValue) && cosValue < 0 -> {
+                                        x = borderWidth.toPx() / 2f
+                                        y = centerY + (x - centerX) * slope
+                                    }
+                                    // 下边
+                                    kotlin.math.abs(sinValue) > kotlin.math.abs(cosValue) && sinValue > 0 -> {
+                                        y = size.height - borderWidth.toPx() / 2f
+                                        x = centerX + (y - centerY) / slope
+                                    }
+                                    // 上边
+                                    else -> {
+                                        y = borderWidth.toPx() / 2f
+                                        x = centerX + (y - centerY) / slope
+                                    }
+                                }
+                                
+                                // 确保坐标在有效范围内
+                                x = x.coerceIn(borderWidth.toPx(), size.width - borderWidth.toPx())
+                                y = y.coerceIn(borderWidth.toPx(), size.height - borderWidth.toPx())
+                                
+                                // 绘制LED光点
+                                drawCircle(
+                                    brush = Brush.radialGradient(
+                                        colors = listOf(
+                                            primaryColor.copy(alpha = lightAlpha),
+                                            primaryColor.copy(alpha = lightAlpha * 0.5f),
+                                            Color.Transparent
+                                        )
+                                    ),
+                                    radius = borderWidth.toPx() * 4f,
+                                    center = androidx.compose.ui.geometry.Offset(x, y)
+                                )
+                            }
+                        }
+                        // 主边框 - 渐变色
+                        // 第3名市值排行榜使用更高的不透明度，确保边框清晰可见
+                        .border(
+                            width = borderWidth,
+                            brush = Brush.linearGradient(
+                                colors = if (rank == 3 && leaderboardType == LeaderboardType.MARKET_VALUE) {
+                                    // 第3名市值排行榜：使用至少0.85的alpha值，确保边框清晰
+                                    gradientColors.map { it.copy(alpha = innerGlowAlpha.coerceAtLeast(0.85f)) }
+                                } else {
+                                    gradientColors.map { it.copy(alpha = innerGlowAlpha) }
+                                }
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .graphicsLayer {
+                            // 阴影发光效果
+                            shadowElevation = outerGlowAlpha * 16f
+                        }
                 } else {
                     Modifier
                 }
@@ -523,42 +650,21 @@ fun LeaderboardItemRow(
             .padding(horizontal = 18.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 超炫酷的动态图标区域（前3名）
+        // 图标区域（前3名显示数字，其他显示数字）
         Box(
             modifier = Modifier.size(56.dp),
             contentAlignment = Alignment.Center
         ) {
-            if (isTop && mainIcon.isNotEmpty()) {
-                // 冲击波扩散层（爆炸效果）
-                Box(
-                    modifier = Modifier
-                        .size((40 * shockwaveScale).dp)
-                        .graphicsLayer {
-                            alpha = (1f - (shockwaveScale - 0.5f) / 2f).coerceIn(0f, 1f) * 0.6f
-                        }
-                        .background(
-                            brush = Brush.radialGradient(
-                                colors = listOf(
-                                    currentGradientColor.copy(alpha = 0.8f),
-                                    Color.Transparent
-                                )
-                            ),
-                            shape = CircleShape
-                        )
-                )
-                
-                // 强烈闪光层
+            if (isTop) {
+                // 前3名 - 带特效的数字
+                // 背景光晕
                 Box(
                     modifier = Modifier
                         .size(50.dp)
-                        .graphicsLayer {
-                            alpha = flashAlpha * 0.9f
-                        }
                         .background(
                             brush = Brush.radialGradient(
                                 colors = listOf(
-                                    Color.White,
-                                    currentGradientColor,
+                                    primaryColor.copy(alpha = 0.3f),
                                     Color.Transparent
                                 )
                             ),
@@ -566,41 +672,15 @@ fun LeaderboardItemRow(
                         )
                 )
                 
-                // 粒子层 - 围绕主图标的装饰粒子
-                if (particleIcon.isNotEmpty()) {
-                    // 4个粒子环绕在四个方向
-                    val particlePositions = listOf(
-                        Pair(20.dp, 0.dp),    // 右
-                        Pair(-20.dp, 0.dp),   // 左
-                        Pair(0.dp, -20.dp),   // 上
-                        Pair(0.dp, 20.dp)     // 下
-                    )
-                    
-                    particlePositions.forEach { (xOffset, yOffset) ->
-                        Text(
-                            text = particleIcon,
-                            fontSize = 16.sp,
-                            modifier = Modifier
-                                .offset(x = xOffset, y = yOffset)
-                                .graphicsLayer {
-                                    alpha = flashAlpha * 0.8f
-                                }
-                        )
-                    }
-                }
-                
-                // 主图标 - 超大尺寸
+                // 数字显示 - 使用渐变色
                 Text(
-                    text = mainIcon,
-                    fontSize = 40.sp,
-                    modifier = Modifier
-                        .graphicsLayer {
-                            // 强烈的阴影效果
-                            shadowElevation = 16f
-                            // 轻微缩放（保持图标稳定可见）
-                            scaleX = 1f + flashAlpha * 0.1f
-                            scaleY = 1f + flashAlpha * 0.1f
-                        }
+                    text = rank.toString(),
+                    fontSize = 36.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = primaryColor,
+                    modifier = Modifier.graphicsLayer {
+                        shadowElevation = 8f
+                    }
                 )
             } else {
                 // 第4-5名显示普通数字
@@ -671,14 +751,14 @@ fun LeaderboardItemRow(
         ) {
             Text(
                 text = item.value,
-                color = if (isTop) currentGradientColor else Color.White,
+                color = if (isTop) primaryColor else Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp
             )
             if (item.extraInfo.isNotEmpty()) {
                 Text(
                     text = item.extraInfo,
-                    color = if (isTop) currentGradientColor.copy(alpha = 0.9f) else Color(0xFFFFD700),
+                    color = if (isTop) primaryColor.copy(alpha = 0.9f) else Color(0xFFFFD700),
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(top = 2.dp)
@@ -742,7 +822,7 @@ fun getTopCompaniesByMarketValue(saveData: SaveData): List<LeaderboardItem> {
  * 获取粉丝最多的公司（前5）
  */
 fun getTopCompaniesByFans(saveData: SaveData): List<LeaderboardItem> {
-    val allCompanies = mutableListOf<Pair<String, Int>>()
+    val allCompanies = mutableListOf<Pair<String, Long>>()
     allCompanies.add(Pair(saveData.companyName, saveData.fans))
     saveData.competitors.forEach { competitor ->
         allCompanies.add(Pair(competitor.name, competitor.fans))
@@ -771,8 +851,8 @@ fun getTopOnlineGames(saveData: SaveData): List<LeaderboardItem> {
     // 玩家的网游（包含已发售和已评分的游戏）
     saveData.games.filter { 
         it.businessModel == BusinessModel.ONLINE_GAME && 
-        (it.releaseStatus == com.example.yjcy.data.GameReleaseStatus.RELEASED || 
-         it.releaseStatus == com.example.yjcy.data.GameReleaseStatus.RATED)
+        (it.releaseStatus == GameReleaseStatus.RELEASED || 
+         it.releaseStatus == GameReleaseStatus.RATED)
     }.forEach { game ->
             // 从RevenueManager获取活跃玩家数（考虑兴趣值影响）
             val activePlayers = com.example.yjcy.data.RevenueManager.getActivePlayers(game.id)
@@ -784,7 +864,7 @@ fun getTopOnlineGames(saveData: SaveData): List<LeaderboardItem> {
             } ?: 0.0
             
             allOnlineGames.add(
-                Tuple4<String, String, Long, Double>(
+                Tuple4(
                     game.name,
                     saveData.companyName,
                     activePlayers,
@@ -798,7 +878,7 @@ fun getTopOnlineGames(saveData: SaveData): List<LeaderboardItem> {
         competitor.games.filter { it.businessModel == BusinessModel.ONLINE_GAME }
             .forEach { game ->
                 allOnlineGames.add(
-                    Tuple4<String, String, Long, Double>(
+                    Tuple4(
                         game.name,
                         competitor.name,
                         game.activePlayers,
@@ -843,8 +923,8 @@ fun getTopOnlineGamesWithFluctuation(saveData: SaveData): List<LeaderboardItem> 
     // 玩家的网游（包含已发售和已评分的游戏）
     saveData.games.filter { 
         it.businessModel == BusinessModel.ONLINE_GAME && 
-        (it.releaseStatus == com.example.yjcy.data.GameReleaseStatus.RELEASED || 
-         it.releaseStatus == com.example.yjcy.data.GameReleaseStatus.RATED)
+        (it.releaseStatus == GameReleaseStatus.RELEASED || 
+         it.releaseStatus == GameReleaseStatus.RATED)
     }.forEach { game ->
             // 从RevenueManager获取活跃玩家数（考虑兴趣值影响）
             val basePlayers = com.example.yjcy.data.RevenueManager.getActivePlayers(game.id)
@@ -860,7 +940,7 @@ fun getTopOnlineGamesWithFluctuation(saveData: SaveData): List<LeaderboardItem> 
             } ?: 0.0
             
             allOnlineGames.add(
-                Tuple4<String, String, Long, Double>(
+                Tuple4(
                     game.name,
                     saveData.companyName,
                     activePlayers,
@@ -911,8 +991,8 @@ fun getTopSinglePlayerGames(saveData: SaveData): List<LeaderboardItem> {
     // 玩家的单机游戏（包含已发售和已评分的游戏）
     saveData.games.filter { 
         it.businessModel == BusinessModel.SINGLE_PLAYER && 
-        (it.releaseStatus == com.example.yjcy.data.GameReleaseStatus.RELEASED || 
-         it.releaseStatus == com.example.yjcy.data.GameReleaseStatus.RATED)
+        (it.releaseStatus == GameReleaseStatus.RELEASED || 
+         it.releaseStatus == GameReleaseStatus.RATED)
     }.forEach { game ->
         // 从RevenueManager获取真实销量
         val gameRevenue = com.example.yjcy.data.RevenueManager.getGameRevenue(game.id)
@@ -1069,7 +1149,7 @@ fun NewsCard(news: CompetitorNews) {
 @Composable
 fun CompetitorsListContent(
     saveData: SaveData,
-    onAcquisitionSuccess: (CompetitorCompany, Long, Long, Int, List<GameIP>) -> Unit = { _, _, _, _, _ -> },
+    onAcquisitionSuccess: (CompetitorCompany, Long, Long, Long, List<GameIP>) -> Unit = { _, _, _, _, _ -> },
     onAIWin: (CompetitorCompany, CompetitorCompany, Long) -> Unit = { _, _, _ -> } // AI获胜回调
 ) {
     var selectedCompetitor by remember { mutableStateOf<CompetitorCompany?>(null) }
@@ -1133,7 +1213,7 @@ fun CompetitorsListContent(
             competitor = selectedCompetitor!!,
             onDismiss = { selectedCompetitor = null },
             saveData = saveData,
-            onAcquisitionSuccess = { company: CompetitorCompany, price: Long, marketValueGain: Long, fansGain: Int, ips: List<GameIP> ->
+            onAcquisitionSuccess = { company: CompetitorCompany, price: Long, marketValueGain: Long, fansGain: Long, ips: List<GameIP> ->
                 // 收购成功后关闭对话框，并触发外层回调
                 selectedCompetitor = null
                 onAcquisitionSuccess(company, price, marketValueGain, fansGain, ips)
@@ -1289,7 +1369,7 @@ fun CompetitorDetailDialog(
     onDismiss: () -> Unit,
     saveData: SaveData,
     gameSpeed: Int = 1,
-    onAcquisitionSuccess: (CompetitorCompany, Long, Long, Int, List<GameIP>) -> Unit = { _, _, _, _, _ -> },
+    onAcquisitionSuccess: (CompetitorCompany, Long, Long, Long, List<GameIP>) -> Unit = { _, _, _, _, _ -> },
     onAIWin: (CompetitorCompany, CompetitorCompany, Long) -> Unit = { _, _, _ -> } // AI获胜回调
 ) {
     var showAcquisitionDialog by remember { mutableStateOf(false) }
@@ -1422,7 +1502,7 @@ fun CompetitorDetailDialog(
             playerMarketValue = playerMarketValue,
             gameSpeed = gameSpeed,
             onDismiss = { showAcquisitionDialog = false },
-            onSuccess = { finalPrice: Long, marketValueGain: Long, fansGain: Int, inheritedIPs: List<GameIP> ->
+            onSuccess = { finalPrice: Long, marketValueGain: Long, fansGain: Long, inheritedIPs: List<GameIP> ->
                 showAcquisitionDialog = false
                 onDismiss()
                 onAcquisitionSuccess(competitor, finalPrice, marketValueGain, fansGain, inheritedIPs)
@@ -1682,7 +1762,7 @@ fun CompetitorGameCard(game: CompetitorGame) {
                     modifier = Modifier.weight(1f)
                 )
                 Text(
-                    text = "⭐${String.format("%.1f", game.rating)}",
+                    text = "⭐${String.format(Locale.getDefault(), "%.1f", game.rating)}",
                     color = Color(0xFFFFD700),
                     fontSize = 12.sp
                 )
@@ -1737,9 +1817,9 @@ fun AcquisitionDialog(
     targetCompany: CompetitorCompany,
     saveData: SaveData,
     playerMarketValue: Long,
-    gameSpeed: Int = 1,
+    @Suppress("UNUSED_PARAMETER") gameSpeed: Int = 1,
     onDismiss: () -> Unit,
-    onSuccess: (Long, Long, Int, List<GameIP>) -> Unit,
+    onSuccess: (Long, Long, Long, List<GameIP>) -> Unit,
     onAIWin: (CompetitorCompany, CompetitorCompany, Long) -> Unit = { _, _, _ -> } // AI获胜回调：(收购方, 被收购方, 价格)
 ) {
     // 检查资格
@@ -1754,7 +1834,7 @@ fun AcquisitionDialog(
     
     // 竞价状态
     var biddingPhase by remember { mutableStateOf("checking") } // checking, bidding, finished
-    var currentPrice by remember { mutableStateOf(0L) }
+    var currentPrice by remember { mutableLongStateOf(0L) }
     var currentLeader by remember { mutableStateOf("") }
     var biddingHistory by remember { mutableStateOf(listOf<com.example.yjcy.data.AcquisitionBid>()) }
     var biddingCompetitors by remember { mutableStateOf(listOf<CompetitorCompany>()) }
@@ -1763,16 +1843,16 @@ fun AcquisitionDialog(
     var showResult by remember { mutableStateOf(false) }
     
     // 玩家加价触发器
-    var triggerAIBidding by remember { mutableStateOf(0) }
+    var triggerAIBidding by remember { mutableIntStateOf(0) }
     
     // 倒计时状态（秒）
-    var countdown by remember { mutableStateOf(0) }
+    var countdown by remember { mutableIntStateOf(0) }
     
     // AI竞价处理中标志（防止并发执行）
     var isProcessingAIBidding by remember { mutableStateOf(false) }
     
     // 收购成功结果状态（用于无竞争对手时的可靠回调）
-    var pendingSuccessResult by remember { mutableStateOf<Triple<Long, Long, Pair<Int, List<GameIP>>>?>(null) }
+    var pendingSuccessResult by remember { mutableStateOf<Triple<Long, Long, Pair<Long, List<GameIP>>>?>(null) }
     var hasTriggeredSuccessCallback by remember { mutableStateOf(false) }
     
     // 玩家加价函数
@@ -1872,7 +1952,7 @@ fun AcquisitionDialog(
                     }
                     
                     resultMessage = "😞 收购失败\n\n" +
-                        "${currentLeader} 以 ${formatMoney(currentPrice)} 的价格\n" +
+                        "$currentLeader 以 ${formatMoney(currentPrice)} 的价格\n" +
                         "成功收购了 ${targetCompany.name}"
                     
                     showResult = true

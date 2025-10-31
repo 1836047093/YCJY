@@ -43,6 +43,8 @@ fun ApplicantManagementDialog(
     val isEmployeeFull = currentEmployeeCount >= maxEmployees
     val jobPostingService = remember { JobPostingService.getInstance() }
     var currentJobPosting by remember { mutableStateOf(jobPosting) }
+    var showHireSuccessDialog by remember { mutableStateOf(false) }
+    var hiredEmployeeName by remember { mutableStateOf("") }
     
     // 定期更新岗位信息
     LaunchedEffect(jobPosting.id) {
@@ -356,6 +358,8 @@ fun ApplicantManagementDialog(
                                         )
                                         if (candidate != null) {
                                             onApplicantHired(candidate)
+                                            hiredEmployeeName = candidate.name
+                                            showHireSuccessDialog = true
                                             currentJobPosting = jobPostingService.getJobPosting(currentJobPosting.id) ?: currentJobPosting
                                         }
                                     }
@@ -366,6 +370,49 @@ fun ApplicantManagementDialog(
                 }
             }
         }
+    }
+    
+    // 成功雇佣提示对话框
+    if (showHireSuccessDialog) {
+        AlertDialog(
+            onDismissRequest = { showHireSuccessDialog = false },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Text(
+                        text = "雇佣成功",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Text(
+                    text = "已成功雇佣 $hiredEmployeeName！\n\n员工已加入您的团队，可以在员工管理页面查看。",
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showHireSuccessDialog = false },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text("确定")
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(16.dp)
+        )
     }
     }
 
