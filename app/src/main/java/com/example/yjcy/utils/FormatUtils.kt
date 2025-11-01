@@ -5,17 +5,29 @@ import java.util.Date
 
 /**
  * 资金格式化函数
- * 支持正数和负数的 K/M/B/T 单位显示
+ * 支持正数和负数的 K/M/B/T 单位显示，带小数位
  */
 fun formatMoney(amount: Long): String {
     val absAmount = kotlin.math.abs(amount)
     val sign = if (amount < 0) "-" else ""
     
     return when {
-        absAmount >= 1_000_000_000_000L -> "$sign${absAmount / 1_000_000_000_000L}T"
-        absAmount >= 1_000_000_000L -> "$sign${absAmount / 1_000_000_000L}B"
-        absAmount >= 1_000_000L -> "$sign${absAmount / 1_000_000L}M"
-        absAmount >= 1_000L -> "$sign${absAmount / 1_000L}K"
+        absAmount >= 1_000_000_000_000L -> {
+            val value = absAmount / 1_000_000_000_000.0
+            "$sign${String.format("%.2f", value)}T"
+        }
+        absAmount >= 1_000_000_000L -> {
+            val value = absAmount / 1_000_000_000.0
+            "$sign${String.format("%.2f", value)}B"
+        }
+        absAmount >= 1_000_000L -> {
+            val value = absAmount / 1_000_000.0
+            "$sign${String.format("%.2f", value)}M"
+        }
+        absAmount >= 1_000L -> {
+            val value = absAmount / 1_000.0
+            "$sign${String.format("%.2f", value)}K"
+        }
         else -> amount.toString()
     }
 }

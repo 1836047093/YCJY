@@ -609,10 +609,10 @@ object RevenueManager {
      * 计算下一次更新成本（随更新次数递增，带成本上限）
      * 
      * **单机游戏**（DLC/资料片性质）：
-     * - 基础成本：80,000元
+     * - 基础成本：120,000元
      * - 递增系数：1.25（每次+25%）
-     * - 成本上限：300,000元（第7次达到）
-     * - 价格梯度：80K → 100K → 125K → 156K → 195K → 244K → 300K（上限）
+     * - 成本上限：450,000元（第7次达到）
+     * - 价格梯度：120K → 150K → 187.5K → 234.4K → 293K → 366.2K → 450K（上限）
      * 
      * **网络游戏**（持续运营性质）：
      * - 基础成本：40,000元
@@ -621,7 +621,7 @@ object RevenueManager {
      * - 价格梯度：40K → 50K → 62.5K → 78K → 97.5K → 122K → 150K（上限）
      * 
      * **设计理念**：
-     * - 单机游戏基础成本是网游的2倍，符合DLC性质
+     * - 单机游戏基础成本是网游的3倍，符合DLC性质
      * - 设置成本上限防止后期成本过高导致游戏失衡
      * - 第7次更新后达到上限，保持固定成本
      * - 鼓励玩家持续维护游戏，但不会无限膨胀
@@ -635,7 +635,7 @@ object RevenueManager {
         
         // 根据商业模式设置不同的基础成本和上限
         val (base, maxCost) = when (businessModel) {
-            com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER -> Pair(80_000.0, 300_000.0)  // 单机：基础80K，上限300K
+            com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER -> Pair(120_000.0, 450_000.0)  // 单机：基础120K，上限450K
             com.example.yjcy.ui.BusinessModel.ONLINE_GAME -> Pair(40_000.0, 150_000.0)     // 网游：基础40K，上限150K
         }
         
@@ -703,8 +703,8 @@ object RevenueManager {
     fun createUpdateTask(gameId: String, features: List<String>, announcement: String = ""): GameUpdateTask? {
         val current = gameRevenueMap[gameId] ?: return null
         if (current.updateTask != null) return current.updateTask
-        // 简单估算：每个特性 100 进度点
-        val required = (features.size * 100).coerceAtLeast(100)
+        // 每个特性需要 150 进度点（提高难度，延长更新时间）
+        val required = (features.size * 150).coerceAtLeast(150)
         val task = GameUpdateTask(features = features, requiredPoints = required, announcement = announcement)
         gameRevenueMap[gameId] = current.copy(updateTask = task)
         saveRevenueData()
@@ -718,7 +718,8 @@ object RevenueManager {
      * @return 每日进度点
      */
     fun calculateUpdateProgressPoints(employees: List<com.example.yjcy.data.Employee>): Int {
-        if (employees.isEmpty()) return 10 // 最少10点
+        // 未分配员工时，进度条不增长
+        if (employees.isEmpty()) return 0
         
         // 计算各技能的平均等级
         val avgDevelopment = employees.map { it.skillDevelopment }.average().toFloat()
@@ -729,25 +730,25 @@ object RevenueManager {
         // 更新任务主要依赖开发技能（60%），其次是设计（20%）、美工（15%）、音乐（5%）
         val weightedAvgSkill = (avgDevelopment * 0.6f + avgDesign * 0.2f + avgArt * 0.15f + avgMusic * 0.05f)
         
-        // 基础进度：每人每天20点
-        val basePointsPerEmployee = 20
+        // 基础进度：每人每天12点（降低更新速度，延长更新时间）
+        val basePointsPerEmployee = 12
         
-        // 技能倍率：1级=0.5x, 2级=0.8x, 3级=1.0x, 4级=1.3x, 5级=1.6x
+        // 技能倍率：1级=0.4x, 2级=0.6x, 3级=0.8x, 4级=1.0x, 5级=1.2x（降低倍率，延长更新时间）
         val skillMultiplier = when {
-            weightedAvgSkill >= 5f -> 1.6f
-            weightedAvgSkill >= 4f -> 1.3f
-            weightedAvgSkill >= 3f -> 1.0f
-            weightedAvgSkill >= 2f -> 0.8f
-            else -> 0.5f
+            weightedAvgSkill >= 5f -> 1.2f
+            weightedAvgSkill >= 4f -> 1.0f
+            weightedAvgSkill >= 3f -> 0.8f
+            weightedAvgSkill >= 2f -> 0.6f
+            else -> 0.4f
         }
         
-        // 人数倍率：1人=1.0x, 2人=1.2x, 3人=1.4x, 4人=1.6x, 5人=1.8x, 10人=3.0x（封顶）
-        val countMultiplier = (1.0f + (employees.size - 1) * 0.2f).coerceAtMost(3.0f)
+        // 人数倍率：1人=1.0x, 2人=1.1x, 3人=1.2x, 4人=1.3x, 5人=1.4x, 10人=2.0x（封顶，降低增长速度和上限）
+        val countMultiplier = (1.0f + (employees.size - 1) * 0.1f).coerceAtMost(2.0f)
         
         // 计算总进度点
         val totalPoints = (employees.size * basePointsPerEmployee * skillMultiplier * countMultiplier).toInt()
         
-        return totalPoints.coerceAtLeast(10) // 最少10点
+        return totalPoints.coerceAtLeast(5) // 最少5点（当有员工时）
     }
     
     /**

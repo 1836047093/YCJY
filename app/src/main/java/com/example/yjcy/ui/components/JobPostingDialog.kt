@@ -50,8 +50,9 @@ fun JobPostingDialog(
     
     // 表单状态
     var selectedPosition by remember { mutableStateOf<String?>(null) }
+    var skillLevel by remember { mutableIntStateOf(1) } // 专属技能等级（1-5级）
     var salary by remember { mutableIntStateOf(10000) }
-    var currentStep by remember { mutableIntStateOf(1) } // 1: 选择岗位, 2: 设置薪资
+    var currentStep by remember { mutableIntStateOf(1) } // 1: 选择岗位, 2: 设置薪资和技能等级
     
     val positions = FilterCriteria.getAvailablePositions()
     
@@ -64,16 +65,28 @@ fun JobPostingDialog(
         "客服" to PositionInfo("💬", "服务", 1, "处理客户服务", Color(0xFFEC4899))
     )
     
-    // 根据岗位获取对应的最低技能等级（默认1级）
-    val minSkillLevel = positionInfo[selectedPosition]?.minLevel ?: 1
+    // 根据岗位获取对应的技能类型
+    val skillType = positionInfo[selectedPosition]?.skillType ?: "开发"
     
     // 根据技能等级计算最低薪资标准（硬性要求）
-    val minSalaryRequired = minSkillLevel * 10000
+    val minSalaryRequired = skillLevel * 10000
     
-    // 如果选择的岗位改变了，自动调整薪资到最低标准
+    // 如果选择的岗位改变了，重置技能等级和薪资
     LaunchedEffect(selectedPosition) {
-        if (selectedPosition != null && salary < minSalaryRequired) {
-            salary = minSalaryRequired
+        if (selectedPosition != null) {
+            skillLevel = 1 // 重置为1级
+            val newMinSalary = skillLevel * 10000
+            if (salary < newMinSalary) {
+                salary = newMinSalary
+            }
+        }
+    }
+    
+    // 如果技能等级改变了，自动调整薪资到最低标准
+    LaunchedEffect(skillLevel) {
+        val newMinSalary = skillLevel * 10000
+        if (salary < newMinSalary) {
+            salary = newMinSalary
         }
     }
     
@@ -143,7 +156,7 @@ fun JobPostingDialog(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = if (currentStep == 1) "第1步：选择岗位" else "第2步：设置薪资",
+                                text = if (currentStep == 1) "第1步：选择岗位" else "第2步：设置技能等级和薪资",
                                 fontSize = 14.sp,
                                 color = Color.White.copy(alpha = 0.7f)
                             )
@@ -168,7 +181,7 @@ fun JobPostingDialog(
                 ) {
                     StepIndicator(step = 1, currentStep = currentStep, label = "选择岗位")
                     Spacer(modifier = Modifier.weight(1f))
-                    StepIndicator(step = 2, currentStep = currentStep, label = "设置薪资")
+                    StepIndicator(step = 2, currentStep = currentStep, label = "设置条件")
                 }
                 
                 // 内容区域
@@ -206,7 +219,7 @@ fun JobPostingDialog(
                                 positions.chunked(2).forEach { rowPositions ->
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(16.dp)
                                     ) {
                                         rowPositions.forEach { position ->
                                             val info = positionInfo[position]
@@ -284,6 +297,96 @@ fun JobPostingDialog(
                                             ) {
                                                 Text("更改", color = Color.White.copy(alpha = 0.8f))
                                             }
+                                        }
+                                    }
+                                }
+                                
+                                // 专属技能等级设置
+                                Text(
+                                    text = "设置专属技能等级",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White
+                                )
+                                
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = Color(0xFF0F172A)
+                                    ),
+                                    shape = RoundedCornerShape(16.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(20.dp),
+                                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column {
+                                                Text(
+                                                    text = "${skillType}技能等级",
+                                                    fontSize = 14.sp,
+                                                    color = Color.White.copy(alpha = 0.7f)
+                                                )
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "Lv.$skillLevel",
+                                                        fontSize = 32.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = selectedPosition?.let { positionInfo[it]?.color } ?: Color.White
+                                                    )
+                                                    Text(
+                                                        text = when (skillLevel) {
+                                                            5 -> "⭐ 专家级"
+                                                            4 -> "⭐ 高级"
+                                                            3 -> "⭐ 中级"
+                                                            2 -> "⭐ 初级"
+                                                            else -> "⭐ 入门"
+                                                        },
+                                                        fontSize = 14.sp,
+                                                        color = Color.White.copy(alpha = 0.7f)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        
+                                        // 技能等级滑块
+                                        Slider(
+                                            value = skillLevel.toFloat(),
+                                            onValueChange = { 
+                                                skillLevel = it.toInt().coerceIn(1, 5)
+                                            },
+                                            valueRange = 1f..5f,
+                                            steps = 3, // 1, 2, 3, 4, 5
+                                            modifier = Modifier.fillMaxWidth(),
+                                            colors = SliderDefaults.colors(
+                                                thumbColor = selectedPosition?.let { positionInfo[it]?.color } ?: Color.White,
+                                                activeTrackColor = selectedPosition?.let { positionInfo[it]?.color } ?: Color.White,
+                                                inactiveTrackColor = Color.White.copy(alpha = 0.2f)
+                                            )
+                                        )
+                                        
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = "Lv.1 入门",
+                                                fontSize = 12.sp,
+                                                color = Color.White.copy(alpha = 0.5f)
+                                            )
+                                            Text(
+                                                text = "Lv.5 专家",
+                                                fontSize = 12.sp,
+                                                color = Color.White.copy(alpha = 0.5f)
+                                            )
                                         }
                                     }
                                 }
@@ -404,7 +507,7 @@ fun JobPostingDialog(
                                 
                                 jobPostingService.createJobPosting(
                                     position = position,
-                                    minSkillLevel = skillInfo?.minLevel ?: 1,
+                                    minSkillLevel = skillLevel,
                                     minSalary = salary,
                                     maxSalary = salary
                                 )
@@ -443,7 +546,7 @@ data class PositionInfo(
     val color: Color
 )
 
-// 岗位卡片组件
+// 岗位卡片组件 - 现代化设计（无边框方框）
 @Composable
 fun PositionCard(
     position: String,
@@ -452,61 +555,96 @@ fun PositionCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val scale by animateFloatAsState(
-        targetValue = if (isSelected) 1.05f else 1f,
-        animationSpec = spring(Spring.DampingRatioMediumBouncy),
-        label = "position_scale"
-    )
+    val cardColor = info?.color ?: Color(0xFF6B7280)
     
-    Card(
-        onClick = onClick,
+    Box(
         modifier = modifier
-            .height(120.dp)
-            .scale(scale),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) {
-                info?.color?.copy(alpha = 0.3f) ?: Color.White.copy(alpha = 0.2f)
-            } else {
-                Color.White.copy(alpha = 0.1f)
-            }
-        ),
-        border = androidx.compose.foundation.BorderStroke(
-            width = if (isSelected) 2.dp else 1.dp,
-            color = if (isSelected) {
-                info?.color ?: Color.White
-            } else {
-                Color.White.copy(alpha = 0.3f)
-            }
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isSelected) 8.dp else 2.dp
-        )
+            .defaultMinSize(minHeight = 160.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .clickable(onClick = onClick)
+            .background(
+                // 基础背景层 - 增强可见性
+                color = if (isSelected) {
+                    cardColor.copy(alpha = 0.12f)
+                } else {
+                    Color.White.copy(alpha = 0.15f)
+                }
+            )
+            .background(
+                brush = Brush.radialGradient(
+                    colors = if (isSelected) {
+                        listOf(
+                            cardColor.copy(alpha = 0.3f),
+                            cardColor.copy(alpha = 0.18f),
+                            cardColor.copy(alpha = 0.08f)
+                        )
+                    } else {
+                        listOf(
+                            cardColor.copy(alpha = 0.12f),
+                            cardColor.copy(alpha = 0.06f),
+                            Color.Transparent
+                        )
+                    },
+                    radius = 200f
+                )
+            )
+            .then(
+                if (isSelected) {
+                    Modifier.background(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(
+                                cardColor.copy(alpha = 0.18f),
+                                Color.Transparent,
+                                cardColor.copy(alpha = 0.18f)
+                            )
+                        )
+                    )
+                } else {
+                    Modifier
+                }
+            )
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
+                .fillMaxWidth()
+                .padding(vertical = 18.dp, horizontal = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
                 text = info?.icon ?: "💼",
-                fontSize = 36.sp
+                fontSize = 40.sp
             )
-            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = position,
-                fontSize = 16.sp,
+                fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White
             )
-            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = info?.description ?: "",
-                fontSize = 11.sp,
+                fontSize = 12.sp,
                 color = Color.White.copy(alpha = 0.7f),
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                lineHeight = 14.sp
+            )
+        }
+        
+        // 选中状态的柔和光晕效果
+        if (isSelected) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                cardColor.copy(alpha = 0.1f),
+                                Color.Transparent
+                            ),
+                            radius = 150f
+                        )
+                    )
             )
         }
     }

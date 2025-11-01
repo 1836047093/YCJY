@@ -2,8 +2,6 @@ package com.example.yjcy.ui
 
 import com.example.yjcy.data.SkillConstants
 
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,13 +19,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.yjcy.data.Employee
-import com.example.yjcy.data.TalentCandidate
+import com.example.yjcy.data.JobPostingStatus
+import com.example.yjcy.data.ApplicantStatus
 import com.example.yjcy.ui.components.NewTalentMarketDialog
-import kotlin.random.Random
+import com.example.yjcy.utils.formatMoney
+import com.example.yjcy.service.JobPostingService
 
 @Composable
 fun EmployeeManagementContent(
@@ -48,6 +49,17 @@ fun EmployeeManagementContent(
     var filterType by remember { mutableStateOf("全部") }
     val listState = rememberLazyListState()
     
+    // 检查是否有待处理的应聘者
+    val jobPostingService = remember { JobPostingService.getInstance() }
+    val hasPendingApplicants by remember(jobPostingRefreshTrigger) {
+        derivedStateOf {
+            jobPostingService.getAllJobPostings()
+                .filter { it.status == JobPostingStatus.ACTIVE }
+                .any { jobPosting ->
+                    jobPosting.applicants.any { it.status == ApplicantStatus.PENDING }
+                }
+        }
+    }
     
     // 计算总薪资 - 使用remember缓存，避免每次重组都计算
     val totalSalary by remember(allEmployees) {
@@ -82,14 +94,21 @@ fun EmployeeManagementContent(
             )
             .padding(16.dp)
     ) {
-        // 标题
-        Text(
-            text = "👥 员工管理",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+        // 标题栏
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "👥 员工管理",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        }
         
         // 员工统计信息 - 卡片设计
         Row(
@@ -107,7 +126,7 @@ fun EmployeeManagementContent(
             )
             
             EmployeeStatItem(
-                value = "¥$totalSalary",
+                value = "¥${formatMoney(totalSalary.toLong())}",
                 label = "月薪总额",
                 icon = Icons.Default.AccountBalanceWallet,
                 color = Color(0xFFEF4444),
@@ -129,18 +148,23 @@ fun EmployeeManagementContent(
                 modifier = Modifier.weight(1f)
             )
             
-            // 人才市场入口按钮
-            ModernButton(
-                text = "人才市场",
-                icon = Icons.Default.PersonAdd,
-                onClick = { 
-                    showTalentMarketDialog = true
-                },
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF10B981)
+            // 人才市场入口按钮（带红点提示）
+            BadgeBox(
+                showBadge = hasPendingApplicants,
+                modifier = Modifier.weight(1f)
+            ) {
+                ModernButton(
+                    text = "人才市场",
+                    icon = Icons.Default.PersonAdd,
+                    onClick = { 
+                        showTalentMarketDialog = true
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF10B981)
+                    )
                 )
-            )
+            }
         }
         
         // 员工列表
@@ -234,8 +258,7 @@ fun EmployeeManagementContent(
                                     if (emp.id == employeeId) {
                                         // 只提升专属技能
                                         try {
-                                            val skillType = emp.getSpecialtySkillType()
-                                            when (skillType) {
+                                            when (val skillType = emp.getSpecialtySkillType()) {
                                                 "开发" -> emp.copy(
                                                     skillDevelopment = minOf(SkillConstants.MAX_SKILL_LEVEL, emp.skillDevelopment + skillBoost)
                                                 )
@@ -676,7 +699,7 @@ fun EnhancedEmployeeCard(
                     Spacer(modifier = Modifier.height(8.dp))
                     
                     Text(
-                        text = "¥${employee.salary}/月",
+                        text = "¥${formatMoney(employee.salary.toLong())}/月",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Color(0xFF4CAF50)
@@ -726,121 +749,6 @@ fun EnhancedEmployeeCard(
         HorizontalDivider(
             color = Color.White.copy(alpha = 0.1f),
             modifier = Modifier.padding(top = 12.dp)
-        )
-    }
-}
-
-@Composable
-fun StaminaBar(
-    stamina: Int,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = "体力",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            modifier = Modifier.width(40.dp)
-        )
-        
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(8.dp)
-                .background(
-                    color = Color.Gray.copy(alpha = 0.2f),
-                    shape = RoundedCornerShape(4.dp)
-                )
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(stamina / 100f)
-                    .background(
-                        brush = Brush.horizontalGradient(
-                            colors = when {
-                                stamina >= 70 -> listOf(Color(0xFF10B981), Color(0xFF34D399)) // 绿色：体力充足
-                                stamina >= 30 -> listOf(Color(0xFFF59E0B), Color(0xFFFBBF24)) // 黄色：体力中等
-                                else -> listOf(Color(0xFFEF4444), Color(0xFFF87171)) // 红色：体力不足
-                            }
-                        ),
-                        shape = RoundedCornerShape(4.dp)
-                    )
-            )
-        }
-        
-        Text(
-            text = "$stamina%",
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            color = when {
-                stamina >= 70 -> Color(0xFF10B981)
-                stamina >= 30 -> Color(0xFFF59E0B)
-                else -> Color(0xFFEF4444)
-            },
-            modifier = Modifier.padding(start = 8.dp)
-        )
-    }
-}
-
-@Composable
-fun EnhancedSkillBar(
-    skillName: String,
-    skillLevel: Int,
-    maxLevel: Int,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = skillName,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            modifier = Modifier.width(40.dp)
-        )
-        
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(8.dp)
-                .background(
-                    color = Color.Gray.copy(alpha = 0.2f),
-                    shape = RoundedCornerShape(4.dp)
-                )
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(skillLevel.toFloat() / maxLevel)
-                    .background(
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(
-                                Color(0xFF4CAF50),
-                                Color(0xFF8BC34A)
-                            )
-                        ),
-                        shape = RoundedCornerShape(4.dp)
-                    )
-            )
-        }
-        
-        Text(
-            text = "$skillLevel/$maxLevel",
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            modifier = Modifier.padding(start = 8.dp)
         )
     }
 }
@@ -909,15 +817,14 @@ fun EnhancedTrainingDialog(
         return
     }
     
-    val safeEmployee = employee
     val currentSkillLevel = try {
-        safeEmployee.getSpecialtySkillLevel().coerceIn(0, 5)
+        employee.getSpecialtySkillLevel().coerceIn(0, 5)
     } catch (e: Exception) {
         android.util.Log.e("EnhancedTrainingDialog", "获取技能等级失败", e)
         0
     }
     
-    val safeSalary = safeEmployee.salary.coerceAtLeast(0)
+    val safeSalary = employee.salary.coerceAtLeast(0)
     val trainingCost = try {
         when {
             currentSkillLevel >= 5 -> 0L // 已达最高等级，无法培训
@@ -932,7 +839,7 @@ fun EnhancedTrainingDialog(
     }
     
     val specialtySkillType = try {
-        safeEmployee.getSpecialtySkillType()
+        employee.getSpecialtySkillType()
     } catch (e: Exception) {
         android.util.Log.e("EnhancedTrainingDialog", "获取技能类型失败", e)
         "通用"
@@ -976,7 +883,7 @@ fun EnhancedTrainingDialog(
                 )
                 
                 Text(
-                    text = "为 ${safeEmployee.name} 提供培训",
+                    text = "为 ${employee.name} 提供培训",
                     fontSize = 16.sp,
                     color = Color.White,
                     modifier = Modifier.padding(bottom = 8.dp)
@@ -1173,7 +1080,7 @@ fun EnhancedFireDialog(
                                 color = Color.White.copy(alpha = 0.7f)
                             )
                             Text(
-                                text = "¥${employee.salary}",
+                                text = "¥${formatMoney(employee.salary.toLong())}",
                                 fontSize = 13.sp,
                                 color = Color.White
                             )

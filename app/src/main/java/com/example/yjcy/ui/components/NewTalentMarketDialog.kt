@@ -7,7 +7,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.WorkOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,6 +25,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.yjcy.data.*
 import com.example.yjcy.service.JobPostingService
+import com.example.yjcy.utils.formatMoney
 import java.util.Locale
 
 /**
@@ -108,7 +113,7 @@ fun NewTalentMarketDialog(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.People,
+                                    imageVector = Icons.Filled.People,
                                     contentDescription = null,
                                     tint = Color(0xFF60A5FA),
                                     modifier = Modifier.size(28.dp)
@@ -121,11 +126,6 @@ fun NewTalentMarketDialog(
                                     fontSize = 24.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
-                                )
-                                Text(
-                                    text = "发布岗位，招聘优秀人才",
-                                    fontSize = 13.sp,
-                                    color = Color.White.copy(alpha = 0.7f)
                                 )
                             }
                         }
@@ -143,7 +143,7 @@ fun NewTalentMarketDialog(
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Add,
+                                    imageVector = Icons.Filled.Add,
                                     contentDescription = "发布岗位",
                                     modifier = Modifier.size(20.dp)
                                 )
@@ -161,7 +161,7 @@ fun NewTalentMarketDialog(
                                     )
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Close,
+                                    imageVector = Icons.Filled.Close,
                                     contentDescription = "关闭",
                                     tint = Color.White
                                 )
@@ -213,7 +213,7 @@ fun NewTalentMarketDialog(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
-                                        imageVector = TrendingUp,
+                                        imageVector = Icons.AutoMirrored.Filled.TrendingUp,
                                         contentDescription = null,
                                         tint = Color(0xFF10B981),
                                         modifier = Modifier.size(22.dp)
@@ -227,7 +227,7 @@ fun NewTalentMarketDialog(
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
-                                        text = "¥${String.format(Locale.getDefault(), "%,d", saveData.money)}",
+                                        text = "¥${formatMoney(saveData.money)}",
                                         style = MaterialTheme.typography.headlineSmall,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White
@@ -280,7 +280,7 @@ fun NewTalentMarketDialog(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.WorkOutline,
+                                        imageVector = Icons.Filled.WorkOutline,
                                         contentDescription = null,
                                         modifier = Modifier.size(48.dp),
                                         tint = Color(0xFF60A5FA)
@@ -301,25 +301,6 @@ fun NewTalentMarketDialog(
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = Color.White.copy(alpha = 0.6f)
                                     )
-                                }
-                                
-                                Spacer(modifier = Modifier.height(8.dp))
-                                
-                                Button(
-                                    onClick = { showJobPostingDialog = true },
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF10B981)
-                                    ),
-                                    modifier = Modifier.padding(horizontal = 40.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Add,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("发布第一个岗位", fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -544,7 +525,7 @@ private fun ModernJobPostingCard(
                         modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Close,
+                            imageVector = Icons.Filled.Close,
                             contentDescription = "关闭岗位",
                             tint = Color.White.copy(alpha = 0.5f),
                             modifier = Modifier.size(18.dp)
@@ -579,7 +560,7 @@ private fun ModernJobPostingCard(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "¥${String.format(Locale.getDefault(), "%,d", jobPosting.minSalary)}",
+                            text = "¥${formatMoney(jobPosting.minSalary.toLong())}",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
@@ -638,7 +619,7 @@ private fun ModernJobPostingCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Default.NotificationsActive,
+                            imageVector = Icons.Filled.NotificationsActive,
                             contentDescription = null,
                             tint = Color(0xFF10B981),
                             modifier = Modifier.size(18.dp)

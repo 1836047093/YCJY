@@ -26,6 +26,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.example.yjcy.data.*
 import com.example.yjcy.service.JobPostingService
 import com.example.yjcy.service.RecruitmentService
+import com.example.yjcy.utils.formatMoney
 
 /**
  * 应聘者管理对话框
@@ -567,7 +568,7 @@ private fun ApplicantCard(
                 ),
                 shape = RoundedCornerShape(20.dp)
             )
-            .padding(20.dp)
+            .padding(horizontal = 18.dp, vertical = 18.dp)
     ) {
         // 候选人基本信息
         Row(
@@ -668,25 +669,25 @@ private fun ApplicantCard(
         // 技能和薪资信息
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             InfoChip(
                 label = "最高技能",
                 value = "Lv.${candidate.getMaxSkillLevel()}",
                 icon = "⭐",
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f, fill = true)
             )
             InfoChip(
                 label = "期望薪资",
-                value = "¥${candidate.expectedSalary}",
+                value = "¥${formatMoney(candidate.expectedSalary.toLong())}",
                 icon = "💰",
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f, fill = true)
             )
             InfoChip(
                 label = "工作经验",
                 value = "${candidate.experience}年",
                 icon = "💼",
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f, fill = true)
             )
         }
         
@@ -777,26 +778,33 @@ private fun InfoChip(
                 ),
                 shape = RoundedCornerShape(16.dp)
             )
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = icon,
-            fontSize = 22.sp
+            fontSize = 16.sp
         )
-        Column {
+        Column(
+            modifier = Modifier.weight(1f, fill = true)
+        ) {
             Text(
                 text = label,
-                fontSize = 11.sp,
-                color = Color.White.copy(alpha = 0.7f)
+                fontSize = 9.sp,
+                color = Color.White.copy(alpha = 0.7f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = value,
-                fontSize = 16.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                minLines = 1
             )
         }
     }

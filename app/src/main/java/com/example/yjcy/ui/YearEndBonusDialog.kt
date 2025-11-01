@@ -1,10 +1,11 @@
 package com.example.yjcy.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalanceWallet
@@ -58,61 +59,74 @@ fun YearEndBonusDialog(
     val canAfford = currentMoney >= totalSuggestedBonus
     
     Dialog(onDismissRequest = {}) {
-        Card(
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = Color(0xFF1F2937)
-            ),
-            shape = RoundedCornerShape(16.dp)
+                .fillMaxWidth(0.88f)
+                .padding(16.dp)
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFF1F2937),
+                            Color(0xFF111827)
+                        )
+                    ),
+                    shape = RoundedCornerShape(24.dp)
+                )
+                .clip(RoundedCornerShape(24.dp))
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(24.dp)
-                    .verticalScroll(rememberScrollState()),
+                    .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Icon(
                     imageVector = Icons.Default.Celebration,
                     contentDescription = "年终奖",
                     tint = Color(0xFFFFD700),
-                    modifier = Modifier.size(48.dp)
+                    modifier = Modifier.size(40.dp)
                 )
                 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 
                 Text(
                     text = "${statistics.year}年度总结",
-                    fontSize = 24.sp,
+                    fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    color = Color.White
                 )
+                
+                Spacer(modifier = Modifier.height(4.dp))
                 
                 Text(
                     text = "感谢您一年来的努力！",
-                    fontSize = 14.sp,
-                    color = Color.White.copy(alpha = 0.8f),
-                    modifier = Modifier.padding(bottom = 24.dp)
+                    fontSize = 13.sp,
+                    color = Color.White.copy(alpha = 0.7f)
                 )
                 
-                // 年度统计数据卡片
-                Card(
+                Spacer(modifier = Modifier.height(20.dp))
+                
+                // 年度统计数据 - 现代化设计（无边框卡片）
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFF374151)
-                    ),
-                    shape = RoundedCornerShape(12.dp)
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.12f),
+                                    Color.White.copy(alpha = 0.05f),
+                                    Color.Transparent
+                                ),
+                                radius = 300f
+                            ),
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                        .clip(RoundedCornerShape(16.dp))
+                        .padding(16.dp)
                 ) {
                     Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         StatRow(
                             label = "发售游戏",
@@ -120,7 +134,7 @@ fun YearEndBonusDialog(
                             icon = Icons.Default.Games
                         )
                         
-                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
                         
                         StatRow(
                             label = "总收入",
@@ -129,7 +143,7 @@ fun YearEndBonusDialog(
                             valueColor = Color(0xFF10B981)
                         )
                         
-                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
                         
                         StatRow(
                             label = "净利润",
@@ -140,70 +154,73 @@ fun YearEndBonusDialog(
                     }
                 }
                 
-                // 年终奖建议
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 年终奖建议 - 紧凑设计
                 Text(
                     text = "年终奖建议",
-                    fontSize = 18.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 8.dp)
+                    modifier = Modifier.fillMaxWidth()
                 )
+                
+                Spacer(modifier = Modifier.height(8.dp))
                 
                 Text(
                     text = "建议为每位员工发放 ¥${suggestedBonusPerEmployee}",
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                     color = Color.White.copy(alpha = 0.8f),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 4.dp)
+                    modifier = Modifier.fillMaxWidth()
                 )
+                
+                Spacer(modifier = Modifier.height(4.dp))
                 
                 Text(
                     text = "总计：¥$totalSuggestedBonus（${employeeCount}位员工）",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = if (canAfford) Color(0xFF10B981) else Color(0xFFEF4444),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 16.dp)
+                    modifier = Modifier.fillMaxWidth()
                 )
                 
                 if (!canAfford) {
+                    Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 16.dp)
+                        modifier = if (!canAfford) Modifier.fillMaxWidth() else Modifier
                     ) {
                         Icon(
                             imageVector = Icons.Default.Warning,
                             contentDescription = "警告",
                             tint = Color(0xFFEF4444),
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(16.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = "资金不足，跳过年终奖会影响员工忠诚度！",
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             color = Color(0xFFEF4444)
                         )
                     }
                 }
                 
+                Spacer(modifier = Modifier.height(16.dp))
+                
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     OutlinedButton(
                         onClick = onSkip,
                         modifier = Modifier.weight(1f),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.5f))
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(
                             text = "跳过",
-                            color = Color.White
+                            color = Color.White,
+                            fontSize = 14.sp
                         )
                     }
                     
@@ -214,12 +231,14 @@ fun YearEndBonusDialog(
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFFFFD700),
                             disabledContainerColor = Color.Gray
-                        )
+                        ),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(
                             text = "发放年终奖",
                             color = Color.Black,
-                            maxLines = 1
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
