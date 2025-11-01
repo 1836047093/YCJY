@@ -25,8 +25,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.yjcy.data.Employee
-import com.example.yjcy.ui.components.NewTalentMarketDialog
-import com.example.yjcy.service.JobPostingService
+import com.example.yjcy.data.TalentCandidate
+import com.example.yjcy.ui.components.TalentMarketDialog
 import kotlin.random.Random
 
 @Composable
@@ -48,26 +48,22 @@ fun EmployeeManagementContent(
     var filterType by remember { mutableStateOf("全部") }
     val listState = rememberLazyListState()
     
-    // 获取待处理的应聘者数量
-    val jobPostingService = remember { JobPostingService.getInstance() }
-    val pendingApplicantsCount = remember { mutableIntStateOf(jobPostingService.getTotalPendingApplicants()) }
     
-    // 刷新应聘者数量 - 监听刷新触发器和对话框打开状态
-    LaunchedEffect(showTalentMarketDialog, jobPostingRefreshTrigger) {
-        pendingApplicantsCount.value = jobPostingService.getTotalPendingApplicants()
+    // 计算总薪资 - 使用remember缓存，避免每次重组都计算
+    val totalSalary by remember(allEmployees) {
+        derivedStateOf {
+            allEmployees.sumOf { it.salary }
+        }
     }
     
     // 过滤员工列表 - 使用 derivedStateOf 以正确响应 mutableStateListOf 的变化
-    val filteredEmployees by remember {
+    val filteredEmployees by remember(allEmployees, filterType) {
         derivedStateOf {
-            allEmployees.filter { employee ->
-                when (filterType) {
-                    "程序员" -> employee.position == "程序员"
-                    "策划师" -> employee.position == "策划师"
-                    "美术师" -> employee.position == "美术师"
-                    "音效师" -> employee.position == "音效师"
-                    "客服" -> employee.position == "客服"
-                    else -> true
+            if (filterType == "全部") {
+                allEmployees
+            } else {
+                allEmployees.filter { employee ->
+                    employee.position == filterType
                 }
             }
         }
@@ -95,25 +91,27 @@ fun EmployeeManagementContent(
             modifier = Modifier.padding(bottom = 16.dp)
         )
         
-        // 员工统计信息 - 无卡片设计
+        // 员工统计信息 - 卡片设计
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 16.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             EmployeeStatItem(
                 value = "${allEmployees.size}/30",
                 label = "总员工数",
                 icon = Icons.Default.People,
-                color = Color(0xFF3B82F6)
+                color = Color(0xFF3B82F6),
+                modifier = Modifier.weight(1f)
             )
             
             EmployeeStatItem(
-                value = "¥${allEmployees.sumOf { it.salary }}",
+                value = "¥$totalSalary",
                 label = "月薪总额",
                 icon = Icons.Default.AccountBalanceWallet,
-                color = Color(0xFFEF4444)
+                color = Color(0xFFEF4444),
+                modifier = Modifier.weight(1f)
             )
         }
         
@@ -131,25 +129,18 @@ fun EmployeeManagementContent(
                 modifier = Modifier.weight(1f)
             )
             
-            // 人才市场入口按钮（带红点提示）
-            BadgeBox(
-                showBadge = pendingApplicantsCount.value > 0,
-                badgeCount = null, // 只显示红点，不显示数字
-                modifier = Modifier.weight(1f)
-            ) {
-                ModernButton(
-                    text = "人才市场",
-                    icon = Icons.Default.PersonAdd,
-                    onClick = { 
-                        showTalentMarketDialog = true
-                        pendingApplicantsCount.value = jobPostingService.getTotalPendingApplicants()
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF10B981)
-                    )
+            // 人才市场入口按钮
+            ModernButton(
+                text = "人才市场",
+                icon = Icons.Default.PersonAdd,
+                onClick = { 
+                    showTalentMarketDialog = true
+                },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF10B981)
                 )
-            }
+            )
         }
         
         // 员工列表
@@ -189,7 +180,10 @@ fun EmployeeManagementContent(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
-                items(filteredEmployees) { employee ->
+                items(
+                    items = filteredEmployees,
+                    key = { it.id } // 添加key，提升性能
+                ) { employee ->
                     EnhancedEmployeeCard(
                         employee = employee,
                         onTrainClick = {
@@ -208,43 +202,105 @@ fun EmployeeManagementContent(
     
     // 培训对话框
     if (showTrainingDialog && selectedEmployee != null) {
+        val currentEmployee = selectedEmployee!!
+        // 保存员工ID，避免闭包问题
+        val employeeId = currentEmployee.id
+        val employeeName = currentEmployee.name
+        
         EnhancedTrainingDialog(
-            employee = selectedEmployee!!,
+            employee = currentEmployee,
             money = money,
             onConfirm = { trainingCost ->
-                val updatedEmployees = allEmployees.map { emp ->
-                    if (emp.id == selectedEmployee!!.id) {
-                        // 固定提升1级技能
-                        val skillBoost = 1
-                        // 只提升专属技能
-                        when (emp.getSpecialtySkillType()) {
-                            "开发" -> emp.copy(
-                                skillDevelopment = minOf(SkillConstants.MAX_SKILL_LEVEL, emp.skillDevelopment + skillBoost)
-                            )
-                            "设计" -> emp.copy(
-                                skillDesign = minOf(SkillConstants.MAX_SKILL_LEVEL, emp.skillDesign + skillBoost)
-                            )
-                            "美工" -> emp.copy(
-                                skillArt = minOf(SkillConstants.MAX_SKILL_LEVEL, emp.skillArt + skillBoost)
-                            )
-                            "音乐" -> emp.copy(
-                                skillMusic = minOf(SkillConstants.MAX_SKILL_LEVEL, emp.skillMusic + skillBoost)
-                            )
-                            "服务" -> emp.copy(
-                                skillService = minOf(SkillConstants.MAX_SKILL_LEVEL, emp.skillService + skillBoost)
-                            )
-                            else -> emp
+                try {
+                    android.util.Log.d("EmployeeManagement", "培训确认: 员工ID=$employeeId, 费用=$trainingCost, 当前资金=$money")
+                    
+                    // 再次检查员工是否存在
+                    val employeeToTrain = allEmployees.find { it.id == employeeId }
+                    if (employeeToTrain == null) {
+                        android.util.Log.w("EmployeeManagement", "培训时员工不存在: ID=$employeeId, 名称=$employeeName")
+                        showTrainingDialog = false
+                        selectedEmployee = null
+                    } else {
+                        // 检查资金是否足够
+                        if (money < trainingCost) {
+                            android.util.Log.w("EmployeeManagement", "培训资金不足: 需要 $trainingCost，当前 $money")
+                            showTrainingDialog = false
+                            selectedEmployee = null
+                        } else {
+                            // 固定提升1级技能
+                            val skillBoost = 1
+                            val updatedEmployees = try {
+                                allEmployees.map { emp ->
+                                    if (emp.id == employeeId) {
+                                        // 只提升专属技能
+                                        try {
+                                            val skillType = emp.getSpecialtySkillType()
+                                            when (skillType) {
+                                                "开发" -> emp.copy(
+                                                    skillDevelopment = minOf(SkillConstants.MAX_SKILL_LEVEL, emp.skillDevelopment + skillBoost)
+                                                )
+                                                "设计" -> emp.copy(
+                                                    skillDesign = minOf(SkillConstants.MAX_SKILL_LEVEL, emp.skillDesign + skillBoost)
+                                                )
+                                                "美工" -> emp.copy(
+                                                    skillArt = minOf(SkillConstants.MAX_SKILL_LEVEL, emp.skillArt + skillBoost)
+                                                )
+                                                "音乐" -> emp.copy(
+                                                    skillMusic = minOf(SkillConstants.MAX_SKILL_LEVEL, emp.skillMusic + skillBoost)
+                                                )
+                                                "服务" -> emp.copy(
+                                                    skillService = minOf(SkillConstants.MAX_SKILL_LEVEL, emp.skillService + skillBoost)
+                                                )
+                                                else -> {
+                                                    android.util.Log.w("EmployeeManagement", "未知技能类型: $skillType")
+                                                    emp
+                                                }
+                                            }
+                                        } catch (e: Exception) {
+                                            android.util.Log.e("EmployeeManagement", "提升技能时异常: ${e.message}", e)
+                                            emp
+                                        }
+                                    } else emp
+                                }
+                            } catch (e: Exception) {
+                                android.util.Log.e("EmployeeManagement", "映射员工列表时异常: ${e.message}", e)
+                                allEmployees.toList() // 返回原列表
+                            }
+                            
+                            // 更新员工列表和资金
+                            try {
+                                onEmployeesUpdate(updatedEmployees)
+                                onMoneyUpdate(money - trainingCost)
+                                android.util.Log.d("EmployeeManagement", "培训成功: 员工 $employeeName 技能已提升")
+                            } catch (e: Exception) {
+                                android.util.Log.e("EmployeeManagement", "更新状态时异常: ${e.message}", e)
+                                e.printStackTrace()
+                            }
+                            
+                            // 关闭对话框
+                            showTrainingDialog = false
+                            selectedEmployee = null
                         }
-                    } else emp
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("EmployeeManagement", "培训员工时发生未捕获异常", e)
+                    e.printStackTrace()
+                    // 确保对话框关闭
+                    try {
+                        showTrainingDialog = false
+                        selectedEmployee = null
+                    } catch (e2: Exception) {
+                        android.util.Log.e("EmployeeManagement", "关闭对话框时异常", e2)
+                    }
                 }
-                onEmployeesUpdate(updatedEmployees)
-                onMoneyUpdate(money - trainingCost)
-                showTrainingDialog = false
-                selectedEmployee = null
             },
             onDismiss = {
-                showTrainingDialog = false
-                selectedEmployee = null
+                try {
+                    showTrainingDialog = false
+                    selectedEmployee = null
+                } catch (e: Exception) {
+                    android.util.Log.e("EmployeeManagement", "关闭培训对话框时异常", e)
+                }
             }
         )
     }
@@ -278,100 +334,57 @@ fun EmployeeManagementContent(
         )
     }
     
-    // 新版人才市场（岗位发布系统）弹出式对话框
+    // 人才市场弹出式对话框（旧版本）
     if (showTalentMarketDialog) {
-        // 动态创建 SaveData，确保始终使用最新数据
-        // 不使用 remember 缓存，避免数据不一致
-        val currentSaveData = com.example.yjcy.data.SaveData(
-            money = money,
-            allEmployees = allEmployees.toList() // 每次都获取最新的员工列表
-        )
+        val currentSaveData = remember(money, allEmployees) {
+            com.example.yjcy.data.SaveData(
+                money = money,
+                allEmployees = allEmployees.toList()
+            )
+        }
         
-        NewTalentMarketDialog(
+        TalentMarketDialog(
             saveData = currentSaveData,
             onDismiss = { showTalentMarketDialog = false },
-            jobPostingRefreshTrigger = jobPostingRefreshTrigger,
             onRecruitCandidate = { candidate ->
                 try {
-                    android.util.Log.d("EmployeeManagement", "收到雇佣请求: ${candidate.name}, 职位: ${candidate.position}")
-                    
-                    // 检查候选人的必要字段
-                    if (candidate.name.isBlank()) {
-                        android.util.Log.e("EmployeeManagement", "候选人姓名为空，无法雇佣")
-                        return@NewTalentMarketDialog
-                    }
-                    
-                    if (candidate.position.isBlank()) {
-                        android.util.Log.e("EmployeeManagement", "候选人职位为空，无法雇佣")
-                        return@NewTalentMarketDialog
-                    }
-                    
                     // 检查员工数量限制
                     if (allEmployees.size >= 30) {
-                        android.util.Log.w("EmployeeManagement", "员工数量已达上限（${allEmployees.size}/30），无法继续招聘")
-                        return@NewTalentMarketDialog
+                        android.util.Log.w("EmployeeManagement", "员工数量已达上限")
+                        return@TalentMarketDialog
                     }
                     
-                    // 生成新员工ID - 优化：只遍历一次列表
+                    // 计算招聘费用（基础费用 + 技能加成）
+                    val baseFee = 5000L
+                    val skillBonus = candidate.getMaxSkillLevel() * 2000L
+                    val recruitmentFee = baseFee + skillBonus
+                    
+                    // 检查资金是否足够
+                    if (money < recruitmentFee) {
+                        android.util.Log.w("EmployeeManagement", "资金不足")
+                        return@TalentMarketDialog
+                    }
+                    
+                    // 生成新员工ID
                     val maxId = allEmployees.maxOfOrNull { it.id } ?: 0
                     val newId = maxOf(1, maxId + 1)
                     
-                    // 创建员工对象（减少重复检查）
-                    val newEmployee = try {
-                        android.util.Log.d("EmployeeManagement", "开始创建员工对象: ID=$newId, 候选人=${candidate.name}")
-                        
-                        val emp = candidate.toEmployee(
-                            newId = newId,
-                            hireYear = currentYear,
-                            hireMonth = currentMonth,
-                            hireDay = currentDay
-                        )
-                        
-                        android.util.Log.d("EmployeeManagement", "员工对象创建成功: ${emp.name}")
-                        emp
-                    } catch (e: Exception) {
-                        android.util.Log.e("EmployeeManagement", "toEmployee转换失败", e)
-                        e.printStackTrace()
-                        return@NewTalentMarketDialog
-                    }
+                    // 将候选人转换为员工
+                    val newEmployee = candidate.toEmployee(
+                        newId = newId,
+                        hireYear = currentYear,
+                        hireMonth = currentMonth,
+                        hireDay = currentDay
+                    )
                     
-                    // 验证员工对象是否有效
-                    if (newEmployee.id <= 0 || newEmployee.name.isBlank()) {
-                        android.util.Log.e("EmployeeManagement", "创建的员工对象无效")
-                        return@NewTalentMarketDialog
-                    }
+                    // 更新员工列表和资金
+                    val updatedEmployees = allEmployees + newEmployee
+                    onEmployeesUpdate(updatedEmployees)
+                    onMoneyUpdate(money - recruitmentFee)
                     
-                    // 创建新列表并添加员工（只遍历一次）
-                    val updatedEmployees = ArrayList<Employee>(allEmployees.size + 1)
-                    updatedEmployees.addAll(allEmployees)
-                    updatedEmployees.add(newEmployee)
-                    
-                    // 更新员工列表
-                    try {
-                        onEmployeesUpdate(updatedEmployees)
-                        android.util.Log.d("EmployeeManagement", "成功更新员工列表，当前员工数: ${updatedEmployees.size}")
-                    } catch (e: Exception) {
-                        android.util.Log.e("EmployeeManagement", "更新员工列表失败", e)
-                        e.printStackTrace()
-                        return@NewTalentMarketDialog
-                    }
-                    
-                    // 扣除招聘费用
-                    try {
-                        val recruitmentCost = candidate.expectedSalary.toLong() * 2L
-                        val newMoney = maxOf(0L, money - recruitmentCost)
-                        onMoneyUpdate(newMoney)
-                        android.util.Log.d("EmployeeManagement", "扣除招聘费用: ¥$recruitmentCost，剩余资金: ¥$newMoney")
-                    } catch (e: Exception) {
-                        android.util.Log.e("EmployeeManagement", "更新资金失败", e)
-                        e.printStackTrace()
-                    }
-                    
-                    // 不要立即关闭对话框，让用户可以继续招聘
-                    // showTalentMarketDialog = false
+                    android.util.Log.d("EmployeeManagement", "成功招聘 ${candidate.name}，花费 ¥$recruitmentFee")
                 } catch (e: Exception) {
-                    // 捕获所有异常，防止崩溃
-                    android.util.Log.e("EmployeeManagement", "雇佣员工时发生未捕获的异常", e)
+                    android.util.Log.e("EmployeeManagement", "招聘员工时发生异常", e)
                     e.printStackTrace()
                 }
             }
@@ -385,29 +398,47 @@ fun EmployeeStatItem(
     value: String,
     label: String,
     icon: ImageVector,
-    color: Color
+    color: Color,
+    modifier: Modifier = Modifier
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
+    Box(
+        modifier = modifier
+            .background(
+                brush = Brush.horizontalGradient(
+                    colors = listOf(
+                        color.copy(alpha = 0.25f),
+                        color.copy(alpha = 0.15f),
+                        color.copy(alpha = 0.25f)
+                    )
+                ),
+                shape = RoundedCornerShape(20.dp)
+            )
+            .padding(vertical = 16.dp, horizontal = 12.dp)
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = color,
-            modifier = Modifier.size(24.dp)
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = value,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White
-        )
-        Text(
-            text = label,
-            fontSize = 12.sp,
-            color = Color.White.copy(alpha = 0.8f)
-        )
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = color,
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = value,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = label,
+                fontSize = 13.sp,
+                color = Color.White.copy(alpha = 0.85f)
+            )
+        }
     }
 }
 
@@ -481,6 +512,46 @@ fun EnhancedEmployeeCard(
     onTrainClick: () -> Unit,
     onFireClick: () -> Unit
 ) {
+    // 缓存计算结果，避免重复计算
+    // 使用employee的具体属性作为key，确保属性变化时重新计算
+    val specialtySkillType = remember(employee.id, employee.position, employee.skillDevelopment, employee.skillDesign, employee.skillArt, employee.skillMusic, employee.skillService) { 
+        employee.getSpecialtySkillType() 
+    }
+    val specialtySkillLevel = remember(employee.id, employee.skillDevelopment, employee.skillDesign, employee.skillArt, employee.skillMusic, employee.skillService) { 
+        employee.getSpecialtySkillLevel() 
+    }
+    val stamina = remember(employee.id, employee.stamina) { 
+        employee.getStaminaPercentage() 
+    }
+    val loyalty = remember(employee.id, employee.loyalty, employee.isFounder) { 
+        if (!employee.isFounder) employee.getLoyaltyPercentage() else 0 
+    }
+    
+    val staminaColor = remember(stamina) {
+        when {
+            stamina >= 70 -> Color(0xFF10B981)
+            stamina >= 30 -> Color(0xFFF59E0B)
+            else -> Color(0xFFEF4444)
+        }
+    }
+    
+    val loyaltyColor = remember(loyalty) {
+        when {
+            loyalty >= 70 -> Color(0xFF10B981)
+            loyalty >= 30 -> Color(0xFFF59E0B)
+            else -> Color(0xFFEF4444)
+        }
+    }
+    
+    val (grade, gradeColor) = remember(specialtySkillLevel) {
+        when {
+            specialtySkillLevel >= 5 -> "S" to Color(0xFF10B981)
+            specialtySkillLevel >= 4 -> "A" to Color(0xFF3B82F6)
+            specialtySkillLevel >= 3 -> "B" to Color(0xFFF59E0B)
+            else -> "C" to Color(0xFFEF4444)
+        }
+    }
+    
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -518,7 +589,7 @@ fun EnhancedEmployeeCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "${employee.getSpecialtySkillType()}技能：${employee.getSpecialtySkillLevel()}级",
+                            text = "${specialtySkillType}技能：${specialtySkillLevel}级",
                             fontSize = 12.sp,
                             color = Color.White.copy(alpha = 0.7f)
                         )
@@ -529,9 +600,9 @@ fun EnhancedEmployeeCard(
                         Row {
                             repeat(5) { index ->
                                 Icon(
-                                    imageVector = if (index < employee.getSpecialtySkillLevel()) Icons.Default.Star else Icons.Default.StarOutline,
+                                    imageVector = if (index < specialtySkillLevel) Icons.Default.Star else Icons.Default.StarOutline,
                                     contentDescription = null,
-                                    tint = if (index < employee.getSpecialtySkillLevel()) Color(0xFFFFD700) else Color.Gray.copy(alpha = 0.5f),
+                                    tint = if (index < specialtySkillLevel) Color(0xFFFFD700) else Color.Gray.copy(alpha = 0.5f),
                                     modifier = Modifier.size(14.dp)
                                 )
                             }
@@ -544,12 +615,6 @@ fun EnhancedEmployeeCard(
                     Row(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val stamina = employee.getStaminaPercentage()
-                        val staminaColor = when {
-                            stamina >= 70 -> Color(0xFF10B981)
-                            stamina >= 30 -> Color(0xFFF59E0B)
-                            else -> Color(0xFFEF4444)
-                        }
                         Icon(
                             imageVector = Icons.Default.Favorite,
                             contentDescription = "体力值",
@@ -571,12 +636,6 @@ fun EnhancedEmployeeCard(
                         Row(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            val loyalty = employee.getLoyaltyPercentage()
-                            val loyaltyColor = when {
-                                loyalty >= 70 -> Color(0xFF10B981)
-                                loyalty >= 30 -> Color(0xFFF59E0B)
-                                else -> Color(0xFFEF4444)
-                            }
                             Icon(
                                 imageVector = Icons.Default.Favorite,
                                 contentDescription = "忠诚度",
@@ -597,14 +656,6 @@ fun EnhancedEmployeeCard(
                     horizontalAlignment = Alignment.End
                 ) {
                     // 员工等级徽章（基于专属技能等级）- 简化设计
-                    val specialtyLevel = employee.getSpecialtySkillLevel()
-                    val (grade, gradeColor) = when {
-                        specialtyLevel >= 5 -> "S" to Color(0xFF10B981)
-                        specialtyLevel >= 4 -> "A" to Color(0xFF3B82F6)
-                        specialtyLevel >= 3 -> "B" to Color(0xFFF59E0B)
-                        else -> "C" to Color(0xFFEF4444)
-                    }
-                    
                     Text(
                         text = grade,
                         fontSize = 20.sp,
@@ -633,7 +684,7 @@ fun EnhancedEmployeeCard(
             if (!employee.isFounder) {
                 Spacer(modifier = Modifier.height(12.dp))
                 
-                val canTrain = employee.getSpecialtySkillLevel() < 5
+                val canTrain = specialtySkillLevel < 5
                 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -655,9 +706,11 @@ fun EnhancedEmployeeCard(
                         text = "解雇",
                         icon = Icons.Default.PersonRemove,
                         onClick = onFireClick,
-                        modifier = Modifier.weight(if (canTrain) 1f else 0f).then(
-                            if (!canTrain) Modifier.fillMaxWidth() else Modifier
-                        ),
+                        modifier = if (canTrain) {
+                            Modifier.weight(1f)
+                        } else {
+                            Modifier.fillMaxWidth()
+                        },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFFEF4444)
                         )
@@ -804,13 +857,81 @@ fun EnhancedTrainingDialog(
      * - 4级：月薪 × 3.0（专家培训）
      * - 5级：无法培训（已达最高等级）
      */
-    val currentSkillLevel = employee.getSpecialtySkillLevel()
-    val trainingCost = when {
-        currentSkillLevel >= 5 -> 0L // 已达最高等级，无法培训
-        currentSkillLevel == 4 -> (employee.salary * 3.0).toLong() // 4级→5级：3倍月薪
-        currentSkillLevel == 3 -> (employee.salary * 2.5).toLong() // 3级→4级：2.5倍月薪
-        currentSkillLevel == 2 -> (employee.salary * 2.0).toLong() // 2级→3级：2倍月薪
-        else -> (employee.salary * 1.5).toLong() // 1级→2级：1.5倍月薪
+    // 安全检查：确保员工数据有效
+    val isValidEmployee = try {
+        employee.name.isNotBlank()
+    } catch (e: Exception) {
+        android.util.Log.e("EnhancedTrainingDialog", "员工数据无效", e)
+        false
+    }
+    
+    // 如果员工数据无效，显示错误对话框
+    if (!isValidEmployee) {
+        Dialog(onDismissRequest = onDismiss) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF1F2937)
+                ),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "错误",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFEF4444)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "员工数据无效，无法进行培训",
+                        fontSize = 14.sp,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(onClick = onDismiss) {
+                        Text("关闭")
+                    }
+                }
+            }
+        }
+        return
+    }
+    
+    val safeEmployee = employee
+    val currentSkillLevel = try {
+        safeEmployee.getSpecialtySkillLevel().coerceIn(0, 5)
+    } catch (e: Exception) {
+        android.util.Log.e("EnhancedTrainingDialog", "获取技能等级失败", e)
+        0
+    }
+    
+    val safeSalary = safeEmployee.salary.coerceAtLeast(0)
+    val trainingCost = try {
+        when {
+            currentSkillLevel >= 5 -> 0L // 已达最高等级，无法培训
+            currentSkillLevel == 4 -> (safeSalary * 3.0).toLong().coerceAtLeast(0L) // 4级→5级：3倍月薪
+            currentSkillLevel == 3 -> (safeSalary * 2.5).toLong().coerceAtLeast(0L) // 3级→4级：2.5倍月薪
+            currentSkillLevel == 2 -> (safeSalary * 2.0).toLong().coerceAtLeast(0L) // 2级→3级：2倍月薪
+            else -> (safeSalary * 1.5).toLong().coerceAtLeast(0L) // 1级→2级：1.5倍月薪
+        }
+    } catch (e: Exception) {
+        android.util.Log.e("EnhancedTrainingDialog", "计算培训费用失败", e)
+        0L
+    }
+    
+    val specialtySkillType = try {
+        safeEmployee.getSpecialtySkillType()
+    } catch (e: Exception) {
+        android.util.Log.e("EnhancedTrainingDialog", "获取技能类型失败", e)
+        "通用"
     }
     
     val canTrain = currentSkillLevel < 5 // 未达最高等级才能培训
@@ -851,14 +972,14 @@ fun EnhancedTrainingDialog(
                 )
                 
                 Text(
-                    text = "为 ${employee.name} 提供培训",
+                    text = "为 ${safeEmployee.name} 提供培训",
                     fontSize = 16.sp,
                     color = Color.White,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
                 
                 Text(
-                    text = "当前${employee.getSpecialtySkillType()}技能: ${employee.getSpecialtySkillLevel()}级",
+                    text = "当前${specialtySkillType}技能: ${currentSkillLevel}级",
                     fontSize = 14.sp,
                     color = Color.White.copy(alpha = 0.8f),
                     modifier = Modifier.padding(bottom = 4.dp)
@@ -866,7 +987,7 @@ fun EnhancedTrainingDialog(
                 
                 if (canTrain) {
                     Text(
-                        text = "培训后等级: ${employee.getSpecialtySkillLevel() + 1}级",
+                        text = "培训后等级: ${currentSkillLevel + 1}级",
                         fontSize = 14.sp,
                         color = Color(0xFF10B981),
                         modifier = Modifier.padding(bottom = 8.dp)

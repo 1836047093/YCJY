@@ -3,6 +3,7 @@ package com.example.yjcy
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.view.WindowManager
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
@@ -18,12 +19,15 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.EaseInOut
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -56,6 +60,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import android.view.Choreographer
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -148,7 +154,6 @@ import com.example.yjcy.taptap.TapUpdateManager
 import com.google.gson.GsonBuilder
 import dagger.hilt.android.AndroidEntryPoint
 import java.util.Locale
-import kotlin.math.sin
 import kotlin.random.Random
 import kotlinx.coroutines.delay
 import com.example.yjcy.taptap.TapLoginManager
@@ -182,6 +187,9 @@ class MainActivity : ComponentActivity() {
         
         // 先启用边到边显示
         enableEdgeToEdge()
+        
+        // 设置120Hz高刷新率
+        enableHighRefreshRate()
         
         // 然后设置全屏显示和隐藏系统导航栏
         enableFullScreenDisplay()
@@ -355,6 +363,77 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+    
+    /**
+     * 启用120Hz高刷新率
+     */
+    private fun enableHighRefreshRate() {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                // Android 6.0及以上：使用Display.Mode API
+                val windowManager = getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
+                val display = windowManager.defaultDisplay
+                
+                // 获取支持的刷新率模式列表
+                val supportedModes = display.supportedModes
+                
+                if (supportedModes != null && supportedModes.isNotEmpty()) {
+                    // 优先查找120Hz或最接近120Hz的模式
+                    var bestMode: android.view.Display.Mode? = null
+                    var bestRefreshRate = 0f
+                    var closestTo120 = Float.MAX_VALUE
+                    
+                    for (mode in supportedModes) {
+                        val refreshRate = mode.refreshRate
+                        
+                        // 优先选择120Hz
+                        if (refreshRate == 120f) {
+                            bestMode = mode
+                            bestRefreshRate = refreshRate
+                            break
+                        }
+                        
+                        // 如果没找到120Hz，选择最接近120Hz且不超过120Hz的
+                        if (refreshRate <= 120f && refreshRate > bestRefreshRate) {
+                            bestRefreshRate = refreshRate
+                            bestMode = mode
+                        }
+                        
+                        // 记录最接近120Hz的模式（可能超过120Hz）
+                        val diff = kotlin.math.abs(refreshRate - 120f)
+                        if (diff < closestTo120) {
+                            closestTo120 = diff
+                            if (bestMode == null || bestRefreshRate < 60f) {
+                                bestMode = mode
+                                bestRefreshRate = refreshRate
+                            }
+                        }
+                    }
+                    
+                    if (bestMode != null) {
+                        val layoutParams = window.attributes
+                        layoutParams.preferredDisplayModeId = bestMode.modeId
+                        window.attributes = layoutParams
+                        Log.d("MainActivity", "✅ 已设置刷新率: ${bestMode.refreshRate}Hz (模式ID: ${bestMode.modeId})")
+                        Log.d("MainActivity", "📊 支持的刷新率: ${supportedModes.map { it.refreshRate }.joinToString(", ")}Hz")
+                    } else {
+                        Log.w("MainActivity", "⚠️ 未找到支持的刷新率模式")
+                    }
+                } else {
+                    Log.w("MainActivity", "⚠️ 无法获取支持的刷新率模式列表")
+                }
+            } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                // Android 5.0-5.1：使用旧API
+                val layoutParams = window.attributes
+                layoutParams.preferredRefreshRate = 120f / 1000f // 转换为秒（旧API使用秒为单位）
+                window.attributes = layoutParams
+                Log.d("MainActivity", "✅ 已设置刷新率: 120Hz (旧API)")
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "设置高刷新率失败: ${e.message}", e)
+            e.printStackTrace()
         }
     }
     
@@ -552,6 +631,13 @@ fun InGameSettingsScreen(navController: NavController) {
                 )
             )
     ) {
+        // FPS监测（左上角）
+        FpsMonitor(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(8.dp)
+        )
+        
         // Settings content
         Column(
             modifier = Modifier
@@ -636,21 +722,41 @@ fun SettingsOption(
 fun MainMenuScreen(navController: NavController) {
     val context = LocalContext.current
     val activity = context as? Activity
+    val saveManager = remember { SaveManager(context) }
     
     // 退出应用确认对话框状态
     var showExitDialog by remember { mutableStateOf(false) }
     
-    // Logo动画
+    // 加载存档数据（用于显示最近游戏）
+    var recentSaves by remember { mutableStateOf(emptyMap<Int, SaveData?>()) }
+    var isLoadingSaves by remember { mutableStateOf(true) }
+    
+    LaunchedEffect(Unit) {
+        recentSaves = saveManager.getAllSavesAsync()
+        isLoadingSaves = false
+    }
+    
+    // Logo和标题动画
     val infiniteTransition = rememberInfiniteTransition(label = "logo_animation")
     
-    val logoScale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.1f,
+    val logoGlow by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.8f,
         animationSpec = infiniteRepeatable(
             animation = tween(2000, easing = EaseInOut),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "logo_scale"
+        label = "logo_glow"
+    )
+    
+    val titleOffset by infiniteTransition.animateFloat(
+        initialValue = -5f,
+        targetValue = 5f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = EaseInOut),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "title_offset"
     )
     
     // 拦截返回键，显示退出应用确认对话框
@@ -662,104 +768,211 @@ fun MainMenuScreen(navController: NavController) {
         modifier = Modifier
             .fillMaxSize()
             .background(
-                brush = Brush.verticalGradient(
+                brush = Brush.radialGradient(
                     colors = listOf(
-                        Color(0xFF667eea),
-                        Color(0xFF764ba2)
-                    )
+                        Color(0xFF0F172A), // 深蓝黑色
+                        Color(0xFF1E293B), // 深灰蓝
+                        Color(0xFF334155)  // 中灰蓝
+                    ),
+                    center = Offset(0f, 0f),
+                    radius = 2000f
                 )
             )
     ) {
-        // 背景粒子动画
-        ParticleBackground()
+        // 现代化的背景动画
+        ModernGameBackground()
         
-        // 左上角版本号
-        Text(
-            text = "V${BuildConfig.VERSION_NAME}",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
-            color = Color.White.copy(alpha = 0.7f),
+        // 左上角版本号和FPS监测
+        Column(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .padding(16.dp)
-        )
+        ) {
+            // FPS监测
+            FpsMonitor()
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // 版本号
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.Black.copy(alpha = 0.3f)
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    text = "V${BuildConfig.VERSION_NAME}",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White.copy(alpha = 0.8f),
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
+        }
         
+        // 主要内容区域
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .padding(horizontal = 24.dp, vertical = 16.dp)
         ) {
-            // Logo展示区域
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            // 游戏Logo和标题区域
             Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.scale(logoScale)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // 游戏图标（带发光效果）
+                Box(
+                    modifier = Modifier
+                        .size(120.dp)
+                        .shadow(
+                            elevation = 24.dp,
+                            shape = CircleShape,
+                            spotColor = Color(0xFF3B82F6).copy(alpha = logoGlow)
+                        )
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    Color(0xFF3B82F6).copy(alpha = 0.8f),
+                                    Color(0xFF1E40AF).copy(alpha = 0.6f)
+                                )
+                            ),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "🎮",
+                        fontSize = 64.sp,
+                        modifier = Modifier.scale(1f + logoGlow * 0.1f)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                // 游戏标题（带动态效果）
                 Text(
-                    text = "🎮 游创纪元",
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Bold,
+                    text = "游创纪元",
+                    fontSize = 42.sp,
+                    fontWeight = FontWeight.ExtraBold,
                     color = Color.White,
-                    textAlign = TextAlign.Center
+                    style = androidx.compose.ui.text.TextStyle(
+                        shadow = androidx.compose.ui.graphics.Shadow(
+                            color = Color(0xFF3B82F6).copy(alpha = 0.8f),
+                            offset = Offset(titleOffset, titleOffset),
+                            blurRadius = 20f
+                        )
+                    )
                 )
+                
                 Spacer(modifier = Modifier.height(8.dp))
+                
+                // 副标题
+                Text(
+                    text = "GAME DEV SIMULATOR",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF60A5FA).copy(alpha = 0.9f),
+                    letterSpacing = 4.sp
+                )
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
                 Text(
                     text = "打造你的游戏帝国",
                     fontSize = 16.sp,
-                    color = Color.White.copy(alpha = 0.8f),
-                    textAlign = TextAlign.Center
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontWeight = FontWeight.Medium
                 )
             }
             
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(24.dp))
             
-            // 主要功能按钮组
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                GameMenuButton(
-                    text = "🚀 开始新游戏",
+            // 主要功能卡片网格
+            val menuItems = listOf(
+                MenuItem(
+                    icon = "🚀",
+                    title = "开始新游戏",
+                    description = "创建新的游戏公司",
+                    gradient = listOf(Color(0xFF3B82F6), Color(0xFF1E40AF)),
                     onClick = { navController.navigate("game_setup") }
-                )
-                
-                GameMenuButton(
-                    text = "📂 继续游戏",
-                    onClick = { navController.navigate("continue") }
-                )
-                
-                GameMenuButton(
-                    text = "🏆 成就",
+                ),
+                MenuItem(
+                    icon = "📂",
+                    title = "继续游戏",
+                    description = "加载已保存的存档",
+                    gradient = listOf(Color(0xFF10B981), Color(0xFF059669)),
+                    onClick = { navController.navigate("continue") },
+                    badge = if (recentSaves.values.any { it != null }) "NEW" else null
+                ),
+                MenuItem(
+                    icon = "🏆",
+                    title = "成就系统",
+                    description = "查看解锁的成就",
+                    gradient = listOf(Color(0xFFF59E0B), Color(0xFFD97706)),
                     onClick = { navController.navigate("achievement") }
-                )
-                
-                GameMenuButton(
-                    text = "⚙️ 设置",
+                ),
+                MenuItem(
+                    icon = "⚙️",
+                    title = "游戏设置",
+                    description = "调整游戏参数",
+                    gradient = listOf(Color(0xFF6B7280), Color(0xFF4B5563)),
                     onClick = { navController.navigate("settings") }
                 )
+            )
+            
+            // 响应式网格布局
+            val columns = 2
+            val rows = (menuItems.size + columns - 1) / columns
+            
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                repeat(rows) { rowIndex ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        repeat(columns) { colIndex ->
+                            val index = rowIndex * columns + colIndex
+                            if (index < menuItems.size) {
+                                ModernMenuCard(
+                                    item = menuItems[index],
+                                    modifier = Modifier.weight(1f)
+                                )
+                            } else {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
             }
             
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.weight(1f))
             
-            // 健康游戏忠告
+            // 健康游戏忠告（底部）
             Card(
                 modifier = Modifier
-                    .width(320.dp)
-                    .padding(horizontal = 16.dp),
-                shape = RoundedCornerShape(12.dp),
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = Color.White.copy(alpha = 0.15f)
+                    containerColor = Color.Black.copy(alpha = 0.4f)
                 ),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f))
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
             ) {
                 Text(
                     text = "抵制不良游戏，拒绝盗版游戏。\n注意自我保护，谨防受骗上当。\n适度游戏益脑，沉迷游戏伤身。\n合理安排时间，享受健康生活。",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White.copy(alpha = 0.6f),
                     textAlign = TextAlign.Center,
-                    lineHeight = 16.sp,
+                    lineHeight = 14.sp,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(12.dp)
@@ -777,15 +990,19 @@ fun MainMenuScreen(navController: NavController) {
                     Text(
                         text = "⚠️ 退出游戏",
                         fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
                     )
                 },
                 text = {
                     Text(
                         text = "确定要退出游戏吗？",
-                        fontSize = 14.sp
+                        fontSize = 14.sp,
+                        color = Color.White.copy(alpha = 0.8f)
                     )
                 },
+                containerColor = Color(0xFF1E293B),
+                shape = RoundedCornerShape(16.dp),
                 confirmButton = {
                     Button(
                         onClick = {
@@ -795,14 +1012,17 @@ fun MainMenuScreen(navController: NavController) {
                             containerColor = Color(0xFFEF4444)
                         )
                     ) {
-                        Text("确认退出")
+                        Text("确认退出", color = Color.White)
                     }
                 },
                 dismissButton = {
                     OutlinedButton(
                         onClick = {
                             showExitDialog = false
-                        }
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color.White
+                        )
                     ) {
                         Text("取消")
                     }
@@ -812,26 +1032,233 @@ fun MainMenuScreen(navController: NavController) {
     }
 }
 
+// 菜单项数据类
+data class MenuItem(
+    val icon: String,
+    val title: String,
+    val description: String,
+    val gradient: List<Color>,
+    val onClick: () -> Unit,
+    val badge: String? = null
+)
+
+// 现代化的菜单卡片组件
 @Composable
-fun ParticleBackground() {
-    val particles = remember {
-        List(20) {
-            Particle(
-                x = Random.nextFloat(),
-                y = Random.nextFloat(),
-                size = Random.nextFloat() * 4f + 2f,
-                speed = Random.nextFloat() * 0.02f + 0.01f,
-                alpha = Random.nextFloat() * 0.6f + 0.2f
+fun ModernMenuCard(
+    item: MenuItem,
+    modifier: Modifier = Modifier
+) {
+    var isPressed by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.95f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "card_scale"
+    )
+    
+    val elevation by animateFloatAsState(
+        targetValue = if (isPressed) 12f else 8f,
+        animationSpec = tween(200),
+        label = "card_elevation"
+    )
+    
+    Card(
+        modifier = modifier
+            .height(140.dp)
+            .scale(scale)
+            .shadow(
+                elevation = elevation.dp,
+                shape = RoundedCornerShape(20.dp),
+                spotColor = if (isPressed) item.gradient.first().copy(alpha = 0.6f) else Color.Black.copy(alpha = 0.3f)
+            ),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.Transparent
+        ),
+        onClick = {
+            isPressed = true
+            coroutineScope.launch {
+                delay(150)
+                isPressed = false
+            }
+            item.onClick()
+        }
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = item.gradient.map { it.copy(alpha = 0.9f) }
+                    ),
+                    shape = RoundedCornerShape(20.dp)
+                )
+                .border(
+                    width = 1.dp,
+                    color = Color.White.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(20.dp)
+                )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                // 图标和标题行
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Text(
+                        text = item.icon,
+                        fontSize = 32.sp
+                    )
+                    
+                    // 徽章
+                    item.badge?.let { badge ->
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color(0xFFEF4444)
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = badge,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+                
+                // 标题和描述
+                Column {
+                    Text(
+                        text = item.title,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = item.description,
+                        fontSize = 11.sp,
+                        color = Color.White.copy(alpha = 0.8f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
+// 现代化的游戏背景
+@Composable
+fun ModernGameBackground() {
+    // 网格背景效果
+    val infiniteTransition = rememberInfiniteTransition(label = "background")
+    
+    val gridOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 100f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(20000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "grid_offset"
+    )
+    
+    val density = LocalDensity.current
+    Canvas(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        // 绘制网格线
+        val gridSize = with(density) { 50.dp.toPx() }
+        val offsetX = gridOffset % gridSize
+        
+        // 垂直线
+        var x = offsetX
+        while (x < size.width) {
+            drawLine(
+                color = Color.White.copy(alpha = 0.03f),
+                start = Offset(x, 0f),
+                end = Offset(x, size.height),
+                strokeWidth = 1f
+            )
+            x += gridSize
+        }
+        
+        // 水平线
+        var y = 0f
+        while (y < size.height) {
+            drawLine(
+                color = Color.White.copy(alpha = 0.03f),
+                start = Offset(0f, y),
+                end = Offset(size.width, y),
+                strokeWidth = 1f
+            )
+            y += gridSize
+        }
+        
+        // 添加一些装饰性的圆形
+        val circles = listOf(
+            Offset(size.width * 0.1f, size.height * 0.2f) to 100f,
+            Offset(size.width * 0.9f, size.height * 0.3f) to 150f,
+            Offset(size.width * 0.15f, size.height * 0.8f) to 80f,
+            Offset(size.width * 0.85f, size.height * 0.7f) to 120f
+        )
+        
+        circles.forEach { (center, radius) ->
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0xFF3B82F6).copy(alpha = 0.1f),
+                        Color.Transparent
+                    ),
+                    center = center,
+                    radius = radius
+                ),
+                radius = radius,
+                center = center
             )
         }
     }
     
+    // 粒子效果（保留原有的粒子效果但优化）
+    ParticleBackground()
+}
+
+@Composable
+fun ParticleBackground() {
+    // 减少粒子数量，降低性能消耗
+    val particles = remember {
+        List(8) { // 从20个减少到8个
+            Particle(
+                x = Random.nextFloat(),
+                y = Random.nextFloat(),
+                size = Random.nextFloat() * 3f + 2f, // 稍微减小粒子大小
+                speed = Random.nextFloat() * 0.015f + 0.01f, // 稍微减慢速度
+                alpha = Random.nextFloat() * 0.4f + 0.15f // 降低透明度范围
+            )
+        }
+    }
+    
+    // 使用更长的动画时间，减少更新频率
     val infiniteTransition = rememberInfiniteTransition(label = "particles")
     val animationProgress by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(10000)
+            animation = tween(15000) // 从10秒增加到15秒，减少更新频率
         ),
         label = "particle_animation"
     )
@@ -839,9 +1266,11 @@ fun ParticleBackground() {
     Canvas(
         modifier = Modifier.fillMaxSize()
     ) {
+        // 直接在Canvas中绘制，移除sin计算以提升性能
         particles.forEach { particle ->
             val currentY = (particle.y + animationProgress * particle.speed) % 1f
-            val currentX = particle.x + sin(animationProgress * 2 * Math.PI.toFloat() + particle.y * 10) * 0.1f
+            // 移除sin函数计算，使用简单的线性移动
+            val currentX = particle.x
             
             drawCircle(
                 color = Color.White.copy(alpha = particle.alpha),
@@ -950,6 +1379,13 @@ fun GameSetupScreen(navController: NavController) {
                 )
             )
     ) {
+        // FPS监测（左上角）
+        FpsMonitor(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(8.dp)
+        )
+        
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -1256,6 +1692,9 @@ fun GameScreen(
     
     // 员工状态管理 - 提升到GameScreen级别
     val allEmployees = remember { mutableStateListOf<Employee>() }
+    
+    // 获取协程作用域，用于在主线程安全更新
+    val coroutineScope = rememberCoroutineScope()
     
     // 竞争对手数据状态
     var competitors by remember { mutableStateOf(saveData?.competitors ?: emptyList()) }
@@ -2132,16 +2571,27 @@ fun GameScreen(
                 }
             }
             
-            // 移除离职员工
+            // 移除离职员工（使用安全的filter方式避免并发修改）
             if (employeesToRemove.isNotEmpty()) {
-                allEmployees.removeAll(employeesToRemove)
-                // 同时从游戏中移除这些员工
-                games = games.map { game ->
-                    game.copy(
-                        assignedEmployees = game.assignedEmployees.filter { emp ->
-                            emp.id !in employeesToRemove.map { it.id }
-                        }
-                    )
+                try {
+                    val employeeIdsToRemove = employeesToRemove.map { it.id }.toSet()
+                    val updatedEmployees = allEmployees.filter { it.id !in employeeIdsToRemove }
+                    allEmployees.clear()
+                    allEmployees.addAll(updatedEmployees)
+                    
+                    // 同时从游戏中移除这些员工
+                    games = games.map { game ->
+                        game.copy(
+                            assignedEmployees = game.assignedEmployees.filter { emp ->
+                                emp.id !in employeeIdsToRemove
+                            }
+                        )
+                    }
+                    
+                    Log.d("MainActivity", "成功移除${employeesToRemove.size}名离职员工")
+                } catch (e: Exception) {
+                    android.util.Log.e("MainActivity", "移除离职员工时发生异常", e)
+                    e.printStackTrace()
                 }
             }
             
@@ -2538,6 +2988,13 @@ fun GameScreen(
                 )
             )
     ) {
+        // FPS监测（左上角）
+        FpsMonitor(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(8.dp)
+        )
+        
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
@@ -2585,18 +3042,43 @@ fun GameScreen(
                             allEmployees = allEmployees,
                             onEmployeesUpdate = { updatedEmployees -> 
                                 try {
-                                    android.util.Log.d("MainActivity", "更新员工列表: ${updatedEmployees.size} 个员工，当前: ${allEmployees.size} 个")
+                                    android.util.Log.d("MainActivity", "📞 onEmployeesUpdate回调: ${updatedEmployees.size} 个员工")
+                                    android.util.Log.d("MainActivity", "📞 回调中员工名单: ${updatedEmployees.map { it.name }.joinToString()}")
+                                    android.util.Log.d("MainActivity", "📞 当前allEmployees大小: ${allEmployees.size}")
                                     
-                                    // Compose 回调默认在主线程，直接更新即可
-                                    // 但需要捕获异常防止崩溃
-                                    allEmployees.clear()
-                                    allEmployees.addAll(updatedEmployees)
-                                    
-                                    android.util.Log.d("MainActivity", "员工列表更新成功: ${allEmployees.size} 个员工")
+                                    // 使用协程确保在主线程执行，避免并发修改
+                                    coroutineScope.launch(Dispatchers.Main) {
+                                        try {
+                                            android.util.Log.d("MainActivity", "🔄 开始更新员工列表")
+                                            android.util.Log.d("MainActivity", "🔄 更新前: ${allEmployees.size} 个员工")
+                                            
+                                            // 批量更新（避免并发修改）
+                                            val employeesList = updatedEmployees.toList()
+                                            allEmployees.clear()
+                                            allEmployees.addAll(employeesList)
+                                            
+                                            android.util.Log.d("MainActivity", "✅ 更新完成: ${allEmployees.size} 个员工")
+                                            android.util.Log.d("MainActivity", "✅ 员工名单: ${allEmployees.map { it.name }.joinToString()}")
+                                        } catch (e: ConcurrentModificationException) {
+                                            android.util.Log.e("MainActivity", "❌ 并发修改异常，重试更新", e)
+                                            // 重试一次
+                                            try {
+                                                val employeesList = updatedEmployees.toList()
+                                                allEmployees.clear()
+                                                allEmployees.addAll(employeesList)
+                                                android.util.Log.d("MainActivity", "✅ 重试更新成功")
+                                            } catch (e2: Exception) {
+                                                android.util.Log.e("MainActivity", "❌ 重试更新失败", e2)
+                                                e2.printStackTrace()
+                                            }
+                                        } catch (e: Exception) {
+                                            android.util.Log.e("MainActivity", "❌ 更新员工列表失败", e)
+                                            e.printStackTrace()
+                                        }
+                                    }
                                 } catch (e: Exception) {
-                                    android.util.Log.e("MainActivity", "更新员工列表时发生异常", e)
+                                    android.util.Log.e("MainActivity", "📞 onEmployeesUpdate回调时发生异常", e)
                                     e.printStackTrace()
-                                    // 异常已记录，不抛出，避免崩溃
                                 }
                             },
                             money = money,
@@ -4674,6 +5156,13 @@ fun ContinueScreen(navController: NavController) {
                 )
             )
     ) {
+        // FPS监测（左上角）
+        FpsMonitor(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(8.dp)
+        )
+        
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -5011,6 +5500,13 @@ fun AchievementScreen(
                 )
             )
     ) {
+        // FPS监测（左上角）
+        FpsMonitor(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(8.dp)
+        )
+        
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -5237,6 +5733,13 @@ fun SettingsScreen(navController: NavController) {
                 )
             )
     ) {
+        // FPS监测（左上角）
+        FpsMonitor(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(8.dp)
+        )
+        
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -6679,6 +7182,85 @@ fun TournamentMenuDialog(
             }
             
             Spacer(modifier = Modifier.height(8.dp))
+        }
+    }
+}
+
+/**
+ * FPS监测组件
+ * 显示当前帧率，用于性能监控
+ */
+@Composable
+fun FpsMonitor(
+    modifier: Modifier = Modifier
+) {
+    var fps by remember { mutableIntStateOf(60) }
+    val coroutineScope = rememberCoroutineScope()
+    
+    // 使用Choreographer监测真实帧率
+    DisposableEffect(Unit) {
+        var frameCount = 0
+        var lastTime = System.currentTimeMillis()
+        
+        val frameCallback = object : Choreographer.FrameCallback {
+            override fun doFrame(frameTimeNanos: Long) {
+                frameCount++
+                Choreographer.getInstance().postFrameCallback(this)
+            }
+        }
+        
+        Choreographer.getInstance().postFrameCallback(frameCallback)
+        
+        // 每秒计算一次FPS
+        val updateJob = coroutineScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(1000)
+                val currentTime = System.currentTimeMillis()
+                val elapsed = currentTime - lastTime
+                if (elapsed > 0) {
+                    val calculatedFps = ((frameCount * 1000L) / elapsed).toInt().coerceIn(0, 144)
+                    fps = calculatedFps
+                    frameCount = 0
+                    lastTime = currentTime
+                }
+            }
+        }
+        
+        onDispose {
+            Choreographer.getInstance().removeFrameCallback(frameCallback)
+            updateJob.cancel()
+        }
+    }
+    
+    Box(
+        modifier = modifier
+            .background(
+                color = Color.Black.copy(alpha = 0.6f),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = "FPS",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White.copy(alpha = 0.7f)
+            )
+            Text(
+                text = "$fps",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = when {
+                    fps >= 110 -> Color(0xFF10B981) // 绿色：性能优秀（接近120fps）
+                    fps >= 55 -> Color(0xFF3B82F6) // 蓝色：性能良好（60fps左右）
+                    fps >= 30 -> Color(0xFFF59E0B) // 黄色：性能一般
+                    else -> Color(0xFFEF4444) // 红色：性能较差
+                }
+            )
         }
     }
 }

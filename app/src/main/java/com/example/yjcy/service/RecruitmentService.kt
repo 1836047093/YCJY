@@ -1,5 +1,6 @@
 package com.example.yjcy.service
 
+import android.util.Log
 import com.example.yjcy.data.TalentCandidate
 import com.example.yjcy.data.Employee
 import com.example.yjcy.data.SaveData
@@ -9,10 +10,20 @@ import kotlin.math.min
 /**
  * 招聘服务类
  * 负责处理招聘逻辑、费用计算和员工添加
+ * 使用单例模式确保一致性
  */
 class RecruitmentService {
     
     companion object {
+        @Volatile
+        private var instance: RecruitmentService? = null
+        
+        fun getInstance(): RecruitmentService {
+            return instance ?: synchronized(this) {
+                instance ?: RecruitmentService().also { instance = it }
+            }
+        }
+        
         // 招聘费用基础倍数
         private const val RECRUITMENT_FEE_MULTIPLIER = 1.5
         
@@ -22,10 +33,15 @@ class RecruitmentService {
         // 最高招聘费用
         private const val MAX_RECRUITMENT_FEE = 30000
         
+        // 最大员工数量限制
+        private const val MAX_EMPLOYEE_COUNT = 30
+        
         // 技能等级费用系数
         private val SKILL_LEVEL_MULTIPLIER = mapOf(
             1 to 0.8, 2 to 1.0, 3 to 1.3, 4 to 1.8, 5 to 2.5
         )
+        
+        private const val TAG = "RecruitmentService"
     }
     
     /**
@@ -50,98 +66,150 @@ class RecruitmentService {
     
     /**
      * 执行招聘操作
-     * 返回招聘结果
+     * 返回招聘结果，包含更新后的员工列表和资金
      */
     fun recruitCandidate(
         candidate: TalentCandidate,
-        saveData: SaveData,
+        currentEmployees: List<Employee>,
+        currentMoney: Long,
         currentYear: Int,
         currentMonth: Int,
         currentDay: Int
     ): RecruitmentResult {
-        val recruitmentFee = calculateRecruitmentFee(candidate)
+        Log.d(TAG, "开始雇佣流程: ${candidate.name}, 职位: ${candidate.position}")
         
-        // 检查资金是否足够
-        if (saveData.money < recruitmentFee) {
+        // 验证候选人数据
+        val validationResult = validateCandidate(candidate)
+        if (!validationResult.isValid) {
+            Log.e(TAG, "候选人验证失败: ${validationResult.message}")
             return RecruitmentResult(
                 success = false,
-                message = "资金不足，需要 ¥${recruitmentFee}，当前只有 ¥${saveData.money}",
+                message = validationResult.message,
+                employee = null,
+                cost = 0
+            )
+        }
+        
+        // 计算招聘费用
+        val recruitmentFee = calculateRecruitmentFee(candidate)
+        Log.d(TAG, "招聘费用: ¥$recruitmentFee")
+        
+        // 检查资金是否足够
+        if (currentMoney < recruitmentFee) {
+            Log.w(TAG, "资金不足: 需要 ¥$recruitmentFee，当前只有 ¥$currentMoney")
+            return RecruitmentResult(
+                success = false,
+                message = "资金不足，需要 ¥${recruitmentFee}，当前只有 ¥${currentMoney}",
                 employee = null,
                 cost = recruitmentFee
             )
         }
         
         // 检查员工数量限制
-        if (saveData.allEmployees.size >= getMaxEmployeeCount(saveData)) {
+        if (currentEmployees.size >= MAX_EMPLOYEE_COUNT) {
+            Log.w(TAG, "员工数量已达上限: ${currentEmployees.size}/$MAX_EMPLOYEE_COUNT")
             return RecruitmentResult(
                 success = false,
-                message = "员工数量已达上限，无法招聘更多员工",
+                message = "员工数量已达上限（${currentEmployees.size}/$MAX_EMPLOYEE_COUNT），无法继续招聘",
                 employee = null,
                 cost = recruitmentFee
             )
         }
         
-        // 生成新员工ID
-        val newEmployeeId = generateNewEmployeeId(saveData.allEmployees)
+        try {
+            // 生成新员工ID
+            val newEmployeeId = generateNewEmployeeId(currentEmployees)
+            Log.d(TAG, "生成新员工ID: $newEmployeeId")
+            
+            // 转换候选人为员工
+            val newEmployee = candidate.toEmployee(
+                newEmployeeId,
+                currentYear,
+                currentMonth,
+                currentDay
+            )
+            
+            // 验证员工对象
+            if (newEmployee.id <= 0 || newEmployee.name.isBlank()) {
+                Log.e(TAG, "创建的员工对象无效: ID=${newEmployee.id}, name=${newEmployee.name}")
+                return RecruitmentResult(
+                    success = false,
+                    message = "创建员工对象失败，数据无效",
+                    employee = null,
+                    cost = recruitmentFee
+                )
+            }
+            
+            Log.d(TAG, "成功创建员工: ${newEmployee.name}, ID=${newEmployee.id}")
+            
+            // 计算更新后的数据
+            val updatedEmployees = currentEmployees + newEmployee
+            val updatedMoney = currentMoney - recruitmentFee
+            
+            return RecruitmentResult(
+                success = true,
+                message = "成功招聘 ${candidate.name}，花费 ¥${recruitmentFee}",
+                employee = newEmployee,
+                cost = recruitmentFee,
+                updatedEmployees = updatedEmployees,
+                updatedMoney = updatedMoney
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "雇佣过程中发生异常", e)
+            e.printStackTrace()
+            return RecruitmentResult(
+                success = false,
+                message = "雇佣失败: ${e.message ?: "未知错误"}",
+                employee = null,
+                cost = recruitmentFee
+            )
+        }
+    }
+    
+    /**
+     * 验证候选人数据的有效性
+     */
+    private fun validateCandidate(candidate: TalentCandidate): ValidationResult {
+        if (candidate.name.isBlank()) {
+            return ValidationResult(false, "候选人姓名不能为空")
+        }
         
-        // 转换候选人为员工
-        val newEmployee = candidate.toEmployee(
-            newEmployeeId,
-            currentYear,
-            currentMonth,
-            currentDay
-        )
+        if (candidate.position.isBlank()) {
+            return ValidationResult(false, "候选人职位不能为空")
+        }
         
-        // 添加员工到游戏数据
-        val updatedEmployees = saveData.allEmployees + newEmployee
-        val updatedMoney = saveData.money - recruitmentFee
+        if (candidate.expectedSalary <= 0) {
+            return ValidationResult(false, "候选人期望薪资无效")
+        }
         
-        // 更新游戏数据（这里假设有更新方法，实际实现可能需要调整）
-        // gameData.copy(employees = updatedEmployees, money = updatedMoney)
-        
-        return RecruitmentResult(
-            success = true,
-            message = "成功招聘 ${candidate.name}，花费 ¥${recruitmentFee}",
-            employee = newEmployee,
-            cost = recruitmentFee
-        )
+        return ValidationResult(true, "")
     }
     
     /**
      * 生成新的员工ID
+     * 确保ID唯一且为正数
      */
     private fun generateNewEmployeeId(employees: List<Employee>): Int {
         return if (employees.isEmpty()) {
             1
         } else {
-            employees.maxOf { it.id } + 1
+            val maxId = employees.maxOfOrNull { it.id } ?: 0
+            maxOf(1, maxId + 1)
         }
     }
     
     /**
      * 获取最大员工数量限制
-     * 可以根据公司等级或其他因素调整
      */
-    private fun getMaxEmployeeCount(saveData: SaveData): Int {
-        // 基础员工数量限制
-        var maxCount = 10
-        
-        // 根据公司资金调整限制（示例逻辑）
-        when {
-            saveData.money >= 100000L -> maxCount = 20
-            saveData.money >= 50000L -> maxCount = 15
-            saveData.money >= 20000L -> maxCount = 12
-        }
-        
-        return maxCount
+    fun getMaxEmployeeCount(): Int {
+        return MAX_EMPLOYEE_COUNT
     }
     
     /**
-     * 获取最大员工数量限制（公共方法）
+     * 检查是否可以雇佣更多员工
      */
-    fun getMaxEmployeeCount(): Int {
-        // 默认员工数量限制
-        return 30
+    fun canHireMore(currentEmployeeCount: Int): Boolean {
+        return currentEmployeeCount < MAX_EMPLOYEE_COUNT
     }
     
     /**
@@ -193,7 +261,17 @@ data class RecruitmentResult(
     val success: Boolean,
     val message: String,
     val employee: Employee?,
-    val cost: Int
+    val cost: Int,
+    val updatedEmployees: List<Employee>? = null,
+    val updatedMoney: Long? = null
+)
+
+/**
+ * 验证结果数据类
+ */
+private data class ValidationResult(
+    val isValid: Boolean,
+    val message: String
 )
 
 /**

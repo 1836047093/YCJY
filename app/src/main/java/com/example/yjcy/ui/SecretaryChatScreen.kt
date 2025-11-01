@@ -31,6 +31,7 @@ import androidx.navigation.NavController
 import com.example.yjcy.data.ChatMessage
 import com.example.yjcy.data.MessageSender
 import com.example.yjcy.data.SecretaryReplyManager
+import com.example.yjcy.FpsMonitor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -66,164 +67,173 @@ fun SecretaryChatScreen(navController: NavController) {
         }
     }
     
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        // 秘书头像
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    brush = Brush.linearGradient(
-                                        colors = listOf(
-                                            Color(0xFFFF6B9D),
-                                            Color(0xFFC06C84)
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            // 秘书头像
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        brush = Brush.linearGradient(
+                                            colors = listOf(
+                                                Color(0xFFFF6B9D),
+                                                Color(0xFFC06C84)
+                                            )
                                         )
                                     )
-                                )
-                                .border(2.dp, Color.White, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "👩‍💼",
-                                fontSize = 24.sp
-                            )
-                        }
-                        
-                        Spacer(modifier = Modifier.width(12.dp))
-                        
-                        // 秘书标题
-                        Column {
-                            Text(
-                                text = "秘书",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                            
-                            // 在线状态指示
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically
+                                    .border(2.dp, Color.White, CircleShape),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF4CAF50))
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "在线",
-                                    fontSize = 12.sp,
-                                    color = Color.White.copy(alpha = 0.8f)
+                                    text = "👩‍💼",
+                                    fontSize = 24.sp
                                 )
                             }
+                            
+                            Spacer(modifier = Modifier.width(12.dp))
+                            
+                            // 秘书标题
+                            Column {
+                                Text(
+                                    text = "秘书",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                
+                                // 在线状态指示
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF4CAF50))
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "在线",
+                                        fontSize = 12.sp,
+                                        color = Color.White.copy(alpha = 0.8f)
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "返回",
+                                tint = Color.White
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color(0xFF667eea)
+                    )
+                )
+            }
+        ) { paddingValues ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .background(Color(0xFFF5F5F5))
+            ) {
+                // 聊天消息列表
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(messages) { message ->
+                        AnimatedVisibility(
+                            visible = true,
+                            enter = fadeIn() + slideInVertically(initialOffsetY = { it / 2 }),
+                            exit = fadeOut() + slideOutVertically(targetOffsetY = { it / 2 })
+                        ) {
+                            ChatMessageItem(message = message)
                         }
                     }
-                },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
-                            tint = Color.White
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF667eea)
-                )
-            )
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .background(Color(0xFFF5F5F5))
-        ) {
-            // 聊天消息列表
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(messages) { message ->
-                    AnimatedVisibility(
-                        visible = true,
-                        enter = fadeIn() + slideInVertically(initialOffsetY = { it / 2 }),
-                        exit = fadeOut() + slideOutVertically(targetOffsetY = { it / 2 })
-                    ) {
-                        ChatMessageItem(message = message)
+                    
+                    // 输入中提示
+                    if (isTyping) {
+                        item {
+                            TypingIndicator()
+                        }
                     }
                 }
                 
-                // 输入中提示
-                if (isTyping) {
-                    item {
-                        TypingIndicator()
-                    }
-                }
-            }
-            
-            // 输入框区域
-            ChatInputBar(
-                inputText = inputText,
-                onInputTextChange = { inputText = it },
-                onSendClick = {
-                    if (inputText.isNotBlank()) {
-                        val messageContent = inputText.trim()
-                        
-                        // 检查敏感词
-                        if (SecretaryReplyManager.containsSensitiveWords(messageContent)) {
-                            // 如果包含敏感词，直接显示警告消息
-                            val warningMessage = ChatMessage(
-                                sender = MessageSender.SECRETARY,
-                                content = "⚠️ 检测到敏感词，请不要讨论政治相关话题哦，老板！"
-                            )
-                            messages = messages + warningMessage
-                            inputText = "" // 清空输入框
-                            return@ChatInputBar
-                        }
-                        
-                        // 添加玩家消息
-                        val playerMessage = ChatMessage(
-                            sender = MessageSender.PLAYER,
-                            content = messageContent
-                        )
-                        messages = messages + playerMessage
-                        
-                        // 清空输入框
-                        inputText = ""
-                        
-                        // 模拟秘书打字延迟
-                        coroutineScope.launch {
-                            isTyping = true
-                            delay(800 + (messageContent.length * 50L).coerceAtMost(2000))
-                            isTyping = false
+                // 输入框区域
+                ChatInputBar(
+                    inputText = inputText,
+                    onInputTextChange = { inputText = it },
+                    onSendClick = {
+                        if (inputText.isNotBlank()) {
+                            val messageContent = inputText.trim()
                             
-                            // 生成秘书回复
-                            val reply = SecretaryReplyManager.generateReply(messageContent)
-                            val secretaryMessage = ChatMessage(
-                                sender = MessageSender.SECRETARY,
-                                content = reply
+                            // 检查敏感词
+                            if (SecretaryReplyManager.containsSensitiveWords(messageContent)) {
+                                // 如果包含敏感词，直接显示警告消息
+                                val warningMessage = ChatMessage(
+                                    sender = MessageSender.SECRETARY,
+                                    content = "⚠️ 检测到敏感词，请不要讨论政治相关话题哦，老板！"
+                                )
+                                messages = messages + warningMessage
+                                inputText = "" // 清空输入框
+                                return@ChatInputBar
+                            }
+                            
+                            // 添加玩家消息
+                            val playerMessage = ChatMessage(
+                                sender = MessageSender.PLAYER,
+                                content = messageContent
                             )
-                            messages = messages + secretaryMessage
+                            messages = messages + playerMessage
+                            
+                            // 清空输入框
+                            inputText = ""
+                            
+                            // 模拟秘书打字延迟
+                            coroutineScope.launch {
+                                isTyping = true
+                                delay(800 + (messageContent.length * 50L).coerceAtMost(2000))
+                                isTyping = false
+                                
+                                // 生成秘书回复
+                                val reply = SecretaryReplyManager.generateReply(messageContent)
+                                val secretaryMessage = ChatMessage(
+                                    sender = MessageSender.SECRETARY,
+                                    content = reply
+                                )
+                                messages = messages + secretaryMessage
+                            }
                         }
                     }
-                }
-            )
+                )
+            }
         }
+        
+        // FPS监测（左上角）
+        FpsMonitor(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(8.dp)
+        )
     }
 }
 

@@ -25,6 +25,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.yjcy.data.*
 import com.example.yjcy.service.JobPostingService
+import com.example.yjcy.service.RecruitmentService
 
 /**
  * 应聘者管理对话框
@@ -39,11 +40,14 @@ fun ApplicantManagementDialog(
     onApplicantHired: (TalentCandidate) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // 员工人数上限
-    val maxEmployees = 30
+    // 获取服务实例
+    val recruitmentService = remember { RecruitmentService.getInstance() }
+    val jobPostingService = remember { JobPostingService.getInstance() }
+    
+    // 员工人数上限（使用 RecruitmentService 的统一方法）
+    val maxEmployees = recruitmentService.getMaxEmployeeCount()
     // 直接使用 saveData，不缓存状态，确保始终是最新的
     val isEmployeeFull = saveData.allEmployees.size >= maxEmployees
-    val jobPostingService = remember { JobPostingService.getInstance() }
     var currentJobPosting by remember(jobPosting.id) { mutableStateOf(jobPosting) }
     var showHireSuccessDialog by remember { mutableStateOf(false) }
     var hiredEmployeeName by remember { mutableStateOf("") }
@@ -384,69 +388,57 @@ fun ApplicantManagementDialog(
                                         try {
                                             android.util.Log.d("ApplicantManagement", "开始雇佣流程: ${applicant.candidate.name}")
                                             
-                                            // 先将应聘者标记为已通过，然后再雇佣
+                                            // 先将应聘者标记为已通过
                                             val updateSuccess = jobPostingService.updateApplicantStatus(
                                                 currentJobPosting.id,
                                                 applicant.id,
                                                 ApplicantStatus.ACCEPTED
                                             )
                                             
-                                            android.util.Log.d("ApplicantManagement", "更新应聘者状态: $updateSuccess")
-                                            
                                             if (!updateSuccess) {
-                                                // 如果更新状态失败，不执行雇佣操作
                                                 android.util.Log.w("ApplicantManagement", "更新状态失败，取消雇佣")
                                                 return@ApplicantCard
                                             }
                                             
-                                            android.util.Log.d("ApplicantManagement", "调用 hireApplicant")
+                                            // 从 JobPostingService 获取候选人（用于标记为已雇佣）
                                             val candidate = jobPostingService.hireApplicant(
                                                 currentJobPosting.id,
                                                 applicant.id
                                             )
                                             
-                                            android.util.Log.d("ApplicantManagement", "hireApplicant 返回: ${candidate?.name ?: "null"}")
-                                            
                                             if (candidate != null) {
-                                                // 安全地调用回调
+                                                // 验证候选人数据
+                                                if (candidate.name.isBlank()) {
+                                                    android.util.Log.e("ApplicantManagement", "候选人姓名为空")
+                                                    return@ApplicantCard
+                                                }
+                                                
+                                                // 更新本地状态
+                                                hiredEmployeeName = candidate.name
+                                                
+                                                // 调用回调，传递候选人（上层组件会使用 RecruitmentService 处理雇佣）
+                                                android.util.Log.d("ApplicantManagement", "准备调用 onApplicantHired 回调")
                                                 try {
-                                                    // 验证候选人数据
-                                                    if (candidate.name.isBlank()) {
-                                                        android.util.Log.e("ApplicantManagement", "候选人姓名为空")
-                                                        return@ApplicantCard
-                                                    }
-                                                    
-                                                    // 先更新本地状态
-                                                    hiredEmployeeName = candidate.name
-                                                    
-                                                    // 直接调用回调（Compose 回调默认在主线程）
-                                                    android.util.Log.d("ApplicantManagement", "准备调用 onApplicantHired 回调")
                                                     onApplicantHired(candidate)
-                                                    android.util.Log.d("ApplicantManagement", "onApplicantHired 回调执行完成")
                                                     
                                                     // 更新当前岗位信息
-                                                    android.util.Log.d("ApplicantManagement", "准备更新岗位信息")
                                                     try {
                                                         currentJobPosting = jobPostingService.getJobPosting(currentJobPosting.id) ?: currentJobPosting
-                                                        android.util.Log.d("ApplicantManagement", "岗位信息更新完成")
                                                     } catch (e: Exception) {
                                                         android.util.Log.e("ApplicantManagement", "更新岗位信息失败", e)
                                                     }
                                                     
                                                     // 显示成功对话框
-                                                    android.util.Log.d("ApplicantManagement", "准备显示成功对话框")
                                                     showHireSuccessDialog = true
-                                                    android.util.Log.d("ApplicantManagement", "成功对话框标志已设置")
                                                 } catch (e: Exception) {
-                                                    // 如果回调执行失败，记录错误但不崩溃
-                                                    android.util.Log.e("ApplicantManagement", "回调执行失败", e)
+                                                    android.util.Log.e("ApplicantManagement", "调用回调时发生异常", e)
                                                     e.printStackTrace()
                                                 }
                                             } else {
                                                 android.util.Log.w("ApplicantManagement", "hireApplicant返回null，无法雇佣")
                                             }
                                         } catch (e: Exception) {
-                                            // 捕获所有异常，防止崩溃
+                                            android.util.Log.e("ApplicantManagement", "雇佣过程中发生异常", e)
                                             e.printStackTrace()
                                         }
                                     }
