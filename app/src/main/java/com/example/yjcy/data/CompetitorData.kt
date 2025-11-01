@@ -202,14 +202,14 @@ object CompetitorManager {
             } while (usedNames.contains(companyName))
             usedNames.add(companyName)
             
-            // 生成公司基础数据（数值相对保守，避免过于夸张）
+            // 生成公司基础数据（大幅提高初始市值，确保所有竞争对手都有足够高的市值）
             val yearsFounded = Random.nextInt(1, 6) // 1-5年
             val baseMarketValue = when (yearsFounded) {
-                1 -> Random.nextLong(500000L, 2000000L)      // 50万-200万
-                2 -> Random.nextLong(1000000L, 5000000L)     // 100万-500万
-                3 -> Random.nextLong(2000000L, 10000000L)    // 200万-1000万
-                4 -> Random.nextLong(5000000L, 20000000L)    // 500万-2000万
-                else -> Random.nextLong(10000000L, 50000000L) // 1000万-5000万
+                1 -> Random.nextLong(5000000L, 15000000L)      // 500万-1500万（大幅提高）
+                2 -> Random.nextLong(10000000L, 30000000L)     // 1000万-3000万（大幅提高）
+                3 -> Random.nextLong(20000000L, 60000000L)    // 2000万-6000万（大幅提高）
+                4 -> Random.nextLong(40000000L, 100000000L)    // 4000万-1亿（大幅提高）
+                else -> Random.nextLong(80000000L, 200000000L) // 8000万-2亿（大幅提高）
             }
             
             val baseFans = when (yearsFounded) {
@@ -280,23 +280,28 @@ object CompetitorManager {
             val actualReleaseYear = if (releaseMonth <= 0) releaseYear - 1 else releaseYear
             val actualReleaseMonth = if (releaseMonth <= 0) releaseMonth + 12 else releaseMonth
             
-            // 游戏评分 (5.0-9.5)
-            val rating = Random.nextInt(50, 96) / 10f
+            // 游戏评分 (6.5-9.8，提高竞争对手实力，增加高评分比例)
+            // 使用加权随机，让高评分游戏更容易出现
+            val rating = when (Random.nextInt(1, 101)) {
+                in 1..15 -> Random.nextInt(85, 99) / 10f  // 15%概率：8.5-9.9分（高评分）
+                in 16..40 -> Random.nextInt(75, 85) / 10f  // 25%概率：7.5-8.5分（中高评分）
+                in 41..70 -> Random.nextInt(70, 75) / 10f  // 30%概率：7.0-7.5分（中等评分）
+                else -> Random.nextInt(65, 70) / 10f       // 30%概率：6.5-7.0分（中低评分）
+            }
             
             // 根据游戏年龄和评分生成合理的玩家数/销量
             val monthsSinceRelease = (currentYear - actualReleaseYear) * 12 + (currentMonth - actualReleaseMonth)
             
             val (activePlayers, salesCount, initialRevenue, initialMonetizationRevenue) = when (businessModel) {
                 BusinessModel.ONLINE_GAME -> {
-                    // 网游活跃玩家：基于评分和时间，高评分游戏有更高的活跃玩家数
-                    // 基础活跃玩家数（根据评分梯度设置）
+                    // 网游活跃玩家：大幅提高基础活跃玩家数，增强竞争力
                     val baseActivePlayers = when {
-                        rating >= 9.0f -> Random.nextLong(50000L, 150000L)  // 9.0+分：5万-15万
-                        rating >= 8.5f -> Random.nextLong(30000L, 80000L)   // 8.5-9.0分：3万-8万
-                        rating >= 8.0f -> Random.nextLong(20000L, 50000L)  // 8.0-8.5分：2万-5万
-                        rating >= 7.0f -> Random.nextLong(10000L, 30000L)   // 7.0-8.0分：1万-3万
-                        rating >= 6.0f -> Random.nextLong(5000L, 15000L)     // 6.0-7.0分：5千-1.5万
-                        else -> Random.nextLong(1000L, 5000L)              // 6.0分以下：1千-5千
+                        rating >= 9.0f -> Random.nextLong(100000L, 300000L)  // 9.0+分：10万-30万（提高）
+                        rating >= 8.5f -> Random.nextLong(60000L, 150000L)   // 8.5-9.0分：6万-15万（提高）
+                        rating >= 8.0f -> Random.nextLong(40000L, 100000L)  // 8.0-8.5分：4万-10万（提高）
+                        rating >= 7.0f -> Random.nextLong(20000L, 60000L)   // 7.0-8.0分：2万-6万（提高）
+                        rating >= 6.5f -> Random.nextLong(10000L, 30000L)     // 6.5-7.0分：1万-3万（提高）
+                        else -> Random.nextLong(5000L, 15000L)              // 6.5分以下：5千-1.5万（提高）
                     }
                     
                     // 时间倍率（发售越久，倍率越高）
@@ -318,15 +323,14 @@ object CompetitorManager {
                     Quadruple(activePlayers, 0L, totalRevenue, totalMonetizationRevenue)
                 }
                 BusinessModel.SINGLE_PLAYER -> {
-                    // 单机游戏销量：基于评分和时间更合理地计算，让高评分游戏有机会达到百万销量
-                    // 基础销量（评分影响更大）
+                    // 单机游戏销量：大幅提高基础销量，增强竞争力
                     val ratingBase = when {
-                        rating >= 9.0f -> Random.nextLong(50000L, 150000L)  // 9.0+分：5万-15万
-                        rating >= 8.5f -> Random.nextLong(20000L, 80000L)   // 8.5-9.0分：2万-8万
-                        rating >= 8.0f -> Random.nextLong(10000L, 40000L)   // 8.0-8.5分：1万-4万
-                        rating >= 7.0f -> Random.nextLong(5000L, 20000L)    // 7.0-8.0分：5千-2万
-                        rating >= 6.0f -> Random.nextLong(2000L, 10000L)    // 6.0-7.0分：2千-1万
-                        else -> Random.nextLong(1000L, 5000L)              // 6.0分以下：1千-5千
+                        rating >= 9.0f -> Random.nextLong(100000L, 300000L)  // 9.0+分：10万-30万（大幅提高）
+                        rating >= 8.5f -> Random.nextLong(50000L, 150000L)   // 8.5-9.0分：5万-15万（大幅提高）
+                        rating >= 8.0f -> Random.nextLong(30000L, 100000L)   // 8.0-8.5分：3万-10万（大幅提高）
+                        rating >= 7.0f -> Random.nextLong(15000L, 50000L)    // 7.0-8.0分：1.5万-5万（大幅提高）
+                        rating >= 6.5f -> Random.nextLong(8000L, 25000L)    // 6.5-7.0分：8千-2.5万（提高）
+                        else -> Random.nextLong(5000L, 15000L)              // 6.5分以下：5千-1.5万（提高）
                     }
                     
                     // 时间累积销量（发售越久销量越高，但增速递减）
@@ -657,30 +661,36 @@ object CompetitorManager {
         val platformCount = Random.nextInt(1, 4)
         val platforms = Platform.entries.shuffled().take(platformCount)
         val businessModel = BusinessModel.entries.random()
-        val rating = Random.nextInt(60, 90) / 10f
+        // 新游戏评分：提高至7.0-9.5分，增加高评分比例
+        val rating = when (Random.nextInt(1, 101)) {
+            in 1..20 -> Random.nextInt(90, 96) / 10f  // 20%概率：9.0-9.6分（高评分）
+            in 21..50 -> Random.nextInt(80, 90) / 10f  // 30%概率：8.0-9.0分（中高评分）
+            in 51..80 -> Random.nextInt(75, 80) / 10f  // 30%概率：7.5-8.0分（中等评分）
+            else -> Random.nextInt(70, 75) / 10f       // 20%概率：7.0-7.5分（中低评分）
+        }
         
         val (activePlayers, salesCount, initialRevenue, initialMonetizationRevenue) = when (businessModel) {
             BusinessModel.ONLINE_GAME -> {
-                // 新发售游戏的初始活跃玩家数：根据评分设置合理的首发活跃玩家数
+                // 新发售游戏的初始活跃玩家数：大幅提高首发活跃玩家数
                 val players = when {
-                    rating >= 9.0f -> Random.nextInt(20000, 50000).toLong()    // 9.0+分：2万-5万首发
-                    rating >= 8.5f -> Random.nextInt(15000, 35000).toLong()     // 8.5-9.0分：1.5万-3.5万首发
-                    rating >= 8.0f -> Random.nextInt(10000, 25000).toLong()     // 8.0-8.5分：1万-2.5万首发
-                    rating >= 7.0f -> Random.nextInt(5000, 15000).toLong()      // 7.0-8.0分：5千-1.5万首发
-                    else -> Random.nextInt(1000, 8000).toLong()                 // 7.0分以下：1千-8千首发
+                    rating >= 9.0f -> Random.nextInt(40000, 100000).toLong()    // 9.0+分：4万-10万首发（大幅提高）
+                    rating >= 8.5f -> Random.nextInt(30000, 70000).toLong()     // 8.5-9.0分：3万-7万首发（大幅提高）
+                    rating >= 8.0f -> Random.nextInt(20000, 50000).toLong()     // 8.0-8.5分：2万-5万首发（提高）
+                    rating >= 7.0f -> Random.nextInt(10000, 30000).toLong()      // 7.0-8.0分：1万-3万首发（提高）
+                    else -> Random.nextInt(5000, 15000).toLong()                 // 7.0分以下：5千-1.5万首发（提高）
                 }
                 // 使用付费内容系统计算首月收入
                 val monetizationRevenue = calculateCompetitorMonetizationRevenue(players, theme)
                 Quadruple(players, 0L, monetizationRevenue, monetizationRevenue)
             }
             BusinessModel.SINGLE_PLAYER -> {
-                // 新发售游戏的初始销量：根据评分设置合理的首发销量
+                // 新发售游戏的初始销量：大幅提高首发销量
                 val sales = when {
-                    rating >= 9.0f -> Random.nextInt(30000, 80000).toLong()   // 9.0+分：3万-8万首发
-                    rating >= 8.5f -> Random.nextInt(15000, 40000).toLong()    // 8.5-9.0分：1.5万-4万首发
-                    rating >= 8.0f -> Random.nextInt(8000, 20000).toLong()     // 8.0-8.5分：8千-2万首发
-                    rating >= 7.0f -> Random.nextInt(3000, 10000).toLong()    // 7.0-8.0分：3千-1万首发
-                    else -> Random.nextInt(1000, 5000).toLong()              // 7.0分以下：1千-5千首发
+                    rating >= 9.0f -> Random.nextInt(60000, 150000).toLong()   // 9.0+分：6万-15万首发（大幅提高）
+                    rating >= 8.5f -> Random.nextInt(30000, 80000).toLong()    // 8.5-9.0分：3万-8万首发（大幅提高）
+                    rating >= 8.0f -> Random.nextInt(20000, 50000).toLong()     // 8.0-8.5分：2万-5万首发（大幅提高）
+                    rating >= 7.0f -> Random.nextInt(10000, 30000).toLong()    // 7.0-8.0分：1万-3万首发（大幅提高）
+                    else -> Random.nextInt(5000, 15000).toLong()              // 7.0分以下：5千-1.5万首发（提高）
                 }
                 // 首月收入 = 销量 × 单价(50元)
                 val revenue = sales * 50.0

@@ -749,6 +749,7 @@ data class SaveData(
     val gvaAnnouncedDate: GameDate? = null, // GVA：最近一次颁奖日期
     val ownedIPs: List<GameIP> = emptyList(), // 拥有的游戏IP列表（收购竞争对手后获得）
     val gmModeEnabled: Boolean = false, // GM模式开关（通过兑换码激活）
+    val usedRedeemCodes: Set<String> = emptySet(), // 已使用的兑换码列表
     val saveTime: Long = System.currentTimeMillis(),
     val version: String = "1.0.0" // 存档版本号（创建时会被覆盖为当前版本）
 )

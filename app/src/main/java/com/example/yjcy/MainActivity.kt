@@ -75,6 +75,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.navigation.NavController
+import java.util.Calendar
+import java.text.SimpleDateFormat
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -727,6 +729,40 @@ fun MainMenuScreen(navController: NavController) {
     // 退出应用确认对话框状态
     var showExitDialog by remember { mutableStateOf(false) }
     
+    // QQ群提示对话框状态
+    var showQQGroupDialog by remember { mutableStateOf(false) }
+    var dontShowToday by remember { mutableStateOf(false) }
+    var pendingNavigationRoute by remember { mutableStateOf<String?>(null) }
+    
+    // 检查今天是否已经显示过对话框
+    fun shouldShowQQGroupDialog(): Boolean {
+        val prefs = context.getSharedPreferences("qq_group_dialog", Context.MODE_PRIVATE)
+        val lastDismissDate = prefs.getString("last_dismiss_date", null)
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Calendar.getInstance().time)
+        return lastDismissDate != today
+    }
+    
+    // 保存"今日不再弹出"的状态
+    fun saveDontShowToday(checked: Boolean) {
+        if (checked) {
+            val prefs = context.getSharedPreferences("qq_group_dialog", Context.MODE_PRIVATE)
+            val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Calendar.getInstance().time)
+            prefs.edit {
+                putString("last_dismiss_date", today)
+            }
+        }
+    }
+    
+    // 处理导航（在显示对话框后）
+    fun handleNavigation(route: String) {
+        if (shouldShowQQGroupDialog()) {
+            pendingNavigationRoute = route
+            showQQGroupDialog = true
+        } else {
+            navController.navigate(route)
+        }
+    }
+    
     // 加载存档数据（用于显示最近游戏）
     var recentSaves by remember { mutableStateOf(emptyMap<Int, SaveData?>()) }
     var isLoadingSaves by remember { mutableStateOf(true) }
@@ -899,14 +935,14 @@ fun MainMenuScreen(navController: NavController) {
                     title = "开始新游戏",
                     description = "创建新的游戏公司",
                     gradient = listOf(Color(0xFF3B82F6), Color(0xFF1E40AF)),
-                    onClick = { navController.navigate("game_setup") }
+                    onClick = { handleNavigation("game_setup") }
                 ),
                 MenuItem(
                     icon = "📂",
                     title = "继续游戏",
                     description = "加载已保存的存档",
                     gradient = listOf(Color(0xFF10B981), Color(0xFF059669)),
-                    onClick = { navController.navigate("continue") },
+                    onClick = { handleNavigation("continue") },
                     badge = if (recentSaves.values.any { it != null }) "NEW" else null
                 ),
                 MenuItem(
@@ -1029,7 +1065,227 @@ fun MainMenuScreen(navController: NavController) {
                 }
             )
         }
+        
+        // QQ群提示对话框
+        if (showQQGroupDialog) {
+            QQGroupDialog(
+                context = context,
+                onDismiss = {
+                    showQQGroupDialog = false
+                    dontShowToday = false
+                    // 取消时清除待处理的导航
+                    pendingNavigationRoute = null
+                },
+                onConfirm = {
+                    saveDontShowToday(dontShowToday)
+                    showQQGroupDialog = false
+                    dontShowToday = false
+                    // 执行待处理的导航
+                    pendingNavigationRoute?.let { route ->
+                        navController.navigate(route)
+                        pendingNavigationRoute = null
+                    }
+                },
+                dontShowToday = dontShowToday,
+                onDontShowTodayChange = { dontShowToday = it }
+            )
+        }
     }
+}
+
+// QQ群提示对话框组件
+@Composable
+fun QQGroupDialog(
+    context: Context,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+    dontShowToday: Boolean,
+    onDontShowTodayChange: (Boolean) -> Unit
+) {
+    // 一键加群功能
+    fun joinQQGroup() {
+        try {
+            // QQ群号
+            val qqGroupNumber = "851082168"
+            
+            // 检查QQ是否安装（直接检查包名）
+            fun isQQInstalled(): Boolean {
+                return try {
+                    context.packageManager.getPackageInfo("com.tencent.mobileqq", 0)
+                    true
+                } catch (e: Exception) {
+                    false
+                }
+            }
+            
+            if (!isQQInstalled()) {
+                Toast.makeText(context, "未检测到QQ应用，请先安装QQ后搜索群号：$qqGroupNumber", Toast.LENGTH_LONG).show()
+                return
+            }
+            
+            // 方式1: 尝试使用QQ的URL Scheme打开加群页面（推荐方式）
+            val groupIntent = Intent().apply {
+                action = Intent.ACTION_VIEW
+                data = android.net.Uri.parse("mqqapi://card/show_pslcard?src_type=internal&version=1&uin=$qqGroupNumber&card_type=group&source=external")
+            }
+            
+            // 检查是否有应用可以处理这个Intent
+            val resolveInfo = groupIntent.resolveActivity(context.packageManager)
+            if (resolveInfo != null) {
+                try {
+                    context.startActivity(groupIntent)
+                    return
+                } catch (e: Exception) {
+                    // 如果启动失败，尝试其他方式
+                }
+            }
+            
+            // 方式2: 尝试使用QQ的通用Scheme打开QQ应用
+            val qqIntent = Intent().apply {
+                action = Intent.ACTION_VIEW
+                data = android.net.Uri.parse("mqq://")
+            }
+            
+            if (qqIntent.resolveActivity(context.packageManager) != null) {
+                try {
+                    context.startActivity(qqIntent)
+                    Toast.makeText(context, "请搜索QQ群号：$qqGroupNumber", Toast.LENGTH_LONG).show()
+                    return
+                } catch (e: Exception) {
+                    // 如果启动失败，使用包名直接启动
+                }
+            }
+            
+            // 方式3: 使用包名直接启动QQ
+            try {
+                val packageIntent = context.packageManager.getLaunchIntentForPackage("com.tencent.mobileqq")
+                if (packageIntent != null) {
+                    context.startActivity(packageIntent)
+                    Toast.makeText(context, "请搜索QQ群号：$qqGroupNumber", Toast.LENGTH_LONG).show()
+                    return
+                }
+            } catch (e: Exception) {
+                // 如果启动失败，提示用户
+            }
+            
+            // 如果所有方式都失败，提示用户手动搜索
+            Toast.makeText(context, "打开QQ失败，请手动搜索QQ群号：$qqGroupNumber", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Toast.makeText(context, "打开QQ失败，请手动搜索QQ群号：851082168", Toast.LENGTH_LONG).show()
+        }
+    }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "📢 加入QQ群",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "欢迎大家加群，可以和各路玩家分享攻略，交流心得，还能获得神秘投资兑换码",
+                    fontSize = 15.sp,
+                    color = Color.White.copy(alpha = 0.9f),
+                    lineHeight = 22.sp
+                )
+                
+                // QQ群号显示
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF3B82F6).copy(alpha = 0.2f)
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, Color(0xFF3B82F6).copy(alpha = 0.5f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "QQ群号",
+                                fontSize = 12.sp,
+                                color = Color.White.copy(alpha = 0.7f)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "851082168",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                        Button(
+                            onClick = { joinQQGroup() },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF10B981)
+                            ),
+                            modifier = Modifier.height(40.dp)
+                        ) {
+                            Text("一键加群", fontSize = 14.sp, color = Color.White)
+                        }
+                    }
+                }
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Start
+                ) {
+                    Checkbox(
+                        checked = dontShowToday,
+                        onCheckedChange = onDontShowTodayChange,
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = Color(0xFF3B82F6),
+                            uncheckedColor = Color.White.copy(alpha = 0.7f)
+                        )
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "今日不再弹出",
+                        fontSize = 14.sp,
+                        color = Color.White.copy(alpha = 0.8f),
+                        modifier = Modifier.clickable { onDontShowTodayChange(!dontShowToday) }
+                    )
+                }
+            }
+        },
+        containerColor = Color(0xFF1E293B),
+        shape = RoundedCornerShape(20.dp),
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF3B82F6)
+                ),
+                modifier = Modifier.padding(start = 8.dp)
+            ) {
+                Text("知道了", color = Color.White, fontSize = 15.sp)
+            }
+        },
+        dismissButton = {
+            OutlinedButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = Color.White.copy(alpha = 0.8f)
+                )
+            ) {
+                Text("取消", fontSize = 15.sp)
+            }
+        }
+    )
 }
 
 // 菜单项数据类
@@ -1708,6 +1964,9 @@ fun GameScreen(
     
     // GM模式状态
     var gmModeEnabled by remember { mutableStateOf(saveData?.gmModeEnabled ?: false) }
+    
+    // 已使用的兑换码状态
+    var usedRedeemCodes by remember { mutableStateOf(saveData?.usedRedeemCodes ?: emptySet()) }
     
     // GVA颁奖对话框状态
     var showGVAAwardDialog by remember { mutableStateOf(false) }
@@ -3811,6 +4070,8 @@ fun GameScreen(
                             ownedIPs = ownedIPs, // 传递拥有的IP列表
                             gmModeEnabled = gmModeEnabled,
                             onGMToggle = { enabled -> gmModeEnabled = enabled },
+                            usedRedeemCodes = usedRedeemCodes,
+                            onUsedRedeemCodesUpdate = { updatedCodes -> usedRedeemCodes = updatedCodes },
                             onMaxEmployees = {
                                 // 一键将所有员工技能设置为5级
                                 val maxedEmployees = allEmployees.map { employee ->
@@ -3950,7 +4211,8 @@ fun GameScreen(
                                 
                                 // 添加新员工到列表
                                 allEmployees.addAll(newEmployees)
-                            }
+                            },
+                            onMoneyUpdate = { updatedMoney -> money = updatedMoney }
                         )
                     }
                 }
@@ -6121,7 +6383,10 @@ fun InGameSettingsContent(
     onGMToggle: (Boolean) -> Unit = {}, // GM模式切换回调
     onMaxEmployees: () -> Unit = {}, // 一键满配员工回调
     onAddMoney: () -> Unit = {}, // 一键加钱回调
-    onCreateTopEmployees: () -> Unit = {} // 创建各职位6名5级专属技能员工回调
+    onCreateTopEmployees: () -> Unit = {}, // 创建各职位6名5级专属技能员工回调
+    onMoneyUpdate: (Long) -> Unit = {}, // 资金更新回调
+    usedRedeemCodes: Set<String> = emptySet(), // 已使用的兑换码列表
+    onUsedRedeemCodesUpdate: (Set<String>) -> Unit = {} // 已使用兑换码更新回调
 ) {
     val context = LocalContext.current
     val saveManager = remember { SaveManager(context) }
@@ -6206,6 +6471,8 @@ fun InGameSettingsContent(
         if (!gmModeEnabled) {
             var redeemCode by remember { mutableStateOf("") }
             var showRedeemError by remember { mutableStateOf(false) }
+            var showRedeemSuccessDialog by remember { mutableStateOf(false) }
+            var redeemSuccessMessage by remember { mutableStateOf("") }
             
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -6245,7 +6512,11 @@ fun InGameSettingsContent(
                     
                     if (showRedeemError) {
                         Text(
-                            text = "❌ 兑换码错误，请重新输入",
+                            text = if (redeemCode.uppercase() == "YCJY2025" && usedRedeemCodes.contains("YCJY2025")) {
+                                "❌ 该兑换码已在本存档中使用过，每个存档仅限使用1次"
+                            } else {
+                                "❌ 兑换码错误，请重新输入"
+                            },
                             color = Color(0xFFEF4444),
                             fontSize = 14.sp
                         )
@@ -6253,9 +6524,26 @@ fun InGameSettingsContent(
                     
                     Button(
                         onClick = {
-                            if (redeemCode.lowercase() == "progm") {
+                            val codeUpper = redeemCode.uppercase()
+                            if (codeUpper == "PROGM") {
                                 onGMToggle(true)
                                 redeemCode = ""
+                                redeemSuccessMessage = "GM工具箱已激活！"
+                                showRedeemSuccessDialog = true
+                            } else if (codeUpper == "YCJY2025") {
+                                // 检查兑换码是否已使用
+                                if (usedRedeemCodes.contains("YCJY2025")) {
+                                    showRedeemError = true
+                                } else {
+                                    // 兑换码：YCJY2025，获得5M资金
+                                    val rewardAmount = 5000000L // 5M = 500万
+                                    onMoneyUpdate(money + rewardAmount)
+                                    // 标记兑换码为已使用
+                                    onUsedRedeemCodesUpdate(usedRedeemCodes + "YCJY2025")
+                                    redeemCode = ""
+                                    redeemSuccessMessage = "兑换成功！获得 ${formatMoney(rewardAmount)}"
+                                    showRedeemSuccessDialog = true
+                                }
                             } else {
                                 showRedeemError = true
                             }
@@ -6269,6 +6557,41 @@ fun InGameSettingsContent(
                         Text("兑换", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                 }
+            }
+            
+            // 兑换成功弹窗
+            if (showRedeemSuccessDialog) {
+                AlertDialog(
+                    onDismissRequest = { showRedeemSuccessDialog = false },
+                    title = {
+                        Text(
+                            text = "✅ 兑换成功",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    },
+                    text = {
+                        Text(
+                            text = redeemSuccessMessage,
+                            fontSize = 15.sp,
+                            color = Color.White.copy(alpha = 0.9f),
+                            lineHeight = 22.sp
+                        )
+                    },
+                    containerColor = Color(0xFF1E293B),
+                    shape = RoundedCornerShape(20.dp),
+                    confirmButton = {
+                        Button(
+                            onClick = { showRedeemSuccessDialog = false },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF10B981)
+                            )
+                        ) {
+                            Text("知道了", color = Color.White, fontSize = 15.sp)
+                        }
+                    }
+                )
             }
         }
         
@@ -6462,6 +6785,7 @@ fun InGameSettingsContent(
                                 gvaAnnouncedDate = gvaAnnouncedDate, // 保存颁奖日期
                                 ownedIPs = ownedIPs, // 保存拥有的IP列表（收购竞争对手后获得）
                                 gmModeEnabled = gmModeEnabled, // 保存GM模式状态
+                                usedRedeemCodes = usedRedeemCodes, // 保存已使用的兑换码列表
                                 saveTime = System.currentTimeMillis(),
                                 version = BuildConfig.VERSION_NAME // 使用当前游戏版本号
                             )
@@ -6587,6 +6911,7 @@ fun InGameSettingsContent(
                                             gvaAnnouncedDate = gvaAnnouncedDate, // 保存颁奖日期
                                             ownedIPs = ownedIPs, // 保存拥有的IP列表（收购竞争对手后获得）
                                             gmModeEnabled = gmModeEnabled, // 保存GM模式状态
+                                            usedRedeemCodes = usedRedeemCodes, // 保存已使用的兑换码列表
                                             saveTime = System.currentTimeMillis(),
                                             version = BuildConfig.VERSION_NAME // 使用当前游戏版本号
                                         )

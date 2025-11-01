@@ -45,6 +45,7 @@ fun EmployeeManagementContent(
     var showTrainingDialog by remember { mutableStateOf(false) }
     var showFireDialog by remember { mutableStateOf(false) }
     var showTalentMarketDialog by remember { mutableStateOf(false) }
+    var showBatchTrainingDialog by remember { mutableStateOf(false) }
     var selectedEmployee by remember { mutableStateOf<Employee?>(null) }
     var filterType by remember { mutableStateOf("全部") }
     val listState = rememberLazyListState()
@@ -108,6 +109,50 @@ fun EmployeeManagementContent(
                 fontWeight = FontWeight.Bold,
                 color = Color.White
             )
+            
+            // 一键培训按钮（现代化设计）
+            Surface(
+                modifier = Modifier
+                    .height(36.dp)
+                    .clickable { showBatchTrainingDialog = true },
+                shape = RoundedCornerShape(18.dp),
+                color = Color.Transparent,
+                shadowElevation = 2.dp
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .background(
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(
+                                    Color(0xFF3B82F6),
+                                    Color(0xFF2563EB)
+                                )
+                            ),
+                            shape = RoundedCornerShape(18.dp)
+                        )
+                        .padding(horizontal = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.School,
+                            contentDescription = "一键培训",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "一键培训",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
         }
         
         // 员工统计信息 - 卡片设计
@@ -234,7 +279,7 @@ fun EmployeeManagementContent(
         EnhancedTrainingDialog(
             employee = currentEmployee,
             money = money,
-            onConfirm = { trainingCost ->
+            onConfirm = { trainingCost: Long ->
                 try {
                     android.util.Log.d("EmployeeManagement", "培训确认: 员工ID=$employeeId, 费用=$trainingCost, 当前资金=$money")
                     
@@ -415,6 +460,61 @@ fun EmployeeManagementContent(
                 }
             },
             jobPostingRefreshTrigger = jobPostingRefreshTrigger
+        )
+    }
+    
+    // 批量培训对话框
+    if (showBatchTrainingDialog) {
+        BatchTrainingDialog(
+            employees = allEmployees,
+            money = money,
+            onConfirm = { totalCost: Long ->
+                try {
+                    val updatedEmployees = allEmployees.map { emp ->
+                        val currentSkillLevel = try {
+                            emp.getSpecialtySkillLevel().coerceIn(0, 5)
+                        } catch (e: Exception) {
+                            0
+                        }
+                        
+                        if (currentSkillLevel < 5) {
+                            // 提升专属技能1级
+                            try {
+                                when (emp.getSpecialtySkillType()) {
+                                    "开发" -> emp.copy(
+                                        skillDevelopment = minOf(SkillConstants.MAX_SKILL_LEVEL, emp.skillDevelopment + 1)
+                                    )
+                                    "设计" -> emp.copy(
+                                        skillDesign = minOf(SkillConstants.MAX_SKILL_LEVEL, emp.skillDesign + 1)
+                                    )
+                                    "美工" -> emp.copy(
+                                        skillArt = minOf(SkillConstants.MAX_SKILL_LEVEL, emp.skillArt + 1)
+                                    )
+                                    "音乐" -> emp.copy(
+                                        skillMusic = minOf(SkillConstants.MAX_SKILL_LEVEL, emp.skillMusic + 1)
+                                    )
+                                    "服务" -> emp.copy(
+                                        skillService = minOf(SkillConstants.MAX_SKILL_LEVEL, emp.skillService + 1)
+                                    )
+                                    else -> emp
+                                }
+                            } catch (e: Exception) {
+                                emp
+                            }
+                        } else {
+                            emp
+                        }
+                    }
+                    
+                    onEmployeesUpdate(updatedEmployees)
+                    onMoneyUpdate(money - totalCost)
+                    showBatchTrainingDialog = false
+                } catch (e: Exception) {
+                    android.util.Log.e("EmployeeManagement", "批量培训时发生异常", e)
+                    showBatchTrainingDialog = false
+                }
+            },
+            onDismiss = { showBatchTrainingDialog = false }
         )
     }
 }
@@ -750,6 +850,211 @@ fun EnhancedEmployeeCard(
             color = Color.White.copy(alpha = 0.1f),
             modifier = Modifier.padding(top = 12.dp)
         )
+    }
+}
+
+/**
+ * 批量培训对话框
+ */
+@Composable
+fun BatchTrainingDialog(
+    employees: List<Employee>,
+    money: Long,
+    onConfirm: (Long) -> Unit,
+    onDismiss: () -> Unit
+) {
+    // 计算可培训员工列表和总费用
+    val trainableEmployees = remember(employees) {
+        employees.filter { emp ->
+            try {
+                val currentSkillLevel = emp.getSpecialtySkillLevel().coerceIn(0, 5)
+                currentSkillLevel < 5
+            } catch (e: Exception) {
+                false
+            }
+        }
+    }
+    
+    val totalCost = remember(trainableEmployees) {
+        trainableEmployees.sumOf { emp ->
+            try {
+                val currentSkillLevel = emp.getSpecialtySkillLevel().coerceIn(0, 5)
+                val safeSalary = emp.salary.coerceAtLeast(0)
+                when {
+                    currentSkillLevel >= 5 -> 0L
+                    currentSkillLevel == 4 -> (safeSalary * 3.0).toLong()
+                    currentSkillLevel == 3 -> (safeSalary * 2.5).toLong()
+                    currentSkillLevel == 2 -> (safeSalary * 2.0).toLong()
+                    else -> (safeSalary * 1.5).toLong()
+                }
+            } catch (e: Exception) {
+                0L
+            }
+        }
+    }
+    
+    val canAfford = money >= totalCost
+    
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF1F2937)
+            ),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = Icons.Default.School,
+                    contentDescription = "批量培训",
+                    tint = Color(0xFF3B82F6),
+                    modifier = Modifier.size(48.dp)
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Text(
+                    text = "一键培训",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Text(
+                    text = "将为所有可培训的员工进行培训",
+                    fontSize = 14.sp,
+                    color = Color.White.copy(alpha = 0.8f)
+                )
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                // 统计信息
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "可培训员工数：",
+                            fontSize = 14.sp,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                        Text(
+                            text = "${trainableEmployees.size}/${employees.size}",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF3B82F6)
+                        )
+                    }
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "总培训费用：",
+                            fontSize = 14.sp,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                        Text(
+                            text = "¥${formatMoney(totalCost)}",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (canAfford) Color(0xFF10B981) else Color(0xFFEF4444)
+                        )
+                    }
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "当前资金：",
+                            fontSize = 14.sp,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                        Text(
+                            text = "¥${formatMoney(money)}",
+                            fontSize = 14.sp,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+                
+                if (!canAfford) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = "资金不足",
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "资金不足，无法进行批量培训",
+                            fontSize = 12.sp,
+                            color = Color(0xFFEF4444)
+                        )
+                    }
+                }
+                
+                if (trainableEmployees.isEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "所有员工已达到最高技能等级",
+                        fontSize = 12.sp,
+                        color = Color(0xFFF59E0B)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.5f))
+                    ) {
+                        Text(
+                            text = "取消",
+                            color = Color.White
+                        )
+                    }
+                    
+                    Button(
+                        onClick = { onConfirm(totalCost) },
+                        modifier = Modifier.weight(1f),
+                        enabled = canAfford && trainableEmployees.isNotEmpty(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF3B82F6)
+                        )
+                    ) {
+                        Text(
+                            text = "确认培训",
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

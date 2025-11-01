@@ -5,6 +5,7 @@ import com.example.yjcy.utils.formatMoneyWithDecimals
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -22,6 +23,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.CheckBox
+import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -1698,16 +1701,74 @@ fun PlatformSelectionDialog(
 ) {
     var showInsufficientFundsDialog by remember { mutableStateOf(false) }
     val totalCost = selectedPlatforms.sumOf { it.developmentCost }
+    val allPlatforms = Platform.entries.toSet()
+    val isAllSelected = selectedPlatforms.size == allPlatforms.size
+    
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Color(0xFF1F2937),
         title = {
-            Text(
-                text = "选择发布平台",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "选择发布平台",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                // 全选按钮（现代化设计）
+                Surface(
+                    modifier = Modifier
+                        .clickable {
+                            if (isAllSelected) {
+                                // 取消全选
+                                allPlatforms.forEach { platform ->
+                                    if (selectedPlatforms.contains(platform)) {
+                                        onPlatformToggle(platform)
+                                    }
+                                }
+                            } else {
+                                // 全选
+                                allPlatforms.forEach { platform ->
+                                    if (!selectedPlatforms.contains(platform)) {
+                                        onPlatformToggle(platform)
+                                    }
+                                }
+                            }
+                        },
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (isAllSelected) 
+                        Color(0xFFEF4444).copy(alpha = 0.15f)
+                    else 
+                        Color(0xFFEF4444).copy(alpha = 0.1f),
+                    border = BorderStroke(
+                        width = 1.5.dp,
+                        color = Color(0xFFEF4444).copy(alpha = if (isAllSelected) 1f else 0.6f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isAllSelected) Icons.Filled.CheckBox else Icons.Filled.CheckBoxOutlineBlank,
+                            contentDescription = null,
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = if (isAllSelected) "取消全选" else "全选",
+                            color = Color(0xFFEF4444),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
         },
         text = {
             PlatformGrid(
