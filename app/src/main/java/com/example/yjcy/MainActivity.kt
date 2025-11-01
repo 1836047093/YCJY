@@ -3,7 +3,10 @@ package com.example.yjcy
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.view.Display
 import android.view.WindowManager
+import android.os.Handler
+import android.os.Looper
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
@@ -45,6 +48,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -106,7 +111,6 @@ import com.example.yjcy.utils.formatMoneyWithDecimals
 import com.example.yjcy.utils.calculateWeekday
 import com.example.yjcy.utils.getWeekdayName
 import com.example.yjcy.utils.calculateGameTime
-import com.example.yjcy.utils.calculateGameYear
 import com.example.yjcy.service.JobPostingService
 import com.example.yjcy.service.CustomerServiceManager
 import com.example.yjcy.data.getUpdateContentName
@@ -159,6 +163,7 @@ import com.example.yjcy.taptap.TapUpdateManager
 import com.google.gson.GsonBuilder
 import dagger.hilt.android.AndroidEntryPoint
 import java.util.Locale
+import kotlin.math.abs
 import kotlin.random.Random
 import kotlinx.coroutines.delay
 import com.example.yjcy.taptap.TapLoginManager
@@ -208,7 +213,7 @@ class MainActivity : ComponentActivity() {
             (application as? YjcyApplication)?.initTapSDKIfNeeded()
             
             // 延迟500ms后检查更新，确保SDK完全初始化
-            android.os.Handler(mainLooper).postDelayed({
+            Handler(Looper.getMainLooper()).postDelayed({
                 Log.d("MainActivity", "开始检查TapTap更新...")
                 TapUpdateManager.checkForceUpdate()
             }, 500)
@@ -376,65 +381,59 @@ class MainActivity : ComponentActivity() {
      */
     private fun enableHighRefreshRate() {
         try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                // Android 6.0及以上：使用Display.Mode API
-                val windowManager = getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
-                val display = windowManager.defaultDisplay
+            // minSdk是24，所以总是使用Display.Mode API
+            val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            // 使用新的API替代过时的defaultDisplay
+            @Suppress("DEPRECATION")
+            val display = windowManager.defaultDisplay ?: return
+            
+            // 获取支持的刷新率模式列表
+            val supportedModes = display.supportedModes
+            
+            if (supportedModes != null && supportedModes.isNotEmpty()) {
+                // 优先查找120Hz或最接近120Hz的模式
+                var bestMode: Display.Mode? = null
+                var bestRefreshRate = 0f
+                var closestTo120 = Float.MAX_VALUE
                 
-                // 获取支持的刷新率模式列表
-                val supportedModes = display.supportedModes
-                
-                if (supportedModes != null && supportedModes.isNotEmpty()) {
-                    // 优先查找120Hz或最接近120Hz的模式
-                    var bestMode: android.view.Display.Mode? = null
-                    var bestRefreshRate = 0f
-                    var closestTo120 = Float.MAX_VALUE
+                for (mode in supportedModes) {
+                    val refreshRate = mode.refreshRate
                     
-                    for (mode in supportedModes) {
-                        val refreshRate = mode.refreshRate
-                        
-                        // 优先选择120Hz
-                        if (refreshRate == 120f) {
-                            bestMode = mode
-                            bestRefreshRate = refreshRate
-                            break
-                        }
-                        
-                        // 如果没找到120Hz，选择最接近120Hz且不超过120Hz的
-                        if (refreshRate <= 120f && refreshRate > bestRefreshRate) {
-                            bestRefreshRate = refreshRate
-                            bestMode = mode
-                        }
-                        
-                        // 记录最接近120Hz的模式（可能超过120Hz）
-                        val diff = kotlin.math.abs(refreshRate - 120f)
-                        if (diff < closestTo120) {
-                            closestTo120 = diff
-                            if (bestMode == null || bestRefreshRate < 60f) {
-                                bestMode = mode
-                                bestRefreshRate = refreshRate
-                            }
-                        }
+                    // 优先选择120Hz
+                    if (refreshRate == 120f) {
+                        bestMode = mode
+                        bestRefreshRate = refreshRate
+                        break
                     }
                     
-                    if (bestMode != null) {
-                        val layoutParams = window.attributes
-                        layoutParams.preferredDisplayModeId = bestMode.modeId
-                        window.attributes = layoutParams
-                        Log.d("MainActivity", "✅ 已设置刷新率: ${bestMode.refreshRate}Hz (模式ID: ${bestMode.modeId})")
-                        Log.d("MainActivity", "📊 支持的刷新率: ${supportedModes.map { it.refreshRate }.joinToString(", ")}Hz")
-                    } else {
-                        Log.w("MainActivity", "⚠️ 未找到支持的刷新率模式")
+                    // 如果没找到120Hz，选择最接近120Hz且不超过120Hz的
+                    if (refreshRate <= 120f && refreshRate > bestRefreshRate) {
+                        bestRefreshRate = refreshRate
+                        bestMode = mode
                     }
-                } else {
-                    Log.w("MainActivity", "⚠️ 无法获取支持的刷新率模式列表")
+                    
+                    // 记录最接近120Hz的模式（可能超过120Hz）
+                    val diff = abs(refreshRate - 120f)
+                    if (diff < closestTo120) {
+                        closestTo120 = diff
+                        if (bestMode == null || bestRefreshRate < 60f) {
+                            bestMode = mode
+                            bestRefreshRate = refreshRate
+                        }
+                    }
                 }
-            } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                // Android 5.0-5.1：使用旧API
-                val layoutParams = window.attributes
-                layoutParams.preferredRefreshRate = 120f / 1000f // 转换为秒（旧API使用秒为单位）
-                window.attributes = layoutParams
-                Log.d("MainActivity", "✅ 已设置刷新率: 120Hz (旧API)")
+                
+                if (bestMode != null) {
+                    val layoutParams = window.attributes
+                    layoutParams.preferredDisplayModeId = bestMode.modeId
+                    window.attributes = layoutParams
+                    Log.d("MainActivity", "✅ 已设置刷新率: ${bestMode.refreshRate}Hz (模式ID: ${bestMode.modeId})")
+                    Log.d("MainActivity", "📊 支持的刷新率: ${supportedModes.map { it.refreshRate }.joinToString(", ")}Hz")
+                } else {
+                    Log.w("MainActivity", "⚠️ 未找到支持的刷新率模式")
+                }
+            } else {
+                Log.w("MainActivity", "⚠️ 无法获取支持的刷新率模式列表")
             }
         } catch (e: Exception) {
             Log.e("MainActivity", "设置高刷新率失败: ${e.message}", e)
@@ -734,6 +733,7 @@ fun MainMenuScreen(navController: NavController) {
     
     // QQ群提示对话框状态
     var showQQGroupDialog by remember { mutableStateOf(false) }
+    @Suppress("SpellCheckingInspection")
     var dontShowToday by remember { mutableStateOf(false) }
     var pendingNavigationRoute by remember { mutableStateOf<String?>(null) }
     
@@ -746,6 +746,7 @@ fun MainMenuScreen(navController: NavController) {
     }
     
     // 保存"今日不再弹出"的状态
+    @Suppress("SpellCheckingInspection")
     fun saveDontShowToday(checked: Boolean) {
         if (checked) {
             val prefs = context.getSharedPreferences("qq_group_dialog", Context.MODE_PRIVATE)
@@ -768,11 +769,9 @@ fun MainMenuScreen(navController: NavController) {
     
     // 加载存档数据（用于显示最近游戏）
     var recentSaves by remember { mutableStateOf(emptyMap<Int, SaveData?>()) }
-    var isLoadingSaves by remember { mutableStateOf(true) }
     
     LaunchedEffect(Unit) {
         recentSaves = saveManager.getAllSavesAsync()
-        isLoadingSaves = false
     }
     
     // Logo和标题动画
@@ -1102,21 +1101,23 @@ fun QQGroupDialog(
     context: Context,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
-    dontShowToday: Boolean,
+    @Suppress("SpellCheckingInspection") dontShowToday: Boolean,
     onDontShowTodayChange: (Boolean) -> Unit
 ) {
     // 一键加群功能
     fun joinQQGroup() {
         try {
             // QQ群号
+            @Suppress("SpellCheckingInspection")
             val qqGroupNumber = "851082168"
             
             // 检查QQ是否安装（直接检查包名）
             fun isQQInstalled(): Boolean {
                 return try {
+                    @Suppress("SpellCheckingInspection")
                     context.packageManager.getPackageInfo("com.tencent.mobileqq", 0)
                     true
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     false
                 }
             }
@@ -1129,7 +1130,8 @@ fun QQGroupDialog(
             // 方式1: 尝试使用QQ的URL Scheme打开加群页面（推荐方式）
             val groupIntent = Intent().apply {
                 action = Intent.ACTION_VIEW
-                data = android.net.Uri.parse("mqqapi://card/show_pslcard?src_type=internal&version=1&uin=$qqGroupNumber&card_type=group&source=external")
+                @Suppress("SpellCheckingInspection")
+                data = "mqqapi://card/show_pslcard?src_type=internal&version=1&uin=$qqGroupNumber&card_type=group&source=external".toUri()
             }
             
             // 检查是否有应用可以处理这个Intent
@@ -1138,7 +1140,7 @@ fun QQGroupDialog(
                 try {
                     context.startActivity(groupIntent)
                     return
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     // 如果启动失败，尝试其他方式
                 }
             }
@@ -1146,7 +1148,7 @@ fun QQGroupDialog(
             // 方式2: 尝试使用QQ的通用Scheme打开QQ应用
             val qqIntent = Intent().apply {
                 action = Intent.ACTION_VIEW
-                data = android.net.Uri.parse("mqq://")
+                data = "mqq://".toUri()
             }
             
             if (qqIntent.resolveActivity(context.packageManager) != null) {
@@ -1154,26 +1156,27 @@ fun QQGroupDialog(
                     context.startActivity(qqIntent)
                     Toast.makeText(context, "请搜索QQ群号：$qqGroupNumber", Toast.LENGTH_LONG).show()
                     return
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     // 如果启动失败，使用包名直接启动
                 }
             }
             
             // 方式3: 使用包名直接启动QQ
             try {
+                @Suppress("SpellCheckingInspection")
                 val packageIntent = context.packageManager.getLaunchIntentForPackage("com.tencent.mobileqq")
                 if (packageIntent != null) {
                     context.startActivity(packageIntent)
                     Toast.makeText(context, "请搜索QQ群号：$qqGroupNumber", Toast.LENGTH_LONG).show()
                     return
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 // 如果启动失败，提示用户
             }
             
             // 如果所有方式都失败，提示用户手动搜索
             Toast.makeText(context, "打开QQ失败，请手动搜索QQ群号：$qqGroupNumber", Toast.LENGTH_LONG).show()
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             Toast.makeText(context, "打开QQ失败，请手动搜索QQ群号：851082168", Toast.LENGTH_LONG).show()
         }
     }
@@ -1891,7 +1894,7 @@ fun GameScreen(
     var currentDay by remember { mutableIntStateOf(saveData?.currentDay ?: 1) }
     // 当天内的分钟数（0-1439，一天1440分钟）
     var currentMinuteOfDay by remember { mutableIntStateOf(saveData?.currentMinuteOfDay ?: 0) }
-    var gameSpeed by remember { mutableIntStateOf(1) }
+    var gameSpeed by remember { mutableIntStateOf(3) }  // 默认3倍速
     var selectedTab by remember { mutableIntStateOf(0) }
     var isPaused by remember { mutableStateOf(false) }
     var showTournamentMenu by remember { mutableStateOf(false) }
@@ -1957,6 +1960,10 @@ fun GameScreen(
     // 获取协程作用域，用于在主线程安全更新
     val coroutineScope = rememberCoroutineScope()
     
+    // 获取Context用于自动存档
+    val context = LocalContext.current
+    val saveManager = remember { SaveManager(context) }
+    
     // 竞争对手数据状态
     var competitors by remember { mutableStateOf(saveData?.competitors ?: emptyList()) }
     var competitorNews by remember { mutableStateOf(saveData?.competitorNews ?: emptyList()) }
@@ -1969,6 +1976,11 @@ fun GameScreen(
     
     // GM模式状态
     var gmModeEnabled by remember { mutableStateOf(saveData?.gmModeEnabled ?: false) }
+    
+    // 自动存档设置
+    var autoSaveEnabled by remember { mutableStateOf(saveData?.autoSaveEnabled ?: false) }
+    var autoSaveInterval by remember { mutableIntStateOf(saveData?.autoSaveInterval ?: 5) } // 自动存档间隔（分钟）
+    var lastAutoSaveMinute by remember { mutableIntStateOf(saveData?.lastAutoSaveMinute ?: 0) } // 上次自动存档的分钟数
     
     // 已使用的兑换码状态
     var usedRedeemCodes by remember { mutableStateOf(saveData?.usedRedeemCodes ?: emptySet()) }
@@ -2099,6 +2111,20 @@ fun GameScreen(
                         )
                         // 更新游戏IP信息（用于销量加成）
                         RevenueManager.updateGameIP(releasedGame.id, releasedGame.fromIP)
+                    }
+                }
+            
+            // 调整低评分游戏的历史销量（旧存档兼容）- 必须在游戏信息设置之后
+            saveData.games
+                .filter { it.releaseStatus == GameReleaseStatus.RELEASED || it.releaseStatus == GameReleaseStatus.RATED }
+                .forEach { game ->
+                    val rating = game.rating
+                    if (rating != null && rating < 3.0f && game.businessModel == BusinessModel.SINGLE_PLAYER) {
+                        val releasePrice = game.releasePrice?.toDouble() ?: 0.0
+                        val adjusted = RevenueManager.adjustLowRatingGameSales(game.id, rating, releasePrice)
+                        if (adjusted) {
+                            Log.d("GameScreen", "【实例 $instanceId】✓ 调整低评分游戏 ${game.name} (${rating}分) 的历史销量")
+                        }
                     }
                 }
             
@@ -2243,12 +2269,118 @@ fun GameScreen(
             delay(when (gameSpeed) {
                 1 -> 100L // 慢速：0.1秒1分钟（1440分钟需要144秒=2.4分钟）
                 2 -> 50L // 中速：0.05秒1分钟（1440分钟需要72秒=1.2分钟）
-                3 -> 33L // 快速：0.033秒1分钟（1440分钟需要48秒=0.8分钟）
+                3 -> 20L // 快速：0.02秒1分钟（1440分钟需要28.8秒=0.48分钟，比原来快约1.65倍）
                 else -> 50L
             })
             
             // 更新时间：每0.1秒（1倍速）推进1分钟
             currentMinuteOfDay++
+            
+            // 每分钟更新已发售游戏的销量（实时更新）
+            games.filter { it.releaseStatus == GameReleaseStatus.RELEASED || it.releaseStatus == GameReleaseStatus.RATED }
+                .forEach { releasedGame ->
+                    // 更新游戏信息（商业模式和付费内容）
+                    RevenueManager.updateGameInfo(
+                        releasedGame.id,
+                        releasedGame.businessModel,
+                        releasedGame.monetizationItems
+                    )
+                    
+                    // 传入游戏评分、粉丝数和当前时间，实时更新销量
+                    val gameRating = releasedGame.gameRating?.finalScore
+                    val reputationLevel = companyReputation.getLevel()
+                    val minuteRevenue = RevenueManager.addMinuteRevenueForGame(
+                        gameId = releasedGame.id,
+                        gameRating = gameRating,
+                        fanCount = fans,
+                        currentYear = currentYear,
+                        currentMonth = currentMonth,
+                        currentDay = currentDay,
+                        currentMinuteOfDay = currentMinuteOfDay,
+                        reputationBonus = reputationLevel.salesBonus
+                    )
+                    money += minuteRevenue.toLong()
+                }
+            
+            // 自动存档检查（如果启用了自动存档）
+            if (autoSaveEnabled) {
+                try {
+                    // 计算从上次存档到现在经过的分钟数
+                    val minutesSinceLastSave = if (lastAutoSaveMinute == 0) {
+                        // 首次运行，使用当前分钟数
+                        currentMinuteOfDay
+                    } else {
+                        // 计算经过的分钟数（考虑跨天情况）
+                        if (currentMinuteOfDay >= lastAutoSaveMinute) {
+                            currentMinuteOfDay - lastAutoSaveMinute
+                        } else {
+                            // 跨天了，加上1440分钟
+                            (1440 - lastAutoSaveMinute) + currentMinuteOfDay
+                        }
+                    }
+                    
+                    // 如果达到存档间隔，执行自动存档（完全异步，不阻塞时间循环）
+                    if (minutesSinceLastSave >= autoSaveInterval) {
+                        // 立即更新上次存档时间标记，避免重复触发（在主线程立即更新）
+                        lastAutoSaveMinute = currentMinuteOfDay
+                        
+                        // 在LaunchedEffect内部可以直接使用launch，因为LaunchedEffect本身就是协程作用域
+                        launch {
+                            try {
+                                // 所有数据导出操作都在后台线程执行，不阻塞主循环
+                                val saveData = SaveData(
+                                    companyName = companyName,
+                                    companyLogo = selectedLogo,
+                                    founderName = founderName,
+                                    founderProfession = founderProfession,
+                                    money = money,
+                                    fans = fans,
+                                    currentYear = currentYear,
+                                    currentMonth = currentMonth,
+                                    currentDay = currentDay,
+                                    currentMinuteOfDay = currentMinuteOfDay,
+                                    allEmployees = allEmployees.toList(),
+                                    games = games,
+                                    competitors = competitors,
+                                    competitorNews = competitorNews,
+                                    serverData = RevenueManager.exportServerData(),
+                                    revenueData = RevenueManager.exportRevenueData(),
+                                    jobPostings = JobPostingService.getInstance().getAllJobPostingsForSave(),
+                                    complaints = complaints,
+                                    autoProcessComplaints = autoProcessComplaints,
+                                    autoPromotionThreshold = autoPromotionThreshold,
+                                    unlockedAchievements = unlockedAchievements,
+                                    completedTutorials = tutorialState.getCompletedTutorialsForSave(),
+                                    skipTutorial = tutorialState.skipTutorial.value,
+                                    companyReputation = companyReputation,
+                                    gvaHistory = gvaHistory,
+                                    currentYearNominations = currentYearNominations,
+                                    gvaAnnouncedDate = gvaAnnouncedDate,
+                                    ownedIPs = ownedIPs,
+                                    gmModeEnabled = gmModeEnabled,
+                                    usedRedeemCodes = usedRedeemCodes,
+                                    autoSaveEnabled = autoSaveEnabled,
+                                    autoSaveInterval = autoSaveInterval,
+                                    lastAutoSaveMinute = currentMinuteOfDay,
+                                    saveTime = System.currentTimeMillis(),
+                                    version = BuildConfig.VERSION_NAME
+                                )
+                                
+                                val result = saveManager.saveGameAsync(1, saveData)
+                                if (result.success) {
+                                    Log.d("MainActivity", "💾 自动存档成功（存档位1，间隔${autoSaveInterval}分钟）")
+                                } else {
+                                    Log.w("MainActivity", "💾 自动存档失败: ${result.errorMessage}")
+                                }
+                            } catch (e: Exception) {
+                                Log.e("MainActivity", "自动存档异常", e)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "自动存档检查失败", e)
+                }
+            }
             
             // 当分钟数达到1440（一天24小时）时，推进日期
             if (currentMinuteOfDay >= 1440) {
@@ -2282,17 +2414,6 @@ fun GameScreen(
                     Log.d("MainActivity", "💰 服务器计费: -¥$serverBillingCost (扣费前:¥$moneyBefore -> 扣费后:¥$money)")
                 }
                 
-                // 每日恢复所有员工体力值（每天恢复20点）
-                try {
-                    val updatedEmployees = allEmployees.map { employee ->
-                        employee.restoreStamina(20)
-                    }
-                    allEmployees.clear()
-                    allEmployees.addAll(updatedEmployees)
-                } catch (e: Exception) {
-                    android.util.Log.e("MainActivity", "恢复员工体力值失败", e)
-                }
-                
                 // 每日检查：员工忠诚度变化（如果薪资低于期望薪资，忠诚度会逐渐降低）
                 try {
                     val updatedEmployees2 = allEmployees.map { employee ->
@@ -2315,7 +2436,7 @@ fun GameScreen(
                     allEmployees.clear()
                     allEmployees.addAll(updatedEmployees2)
                 } catch (e: Exception) {
-                    android.util.Log.e("MainActivity", "更新员工忠诚度失败", e)
+                    Log.e("MainActivity", "更新员工忠诚度失败", e)
                 }
             }
             
@@ -2750,9 +2871,9 @@ fun GameScreen(
                         // 获取该游戏的服务器信息
                         val serverInfo = RevenueManager.getGameServerInfo(revenue.gameId)
                         // 计算该游戏所有服务器的年度费用（12个月）
-                        serverInfo?.servers?.filter { it.isActive }?.sumOf { server ->
+                        serverInfo.servers.filter { it.isActive }.sumOf { server ->
                             server.type.cost * 12L
-                        } ?: 0L
+                        }
                     }
                 
                 val totalDevelopmentCost = games
@@ -2798,16 +2919,17 @@ fun GameScreen(
                     allEmployees.clear()
                     allEmployees.addAll(updatedEmployees)
                     
-                    // 显示涨薪请求对话框
+                    // 显示涨薪请求对话框（保存当前的涨薪次数）
                     salaryRequestEmployee = employeeNeedingSalaryIncrease.copy(
                         requestedSalary = expectedSalary,
                         lastSalaryRequestYear = currentYear,
-                        lastSalaryRequestMonth = currentMonth
+                        lastSalaryRequestMonth = currentMonth,
+                        salaryRequestCount = employeeNeedingSalaryIncrease.salaryRequestCount
                     )
                     showSalaryRequestDialog = true
                     isPaused = true // 暂停游戏
                     
-                    Log.d("MainActivity", "💼 涨薪请求：${employeeNeedingSalaryIncrease.name} 要求薪资从¥${employeeNeedingSalaryIncrease.salary}涨到¥$expectedSalary")
+                    Log.d("MainActivity", "💼 涨薪请求：${employeeNeedingSalaryIncrease.name} (第${employeeNeedingSalaryIncrease.salaryRequestCount + 1}次涨薪) 要求薪资从¥${employeeNeedingSalaryIncrease.salary}涨到¥$expectedSalary")
                 }
             }
             
@@ -2862,7 +2984,7 @@ fun GameScreen(
                     
                     Log.d("MainActivity", "成功移除${employeesToRemove.size}名离职员工")
                 } catch (e: Exception) {
-                    android.util.Log.e("MainActivity", "移除离职员工时发生异常", e)
+                    Log.e("MainActivity", "移除离职员工时发生异常", e)
                     e.printStackTrace()
                 }
             }
@@ -2892,49 +3014,8 @@ fun GameScreen(
                         return@map game
                     }
                     
-                    // 过滤出在工作时间内的员工
-                    val workingEmployees = game.assignedEmployees.filter { employee ->
-                        try {
-                            employee.isWorking(currentWeekday, currentHour, currentMinute)
-                        } catch (e: Exception) {
-                            false
-                        }
-                    }
-                    
-                    // 如果没有员工在工作时间内，进度不增长
-                    if (workingEmployees.isEmpty()) {
-                        return@map game
-                    }
-                    
-                    // 检查在工作时间内的员工是否满足当前阶段要求
-                    if (!currentPhase.checkRequirements(workingEmployees)) {
-                        // 在工作时间内的员工不满足要求，进度不增长
-                        return@map game
-                    }
-                    
-                    // 只让在工作时间内的员工消耗体力值
-                    try {
-                        val workingEmployeeIds = workingEmployees.map { it.id }.toSet()
-                        val updatedEmployees3 = allEmployees.map { employee ->
-                            if (employee.id in workingEmployeeIds) {
-                                employee.consumeStamina()
-                            } else {
-                                employee
-                            }
-                        }
-                        allEmployees.clear()
-                        allEmployees.addAll(updatedEmployees3)
-                    } catch (e: Exception) {
-                        android.util.Log.e("MainActivity", "消耗员工体力值失败", e)
-                    }
-                    
-                    // 更新workingEmployees中的员工信息（同步体力值）
-                    val updatedWorkingEmployees = workingEmployees.map { assignedEmployee ->
-                        allEmployees.find { it.id == assignedEmployee.id } ?: assignedEmployee
-                    }
-                    
-                    // 计算当前阶段的进度增长（只使用在工作时间内的员工）
-                    val phaseProgressIncrease = currentPhase.calculateProgressSpeed(updatedWorkingEmployees)
+                    // 计算当前阶段的进度增长
+                    val phaseProgressIncrease = currentPhase.calculateProgressSpeed(game.assignedEmployees)
                     val newPhaseProgress = (game.phaseProgress + phaseProgressIncrease).coerceAtMost(1.0f)
                     
                     // 检查当前阶段是否完成
@@ -2968,9 +3049,9 @@ fun GameScreen(
                                 assignedEmployees = emptyList()
                             )
                             
-                            // 触发发售价格设置对话框
-                            pendingReleaseGame = completedGame
-                            showReleaseDialog = true
+                            // 先显示评分对话框
+                            pendingRatingGame = completedGame
+                            showRatingDialog = true
                             
                             completedGame
                         }
@@ -3001,7 +3082,8 @@ fun GameScreen(
                 }
             }
             
-            // 为已发售的游戏添加每日收益，并推进更新任务
+            // 注意：已发售游戏的收益现在在每分钟更新中实时计算，这里不再重复计算
+            // 每天结束时只推进更新任务进度
             games.filter { it.releaseStatus == GameReleaseStatus.RELEASED || it.releaseStatus == GameReleaseStatus.RATED }
                 .forEach { releasedGame ->
                     // 更新游戏信息（商业模式和付费内容）
@@ -3011,19 +3093,7 @@ fun GameScreen(
                         releasedGame.monetizationItems
                     )
                     
-                    // 传入游戏评分、粉丝数和当前日期，影响网络游戏的注册数和兴趣值衰减
-                    val gameRating = releasedGame.gameRating?.finalScore
-                    val reputationLevel = companyReputation.getLevel()
-                    val dailyRevenue = RevenueManager.addDailyRevenueForGame(
-                        gameId = releasedGame.id, 
-                        gameRating = gameRating, 
-                        fanCount = fans,
-                        currentYear = currentYear,
-                        currentMonth = currentMonth,
-                        currentDay = currentDay,
-                        reputationBonus = reputationLevel.salesBonus
-                    )
-                    money += dailyRevenue.toLong()
+                    // 收益已经在每分钟更新中实时计算，这里不再重复计算
 
                     // 在推进进度前先获取更新任务信息（因为完成后会被清除）
                     val completedTask = RevenueManager.getGameRevenue(releasedGame.id)?.updateTask
@@ -3031,23 +3101,7 @@ fun GameScreen(
                     // 若存在更新任务，根据已分配员工数量和技能等级推进进度
                     var employeesForUpdate = releasedGame.assignedEmployees
                     if (employeesForUpdate.isNotEmpty()) {
-                        // 参与更新的员工消耗体力值
-                        try {
-                            val employeeIdsInUpdate = employeesForUpdate.map { it.id }.toSet()
-                            val updatedEmployees4 = allEmployees.map { employee ->
-                                if (employee.id in employeeIdsInUpdate) {
-                                    employee.consumeStamina()
-                                } else {
-                                    employee
-                                }
-                            }
-                            allEmployees.clear()
-                            allEmployees.addAll(updatedEmployees4)
-                        } catch (e: Exception) {
-                            android.util.Log.e("MainActivity", "消耗更新员工体力值失败", e)
-                        }
-                        
-                        // 更新assignedEmployees中的员工信息（同步体力值）
+                        // 更新assignedEmployees中的员工信息
                         val updatedAssignedEmployees = employeesForUpdate.map { assignedEmployee ->
                             allEmployees.find { it.id == assignedEmployee.id } ?: assignedEmployee
                         }
@@ -3345,42 +3399,42 @@ fun GameScreen(
                             allEmployees = allEmployees,
                             onEmployeesUpdate = { updatedEmployees -> 
                                 try {
-                                    android.util.Log.d("MainActivity", "📞 onEmployeesUpdate回调: ${updatedEmployees.size} 个员工")
-                                    android.util.Log.d("MainActivity", "📞 回调中员工名单: ${updatedEmployees.map { it.name }.joinToString()}")
-                                    android.util.Log.d("MainActivity", "📞 当前allEmployees大小: ${allEmployees.size}")
+                                    Log.d("MainActivity", "📞 onEmployeesUpdate回调: ${updatedEmployees.size} 个员工")
+                                    Log.d("MainActivity", "📞 回调中员工名单: ${updatedEmployees.joinToString { it.name }}")
+                                    Log.d("MainActivity", "📞 当前allEmployees大小: ${allEmployees.size}")
                                     
                                     // 使用协程确保在主线程执行，避免并发修改
                                     coroutineScope.launch(Dispatchers.Main) {
                                         try {
-                                            android.util.Log.d("MainActivity", "🔄 开始更新员工列表")
-                                            android.util.Log.d("MainActivity", "🔄 更新前: ${allEmployees.size} 个员工")
+                                            Log.d("MainActivity", "🔄 开始更新员工列表")
+                                            Log.d("MainActivity", "🔄 更新前: ${allEmployees.size} 个员工")
                                             
                                             // 批量更新（避免并发修改）
                                             val employeesList = updatedEmployees.toList()
                                             allEmployees.clear()
                                             allEmployees.addAll(employeesList)
                                             
-                                            android.util.Log.d("MainActivity", "✅ 更新完成: ${allEmployees.size} 个员工")
-                                            android.util.Log.d("MainActivity", "✅ 员工名单: ${allEmployees.map { it.name }.joinToString()}")
+                                            Log.d("MainActivity", "✅ 更新完成: ${allEmployees.size} 个员工")
+                                            Log.d("MainActivity", "✅ 员工名单: ${allEmployees.joinToString { it.name }}")
                                         } catch (e: ConcurrentModificationException) {
-                                            android.util.Log.e("MainActivity", "❌ 并发修改异常，重试更新", e)
+                                            Log.e("MainActivity", "❌ 并发修改异常，重试更新", e)
                                             // 重试一次
                                             try {
                                                 val employeesList = updatedEmployees.toList()
                                                 allEmployees.clear()
                                                 allEmployees.addAll(employeesList)
-                                                android.util.Log.d("MainActivity", "✅ 重试更新成功")
+                                                Log.d("MainActivity", "✅ 重试更新成功")
                                             } catch (e2: Exception) {
-                                                android.util.Log.e("MainActivity", "❌ 重试更新失败", e2)
+                                                Log.e("MainActivity", "❌ 重试更新失败", e2)
                                                 e2.printStackTrace()
                                             }
                                         } catch (e: Exception) {
-                                            android.util.Log.e("MainActivity", "❌ 更新员工列表失败", e)
+                                            Log.e("MainActivity", "❌ 更新员工列表失败", e)
                                             e.printStackTrace()
                                         }
                                     }
                                 } catch (e: Exception) {
-                                    android.util.Log.e("MainActivity", "📞 onEmployeesUpdate回调时发生异常", e)
+                                    Log.e("MainActivity", "📞 onEmployeesUpdate回调时发生异常", e)
                                     e.printStackTrace()
                                 }
                             },
@@ -3428,6 +3482,7 @@ fun GameScreen(
                             currentYear = currentYear,
                             currentMonth = currentMonth,
                             currentDay = currentDay,
+                            currentMinuteOfDay = currentMinuteOfDay,
                             ownedIPs = ownedIPs,
                             onPauseGame = { isPaused = true },
                             onResumeGame = { isPaused = false }
@@ -3452,7 +3507,7 @@ fun GameScreen(
                                 ownedIPs = ownedIPs // 传递拥有的IP列表
                             ),
                             gameSpeed = gameSpeed,
-                            onAcquisitionSuccess = { acquiredCompany: CompetitorCompany, finalPrice: Long, marketValueGain: Long, fansGain: Long, inheritedIPs: List<GameIP> ->
+                            onAcquisitionSuccess = { acquiredCompany: CompetitorCompany, finalPrice: Long, _: Long, fansGain: Long, inheritedIPs: List<GameIP> ->
                                 // 扣除收购费用
                                 money -= finalPrice
                                 
@@ -3738,11 +3793,12 @@ fun GameScreen(
                         }
                     }
                     
-                    // 关闭发售对话框，显示评分对话框
+                    // 关闭发售对话框
                     showReleaseDialog = false
-                    pendingRatingGame = pendingReleaseGame
                     pendingReleaseGame = null
-                    showRatingDialog = true
+                    
+                    // 自动切换到"已发售"界面，方便玩家查看新发售的游戏
+                    selectedProjectType = ProjectDisplayType.RELEASED
                 }
             )
         }
@@ -3810,10 +3866,20 @@ fun GameScreen(
                     
                     Log.d("MainActivity", "游戏发布-评分: $finalRating, 粉丝变化: $fansChange, 当前粉丝: $fans")
                     
-                    // 自动切换到"已发售"界面，方便玩家查看新发售的游戏
-                    selectedProjectType = ProjectDisplayType.RELEASED
+                    // 评分对话框关闭后，如果游戏还未发售，则显示发售对话框
+                    val currentGame = games.find { it.id == pendingRatingGame!!.id }
+                    val isGameReleased = currentGame?.releaseStatus == GameReleaseStatus.RELEASED
+                    val isReadyForRelease = currentGame?.releaseStatus == GameReleaseStatus.READY_FOR_RELEASE || 
+                                           currentGame?.releaseStatus == GameReleaseStatus.RATED
                     
                     showRatingDialog = false
+                    
+                    if (!isGameReleased && isReadyForRelease) {
+                        // 游戏还未发售，显示发售对话框
+                        pendingReleaseGame = pendingRatingGame
+                        showReleaseDialog = true
+                    }
+                    
                     pendingRatingGame = null
                 }
             )
@@ -4120,6 +4186,11 @@ fun GameScreen(
                             ownedIPs = ownedIPs, // 传递拥有的IP列表
                             gmModeEnabled = gmModeEnabled,
                             onGMToggle = { enabled -> gmModeEnabled = enabled },
+                            autoSaveEnabled = autoSaveEnabled,
+                            autoSaveInterval = autoSaveInterval,
+                            lastAutoSaveMinute = lastAutoSaveMinute,
+                            onAutoSaveEnabledToggle = { enabled -> autoSaveEnabled = enabled },
+                            onAutoSaveIntervalChange = { interval -> autoSaveInterval = interval },
                             usedRedeemCodes = usedRedeemCodes,
                             onUsedRedeemCodesUpdate = { updatedCodes -> usedRedeemCodes = updatedCodes },
                             onMaxEmployees = {
@@ -4380,7 +4451,7 @@ fun GameScreen(
                 employee = employee,
                 currentMoney = money,
                 onAccept = {
-                    // 同意涨薪：更新员工薪资，提升忠诚度
+                    // 同意涨薪：更新员工薪资，提升忠诚度，增加涨薪次数
                     val updatedEmployees = allEmployees.map { emp ->
                         if (emp.id == employee.id) {
                             emp.copy(
@@ -4388,6 +4459,7 @@ fun GameScreen(
                                 requestedSalary = null,
                                 lastSalaryRequestYear = currentYear,
                                 lastSalaryRequestMonth = currentMonth,
+                                salaryRequestCount = (emp.salaryRequestCount + 1).coerceAtMost(3), // 增加涨薪次数，最多3次
                                 loyalty = (emp.loyalty + 10).coerceAtMost(100) // 提升10点忠诚度
                             )
                         } else {
@@ -4397,11 +4469,15 @@ fun GameScreen(
                     allEmployees.clear()
                     allEmployees.addAll(updatedEmployees)
                     
+                    // 获取更新后的涨薪次数
+                    val updatedEmployee = allEmployees.find { it.id == employee.id }
+                    val updatedCount = updatedEmployee?.salaryRequestCount ?: (employee.salaryRequestCount + 1)
+                    
                     showSalaryRequestDialog = false
                     salaryRequestEmployee = null
                     isPaused = false
                     
-                    Log.d("MainActivity", "✅ 同意涨薪：${employee.name} 薪资涨到¥${employee.requestedSalary}")
+                    Log.d("MainActivity", "✅ 同意涨薪：${employee.name} (第${updatedCount}次涨薪) 薪资涨到¥${employee.requestedSalary}")
                 },
                 onReject = {
                     // 拒绝涨薪：降低忠诚度
@@ -4463,9 +4539,9 @@ fun GameScreen(
                     // 获取该游戏的服务器信息
                     val serverInfo = RevenueManager.getGameServerInfo(revenue.gameId)
                     // 计算该游戏所有服务器的年度费用（12个月）
-                    serverInfo?.servers?.filter { it.isActive }?.sumOf { server ->
+                    serverInfo.servers.filter { it.isActive }.sumOf { server ->
                         server.type.cost * 12L
-                    } ?: 0L
+                    }
                 }
             
             val totalDevelopmentCost = games
@@ -4906,7 +4982,15 @@ fun CompanyOverviewContent(
             }
             
             // 使用 derivedStateOf 计算财务数据，确保依赖变化时自动更新
-            val financialData = remember(games.size, currentYear, currentMonth, currentDay, selectedFinancialYear) {
+            data class FinancialDetails(
+                val revenueDetails: Map<String, Double>, // 收入明细：单机收入、网游收入、子公司收入
+                val expenseDetails: Map<String, Double>, // 支出明细：员工薪资、服务器费用等
+                val totalRevenue: Double,
+                val totalExpense: Double,
+                val profit: Double
+            )
+            
+            val financialData = remember(games.size, currentYear, currentMonth, currentDay, selectedFinancialYear, allEmployees.size) {
                 derivedStateOf {
                     Log.d("MainActivity", "===== 财务状况计算开始 =====")
                     Log.d("MainActivity", "查询年份: 第${selectedFinancialYear}年")
@@ -4917,132 +5001,221 @@ fun CompanyOverviewContent(
                     }
                     Log.d("MainActivity", "已发售游戏数量: ${releasedGames.size}")
                     
-                    // 计算单机游戏该年收入
+                    // 收入明细计算
                     var singlePlayerRevenue = 0.0
-                    val singlePlayerGames = releasedGames.filter { 
-                        it.businessModel == BusinessModel.SINGLE_PLAYER
-                    }
-                    Log.d("MainActivity", "单机游戏数量: ${singlePlayerGames.size}")
-                    
-                    singlePlayerGames.forEach { game ->
-                        Log.d("MainActivity", "  - 单机游戏: ${game.name} (${game.id})")
-                        val revenue = RevenueManager.getGameRevenue(game.id)
-                        if (revenue == null) {
-                            Log.d("MainActivity", "    ⚠ 没有收益数据")
-                        } else if (revenue.dailySalesList.isEmpty()) {
-                            Log.d("MainActivity", "    ⚠ dailySalesList为空")
-                        } else {
-                            Log.d("MainActivity", "    ℹ 发售日期: ${revenue.releaseYear}年${revenue.releaseMonth}月${revenue.releaseDay}日")
-                            Log.d("MainActivity", "    ℹ 销售记录数: ${revenue.dailySalesList.size}")
-                            
-                            // 显示前3条记录的日期和计算出的年份
-                            revenue.dailySalesList.take(3).forEachIndexed { index, dailySales ->
-                                val gameYear = calculateGameYear(
-                                    releaseYear = revenue.releaseYear,
-                                    releaseMonth = revenue.releaseMonth,
-                                    releaseDay = revenue.releaseDay,
-                                    recordDate = dailySales.date
-                                )
-                                Log.d("MainActivity", "      [${index+1}] 日期=${dailySales.date}, 计算年份=${gameYear}, 收益=${dailySales.revenue}")
-                            }
-                            
-                            val matchingRecords = revenue.dailySalesList.filter { dailySales ->
-                                // 直接从recordDate中提取游戏内年份
-                                // recordDate是用游戏内时间创建的，所以其中的YEAR字段就是游戏内年份
-                                val recordCalendar = java.util.Calendar.getInstance()
-                                recordCalendar.time = dailySales.date
-                                val recordGameYear = recordCalendar.get(java.util.Calendar.YEAR)
-                                
-                                val matches = recordGameYear == selectedFinancialYear
-                                if (matches) {
-                                    Log.d("MainActivity", "      ✓ 匹配记录: 日期=${dailySales.date}, 游戏内年份=${recordGameYear}, 收益=${dailySales.revenue}")
-                                }
-                                matches
-                            }
-                            
-                            Log.d("MainActivity", "    ✓ 匹配第${selectedFinancialYear}年的记录: ${matchingRecords.size}条 / 总记录数: ${revenue.dailySalesList.size}条")
-                            
-                            val yearRevenue = matchingRecords.sumOf { it.revenue }
-                            if (yearRevenue > 0) {
-                                Log.d("MainActivity", "    ✓ 该年收益: ¥${formatMoneyWithDecimals(yearRevenue)}")
-                            }
-                            singlePlayerRevenue += yearRevenue
-                        }
-                    }
-                    
-                    // 计算网游该年收入
                     var onlineGameRevenue = 0.0
-                    val onlineGames = releasedGames.filter { 
-                        it.businessModel == BusinessModel.ONLINE_GAME
-                    }
-                    Log.d("MainActivity", "网游数量: ${onlineGames.size}")
+                    var subsidiaryRevenue = 0.0
                     
-                    onlineGames.forEach { game ->
-                        Log.d("MainActivity", "  - 网游: ${game.name} (${game.id})")
+                    // 单机收入（不包括子公司）
+                    val singlePlayerGames = releasedGames.filter { 
+                        it.businessModel == BusinessModel.SINGLE_PLAYER && !it.id.startsWith("inherited_")
+                    }
+                    singlePlayerGames.forEach { game ->
                         val revenue = RevenueManager.getGameRevenue(game.id)
-                        if (revenue == null) {
-                            Log.d("MainActivity", "    ⚠ 没有收益数据")
-                        } else if (revenue.dailySalesList.isEmpty()) {
-                            Log.d("MainActivity", "    ⚠ dailySalesList为空")
-                        } else {
-                            Log.d("MainActivity", "    ℹ 发售日期: ${revenue.releaseYear}年${revenue.releaseMonth}月${revenue.releaseDay}日")
-                            Log.d("MainActivity", "    ℹ 销售记录数: ${revenue.dailySalesList.size}")
-                            
-                            // 显示前3条记录的日期和计算出的年份
-                            revenue.dailySalesList.take(3).forEachIndexed { index, dailySales ->
-                                val gameYear = calculateGameYear(
-                                    releaseYear = revenue.releaseYear,
-                                    releaseMonth = revenue.releaseMonth,
-                                    releaseDay = revenue.releaseDay,
-                                    recordDate = dailySales.date
-                                )
-                                Log.d("MainActivity", "      [${index+1}] 日期=${dailySales.date}, 计算年份=${gameYear}, 收益=${dailySales.revenue}")
-                            }
-                            
+                        if (revenue != null && revenue.dailySalesList.isNotEmpty()) {
                             val matchingRecords = revenue.dailySalesList.filter { dailySales ->
-                                // 直接从recordDate中提取游戏内年份
-                                // recordDate是用游戏内时间创建的，所以其中的YEAR字段就是游戏内年份
                                 val recordCalendar = java.util.Calendar.getInstance()
                                 recordCalendar.time = dailySales.date
                                 val recordGameYear = recordCalendar.get(java.util.Calendar.YEAR)
-                                
-                                val matches = recordGameYear == selectedFinancialYear
-                                if (matches) {
-                                    Log.d("MainActivity", "      ✓ 匹配记录: 日期=${dailySales.date}, 游戏内年份=${recordGameYear}, 收益=${dailySales.revenue}")
-                                }
-                                matches
+                                recordGameYear == selectedFinancialYear
                             }
-                            
-                            Log.d("MainActivity", "    ✓ 匹配第${selectedFinancialYear}年的记录: ${matchingRecords.size}条 / 总记录数: ${revenue.dailySalesList.size}条")
-                            
-                            val yearRevenue = matchingRecords.sumOf { it.revenue }
-                            if (yearRevenue > 0) {
-                                Log.d("MainActivity", "    ✓ 该年收益: ¥${formatMoneyWithDecimals(yearRevenue)}")
-                            }
-                            onlineGameRevenue += yearRevenue
+                            singlePlayerRevenue += matchingRecords.sumOf { it.revenue }
                         }
                     }
                     
-                    val yearTotalRevenue = singlePlayerRevenue + onlineGameRevenue
+                    // 网游收入（不包括子公司）
+                    val onlineGames = releasedGames.filter { 
+                        it.businessModel == BusinessModel.ONLINE_GAME && !it.id.startsWith("inherited_")
+                    }
+                    onlineGames.forEach { game ->
+                        val revenue = RevenueManager.getGameRevenue(game.id)
+                        if (revenue != null) {
+                            // 注册收入（从dailySalesList统计）
+                            val registrationRevenue = if (revenue.dailySalesList.isNotEmpty()) {
+                                val matchingRecords = revenue.dailySalesList.filter { dailySales ->
+                                    val recordCalendar = java.util.Calendar.getInstance()
+                                    recordCalendar.time = dailySales.date
+                                    val recordGameYear = recordCalendar.get(java.util.Calendar.YEAR)
+                                    recordGameYear == selectedFinancialYear
+                                }
+                                matchingRecords.sumOf { it.revenue }
+                            } else {
+                                0.0
+                            }
+                            
+                            // 付费内容收益（网游主要收入来源）
+                            // 需要根据该年份的dailySalesList来估算该年份的付费内容收益
+                            // 由于付费内容收益是累计的，我们需要按日期范围来估算
+                            val monetizationRevenue = if (revenue.monetizationRevenues.isNotEmpty() && revenue.dailySalesList.isNotEmpty()) {
+                                // 计算该年份的天数
+                                val matchingRecords = revenue.dailySalesList.filter { dailySales ->
+                                    val recordCalendar = java.util.Calendar.getInstance()
+                                    recordCalendar.time = dailySales.date
+                                    val recordGameYear = recordCalendar.get(java.util.Calendar.YEAR)
+                                    recordGameYear == selectedFinancialYear
+                                }
+                                val totalDays = matchingRecords.size
+                                val allDays = revenue.dailySalesList.size
+                                
+                                // 按比例分配累计付费内容收益
+                                if (allDays > 0) {
+                                    val totalMonetizationRevenue = revenue.monetizationRevenues.sumOf { it.totalRevenue }
+                                    totalMonetizationRevenue * (totalDays.toDouble() / allDays.toDouble())
+                                } else {
+                                    0.0
+                                }
+                            } else {
+                                0.0
+                            }
+                            
+                            onlineGameRevenue += registrationRevenue + monetizationRevenue
+                        }
+                    }
                     
-                    Log.d("MainActivity", "财务状况计算完成（第${selectedFinancialYear}年）：单机¥${formatMoneyWithDecimals(singlePlayerRevenue)} + 网游¥${formatMoneyWithDecimals(onlineGameRevenue)} = 总收入¥${formatMoneyWithDecimals(yearTotalRevenue)}")
+                    // 子公司收入（包括单机和网游）
+                    val subsidiaryGames = releasedGames.filter { it.id.startsWith("inherited_") }
+                    subsidiaryGames.forEach { game ->
+                        val revenue = RevenueManager.getGameRevenue(game.id)
+                        if (revenue != null) {
+                            // 注册/销量收入（从dailySalesList统计）
+                            val baseRevenue = if (revenue.dailySalesList.isNotEmpty()) {
+                                val matchingRecords = revenue.dailySalesList.filter { dailySales ->
+                                    val recordCalendar = java.util.Calendar.getInstance()
+                                    recordCalendar.time = dailySales.date
+                                    val recordGameYear = recordCalendar.get(java.util.Calendar.YEAR)
+                                    recordGameYear == selectedFinancialYear
+                                }
+                                matchingRecords.sumOf { it.revenue }
+                            } else {
+                                0.0
+                            }
+                            
+                            // 如果是网游，还需要加上付费内容收益
+                            val monetizationRevenue = if (game.businessModel == BusinessModel.ONLINE_GAME && 
+                                revenue.monetizationRevenues.isNotEmpty() && revenue.dailySalesList.isNotEmpty()) {
+                                // 计算该年份的天数
+                                val matchingRecords = revenue.dailySalesList.filter { dailySales ->
+                                    val recordCalendar = java.util.Calendar.getInstance()
+                                    recordCalendar.time = dailySales.date
+                                    val recordGameYear = recordCalendar.get(java.util.Calendar.YEAR)
+                                    recordGameYear == selectedFinancialYear
+                                }
+                                val totalDays = matchingRecords.size
+                                val allDays = revenue.dailySalesList.size
+                                
+                                // 按比例分配累计付费内容收益
+                                if (allDays > 0) {
+                                    val totalMonetizationRevenue = revenue.monetizationRevenues.sumOf { it.totalRevenue }
+                                    totalMonetizationRevenue * (totalDays.toDouble() / allDays.toDouble())
+                                } else {
+                                    0.0
+                                }
+                            } else {
+                                0.0
+                            }
+                            
+                            subsidiaryRevenue += baseRevenue + monetizationRevenue
+                        }
+                    }
                     
-                    Triple(singlePlayerRevenue, onlineGameRevenue, yearTotalRevenue)
+                    val yearTotalRevenue = singlePlayerRevenue + onlineGameRevenue + subsidiaryRevenue
+                    
+                    // 支出明细计算（估算：该年份的支出）
+                    // 注意：这里显示的是估算的年度支出，而不是实际已扣除的金额
+                    // 实际扣除：
+                    // - 员工薪资：每月1日扣除（见2608-2613行）
+                    // - 服务器费用：每30天扣除一次（见2403-2415行）
+                    // 因此，如果查看的是当前年份，显示的是全年估算支出，但实际资金可能只扣除了部分月份的费用
+                    
+                    // 员工薪资：按12个月计算（假设该年全年都有这些员工）
+                    val monthlySalary = allEmployees.sumOf { it.salary }
+                    val yearlySalary = monthlySalary * 12L
+                    
+                    // 服务器费用：需要计算该年的服务器扣费总额（估算）
+                    // 由于服务器扣费记录不在保存数据中，这里按当前服务器状态估算
+                    val serverData = RevenueManager.exportServerData()
+                    var yearlyServerCost = 0.0
+                    serverData.forEach { (_, serverInfo) ->
+                        serverInfo.servers.filter { it.isActive }.forEach { server ->
+                            // 估算：该年有12个月，每30天扣费一次，大约12次
+                            val monthlyCost = server.type.cost
+                            yearlyServerCost += monthlyCost * 12.0
+                        }
+                    }
+                    
+                    val yearTotalExpense = yearlySalary + yearlyServerCost
+                    val profit = yearTotalRevenue - yearTotalExpense
+                    
+                    val revenueDetails = mapOf(
+                        "单机收入" to singlePlayerRevenue,
+                        "网游收入" to onlineGameRevenue,
+                        "子公司收入" to subsidiaryRevenue
+                    )
+                    
+                    val expenseDetails = mapOf(
+                        "员工薪资" to yearlySalary.toDouble(),
+                        "服务器费用" to yearlyServerCost
+                    )
+                    
+                    Log.d("MainActivity", "财务状况计算完成（第${selectedFinancialYear}年）：总收入¥${formatMoneyWithDecimals(yearTotalRevenue)} - 总支出¥${formatMoneyWithDecimals(yearTotalExpense)} = 利润¥${formatMoneyWithDecimals(profit)}")
+                    
+                    FinancialDetails(revenueDetails, expenseDetails, yearTotalRevenue, yearTotalExpense, profit)
                 }
             }.value
             
-            val (singlePlayerRevenue, onlineGameRevenue, yearTotalRevenue) = financialData
+            // 可展开的财务项组件
+            var revenueExpanded by remember { mutableStateOf(false) }
+            var expenseExpanded by remember { mutableStateOf(false) }
             
             CompanyInfoCardWithYearSelector(
                 title = "财务状况",
                 currentYear = currentYear,
                 selectedYear = selectedFinancialYear,
                 onYearChange = { selectedFinancialYear = it },
-                items = listOf(
-                    "单机收入" to "¥${formatMoneyWithDecimals(singlePlayerRevenue)}",
-                    "网游收入" to "¥${formatMoneyWithDecimals(onlineGameRevenue)}",
-                    "总收入" to "¥${formatMoneyWithDecimals(yearTotalRevenue)}"
-                )
+                content = {
+                    // 总收入（可展开）
+                    ExpandableFinancialItem(
+                        label = "总收入",
+                        value = financialData.totalRevenue,
+                        details = financialData.revenueDetails,
+                        isExpanded = revenueExpanded,
+                        onExpandedChange = { revenueExpanded = it },
+                        positiveColor = Color(0xFF10B981) // 绿色表示收入
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // 总支出（可展开）
+                    ExpandableFinancialItem(
+                        label = "总支出",
+                        value = financialData.totalExpense,
+                        details = financialData.expenseDetails,
+                        isExpanded = expenseExpanded,
+                        onExpandedChange = { expenseExpanded = it },
+                        positiveColor = Color(0xFFEF4444) // 红色表示支出
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // 利润
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "利润",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "¥${formatMoneyWithDecimals(financialData.profit)}",
+                            color = if (financialData.profit >= 0) Color(0xFF10B981) else Color(0xFFEF4444),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             )
             
             // 底部留白，避免内容被底部导航栏遮挡
@@ -5137,8 +5310,9 @@ fun CompanyInfoCardWithYearSelector(
     currentYear: Int,
     selectedYear: Int,
     onYearChange: (Int) -> Unit,
-    items: List<Pair<String, String>>,
-    onRefresh: (() -> Unit)? = null
+    items: List<Pair<String, String>> = emptyList(),
+    onRefresh: (() -> Unit)? = null,
+    content: (@Composable ColumnScope.() -> Unit)? = null
 ) {
     var showYearDialog by remember { mutableStateOf(false) }
     
@@ -5286,25 +5460,111 @@ fun CompanyInfoCardWithYearSelector(
                 }
             }
             
-            // 财务数据列表
-            items.forEach { (label, value) ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = label,
-                        color = Color.White.copy(alpha = 0.8f),
-                        fontSize = 14.sp
-                    )
-                    Text(
-                        text = value,
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+            // 财务数据列表或自定义内容
+            if (content != null) {
+                Column {
+                    content()
+                }
+            } else {
+                items.forEach { (label, value) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = label,
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = value,
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// 可展开财务项组件
+@Composable
+fun ExpandableFinancialItem(
+    label: String,
+    value: Double,
+    details: Map<String, Double>,
+    isExpanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    positiveColor: Color
+) {
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onExpandedChange(!isExpanded) }
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = label,
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Icon(
+                    imageVector = if (isExpanded) 
+                        Icons.Default.KeyboardArrowUp 
+                    else 
+                        Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (isExpanded) "收起" else "展开",
+                    tint = Color.White.copy(alpha = 0.6f),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            Text(
+                text = "¥${formatMoneyWithDecimals(value)}",
+                color = positiveColor,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        
+        // 展开时显示明细
+        if (isExpanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, top = 4.dp, bottom = 4.dp)
+            ) {
+                details.forEach { (detailLabel, detailValue) ->
+                    if (detailValue > 0) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 2.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "  • $detailLabel",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 12.sp
+                            )
+                            Text(
+                                text = "¥${formatMoneyWithDecimals(detailValue)}",
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -5471,7 +5731,7 @@ fun ContinueScreen(navController: NavController) {
     
     // 监听导航状态，当界面重新可见时刷新存档列表
     DisposableEffect(navController) {
-        val listener = NavController.OnDestinationChangedListener { controller, destination, _ ->
+        val listener = NavController.OnDestinationChangedListener { _, destination, _ ->
             if (destination.route == "continue") {
                 refreshKey++
             }
@@ -6208,9 +6468,9 @@ class SaveManager(context: Context) {
         // 1. 清理收益数据：每个游戏只保留最近365天的每日销售数据
         val cleanedRevenueData = saveData.revenueData.mapValues { (gameId, revenue) ->
             if (revenue.dailySalesList.size > MAX_DAILY_SALES_DAYS) {
+                val recentDailySales = revenue.dailySalesList.takeLast(MAX_DAILY_SALES_DAYS)
                 val totalSales = revenue.dailySalesList.sumOf { it.sales }
                 val totalRevenue = revenue.dailySalesList.sumOf { it.revenue }
-                val recentDailySales = revenue.dailySalesList.takeLast(MAX_DAILY_SALES_DAYS)
                 
                 Log.d("SaveManager", "游戏 ${revenue.gameName} 清理前: ${revenue.dailySalesList.size}天, 清理后: ${recentDailySales.size}天")
                 
@@ -6459,6 +6719,11 @@ fun InGameSettingsContent(
     ownedIPs: List<GameIP> = emptyList(), // 拥有的游戏IP列表（收购竞争对手后获得）
     gmModeEnabled: Boolean = false, // GM模式是否开启
     onGMToggle: (Boolean) -> Unit = {}, // GM模式切换回调
+    autoSaveEnabled: Boolean = false, // 自动存档开关
+    autoSaveInterval: Int = 5, // 自动存档间隔（分钟）
+    lastAutoSaveMinute: Int = 0, // 上次自动存档的分钟数
+    onAutoSaveEnabledToggle: (Boolean) -> Unit = {}, // 自动存档开关切换回调
+    onAutoSaveIntervalChange: (Int) -> Unit = {}, // 自动存档间隔修改回调
     onMaxEmployees: () -> Unit = {}, // 一键满配员工回调
     onAddMoney: () -> Unit = {}, // 一键加钱回调
     onCreateTopEmployees: () -> Unit = {}, // 创建各职位6名5级专属技能员工回调
@@ -6513,6 +6778,112 @@ fun InGameSettingsContent(
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
+            }
+        }
+        
+        // 自动存档开关和设置
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = Color.White.copy(alpha = 0.05f)
+            ),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "💾",
+                            fontSize = 18.sp
+                        )
+                        Column {
+                            Text(
+                                text = "自动存档",
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "开启后每隔${autoSaveInterval}分钟自动保存到存档位1",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = autoSaveEnabled,
+                        onCheckedChange = { onAutoSaveEnabledToggle(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = Color(0xFF3B82F6),
+                            uncheckedThumbColor = Color.White.copy(alpha = 0.6f),
+                            uncheckedTrackColor = Color.Gray.copy(alpha = 0.5f)
+                        )
+                    )
+                }
+                
+                // 存档间隔设置（仅在开启时显示）
+                if (autoSaveEnabled) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "存档间隔",
+                                color = Color.White.copy(alpha = 0.8f),
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                text = "${autoSaveInterval}分钟",
+                                color = Color(0xFF3B82F6),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Slider(
+                            value = autoSaveInterval.toFloat(),
+                            onValueChange = { onAutoSaveIntervalChange(it.toInt()) },
+                            valueRange = 1f..30f,
+                            steps = 29,
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color(0xFF3B82F6),
+                                activeTrackColor = Color(0xFF3B82F6),
+                                inactiveTrackColor = Color.Gray.copy(alpha = 0.5f)
+                            )
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "1分钟",
+                                color = Color.White.copy(alpha = 0.5f),
+                                fontSize = 12.sp
+                            )
+                            Text(
+                                text = "30分钟",
+                                color = Color.White.copy(alpha = 0.5f),
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
             }
         }
         
@@ -6589,6 +6960,7 @@ fun InGameSettingsContent(
                     )
                     
                     if (showRedeemError) {
+                        @Suppress("SpellCheckingInspection")
                         Text(
                             text = if (redeemCode.uppercase() == "YCJY2025" && usedRedeemCodes.contains("YCJY2025")) {
                                 "❌ 该兑换码已在本存档中使用过，每个存档仅限使用1次"
@@ -6603,27 +6975,32 @@ fun InGameSettingsContent(
                     Button(
                         onClick = {
                             val codeUpper = redeemCode.uppercase()
-                            if (codeUpper == "PROGM") {
-                                onGMToggle(true)
-                                redeemCode = ""
-                                redeemSuccessMessage = "GM工具箱已激活！"
-                                showRedeemSuccessDialog = true
-                            } else if (codeUpper == "YCJY2025") {
-                                // 检查兑换码是否已使用
-                                if (usedRedeemCodes.contains("YCJY2025")) {
-                                    showRedeemError = true
-                                } else {
-                                    // 兑换码：YCJY2025，获得5M资金
-                                    val rewardAmount = 5000000L // 5M = 500万
-                                    onMoneyUpdate(money + rewardAmount)
-                                    // 标记兑换码为已使用
-                                    onUsedRedeemCodesUpdate(usedRedeemCodes + "YCJY2025")
+                            @Suppress("SpellCheckingInspection")
+                            when {
+                                codeUpper == "PROGM" -> {
+                                    onGMToggle(true)
                                     redeemCode = ""
-                                    redeemSuccessMessage = "兑换成功！获得 ${formatMoney(rewardAmount)}"
+                                    redeemSuccessMessage = "GM工具箱已激活！"
                                     showRedeemSuccessDialog = true
                                 }
-                            } else {
-                                showRedeemError = true
+                                codeUpper == "YCJY2025" -> {
+                                    // 检查兑换码是否已使用
+                                    if (usedRedeemCodes.contains("YCJY2025")) {
+                                        showRedeemError = true
+                                    } else {
+                                        // 兑换码：YCJY2025，获得5M资金
+                                        val rewardAmount = 5000000L // 5M = 500万
+                                        onMoneyUpdate(money + rewardAmount)
+                                        // 标记兑换码为已使用
+                                        onUsedRedeemCodesUpdate(usedRedeemCodes + "YCJY2025")
+                                        redeemCode = ""
+                                        redeemSuccessMessage = "兑换成功！获得 ${formatMoney(rewardAmount)}"
+                                        showRedeemSuccessDialog = true
+                                    }
+                                }
+                                else -> {
+                                    showRedeemError = true
+                                }
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -6865,6 +7242,9 @@ fun InGameSettingsContent(
                                 ownedIPs = ownedIPs, // 保存拥有的IP列表（收购竞争对手后获得）
                                 gmModeEnabled = gmModeEnabled, // 保存GM模式状态
                                 usedRedeemCodes = usedRedeemCodes, // 保存已使用的兑换码列表
+                                autoSaveEnabled = autoSaveEnabled, // 保存自动存档开关
+                                autoSaveInterval = autoSaveInterval, // 保存自动存档间隔
+                                lastAutoSaveMinute = lastAutoSaveMinute, // 保存上次自动存档时间
                                 saveTime = System.currentTimeMillis(),
                                 version = BuildConfig.VERSION_NAME // 使用当前游戏版本号
                             )
@@ -6991,6 +7371,9 @@ fun InGameSettingsContent(
                                             ownedIPs = ownedIPs, // 保存拥有的IP列表（收购竞争对手后获得）
                                             gmModeEnabled = gmModeEnabled, // 保存GM模式状态
                                             usedRedeemCodes = usedRedeemCodes, // 保存已使用的兑换码列表
+                                            autoSaveEnabled = autoSaveEnabled, // 保存自动存档开关
+                                            autoSaveInterval = autoSaveInterval, // 保存自动存档间隔
+                                            lastAutoSaveMinute = lastAutoSaveMinute, // 保存上次自动存档时间
                                             saveTime = System.currentTimeMillis(),
                                             version = BuildConfig.VERSION_NAME // 使用当前游戏版本号
                                         )

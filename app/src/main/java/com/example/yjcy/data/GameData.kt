@@ -88,32 +88,37 @@ enum class DevelopmentPhase(
         val validEmployees = getValidEmployees(employees)
         if (validEmployees.isEmpty()) return 0f
         
-        // 计算有效员工的平均技能等级
-        val avgSkillLevel = validEmployees.map { employee ->
-            when (this) {
+        // 计算每个员工的技能效率
+        val employeeEfficiencies = validEmployees.map { employee ->
+            // 获取员工在当前阶段的技能等级
+            val skillLevel = when (this) {
                 DESIGN -> employee.skillDesign
                 ART_SOUND -> maxOf(employee.skillArt, employee.skillMusic)
                 PROGRAMMING -> employee.skillDevelopment
             }
-        }.average().toFloat()
+            
+            // 技能倍率：1级=0.08x, 2级=0.2x, 3级=0.3x, 4级=0.4x, 5级=0.5x
+            when {
+                skillLevel >= 5 -> 0.5f  // 5级：从0.75x降到0.5x
+                skillLevel >= 4 -> 0.4f  // 4级：从0.6x降到0.4x
+                skillLevel >= 3 -> 0.3f  // 3级：从0.45x降到0.3x
+                skillLevel >= 2 -> 0.2f  // 2级：从0.3x降到0.2x
+                else -> 0.08f  // 1级技能倍率：0.08x
+            }
+        }
+        
+        // 计算平均效率
+        val avgEfficiency = employeeEfficiencies.average().toFloat()
         
         // 基础进度：每天2%
         val baseProgress = 0.02f
-        
-        // 技能倍率：1级=0.5x, 2级=0.8x, 3级=1.0x, 4级=1.3x, 5级=1.6x
-        val skillMultiplier = when {
-            avgSkillLevel >= 5f -> 1.6f
-            avgSkillLevel >= 4f -> 1.3f
-            avgSkillLevel >= 3f -> 1.0f
-            avgSkillLevel >= 2f -> 0.8f
-            else -> 0.5f
-        }
         
         // 人数倍率：每人+0.3倍率，最高10人封顶4.0倍
         // 1人=1.0x, 2人=1.3x, 3人=1.6x, 4人=1.9x, 5人=2.2x, ..., 10人=4.0x
         val countMultiplier = (1.0f + (validEmployees.size - 1) * 0.3f).coerceAtMost(4.0f)
         
-        return baseProgress * skillMultiplier * countMultiplier
+        // 总进度 = 基础进度 × 平均效率 × 人数倍率
+        return baseProgress * avgEfficiency * countMultiplier
     }
     
     /**
@@ -129,54 +134,6 @@ enum class DevelopmentPhase(
 }
 
 // 员工数据类
-// 员工工作时间配置数据类
-data class WorkSchedule(
-    val workDays: Set<Int> = setOf(1, 2, 3, 4, 5, 6, 7), // 工作日（1=周一，7=周日），默认每天都上班
-    val startHour: Int = 9, // 上班时间（小时，0-23）
-    val startMinute: Int = 0, // 上班时间（分钟，0-59）
-    val endHour: Int = 18, // 下班时间（小时，0-23）
-    val endMinute: Int = 0, // 下班时间（分钟，0-59）
-    val lunchBreakStartHour: Int = 12, // 午休开始时间（小时）
-    val lunchBreakStartMinute: Int = 0, // 午休开始时间（分钟）
-    val lunchBreakEndHour: Int = 13, // 午休结束时间（小时）
-    val lunchBreakEndMinute: Int = 0 // 午休结束时间（分钟）
-) {
-    /**
-     * 判断指定时间是否在工作时间内
-     * @param weekday 星期几（1=周一，7=周日）
-     * @param hour 当前小时（0-23）
-     * @param minute 当前分钟（0-59）
-     * @return true表示在工作时间，false表示休息
-     */
-    fun isWorkingTime(weekday: Int, hour: Int, minute: Int): Boolean {
-        // 调试日志
-        android.util.Log.d("WorkSchedule", 
-            "isWorkingTime检查: weekday=$weekday, hour=$hour, minute=$minute, " +
-            "workDays=$workDays, startHour=$startHour:$startMinute, endHour=$endHour:$endMinute")
-        
-        // 检查是否是工作日
-        if (weekday !in workDays) {
-            android.util.Log.d("WorkSchedule", "不是工作日: weekday=$weekday not in workDays=$workDays")
-            return false
-        }
-        
-        val currentTimeMinutes = hour * 60 + minute
-        val startTimeMinutes = startHour * 60 + startMinute
-        val endTimeMinutes = endHour * 60 + endMinute
-        
-        val isInWorkHours = currentTimeMinutes >= startTimeMinutes && currentTimeMinutes < endTimeMinutes
-        
-        android.util.Log.d("WorkSchedule", 
-            "时间检查: current=${currentTimeMinutes}分钟($hour:$minute), " +
-            "start=${startTimeMinutes}分钟($startHour:$startMinute), " +
-            "end=${endTimeMinutes}分钟($endHour:$endMinute), " +
-            "isInWorkHours=$isInWorkHours")
-        
-        // 只要在工作时间范围内就算工作时间（已移除午休时间逻辑）
-        return isInWorkHours
-    }
-}
-
 data class Employee(
     val id: Int,
     val name: String,
@@ -189,16 +146,15 @@ data class Employee(
     val salary: Int = 0,
     val experience: Int = 0,
     val motivation: Int = 100,
-    val stamina: Int = 100, // 体力值（0-100）
     val loyalty: Int = 100, // 忠诚度（0-100）
     val requestedSalary: Int? = null, // 员工要求的薪资（null表示未提出要求）
     val lastSalaryRequestYear: Int? = null, // 上次提出涨薪要求的年份
     val lastSalaryRequestMonth: Int? = null, // 上次提出涨薪要求的月份
+    val salaryRequestCount: Int = 0, // 涨薪请求次数（最多3次）
     val isFounder: Boolean = false,
     val hireYear: Int = 1,  // 入职年份
     val hireMonth: Int = 1, // 入职月份
-    val hireDay: Int = 1,    // 入职日期
-    val workSchedule: WorkSchedule = WorkSchedule() // 工作时间配置（默认：每天9:00-18:00，午休12:00-13:00）
+    val hireDay: Int = 1    // 入职日期
 ) {
     /**
      * 获取员工的专属技能类型
@@ -331,70 +287,6 @@ data class Employee(
     }
     
     /**
-     * 计算工作消耗的体力值
-     * 体力消耗与技能等级相关：技能等级越高，工作更高效，体力消耗更少
-     * 
-     * 公式：基础消耗 × (1 - 技能等级 × 0.1)，最低30%消耗
-     * 基础消耗：15体力
-     * 
-     * 示例：
-     * - 1级：15 × (1 - 0.1) = 13.5 ≈ 14体力
-     * - 2级：15 × (1 - 0.2) = 12体力
-     * - 3级：15 × (1 - 0.3) = 10.5 ≈ 11体力
-     * - 4级：15 × (1 - 0.4) = 9体力
-     * - 5级：15 × (1 - 0.5) = 7.5 ≈ 8体力（最低30%消耗限制不生效）
-     * 
-     * @return 消耗的体力值
-     */
-    fun calculateWorkStaminaCost(): Int {
-        val skillLevel = getSpecialtySkillLevel()
-        val baseCost = 15 // 基础消耗15体力
-        
-        // 技能等级越高，消耗越少（最低30%）
-        val reductionFactor = (skillLevel * 0.1f).coerceAtMost(0.7f) // 最多减少70%
-        val cost = (baseCost * (1 - reductionFactor)).toInt()
-        
-        // 确保至少消耗5体力（33%），最高15体力
-        return cost.coerceIn(5, 15)
-    }
-    
-    /**
-     * 消耗体力值（工作后调用）
-     * @return 新的Employee对象，体力值已减少
-     */
-    fun consumeStamina(): Employee {
-        val cost = calculateWorkStaminaCost()
-        val newStamina = (stamina - cost).coerceAtLeast(0)
-        return this.copy(stamina = newStamina)
-    }
-    
-    /**
-     * 恢复体力值（每天恢复）
-     * @param amount 恢复的体力值（默认20）
-     * @return 新的Employee对象，体力值已恢复
-     */
-    fun restoreStamina(amount: Int = 20): Employee {
-        val newStamina = (stamina + amount).coerceAtMost(100)
-        return this.copy(stamina = newStamina)
-    }
-    
-    /**
-     * 检查员工是否体力不足（体力值低于30%）
-     * @return true表示体力不足
-     */
-    fun isStaminaLow(): Boolean {
-        return stamina < 30
-    }
-    
-    /**
-     * 获取体力值百分比
-     * @return 体力值百分比（0-100）
-     */
-    fun getStaminaPercentage(): Int {
-        return stamina
-    }
-    
-    /**
      * 计算员工工作年数（用于判断是否满1年）
      * @param currentYear 当前游戏年份
      * @param currentMonth 当前游戏月份
@@ -427,66 +319,73 @@ data class Employee(
     }
     
     /**
-     * 计算员工期望的薪资（基于技能等级）
-     * 公式：基础薪资 × (1 + 技能等级 × 0.15)
-     * 1级：115%，2级：130%，3级：145%，4级：160%，5级：175%
+     * 计算员工期望的薪资（基于技能等级和涨薪次数）
+     * 公式：基础薪资 × (1 + 技能等级 × 0.05 + 涨薪次数 × 0.03)
+     * 首次涨薪：技能等级加成5%每级 + 3%基础涨幅
+     * 第二次涨薪：技能等级加成5%每级 + 6%基础涨幅
+     * 第三次涨薪：技能等级加成5%每级 + 9%基础涨幅
+     * 例如：3级员工首次涨薪 = 基础薪资 × (1 + 3×0.05 + 1×0.03) = 118%
+     * 例如：5级员工第三次涨薪 = 基础薪资 × (1 + 5×0.05 + 3×0.03) = 134%
      */
     fun calculateExpectedSalary(baseSalary: Int): Int {
         val skillLevel = getSpecialtySkillLevel()
-        val multiplier = 1.0 + (skillLevel * 0.15)
+        val skillBonus = skillLevel * 0.05 // 技能加成：5%每级（进一步降低）
+        val requestBonus = salaryRequestCount * 0.03 // 涨薪次数加成：3%每次（进一步降低）
+        val multiplier = 1.0 + skillBonus + requestBonus
         return (baseSalary * multiplier).toInt()
     }
     
     /**
-     * 判断员工当前是否在工作时间内
-     * @param weekday 星期几（1=周一，7=周日）
-     * @param hour 当前小时（0-23）
-     * @param minute 当前分钟（0-59）
-     * @return true表示在工作时间，false表示休息
-     */
-    fun isWorking(weekday: Int, hour: Int, minute: Int): Boolean {
-        // 防止 workSchedule 为 null（可能是旧数据或反序列化问题）
-        return try {
-            workSchedule.isWorkingTime(weekday, hour, minute)
-        } catch (e: NullPointerException) {
-            // 如果 workSchedule 为 null，使用默认工作时间（每天9:00-18:00，午休12:00-13:00）
-            WorkSchedule().isWorkingTime(weekday, hour, minute)
-        }
-    }
-    
-    /**
      * 检查员工是否应该提出涨薪要求
-     * 条件：入职满1年，且未提出过要求或上次提出要求已过1年
+     * 规则：
+     * - 首次涨薪：入职1年后
+     * - 第二次涨薪：入职3年后
+     * - 第三次涨薪：入职5年后
+     * - 最多只能涨薪3次
      */
     fun shouldRequestSalaryIncrease(currentYear: Int, currentMonth: Int, currentDay: Int): Boolean {
         if (isFounder) return false // 创始人不提要求
         
-        // 检查是否入职满1年
-        val workYears = calculateWorkYears(currentYear, currentMonth, currentDay)
-        if (workYears < 1) return false // 未满1年
+        // 如果已经涨薪3次，不能再涨薪
+        if (salaryRequestCount >= 3) return false
         
-        // 如果从未提出过要求，检查是否刚好满1年（入职日期）
+        // 如果已经提出过要求但还未处理，不再提出新要求
+        if (requestedSalary != null) return false
+        
+        val workYears = calculateWorkYears(currentYear, currentMonth, currentDay)
+        
+        // 根据涨薪次数确定需要的入职年数
+        val requiredYears = when (salaryRequestCount) {
+            0 -> 1 // 首次：入职1年后
+            1 -> 3 // 第二次：入职3年后
+            2 -> 5 // 第三次：入职5年后
+            else -> return false // 超过3次，不允许
+        }
+        
+        if (workYears < requiredYears) return false // 未达到要求的年数
+        
+        // 如果从未提出过要求，检查是否刚好到了要求的入职日期
         if (lastSalaryRequestYear == null) {
-            // 必须刚好是入职日期（月份和日期相同，年份差1年）
-            if (currentYear == hireYear + 1 && currentMonth == hireMonth && currentDay == hireDay) {
+            val targetYear = hireYear + requiredYears
+            if (currentYear == targetYear && currentMonth == hireMonth && currentDay == hireDay) {
+                return true
+            }
+            // 兼容旧数据：如果已经超过了目标年份，在入职日期也可以触发
+            if (currentYear > targetYear && currentMonth == hireMonth && currentDay == hireDay) {
                 return true
             }
             return false
         }
         
-        // 如果已经提出过要求，检查是否距离上次要求已过1年
-        val yearsSinceLastRequest = currentYear - lastSalaryRequestYear!!
-        if (yearsSinceLastRequest >= 1) {
-            // 如果年份差大于等于1，还需要检查月份和日期
-            if (yearsSinceLastRequest == 1) {
-                // 如果当前月份小于上次提出要求的月份，还没满1年
-                if (currentMonth < lastSalaryRequestMonth!!) return false
-                // 如果当前月份等于上次提出要求的月份，需要检查日期
-                if (currentMonth == lastSalaryRequestMonth) {
-                    // 必须当前日期大于等于上次提出要求的日期（使用入职日期作为参考）
-                    if (currentDay < hireDay) return false
-                }
-            }
+        // 如果已经提出过要求，需要检查是否到了下次涨薪的时间
+        // 注意：这里需要根据涨薪次数来判断，而不是距离上次请求的时间
+        val targetYear = hireYear + requiredYears
+        if (currentYear == targetYear && currentMonth == hireMonth && currentDay == hireDay) {
+            return true
+        }
+        
+        // 兼容旧数据：如果已经超过了目标年份，在入职日期也可以触发
+        if (currentYear > targetYear && currentMonth == hireMonth && currentDay == hireDay) {
             return true
         }
         
@@ -530,7 +429,6 @@ data class Founder(
             skillMusic = if (profession.specialtySkill == "音乐") SkillConstants.FOUNDER_SKILL_LEVEL else 0,
             skillService = if (profession.specialtySkill == "服务") SkillConstants.FOUNDER_SKILL_LEVEL else 0,
             salary = 0, // 创始人无薪资
-            stamina = 100, // 初始体力值100
             loyalty = 100, // 创始人忠诚度100
             isFounder = true,
             hireYear = hireYear,
@@ -852,6 +750,9 @@ data class SaveData(
     val ownedIPs: List<GameIP> = emptyList(), // 拥有的游戏IP列表（收购竞争对手后获得）
     val gmModeEnabled: Boolean = false, // GM模式开关（通过兑换码激活）
     val usedRedeemCodes: Set<String> = emptySet(), // 已使用的兑换码列表
+    val autoSaveEnabled: Boolean = false, // 自动存档开关（默认关闭）
+    val autoSaveInterval: Int = 5, // 自动存档间隔（分钟，默认5分钟）
+    val lastAutoSaveMinute: Int = 0, // 上次自动存档时的分钟数（用于计算是否到达存档间隔）
     val saveTime: Long = System.currentTimeMillis(),
     val version: String = "1.0.0" // 存档版本号（创建时会被覆盖为当前版本）
 )

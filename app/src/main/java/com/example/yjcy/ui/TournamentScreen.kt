@@ -2,6 +2,8 @@ package com.example.yjcy.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,9 +21,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.yjcy.data.*
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.DropdownMenuItem
 
 /**
  * 赛事中心主界面
@@ -415,15 +414,15 @@ fun OngoingTournamentsTab(
     currentDate: GameDate,
     competitors: List<CompetitorCompany>
 ) {
-    // 下拉选择器状态：0=我的公司，1=竞争对手
-    var selectedOption by remember { mutableStateOf(0) }
-    var expanded by remember { mutableStateOf(false) }
+    // 选择器状态：0=我的公司，1=竞争对手
+    var selectedCompanyIndex by remember { mutableIntStateOf(0) }
+    var showSelectionDialog by remember { mutableStateOf(false) }
     
-    // 构建选择列表（只有两个选项）
+    // 构建选择列表：只有两个选项
     val companyOptions = listOf("我的公司", "竞争对手")
     
     // 根据选择获取对应的游戏和公司名称
-    val (displayGames, competitorGameDataMap) = if (selectedOption == 0) {
+    val (displayGames, competitorGameDataMap) = if (selectedCompanyIndex == 0) {
         // 显示玩家的游戏
         Pair(games, emptyMap<String, Pair<Long, String>>())
     } else {
@@ -453,49 +452,29 @@ fun OngoingTournamentsTab(
     }
     
     Column(modifier = Modifier.fillMaxSize()) {
-        // 下拉选择器
-        ExposedDropdownMenuBox(
-            expanded = expanded,
-            onExpandedChange = { expanded = !expanded },
+        // 选择公司按钮
+        OutlinedButton(
+            onClick = { showSelectionDialog = true },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(16.dp),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = Color.White
+            ),
+            border = BorderStroke(1.dp, Color(0xFF90CAF9)),
+            shape = RoundedCornerShape(8.dp)
         ) {
-            OutlinedTextField(
-                value = companyOptions[selectedOption],
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("查看公司") },
-                trailingIcon = {
-                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
-                },
-                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedBorderColor = Color(0xFF64B5F6),
-                    unfocusedBorderColor = Color(0xFF90CAF9),
-                    focusedLabelColor = Color(0xFF64B5F6),
-                    unfocusedLabelColor = Color(0xFF90CAF9)
-                ),
-                modifier = Modifier
-                    .menuAnchor()
-                    .fillMaxWidth()
+            Text(
+                text = companyOptions[selectedCompanyIndex],
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f)
             )
-            
-            ExposedDropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false }
-            ) {
-                companyOptions.forEachIndexed { index, name ->
-                    DropdownMenuItem(
-                        text = { Text(name) },
-                        onClick = {
-                            selectedOption = index
-                            expanded = false
-                        }
-                    )
-                }
-            }
+            Icon(
+                imageVector = Icons.Default.ArrowDropDown,
+                contentDescription = "选择公司",
+                tint = Color.White.copy(alpha = 0.7f)
+            )
         }
         
         // 赛事列表
@@ -503,7 +482,7 @@ fun OngoingTournamentsTab(
             EmptyStateView(
                 icon = "⏳",
                 title = "暂无进行中的赛事",
-                message = if (selectedOption == 0) "去可举办页面创建新赛事吧！" else "竞争对手暂无进行中的赛事"
+                message = if (selectedCompanyIndex == 0) "去可举办页面创建新赛事吧！" else "竞争对手暂无进行中的赛事"
             )
         } else {
             LazyColumn(
@@ -514,20 +493,68 @@ fun OngoingTournamentsTab(
             ) {
                 items(displayGames) { game ->
                     game.currentTournament?.let { tournament ->
-                        // 对于竞争对手的游戏，使用原始游戏ID查找数据（game.id 就是 compGame.id）
-                        val competitorData = if (selectedOption != 0) competitorGameDataMap[game.id] else null
+                        // 对于竞争对手的游戏，使用原始游戏ID查找数据
+                        val competitorData = if (selectedCompanyIndex != 0) competitorGameDataMap[game.id] else null
                         OngoingTournamentCard(
                             tournament = tournament,
                             game = game,
-                            revenueData = if (selectedOption == 0) revenueDataMap[game.id] else null,
+                            revenueData = if (selectedCompanyIndex == 0) revenueDataMap[game.id] else null,
                             currentDate = currentDate,
-                            isCompetitor = selectedOption != 0,
+                            isCompetitor = selectedCompanyIndex != 0,
                             companyName = competitorData?.second,
                             competitorActivePlayers = competitorData?.first
                         )
                     }
                 }
             }
+        }
+        
+        // 选择公司对话框
+        if (showSelectionDialog) {
+            AlertDialog(
+                onDismissRequest = { showSelectionDialog = false },
+                title = {
+                    Text(
+                        text = "选择查看公司",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                },
+                text = {
+                    Column {
+                        companyOptions.forEachIndexed { index, name ->
+                            Button(
+                                onClick = {
+                                    selectedCompanyIndex = index
+                                    showSelectionDialog = false
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (selectedCompanyIndex == index) 
+                                        Color(0xFF64B5F6) else Color(0xFF2D3748)
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = name,
+                                    color = Color.White,
+                                    fontSize = 16.sp
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { showSelectionDialog = false }) {
+                        Text("取消", color = Color.White)
+                    }
+                },
+                containerColor = Color(0xFF1E293B),
+                shape = RoundedCornerShape(16.dp)
+            )
         }
     }
 }

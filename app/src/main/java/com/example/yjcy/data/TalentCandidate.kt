@@ -68,7 +68,6 @@ data class TalentCandidate(
             salary = expectedSalary,
             experience = experience,
             motivation = Random.nextInt(80, 101), // 新员工动机较高
-            stamina = 100, // 初始体力值100
             loyalty = 100, // 初始忠诚度100
             isFounder = false,
             hireYear = hireYear,

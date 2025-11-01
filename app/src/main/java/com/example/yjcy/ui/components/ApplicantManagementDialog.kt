@@ -2,9 +2,12 @@ package com.example.yjcy.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -190,52 +193,43 @@ fun ApplicantManagementDialog(
                         )
                     }
                     
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                     
-                    // 各职位当前人数 - 现代化设计
-                    Column(
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            modifier = Modifier.padding(bottom = 16.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Work,
-                                contentDescription = null,
-                                tint = Color(0xFFF59E0B),
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Text(
-                                text = "各职位当前人数",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        }
-                        
-                        // 统计各职位人数
-                        val positionCounts = mapOf(
+                    // 各职位当前人数 - 横向排列（类似统计卡片）
+                    val positionCounts = remember(saveData.allEmployees) {
+                        mapOf(
                             "程序员" to saveData.allEmployees.count { it.position == "程序员" },
                             "策划师" to saveData.allEmployees.count { it.position == "策划师" },
                             "美术师" to saveData.allEmployees.count { it.position == "美术师" },
                             "音效师" to saveData.allEmployees.count { it.position == "音效师" },
                             "客服" to saveData.allEmployees.count { it.position == "客服" }
                         )
-                        
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            positionCounts.forEach { (position, count) ->
-                                PositionCountChip(
-                                    position = position,
-                                    count = count,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
+                    }
+                    var selectedPositionDialog by remember { mutableStateOf<String?>(null) }
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        positionCounts.forEach { (position, count) ->
+                            PositionCountChip(
+                                position = position,
+                                count = count,
+                                onClick = {
+                                    selectedPositionDialog = position
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
                         }
+                    }
+                    
+                    // 岗位信息对话框
+                    selectedPositionDialog?.let { position ->
+                        PositionInfoDialog(
+                            position = position,
+                            count = positionCounts[position] ?: 0,
+                            onDismiss = { selectedPositionDialog = null }
+                        )
                     }
                     
                     Spacer(modifier = Modifier.height(20.dp))
@@ -513,33 +507,34 @@ private fun StatCard(
     gradientColors: List<Color>,
     modifier: Modifier = Modifier
 ) {
-    Column(
+    Row(
         modifier = modifier
-            .fillMaxWidth()
             .background(
                 brush = Brush.verticalGradient(colors = gradientColors),
-                shape = RoundedCornerShape(18.dp)
+                shape = RoundedCornerShape(14.dp)
             )
-            .padding(vertical = 18.dp, horizontal = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(vertical = 10.dp, horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
     ) {
         Text(
             text = icon,
-            fontSize = 32.sp
+            fontSize = 18.sp
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.width(4.dp))
         Text(
-            text = label,
+            text = "$label：",
             fontSize = 12.sp,
-            color = Color.White.copy(alpha = 0.8f),
-            fontWeight = FontWeight.Medium
+            color = Color.White.copy(alpha = 0.85f),
+            fontWeight = FontWeight.Medium,
+            maxLines = 1
         )
-        Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = value,
-            fontSize = 24.sp,
+            fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.White
+            color = Color.White,
+            maxLines = 1
         )
     }
 }
@@ -817,6 +812,7 @@ private fun InfoChip(
 private fun PositionCountChip(
     position: String,
     count: Int,
+    onClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val icon = when (position) {
@@ -828,48 +824,112 @@ private fun PositionCountChip(
         else -> "👤"
     }
     
-    Column(
+    val gradientColors = if (count > 0) {
+        listOf(
+            Color(0xFF3B82F6).copy(alpha = 0.2f),
+            Color(0xFF60A5FA).copy(alpha = 0.1f)
+        )
+    } else {
+        listOf(
+            Color(0xFF1E293B).copy(alpha = 0.4f),
+            Color(0xFF334155).copy(alpha = 0.2f)
+        )
+    }
+    
+    Row(
         modifier = modifier
-            .fillMaxWidth()
+            .clickable(onClick = onClick)
             .background(
-                brush = Brush.verticalGradient(
-                    colors = if (count > 0) {
-                        listOf(
-                            Color(0xFF3B82F6).copy(alpha = 0.2f),
-                            Color(0xFF60A5FA).copy(alpha = 0.1f)
-                        )
-                    } else {
-                        listOf(
-                            Color(0xFF1E293B).copy(alpha = 0.4f),
-                            Color(0xFF334155).copy(alpha = 0.2f)
-                        )
-                    }
-                ),
-                shape = RoundedCornerShape(16.dp)
+                brush = Brush.verticalGradient(colors = gradientColors),
+                shape = RoundedCornerShape(14.dp)
             )
-            .padding(vertical = 14.dp, horizontal = 10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(vertical = 10.dp, horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
     ) {
         Text(
             text = icon,
-            fontSize = 24.sp
+            fontSize = 18.sp
         )
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = position,
-            fontSize = 11.sp,
-            color = Color.White.copy(alpha = 0.8f)
-        )
-        Spacer(modifier = Modifier.height(3.dp))
+        Spacer(modifier = Modifier.width(4.dp))
         Text(
             text = count.toString(),
-            fontSize = 20.sp,
+            fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
-            color = if (count > 0) {
-                Color(0xFF60A5FA)
-            } else {
-                Color.White.copy(alpha = 0.5f)
-            }
+            color = Color.White,
+            maxLines = 1
         )
     }
+}
+
+/**
+ * 岗位信息对话框
+ */
+@Composable
+private fun PositionInfoDialog(
+    position: String,
+    count: Int,
+    onDismiss: () -> Unit
+) {
+    val icon = when (position) {
+        "程序员" -> "💻"
+        "策划师" -> "📝"
+        "美术师" -> "🎨"
+        "音效师" -> "🎵"
+        "客服" -> "💬"
+        else -> "👤"
+    }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = icon,
+                    fontSize = 24.sp
+                )
+                Text(
+                    text = position,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+        },
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "当前人数",
+                    fontSize = 14.sp,
+                    color = Color.White.copy(alpha = 0.7f)
+                )
+                Text(
+                    text = count.toString(),
+                    fontSize = 36.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF60A5FA)
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF3B82F6)
+                )
+            ) {
+                Text("确定", color = Color.White)
+            }
+        },
+        containerColor = Color(0xFF1F2937),
+        titleContentColor = Color.White,
+        textContentColor = Color.White,
+        shape = RoundedCornerShape(20.dp)
+    )
 }

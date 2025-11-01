@@ -226,14 +226,15 @@ class JobPostingService private constructor() {
     
     /**
      * 计算应聘者数量
+     * 降低生成速度：基础概率降低，生成数量减少
      */
     private fun calculateApplicantCount(attractiveness: Float, daysElapsed: Int): Int {
-        // 基础概率
-        val baseProbability = attractiveness * daysElapsed
+        // 基础概率：降低生成频率（原来：attractiveness * daysElapsed，现在降低到原来的1/3）
+        val baseProbability = attractiveness * daysElapsed * 0.33f
         
-        // 随机生成0-3个应聘者
+        // 随机生成0-2个应聘者（原来是0-3个）
         return when {
-            Random.nextFloat() < baseProbability -> Random.nextInt(1, 4)
+            Random.nextFloat() < baseProbability -> Random.nextInt(1, 3) // 改为1-2个
             else -> 0
         }
     }

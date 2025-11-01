@@ -55,6 +55,13 @@ fun EnhancedOneClickAssignmentButton(
     var showResultDialog by remember { mutableStateOf(false) }
     var assignmentResult by remember { mutableStateOf<EnhancedAssignmentResult?>(null) }
     
+    // 添加调试日志，追踪接收到的时间参数
+    LaunchedEffect(currentMinuteOfDay) {
+        android.util.Log.d("AssignmentButton", 
+            "EnhancedOneClickAssignmentButton 接收到时间参数: minuteOfDay=$currentMinuteOfDay, " +
+            "year=$currentYear, month=$currentMonth, day=$currentDay")
+    }
+    
     val context = LocalContext.current
     val assignmentService = remember { EnhancedAssignmentService() }
     val coroutineScope = rememberCoroutineScope()

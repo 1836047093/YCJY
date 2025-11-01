@@ -13,7 +13,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.RemoveCircle
-import androidx.compose.material.icons.filled.RestoreFromTrash
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -55,7 +54,6 @@ fun GameRevenueDialog(
     game: Game,
     onDismiss: () -> Unit,
     onRemoveFromMarket: (String) -> Unit,
-    onRelistGame: (String) -> Unit,
     onStartUpdate: (String) -> Unit = {},
     onMonetizationUpdate: (List<MonetizationItem>) -> Unit = {},
     onPurchaseServer: (ServerType) -> Unit = {},
@@ -153,7 +151,6 @@ fun GameRevenueDialog(
                             gameRevenue = gameRevenue,
                             game = game,
                             onRemoveFromMarket = { showConfirmDialog = true },
-                            onRelistGame = { onRelistGame(gameRevenue.gameId) },
                             onShowUpdateDialog = { showUpdateDialog = true },
                             onShowPaymentSettings = { showPaymentSettingsDialog = true },
                             onShowServerManagement = { showServerManagementDialog = true },
@@ -779,7 +776,6 @@ fun ActionButtonsCard(
     gameRevenue: GameRevenue,
     game: Game,
     onRemoveFromMarket: () -> Unit,
-    onRelistGame: () -> Unit,
     onShowUpdateDialog: () -> Unit,
     onShowPaymentSettings: () -> Unit = {},
     onShowServerManagement: () -> Unit = {},
@@ -917,22 +913,13 @@ fun ActionButtonsCard(
                     Text("下架游戏", fontWeight = FontWeight.Medium)
                 }
             } else {
-                Button(
-                    onClick = onRelistGame,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF4CAF50)
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(
-                        Icons.Default.RestoreFromTrash,
-                        contentDescription = "重新上架",
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("重新上架", fontWeight = FontWeight.Medium)
-                }
+                // 已下架的游戏，不显示任何操作按钮（无法重新上架）
+                Text(
+                    text = "游戏已下架",
+                    fontSize = 14.sp,
+                    color = Color(0xFF9CA3AF),
+                    modifier = Modifier.padding(vertical = 16.dp)
+                )
             }
         }
     }
@@ -953,7 +940,7 @@ fun ConfirmRemovalDialog(
             )
         },
         text = {
-            Text("确定要下架游戏《$gameName》吗？下架后将停止销售，但可以重新上架。")
+            Text("确定要下架游戏《$gameName》吗？下架后将停止销售，且无法重新上架。")
         },
         confirmButton = {
             TextButton(

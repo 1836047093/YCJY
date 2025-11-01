@@ -6,6 +6,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -97,7 +98,7 @@ fun GameReleaseDialog(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFFFEF3C7)
+                            containerColor = Color(0xFFE5E7EB)
                         ),
                         shape = RoundedCornerShape(12.dp)
                     ) {
@@ -112,26 +113,98 @@ fun GameReleaseDialog(
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF1E3A8A)
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
+                            // 主题
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Text(
-                                    text = "主题: ${game.theme.displayName}",
+                                    text = "主题：",
                                     fontSize = 14.sp,
-                                    color = Color.Gray
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF1E3A8A)
                                 )
-                                Spacer(modifier = Modifier.width(16.dp))
                                 Text(
-                                    text = "平台: ${game.platforms.joinToString { it.displayName }}",
+                                    text = game.theme.displayName,
                                     fontSize = 14.sp,
-                                    color = Color.Gray
+                                    color = Color(0xFF374151)
                                 )
                             }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "商业模式: ${game.businessModel.displayName}",
-                                fontSize = 14.sp,
-                                color = Color.Gray
-                            )
+                            
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            // 平台
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "平台：",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF1E3A8A)
+                                )
+                                Text(
+                                    text = game.platforms.joinToString("，") { it.displayName },
+                                    fontSize = 14.sp,
+                                    color = Color(0xFF374151)
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            // 商业模式
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "商业模式：",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF1E3A8A)
+                                )
+                                Text(
+                                    text = game.businessModel.displayName,
+                                    fontSize = 14.sp,
+                                    color = Color(0xFF374151)
+                                )
+                            }
+                            
+                            // 游戏评分（如果有）
+                            game.rating?.let { rating ->
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "游戏评分：",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color(0xFF1E3A8A)
+                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Star,
+                                            contentDescription = "评分",
+                                            tint = Color(0xFFFFD700),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            text = String.format("%.1f", rating),
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color(0xFF374151)
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                     

@@ -56,7 +56,7 @@ fun EnhancedGameProjectCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(12.dp)
         ) {
             // 项目基本信息
             Row(
@@ -66,44 +66,84 @@ fun EnhancedGameProjectCard(
             ) {
                 Text(
                     text = game.name,
-                    fontSize = 18.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    // 游戏评分显示
+                    game.rating?.let { rating ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = "评分",
+                                tint = Color(0xFFFFD700),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = String.format("%.1f", rating),
+                                color = Color(0xFFFFD700),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    Text(
+                        text = game.theme.icon,
+                        fontSize = 18.sp
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(6.dp))
+            
+            // 紧凑的信息展示：主题、平台、商业模式
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    text = game.theme.icon,
-                    fontSize = 20.sp
+                    text = "主题:${game.theme.displayName}",
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 12.sp
+                )
+                Text(
+                    text = "•",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 12.sp
+                )
+                Text(
+                    text = "平台:${game.platforms.joinToString(", ") { it.displayName }}",
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 12.sp
+                )
+                Text(
+                    text = "•",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 12.sp
+                )
+                Text(
+                    text = "模式:${game.businessModel.displayName}",
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 12.sp
                 )
             }
             
             Spacer(modifier = Modifier.height(8.dp))
-            
-            Text(
-                text = "主题: ${game.theme.displayName}",
-                color = Color.White.copy(alpha = 0.8f),
-                fontSize = 14.sp
-            )
-            
-            Text(
-                text = "平台: ${game.platforms.joinToString(", ") { it.displayName }}",
-                color = Color.White.copy(alpha = 0.8f),
-                fontSize = 14.sp
-            )
-            
-            Text(
-                text = "商业模式: ${game.businessModel.displayName}",
-                color = Color.White.copy(alpha = 0.8f),
-                fontSize = 14.sp
-            )
-            
-            Spacer(modifier = Modifier.height(12.dp))
             
             // 已分配员工信息
             if (game.assignedEmployees.isNotEmpty()) {
                 Text(
                     text = "已分配员工 (${game.assignedEmployees.size}人):",
                     color = Color.White.copy(alpha = 0.9f),
-                    fontSize = 14.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Medium
                 )
                 
@@ -111,20 +151,20 @@ fun EnhancedGameProjectCard(
                 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     game.assignedEmployees.take(3).forEach { employee ->
                         Card(
                             colors = CardDefaults.cardColors(
                                 containerColor = Color(0xFF10B981).copy(alpha = 0.3f)
                             ),
-                            shape = RoundedCornerShape(6.dp)
+                            shape = RoundedCornerShape(4.dp)
                         ) {
                             Text(
                                 text = "${employee.name}(${employee.position})",
                                 color = Color.White,
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                             )
                         }
                     }
@@ -134,19 +174,19 @@ fun EnhancedGameProjectCard(
                             colors = CardDefaults.cardColors(
                                 containerColor = Color.White.copy(alpha = 0.2f)
                             ),
-                            shape = RoundedCornerShape(6.dp)
+                            shape = RoundedCornerShape(4.dp)
                         ) {
                             Text(
                                 text = "+${game.assignedEmployees.size - 3}",
                                 color = Color.White,
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                             )
                         }
                     }
                 }
                 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
             }
             
             // 进度条
@@ -158,12 +198,12 @@ fun EnhancedGameProjectCard(
                     Text(
                         text = "开发进度",
                         color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 12.sp
+                        fontSize = 11.sp
                     )
                     Text(
                         text = "${(game.developmentProgress * 100).toInt()}%",
                         color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 12.sp
+                        fontSize = 11.sp
                     )
                 }
                 
@@ -173,14 +213,14 @@ fun EnhancedGameProjectCard(
                     progress = { game.developmentProgress },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(6.dp)
+                        .height(5.dp)
                         .clip(RoundedCornerShape(3.dp)),
                     color = Color(0xFF10B981),
                     trackColor = Color.White.copy(alpha = 0.2f)
                 )
             }
             
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             
             // 一键分配员工按钮
             Button(
@@ -246,25 +286,8 @@ fun EmployeeAssignmentDialog(
     }
     
     // 计算当前星期几和时间
-    val currentWeekday = remember(currentYear, currentMonth, currentDay) {
-        com.example.yjcy.utils.calculateWeekday(currentYear, currentMonth, currentDay)
-    }
-    val currentHour = remember(currentMinuteOfDay) { currentMinuteOfDay / 60 }
-    val currentMinute = remember(currentMinuteOfDay) { currentMinuteOfDay % 60 }
-    
-    // 检查员工是否在工作时间内
-    val employeesWorkingStatus = remember(developmentEmployees, currentWeekday, currentHour, currentMinute) {
-        developmentEmployees.associateWith { employee ->
-            try {
-                employee.isWorking(currentWeekday, currentHour, currentMinute)
-            } catch (e: Exception) {
-                false
-            }
-        }
-    }
-    
-    val workingEmployeesCount = employeesWorkingStatus.values.count { it }
-    val restingEmployeesCount = developmentEmployees.size - workingEmployeesCount
+    val workingEmployeesCount = developmentEmployees.size
+    val restingEmployeesCount = 0
     
     // 监听对话框打开/关闭，控制游戏暂停
     DisposableEffect(Unit) {
@@ -302,72 +325,6 @@ fun EmployeeAssignmentDialog(
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // 员工工作状态提示
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (restingEmployeesCount > 0) 
-                            Color(0xFFF59E0B).copy(alpha = 0.2f) 
-                        else Color(0xFF10B981).copy(alpha = 0.2f)
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = null,
-                                tint = if (restingEmployeesCount > 0) 
-                                    Color(0xFFF59E0B) 
-                                else Color(0xFF10B981),
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Text(
-                                text = if (restingEmployeesCount > 0) 
-                                    "⚠️ 当前非工作时间" 
-                                else "✅ 当前工作时间",
-                                color = if (restingEmployeesCount > 0) 
-                                    Color(0xFFF59E0B) 
-                                else Color(0xFF10B981),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "工作时间：${workingEmployeesCount}人",
-                                color = Color(0xFF10B981),
-                                fontSize = 13.sp
-                            )
-                            Text(
-                                text = "休息中：${restingEmployeesCount}人",
-                                color = Color(0xFFF59E0B),
-                                fontSize = 13.sp
-                            )
-                        }
-                        if (restingEmployeesCount > 0) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "💡 提示：休息中的员工也可以分配，将在工作时间开始后自动开始工作",
-                                color = Color.White.copy(alpha = 0.7f),
-                                fontSize = 11.sp
-                            )
-                        }
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                
                 // 可用员工列表（排除客服）
                 Text(
                     text = "可用开发人员 (${developmentEmployees.size}人):",
@@ -383,11 +340,10 @@ fun EmployeeAssignmentDialog(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(developmentEmployees) { employee ->
-                        val isWorking = employeesWorkingStatus[employee] ?: false
                         EmployeeSelectionCard(
                             employee = employee,
                             isSelected = selectedEmployees.contains(employee),
-                            isWorking = isWorking,
+                            isWorking = true,
                             onSelectionChanged = { isSelected ->
                                 selectedEmployees = if (isSelected) {
                                     selectedEmployees + employee
@@ -488,7 +444,7 @@ fun EmployeeAssignmentDialog(
 fun EmployeeSelectionCard(
     employee: Employee,
     isSelected: Boolean,
-    isWorking: Boolean = true, // 是否在工作时间内
+    isWorking: Boolean = true, // 已废弃，保留以兼容旧代码
     onSelectionChanged: (Boolean) -> Unit
 ) {
     Card(

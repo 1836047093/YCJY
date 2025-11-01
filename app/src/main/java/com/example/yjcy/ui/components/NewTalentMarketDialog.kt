@@ -39,7 +39,9 @@ fun NewTalentMarketDialog(
     onDismiss: () -> Unit,
     onRecruitCandidate: (TalentCandidate) -> Unit,
     modifier: Modifier = Modifier,
-    jobPostingRefreshTrigger: Int = 0 // 用于触发应聘者数据刷新
+    jobPostingRefreshTrigger: Int = 0, // 用于触发应聘者数据刷新
+    onPauseGame: (() -> Unit)? = null, // 暂停游戏的回调
+    onResumeGame: (() -> Unit)? = null // 恢复游戏的回调
 ) {
     val jobPostingService = remember { JobPostingService.getInstance() }
     
@@ -48,6 +50,14 @@ fun NewTalentMarketDialog(
     var showJobPostingDialog by remember { mutableStateOf(false) }
     var selectedJob by remember { mutableStateOf<JobPosting?>(null) }
     var showApplicantDialog by remember { mutableStateOf(false) }
+    
+    // 监听对话框打开/关闭，控制游戏暂停
+    DisposableEffect(Unit) {
+        onPauseGame?.invoke() // 对话框打开时暂停游戏
+        onDispose {
+            onResumeGame?.invoke() // 对话框关闭时恢复游戏
+        }
+    }
     
     // 监听刷新触发器，实时更新岗位数据
     LaunchedEffect(jobPostingRefreshTrigger) {

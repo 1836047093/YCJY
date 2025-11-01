@@ -56,56 +56,23 @@ fun EnhancedAssignmentResultDialog(
     val currentWeekday = remember(currentYear, currentMonth, currentDay) {
         com.example.yjcy.utils.calculateWeekday(currentYear, currentMonth, currentDay)
     }
-    val currentHour = remember(currentMinuteOfDay) { currentMinuteOfDay / 60 }
-    val currentMinute = remember(currentMinuteOfDay) { currentMinuteOfDay % 60 }
     
     // 添加调试日志，检查传入的时间参数
     LaunchedEffect(currentMinuteOfDay, currentYear, currentMonth, currentDay) {
+        val hour = currentMinuteOfDay / 60
+        val minute = currentMinuteOfDay % 60
         android.util.Log.d("AssignmentDialog", 
             "时间参数: year=$currentYear, month=$currentMonth, day=$currentDay, minuteOfDay=$currentMinuteOfDay, " +
-            "weekday=$currentWeekday, hour=$currentHour, minute=$currentMinute")
+            "weekday=$currentWeekday, hour=$hour, minute=$minute")
     }
     
-    // 检查所有分配员工的工作状态
+    // 检查所有分配员工
     val allAssignedEmployees = remember(assignmentResult.assignments) {
         assignmentResult.assignments.values.flatten()
     }
     
-    val employeesWorkingStatus = remember(allAssignedEmployees, currentWeekday, currentHour, currentMinute, currentMinuteOfDay) {
-        // 再次计算，确保使用最新的时间
-        val hour = currentMinuteOfDay / 60
-        val minute = currentMinuteOfDay % 60
-        
-        android.util.Log.d("AssignmentDialog", 
-            "开始检查${allAssignedEmployees.size}名员工的工作状态: " +
-            "weekday=$currentWeekday(${com.example.yjcy.utils.getWeekdayName(currentWeekday)}), " +
-            "hour=$hour, minute=$minute, minuteOfDay=$currentMinuteOfDay")
-        
-        allAssignedEmployees.associateWith { employee ->
-            try {
-                // 调试：检查工作时间和员工设置
-                android.util.Log.d("AssignmentDialog", 
-                    "检查员工${employee.name}: " +
-                    "workDays=${employee.workSchedule.workDays}, " +
-                    "startHour=${employee.workSchedule.startHour}:${employee.workSchedule.startMinute}, " +
-                    "endHour=${employee.workSchedule.endHour}:${employee.workSchedule.endMinute}")
-                
-                val isWorking = employee.isWorking(currentWeekday, hour, minute)
-                
-                android.util.Log.d("AssignmentDialog", 
-                    "员工${employee.name}工作状态: isWorking=$isWorking")
-                
-                isWorking
-            } catch (e: Exception) {
-                android.util.Log.e("AssignmentDialog", "检查员工工作时间失败: ${employee.name}", e)
-                e.printStackTrace()
-                false
-            }
-        }
-    }
-    
-    val workingEmployeesCount = employeesWorkingStatus.values.count { it }
-    val restingEmployeesCount = allAssignedEmployees.size - workingEmployeesCount
+    val workingEmployeesCount = allAssignedEmployees.size
+    val restingEmployeesCount = 0
     
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -179,47 +146,19 @@ fun EnhancedAssignmentResultDialog(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Info,
-                                        contentDescription = null,
-                                        tint = if (restingEmployeesCount > 0) 
-                                            Color(0xFFF59E0B) 
-                                        else Color(0xFF10B981),
-                                        modifier = Modifier.size(20.dp)
-                                    )
+                                    if (restingEmployeesCount == 0) {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = null,
+                                            tint = Color(0xFF10B981),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
                                     Text(
-                                        text = if (restingEmployeesCount > 0) 
-                                            "⚠️ 部分员工在休息中" 
-                                        else "✅ 所有员工都在工作时间内",
-                                        color = if (restingEmployeesCount > 0) 
-                                            Color(0xFFF59E0B) 
-                                        else Color(0xFF10B981),
+                                        text = "已分配 ${workingEmployeesCount} 名员工",
+                                        color = Color(0xFF10B981),
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = "工作时间：${workingEmployeesCount}人",
-                                        color = Color(0xFF10B981),
-                                        fontSize = 13.sp
-                                    )
-                                    Text(
-                                        text = "休息中：${restingEmployeesCount}人",
-                                        color = Color(0xFFF59E0B),
-                                        fontSize = 13.sp
-                                    )
-                                }
-                                if (restingEmployeesCount > 0) {
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "💡 提示：休息中的员工已分配，将在工作时间开始后自动开始工作",
-                                        color = Color.White.copy(alpha = 0.7f),
-                                        fontSize = 11.sp
                                     )
                                 }
                             }
