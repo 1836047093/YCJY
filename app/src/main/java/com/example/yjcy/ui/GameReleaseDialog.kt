@@ -2,14 +2,10 @@ package com.example.yjcy.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,9 +20,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.yjcy.data.Game
-import com.example.yjcy.data.PriceRecommendation
-import com.example.yjcy.data.PriceRecommendationEngine
-import com.example.yjcy.data.MonetizationConfig
 import kotlin.math.roundToInt
 
 /**
@@ -40,11 +33,6 @@ fun GameReleaseDialog(
 ) {
     var userInputPrice by remember { mutableStateOf("") }
     var isValidPrice by remember { mutableStateOf(false) }
-    val priceRecommendation = remember { 
-        if (game.businessModel == BusinessModel.SINGLE_PLAYER) {
-            PriceRecommendationEngine.calculateRecommendedPrice(game) 
-        } else null
-    }
     
     // 验证价格输入
     LaunchedEffect(userInputPrice) {
@@ -76,12 +64,10 @@ fun GameReleaseDialog(
                         shape = RoundedCornerShape(16.dp)
                     )
             ) {
-                val scrollState = rememberScrollState()
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .verticalScroll(scrollState)
-                        .padding(24.dp),
+                        .padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     // 标题栏
@@ -105,7 +91,7 @@ fun GameReleaseDialog(
                         }
                     }
                     
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     
                     // 游戏信息卡片
                     Card(
@@ -149,113 +135,7 @@ fun GameReleaseDialog(
                         }
                     }
                     
-                    Spacer(modifier = Modifier.height(20.dp))
-                    
-                    // 市场建议卡片 - 单机游戏
-                    if (game.businessModel == BusinessModel.SINGLE_PLAYER && priceRecommendation != null) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = Color(0xFFFEF3C7)
-                            ),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.TrendingUp,
-                                        contentDescription = "市场建议",
-                                        tint = Color(0xFFF59E0B),
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "💡 市场建议",
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFF59E0B)
-                                    )
-                                }
-                                
-                                Spacer(modifier = Modifier.height(12.dp))
-                                
-                                // 推荐价格
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = "推荐价格:",
-                                        fontSize = 14.sp,
-                                        color = Color(0xFF374151)
-                                    )
-                                    Text(
-                                        text = "¥${priceRecommendation.recommendedPrice.roundToInt()}",
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF10B981)
-                                    )
-                                }
-                                
-                                Spacer(modifier = Modifier.height(8.dp))
-                                
-                                // 价格区间
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = "价格区间:",
-                                        fontSize = 14.sp,
-                                        color = Color(0xFF374151)
-                                    )
-                                    Text(
-                                        text = "¥${priceRecommendation.priceRange.minPrice.roundToInt()} - ¥${priceRecommendation.priceRange.maxPrice.roundToInt()}",
-                                        fontSize = 14.sp,
-                                        color = Color(0xFF6B7280)
-                                    )
-                                }
-                                
-                                Spacer(modifier = Modifier.height(12.dp))
-                                
-                                // 市场分析
-                                Card(
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = Color.White.copy(alpha = 0.7f)
-                                    ),
-                                    shape = RoundedCornerShape(8.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(12.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Info,
-                                            contentDescription = "分析",
-                                            tint = Color(0xFF6B7280),
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = priceRecommendation.marketAnalysis,
-                                            fontSize = 13.sp,
-                                            color = Color(0xFF374151),
-                                            lineHeight = 18.sp
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        
-                        Spacer(modifier = Modifier.height(20.dp))
-                    }
+                    Spacer(modifier = Modifier.height(16.dp))
                     
                     // 服务器检查（仅网络游戏）
                     if (game.businessModel == BusinessModel.ONLINE_GAME) {
@@ -344,11 +224,11 @@ fun GameReleaseDialog(
                             }
                         }
                         
-                        Spacer(modifier = Modifier.height(20.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
                     
                     // 价格输入区域（仅单机游戏）
-                    if (game.businessModel == BusinessModel.SINGLE_PLAYER && priceRecommendation != null) {
+                    if (game.businessModel == BusinessModel.SINGLE_PLAYER) {
                         Column(
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -382,11 +262,6 @@ fun GameReleaseDialog(
                                             text = "请输入有效的价格 (0-1000元)",
                                             color = Color(0xFFFF6B6B)
                                         )
-                                    } else {
-                                        Text(
-                                            text = "建议价格: ¥${priceRecommendation.recommendedPrice.roundToInt()}",
-                                            color = Color.White.copy(alpha = 0.7f)
-                                        )
                                     }
                                 },
                                 modifier = Modifier.fillMaxWidth(),
@@ -399,40 +274,9 @@ fun GameReleaseDialog(
                                     cursorColor = Color.White
                                 )
                             )
-                            
-                            Spacer(modifier = Modifier.height(8.dp))
-                            
-                            // 快速选择价格按钮
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                listOf(
-                                    priceRecommendation.priceRange.minPrice,
-                                    priceRecommendation.recommendedPrice,
-                                    priceRecommendation.priceRange.maxPrice
-                                ).forEach { price ->
-                                    OutlinedButton(
-                                        onClick = { userInputPrice = price.roundToInt().toString() },
-                                        modifier = Modifier.weight(1f),
-                                        shape = RoundedCornerShape(8.dp),
-                                        colors = ButtonDefaults.outlinedButtonColors(
-                                            contentColor = Color.White,
-                                            containerColor = Color.White.copy(alpha = 0.1f)
-                                        ),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.5f))
-                                    ) {
-                                        Text(
-                                            text = "¥${price.roundToInt()}",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                    }
-                                }
-                            }
                         }
                         
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(20.dp))
                     }
                     
                     // 确认发售/上线按钮

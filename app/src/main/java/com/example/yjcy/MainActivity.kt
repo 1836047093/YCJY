@@ -103,6 +103,9 @@ import com.example.yjcy.ui.TournamentResultDialog
 import com.example.yjcy.ui.theme.YjcyTheme
 import com.example.yjcy.utils.formatMoney
 import com.example.yjcy.utils.formatMoneyWithDecimals
+import com.example.yjcy.utils.calculateWeekday
+import com.example.yjcy.utils.getWeekdayName
+import com.example.yjcy.utils.calculateGameTime
 import com.example.yjcy.utils.calculateGameYear
 import com.example.yjcy.service.JobPostingService
 import com.example.yjcy.service.CustomerServiceManager
@@ -1886,6 +1889,8 @@ fun GameScreen(
     var currentYear by remember { mutableIntStateOf(saveData?.currentYear ?: 1) }
     var currentMonth by remember { mutableIntStateOf(saveData?.currentMonth ?: 1) }
     var currentDay by remember { mutableIntStateOf(saveData?.currentDay ?: 1) }
+    // 当天内的分钟数（0-1439，一天1440分钟）
+    var currentMinuteOfDay by remember { mutableIntStateOf(saveData?.currentMinuteOfDay ?: 0) }
     var gameSpeed by remember { mutableIntStateOf(1) }
     var selectedTab by remember { mutableIntStateOf(0) }
     var isPaused by remember { mutableStateOf(false) }
@@ -2236,74 +2241,82 @@ fun GameScreen(
     LaunchedEffect(gameSpeed, isPaused) {
         while (!isPaused) {
             delay(when (gameSpeed) {
-                1 -> 5000L // 慢速：5秒一天（2.5分钟/月，30分钟/年）- 最舒适的节奏
-                2 -> 2500L // 中速：2.5秒一天（1.25分钟/月，15分钟/年）- 平衡速度
-                3 -> 1000L // 快速：1秒一天（30秒/月，6分钟/年）- 快速推进
-                else -> 2500L
+                1 -> 100L // 慢速：0.1秒1分钟（1440分钟需要144秒=2.4分钟）
+                2 -> 50L // 中速：0.05秒1分钟（1440分钟需要72秒=1.2分钟）
+                3 -> 33L // 快速：0.033秒1分钟（1440分钟需要48秒=0.8分钟）
+                else -> 50L
             })
             
-            // 更新日期
-            currentDay++
-            // 12月特殊处理：有31天（为了GVA颁奖典礼）
-            val maxDaysInMonth = if (currentMonth == 12) 31 else 30
-            if (currentDay > maxDaysInMonth) {
-                currentDay = 1
-                currentMonth++
-                // 检查月份是否超过12，需要进入下一年
-                if (currentMonth > 12) {
-                    currentMonth = 1
-                    currentYear++
-                }
-            }
+            // 更新时间：每0.1秒（1倍速）推进1分钟
+            currentMinuteOfDay++
             
-            // 每日检查：扣除到期服务器的月费（按购买日期每30天计费）
-            Log.d("MainActivity", "准备调用服务器扣费检查... 当前日期: ${currentYear}年${currentMonth}月${currentDay}日")
-            val moneyBefore = money
-            val serverBillingCost = RevenueManager.checkAndBillServers(
-                currentYear = currentYear,
-                currentMonth = currentMonth,
-                currentDay = currentDay
-            )
-            Log.d("MainActivity", "服务器扣费检查完成，返回金额: ¥$serverBillingCost")
-            if (serverBillingCost > 0) {
-                money -= serverBillingCost
-                Log.d("MainActivity", "💰 服务器计费: -¥$serverBillingCost (扣费前:¥$moneyBefore -> 扣费后:¥$money)")
-            }
-            
-            // 每日恢复所有员工体力值（每天恢复20点）
-            try {
-                val updatedEmployees = allEmployees.map { employee ->
-                    employee.restoreStamina(20)
-                }
-                allEmployees.clear()
-                allEmployees.addAll(updatedEmployees)
-            } catch (e: Exception) {
-                android.util.Log.e("MainActivity", "恢复员工体力值失败", e)
-            }
-            
-            // 每日检查：员工忠诚度变化（如果薪资低于期望薪资，忠诚度会逐渐降低）
-            try {
-                val updatedEmployees2 = allEmployees.map { employee ->
-                    if (!employee.isFounder && employee.requestedSalary == null) {
-                        // 计算员工期望的薪资
-                        val expectedSalary = employee.calculateExpectedSalary(employee.salary)
-                        if (employee.salary < expectedSalary) {
-                            // 薪资低于期望，每月降低1点忠诚度（每天约0.033点）
-                            val loyaltyLoss = if (currentDay == 1) 1 else 0 // 每月1日降低1点
-                            employee.copy(loyalty = (employee.loyalty - loyaltyLoss).coerceAtLeast(0))
-                        } else {
-                            // 薪资满足期望，每月恢复1点忠诚度（每天约0.033点）
-                            val loyaltyGain = if (currentDay == 1) 1 else 0 // 每月1日恢复1点
-                            employee.copy(loyalty = (employee.loyalty + loyaltyGain).coerceAtMost(100))
-                        }
-                    } else {
-                        employee
+            // 当分钟数达到1440（一天24小时）时，推进日期
+            if (currentMinuteOfDay >= 1440) {
+                currentMinuteOfDay = 0 // 重置为0:00
+                
+                // 更新日期
+                currentDay++
+                // 12月特殊处理：有31天（为了GVA颁奖典礼）
+                val maxDaysInMonth = if (currentMonth == 12) 31 else 30
+                if (currentDay > maxDaysInMonth) {
+                    currentDay = 1
+                    currentMonth++
+                    // 检查月份是否超过12，需要进入下一年
+                    if (currentMonth > 12) {
+                        currentMonth = 1
+                        currentYear++
                     }
                 }
-                allEmployees.clear()
-                allEmployees.addAll(updatedEmployees2)
-            } catch (e: Exception) {
-                android.util.Log.e("MainActivity", "更新员工忠诚度失败", e)
+                
+                // 每日检查：扣除到期服务器的月费（按购买日期每30天计费）
+                Log.d("MainActivity", "准备调用服务器扣费检查... 当前日期: ${currentYear}年${currentMonth}月${currentDay}日")
+                val moneyBefore = money
+                val serverBillingCost = RevenueManager.checkAndBillServers(
+                    currentYear = currentYear,
+                    currentMonth = currentMonth,
+                    currentDay = currentDay
+                )
+                Log.d("MainActivity", "服务器扣费检查完成，返回金额: ¥$serverBillingCost")
+                if (serverBillingCost > 0) {
+                    money -= serverBillingCost
+                    Log.d("MainActivity", "💰 服务器计费: -¥$serverBillingCost (扣费前:¥$moneyBefore -> 扣费后:¥$money)")
+                }
+                
+                // 每日恢复所有员工体力值（每天恢复20点）
+                try {
+                    val updatedEmployees = allEmployees.map { employee ->
+                        employee.restoreStamina(20)
+                    }
+                    allEmployees.clear()
+                    allEmployees.addAll(updatedEmployees)
+                } catch (e: Exception) {
+                    android.util.Log.e("MainActivity", "恢复员工体力值失败", e)
+                }
+                
+                // 每日检查：员工忠诚度变化（如果薪资低于期望薪资，忠诚度会逐渐降低）
+                try {
+                    val updatedEmployees2 = allEmployees.map { employee ->
+                        if (!employee.isFounder && employee.requestedSalary == null) {
+                            // 计算员工期望的薪资
+                            val expectedSalary = employee.calculateExpectedSalary(employee.salary)
+                            if (employee.salary < expectedSalary) {
+                                // 薪资低于期望，每月降低1点忠诚度（每天约0.033点）
+                                val loyaltyLoss = if (currentDay == 1) 1 else 0 // 每月1日降低1点
+                                employee.copy(loyalty = (employee.loyalty - loyaltyLoss).coerceAtLeast(0))
+                            } else {
+                                // 薪资满足期望，每月恢复1点忠诚度（每天约0.033点）
+                                val loyaltyGain = if (currentDay == 1) 1 else 0 // 每月1日恢复1点
+                                employee.copy(loyalty = (employee.loyalty + loyaltyGain).coerceAtMost(100))
+                            }
+                        } else {
+                            employee
+                        }
+                    }
+                    allEmployees.clear()
+                    allEmployees.addAll(updatedEmployees2)
+                } catch (e: Exception) {
+                    android.util.Log.e("MainActivity", "更新员工忠诚度失败", e)
+                }
             }
             
             if (currentDay == 1) {
@@ -2864,6 +2877,11 @@ fun GameScreen(
             }
             
             // 更新游戏开发进度（分阶段系统）
+            // 计算当前星期几和时间
+            val currentWeekday = com.example.yjcy.utils.calculateWeekday(currentYear, currentMonth, currentDay)
+            val currentHour = currentMinuteOfDay / 60
+            val currentMinute = currentMinuteOfDay % 60
+            
             games = games.map { game ->
                 if (!game.isCompleted && game.assignedEmployees.isNotEmpty()) {
                     val currentPhase = game.currentPhase
@@ -2874,11 +2892,31 @@ fun GameScreen(
                         return@map game
                     }
                     
-                    // 参与开发的员工消耗体力值
+                    // 过滤出在工作时间内的员工
+                    val workingEmployees = game.assignedEmployees.filter { employee ->
+                        try {
+                            employee.isWorking(currentWeekday, currentHour, currentMinute)
+                        } catch (e: Exception) {
+                            false
+                        }
+                    }
+                    
+                    // 如果没有员工在工作时间内，进度不增长
+                    if (workingEmployees.isEmpty()) {
+                        return@map game
+                    }
+                    
+                    // 检查在工作时间内的员工是否满足当前阶段要求
+                    if (!currentPhase.checkRequirements(workingEmployees)) {
+                        // 在工作时间内的员工不满足要求，进度不增长
+                        return@map game
+                    }
+                    
+                    // 只让在工作时间内的员工消耗体力值
                     try {
-                        val employeeIdsInGame = game.assignedEmployees.map { it.id }.toSet()
+                        val workingEmployeeIds = workingEmployees.map { it.id }.toSet()
                         val updatedEmployees3 = allEmployees.map { employee ->
-                            if (employee.id in employeeIdsInGame) {
+                            if (employee.id in workingEmployeeIds) {
                                 employee.consumeStamina()
                             } else {
                                 employee
@@ -2890,13 +2928,13 @@ fun GameScreen(
                         android.util.Log.e("MainActivity", "消耗员工体力值失败", e)
                     }
                     
-                    // 更新assignedEmployees中的员工信息（同步体力值）
-                    val updatedAssignedEmployees = game.assignedEmployees.map { assignedEmployee ->
+                    // 更新workingEmployees中的员工信息（同步体力值）
+                    val updatedWorkingEmployees = workingEmployees.map { assignedEmployee ->
                         allEmployees.find { it.id == assignedEmployee.id } ?: assignedEmployee
                     }
                     
-                    // 计算当前阶段的进度增长（使用更新后的员工列表）
-                    val phaseProgressIncrease = currentPhase.calculateProgressSpeed(updatedAssignedEmployees)
+                    // 计算当前阶段的进度增长（只使用在工作时间内的员工）
+                    val phaseProgressIncrease = currentPhase.calculateProgressSpeed(updatedWorkingEmployees)
                     val newPhaseProgress = (game.phaseProgress + phaseProgressIncrease).coerceAtMost(1.0f)
                     
                     // 检查当前阶段是否完成
@@ -2945,6 +2983,11 @@ fun GameScreen(
                             DevelopmentPhase.PROGRAMMING -> 0.66f
                         }
                         val newTotalProgress = phaseBaseProgress + (newPhaseProgress * phaseWeight)
+                        
+                        // 更新assignedEmployees中的员工信息（同步体力值），保留所有已分配的员工（包括休息中的）
+                        val updatedAssignedEmployees = game.assignedEmployees.map { assignedEmployee ->
+                            allEmployees.find { it.id == assignedEmployee.id } ?: assignedEmployee
+                        }
                         
                         game.copy(
                             phaseProgress = newPhaseProgress,
@@ -3264,6 +3307,7 @@ fun GameScreen(
                 year = currentYear,
                 month = currentMonth,
                 day = currentDay,
+                minuteOfDay = currentMinuteOfDay,
                 gameSpeed = gameSpeed,
                 onSpeedChange = { gameSpeed = it },
                 isPaused = isPaused,
@@ -3345,7 +3389,10 @@ fun GameScreen(
                             currentYear = currentYear,
                             currentMonth = currentMonth,
                             currentDay = currentDay,
-                            jobPostingRefreshTrigger = jobPostingRefreshTrigger
+                            currentMinuteOfDay = currentMinuteOfDay,
+                            jobPostingRefreshTrigger = jobPostingRefreshTrigger,
+                            onPauseGame = { isPaused = true },
+                            onResumeGame = { isPaused = false }
                         )
                         2 -> ProjectManagementWrapper(
                             games = games,
@@ -3381,7 +3428,9 @@ fun GameScreen(
                             currentYear = currentYear,
                             currentMonth = currentMonth,
                             currentDay = currentDay,
-                            ownedIPs = ownedIPs
+                            ownedIPs = ownedIPs,
+                            onPauseGame = { isPaused = true },
+                            onResumeGame = { isPaused = false }
                         )
                         3 -> CompetitorContent(
                             saveData = SaveData(
@@ -4049,6 +4098,7 @@ fun GameScreen(
                             currentYear = currentYear,
                             currentMonth = currentMonth,
                             currentDay = currentDay,
+                            currentMinuteOfDay = currentMinuteOfDay,
                             companyName = companyName,
                             selectedLogo = selectedLogo,
                             founderName = founderName,
@@ -4336,6 +4386,8 @@ fun GameScreen(
                             emp.copy(
                                 salary = employee.requestedSalary!!,
                                 requestedSalary = null,
+                                lastSalaryRequestYear = currentYear,
+                                lastSalaryRequestMonth = currentMonth,
                                 loyalty = (emp.loyalty + 10).coerceAtMost(100) // 提升10点忠诚度
                             )
                         } else {
@@ -4357,6 +4409,8 @@ fun GameScreen(
                         if (emp.id == employee.id) {
                             emp.copy(
                                 requestedSalary = null,
+                                lastSalaryRequestYear = currentYear,
+                                lastSalaryRequestMonth = currentMonth,
                                 loyalty = (emp.loyalty - 15).coerceAtLeast(0) // 降低15点忠诚度
                             )
                         } else {
@@ -4498,6 +4552,7 @@ fun TopInfoBar(
     year: Int,
     month: Int,
     day: Int,
+    minuteOfDay: Int, // 当天内的分钟数（0-1439）
     gameSpeed: Int,
     onSpeedChange: (Int) -> Unit,
     isPaused: Boolean,
@@ -4535,6 +4590,7 @@ fun TopInfoBar(
             ) {
                 // 资金
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -4554,7 +4610,10 @@ fun TopInfoBar(
                         text = "¥${formatMoneyWithDecimals(animatedMoney.value.toDouble())}",
                         color = Color.White,
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Clip,
+                        modifier = Modifier.weight(1f)
                     )
                 }
                 
@@ -4562,6 +4621,7 @@ fun TopInfoBar(
                 
                 // 粉丝
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -4573,7 +4633,10 @@ fun TopInfoBar(
                         text = formatMoneyWithDecimals(fans.toDouble()),
                         color = Color.White,
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Clip,
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
@@ -4585,16 +4648,30 @@ fun TopInfoBar(
             ) {
                 // 日期和游戏速度下拉选择
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // 日期
-                    Text(
-                        text = "第${year}年${month}月${day}日",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+                    // 日期列
+                    Column {
+                        // 日期
+                        Text(
+                            text = "第${year}年${month}月${day}日",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1
+                        )
+                        // 星期几和时间
+                        val weekday = calculateWeekday(year, month, day)
+                        val gameTime = calculateGameTime(minuteOfDay)
+                        Text(
+                            text = "${getWeekdayName(weekday)}丨$gameTime",
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 11.sp,
+                            maxLines = 1
+                        )
+                    }
                     
                     // 游戏速度下拉选择
                     GameSpeedDropdown(
@@ -6360,6 +6437,7 @@ fun InGameSettingsContent(
     currentYear: Int = 1,
     currentMonth: Int = 1,
     currentDay: Int = 1,
+    currentMinuteOfDay: Int = 0, // 当天内的分钟数（0-1439）
     companyName: String = "我的游戏公司",
     selectedLogo: String = "🎮",
     founderName: String = "创始人",
@@ -6766,6 +6844,7 @@ fun InGameSettingsContent(
                                 currentYear = currentYear,
                                 currentMonth = currentMonth,
                                 currentDay = currentDay,
+                                currentMinuteOfDay = currentMinuteOfDay,
                                 allEmployees = allEmployees,
                                 games = games,
                                 competitors = competitors,

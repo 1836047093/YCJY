@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.example.yjcy.utils.formatMoney
 
 /**
  * 年度统计数据
@@ -138,7 +139,7 @@ fun YearEndBonusDialog(
                         
                         StatRow(
                             label = "总收入",
-                            value = "¥${statistics.totalRevenue}",
+                            value = "¥${formatMoney(statistics.totalRevenue)}",
                             icon = Icons.Default.AccountBalanceWallet,
                             valueColor = Color(0xFF10B981)
                         )
@@ -147,7 +148,7 @@ fun YearEndBonusDialog(
                         
                         StatRow(
                             label = "净利润",
-                            value = "¥${statistics.netProfit}",
+                            value = "¥${formatMoney(statistics.netProfit)}",
                             icon = Icons.AutoMirrored.Filled.TrendingUp,
                             valueColor = if (statistics.netProfit >= 0) Color(0xFF10B981) else Color(0xFFEF4444)
                         )
@@ -168,7 +169,7 @@ fun YearEndBonusDialog(
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 Text(
-                    text = "建议为每位员工发放 ¥${suggestedBonusPerEmployee}",
+                    text = "建议为每位员工发放 ¥${formatMoney(suggestedBonusPerEmployee)}",
                     fontSize = 13.sp,
                     color = Color.White.copy(alpha = 0.8f),
                     modifier = Modifier.fillMaxWidth()
@@ -177,7 +178,7 @@ fun YearEndBonusDialog(
                 Spacer(modifier = Modifier.height(4.dp))
                 
                 Text(
-                    text = "总计：¥$totalSuggestedBonus（${employeeCount}位员工）",
+                    text = "总计：¥${formatMoney(totalSuggestedBonus)}（${employeeCount}位员工）",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = if (canAfford) Color(0xFF10B981) else Color(0xFFEF4444),

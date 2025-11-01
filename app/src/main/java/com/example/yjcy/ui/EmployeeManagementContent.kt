@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -19,13 +21,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.yjcy.data.Employee
 import com.example.yjcy.data.JobPostingStatus
 import com.example.yjcy.data.ApplicantStatus
+import com.example.yjcy.data.WorkSchedule
 import com.example.yjcy.ui.components.NewTalentMarketDialog
 import com.example.yjcy.utils.formatMoney
 import com.example.yjcy.service.JobPostingService
@@ -39,16 +41,27 @@ fun EmployeeManagementContent(
     currentYear: Int,
     currentMonth: Int,
     currentDay: Int,
+    currentMinuteOfDay: Int = 0, // 当天内的分钟数（0-1439）
     @Suppress("UNUSED_PARAMETER") onNavigateToTalentMarket: () -> Unit = {},
-    jobPostingRefreshTrigger: Int = 0 // 用于触发应聘者数据刷新
+    jobPostingRefreshTrigger: Int = 0, // 用于触发应聘者数据刷新
+    onPauseGame: (() -> Unit)? = null, // 暂停游戏的回调
+    onResumeGame: (() -> Unit)? = null // 恢复游戏的回调
 ) {
     var showTrainingDialog by remember { mutableStateOf(false) }
     var showFireDialog by remember { mutableStateOf(false) }
     var showTalentMarketDialog by remember { mutableStateOf(false) }
     var showBatchTrainingDialog by remember { mutableStateOf(false) }
+    var showWorkScheduleDialog by remember { mutableStateOf(false) }
     var selectedEmployee by remember { mutableStateOf<Employee?>(null) }
     var filterType by remember { mutableStateOf("全部") }
     val listState = rememberLazyListState()
+    
+    // 计算当前星期几和时间
+    val currentWeekday = remember(currentYear, currentMonth, currentDay) {
+        com.example.yjcy.utils.calculateWeekday(currentYear, currentMonth, currentDay)
+    }
+    val currentHour = remember(currentMinuteOfDay) { currentMinuteOfDay / 60 }
+    val currentMinute = remember(currentMinuteOfDay) { currentMinuteOfDay % 60 }
     
     // 检查是否有待处理的应聘者
     val jobPostingService = remember { JobPostingService.getInstance() }
@@ -179,7 +192,7 @@ fun EmployeeManagementContent(
             )
         }
         
-        // 筛选和操作按钮区域
+            // 筛选和操作按钮区域
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -191,6 +204,17 @@ fun EmployeeManagementContent(
                 currentFilter = filterType,
                 onFilterChange = { filterType = it },
                 modifier = Modifier.weight(1f)
+            )
+            
+            // 工作时间设置按钮
+            ModernButton(
+                text = "工作时间",
+                icon = Icons.Default.AccessTime,
+                onClick = { showWorkScheduleDialog = true },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF8B5CF6)
+                )
             )
             
             // 人才市场入口按钮（带红点提示）
@@ -262,7 +286,10 @@ fun EmployeeManagementContent(
                         onFireClick = {
                             selectedEmployee = employee
                             showFireDialog = true
-                        }
+                        },
+                        currentWeekday = currentWeekday,
+                        currentHour = currentHour,
+                        currentMinute = currentMinute
                     )
                 }
             }
@@ -289,12 +316,14 @@ fun EmployeeManagementContent(
                         android.util.Log.w("EmployeeManagement", "培训时员工不存在: ID=$employeeId, 名称=$employeeName")
                         showTrainingDialog = false
                         selectedEmployee = null
+                        Unit
                     } else {
                         // 检查资金是否足够
                         if (money < trainingCost) {
                             android.util.Log.w("EmployeeManagement", "培训资金不足: 需要 $trainingCost，当前 $money")
                             showTrainingDialog = false
                             selectedEmployee = null
+                            Unit
                         } else {
                             // 固定提升1级技能
                             val skillBoost = 1
@@ -348,6 +377,7 @@ fun EmployeeManagementContent(
                             // 关闭对话框
                             showTrainingDialog = false
                             selectedEmployee = null
+                            Unit
                         }
                     }
                 } catch (e: Exception) {
@@ -357,6 +387,7 @@ fun EmployeeManagementContent(
                     try {
                         showTrainingDialog = false
                         selectedEmployee = null
+                        Unit
                     } catch (e2: Exception) {
                         android.util.Log.e("EmployeeManagement", "关闭对话框时异常", e2)
                     }
@@ -366,6 +397,7 @@ fun EmployeeManagementContent(
                 try {
                     showTrainingDialog = false
                     selectedEmployee = null
+                    Unit
                 } catch (e: Exception) {
                     android.util.Log.e("EmployeeManagement", "关闭培训对话框时异常", e)
                 }
@@ -394,10 +426,12 @@ fun EmployeeManagementContent(
                 
                 showFireDialog = false
                 selectedEmployee = null
+                Unit
             },
             onDismiss = {
                 showFireDialog = false
                 selectedEmployee = null
+                Unit
             }
         )
     }
@@ -416,7 +450,7 @@ fun EmployeeManagementContent(
         
         NewTalentMarketDialog(
             saveData = currentSaveData,
-            onDismiss = { showTalentMarketDialog = false },
+            onDismiss = { showTalentMarketDialog = false; Unit },
             onRecruitCandidate = { candidate ->
                 try {
                     // 检查员工数量限制
@@ -471,11 +505,11 @@ fun EmployeeManagementContent(
             onConfirm = { totalCost: Long ->
                 try {
                     val updatedEmployees = allEmployees.map { emp ->
-                        val currentSkillLevel = try {
-                            emp.getSpecialtySkillLevel().coerceIn(0, 5)
-                        } catch (e: Exception) {
-                            0
-                        }
+                    val currentSkillLevel = try {
+                        emp.getSpecialtySkillLevel().coerceIn(0, 5)
+                    } catch (_: Exception) {
+                        0
+                    }
                         
                         if (currentSkillLevel < 5) {
                             // 提升专属技能1级
@@ -498,7 +532,7 @@ fun EmployeeManagementContent(
                                     )
                                     else -> emp
                                 }
-                            } catch (e: Exception) {
+                            } catch (_: Exception) {
                                 emp
                             }
                         } else {
@@ -509,12 +543,101 @@ fun EmployeeManagementContent(
                     onEmployeesUpdate(updatedEmployees)
                     onMoneyUpdate(money - totalCost)
                     showBatchTrainingDialog = false
+                    Unit
                 } catch (e: Exception) {
                     android.util.Log.e("EmployeeManagement", "批量培训时发生异常", e)
                     showBatchTrainingDialog = false
+                    Unit
                 }
             },
-            onDismiss = { showBatchTrainingDialog = false }
+            onDismiss = { showBatchTrainingDialog = false; Unit }
+        )
+    }
+    
+    // 工作时间设置对话框
+    var showWorkScheduleSuccessDialog by remember { mutableStateOf(false) }
+    
+    // 监听对话框打开/关闭，控制游戏暂停
+    LaunchedEffect(showWorkScheduleDialog, showWorkScheduleSuccessDialog) {
+        when {
+            // 工作时间设置对话框打开时暂停游戏
+            showWorkScheduleDialog -> {
+                onPauseGame?.invoke()
+            }
+            // 成功提示对话框打开时保持暂停
+            showWorkScheduleSuccessDialog -> {
+                // 保持暂停状态（不执行任何操作）
+            }
+            // 两个对话框都关闭时恢复游戏
+            !showWorkScheduleDialog && !showWorkScheduleSuccessDialog -> {
+                onResumeGame?.invoke()
+            }
+        }
+    }
+    
+    if (showWorkScheduleDialog) {
+        WorkScheduleDialog(
+            employees = allEmployees,
+            onConfirm = { updatedEmployees ->
+                onEmployeesUpdate(updatedEmployees)
+                showWorkScheduleDialog = false
+                showWorkScheduleSuccessDialog = true
+                Unit
+            },
+            onDismiss = { 
+                showWorkScheduleDialog = false
+                Unit
+            },
+            currentHour = currentHour,
+            currentMinute = currentMinute
+        )
+    }
+    
+    // 工作时间设置成功提示对话框
+    if (showWorkScheduleSuccessDialog) {
+        AlertDialog(
+            onDismissRequest = { 
+                showWorkScheduleSuccessDialog = false
+            },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = "成功",
+                        tint = Color(0xFF10B981),
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Text(
+                        text = "设置成功",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            },
+            text = {
+                Text(
+                    text = "工作时间已成功应用到所有员工",
+                    color = Color.White
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { 
+                        showWorkScheduleSuccessDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF10B981)
+                    )
+                ) {
+                    Text("确定", color = Color.White)
+                }
+            },
+            containerColor = Color(0xFF1F2937),
+            titleContentColor = Color.White,
+            textContentColor = Color.White
         )
     }
 }
@@ -637,7 +760,10 @@ fun FilterDropdown(
 fun EnhancedEmployeeCard(
     employee: Employee,
     onTrainClick: () -> Unit,
-    onFireClick: () -> Unit
+    onFireClick: () -> Unit,
+    currentWeekday: Int = 1, // 当前星期几（1=周一，7=周日）
+    currentHour: Int = 0, // 当前小时（0-23）
+    currentMinute: Int = 0 // 当前分钟（0-59）
 ) {
     // 缓存计算结果，避免重复计算
     // 使用employee的具体属性作为key，确保属性变化时重新计算
@@ -777,6 +903,34 @@ fun EnhancedEmployeeCard(
                             )
                         }
                     }
+                    
+                    Spacer(modifier = Modifier.height(4.dp))
+                    
+                    // 工作状态显示
+                    val isWorking = remember(currentWeekday, currentHour, currentMinute, employee.workSchedule) {
+                        employee.isWorking(currentWeekday, currentHour, currentMinute)
+                    }
+                    val workStatusColor = if (isWorking) Color(0xFF10B981) else Color(0xFF9CA3AF)
+                    val workStatusText = if (isWorking) "工作中" else "休息中"
+                    val workStatusIcon = if (isWorking) Icons.Default.Business else Icons.Default.Home
+                    
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = workStatusIcon,
+                            contentDescription = workStatusText,
+                            tint = workStatusColor,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = workStatusText,
+                            fontSize = 11.sp,
+                            color = workStatusColor.copy(alpha = 0.9f),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
                 
                 Column(
@@ -869,7 +1023,7 @@ fun BatchTrainingDialog(
             try {
                 val currentSkillLevel = emp.getSpecialtySkillLevel().coerceIn(0, 5)
                 currentSkillLevel < 5
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 false
             }
         }
@@ -887,7 +1041,7 @@ fun BatchTrainingDialog(
                     currentSkillLevel == 2 -> (safeSalary * 2.0).toLong()
                     else -> (safeSalary * 1.5).toLong()
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 0L
             }
         }
@@ -1519,4 +1673,309 @@ fun EnhancedFireDialog(
             }
         }
     }
+}
+
+/**
+ * 工作时间设置对话框
+ */
+@Composable
+fun WorkScheduleDialog(
+    employees: List<Employee>,
+    onConfirm: (List<Employee>) -> Unit,
+    onDismiss: () -> Unit,
+    currentHour: Int = 0, // 当前游戏时间（小时）
+    currentMinute: Int = 0 // 当前游戏时间（分钟）
+) {
+    // 从员工列表中获取现有工作时间设置（使用第一个员工的工作时间，因为所有员工应该使用相同的设置）
+    val existingSchedule = remember(employees) {
+        employees.firstOrNull()?.workSchedule ?: WorkSchedule()
+    }
+    
+    // 初始化状态，使用默认值
+    var workDays by remember { mutableStateOf(existingSchedule.workDays) }
+    var startHour by remember { mutableIntStateOf(existingSchedule.startHour) }
+    var endHour by remember { mutableIntStateOf(existingSchedule.endHour) }
+    
+    // 当员工列表变化时，更新状态以反映最新的工作时间设置
+    LaunchedEffect(employees) {
+        val schedule = employees.firstOrNull()?.workSchedule ?: WorkSchedule()
+        workDays = schedule.workDays
+        startHour = schedule.startHour
+        endHour = schedule.endHour
+    }
+    
+    // 分钟固定为0
+    val startMinute = 0
+    val endMinute = 0
+    
+    // 计算当前时间的总分钟数（用于比较）
+    val currentTotalMinutes = currentHour * 60 + currentMinute
+    
+    // 辅助函数：判断设置的时间是否早于当前时间
+    fun isTimeBeforeCurrent(hour: Int): Boolean {
+        val totalMinutes = hour * 60
+        return totalMinutes < currentTotalMinutes
+    }
+    
+    // 获取时间的最小值（不能低于当前时间）
+    fun getMinHour(hour: Int): Float {
+        val totalMinutes = hour * 60
+        return if (totalMinutes < currentTotalMinutes) {
+            currentHour.toFloat()
+        } else {
+            0f
+        }
+    }
+    
+    // 确保初始值不低于当前时间
+    LaunchedEffect(currentHour, currentMinute) {
+        if (isTimeBeforeCurrent(startHour)) {
+            startHour = currentHour
+        }
+        if (isTimeBeforeCurrent(endHour)) {
+            endHour = maxOf(currentHour, startHour)
+        }
+    }
+    
+    // 验证所有时间设置是否有效
+    val isValidTime = remember(startHour, endHour, currentHour, currentMinute) {
+        val currentTotal = currentHour * 60 + currentMinute
+        val startTotal = startHour * 60
+        val endTotal = endHour * 60
+        
+        // 所有时间都不能早于当前时间
+        val allAfterCurrent = startTotal >= currentTotal && 
+                               endTotal >= currentTotal
+        
+        // 时间逻辑关系：下班 > 上班
+        val logicalOrder = endTotal > startTotal
+        
+        allAfterCurrent && logicalOrder
+    }
+    
+    val weekdayNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "⏰ 工作时间设置",
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // 工作日选择
+                Text(
+                    text = "工作日：",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                
+                // 格式化工作日范围显示和完整文本
+                val formattedScheduleText = remember(workDays, startHour, endHour) {
+                    val workDaysTextResult = when {
+                        workDays.isEmpty() -> "未设置"
+                        workDays.size == 7 -> "每天"
+                        else -> {
+                            val sortedDays = workDays.sorted()
+                            val ranges = mutableListOf<String>()
+                            var start = sortedDays[0]
+                            var end = sortedDays[0]
+                            
+                            for (i in 1 until sortedDays.size) {
+                                if (sortedDays[i] == end + 1) {
+                                    end = sortedDays[i]
+                                } else {
+                                    if (start == end) {
+                                        ranges.add(weekdayNames[start - 1])
+                                    } else {
+                                        ranges.add("${weekdayNames[start - 1]}-${weekdayNames[end - 1]}")
+                                    }
+                                    start = sortedDays[i]
+                                    end = sortedDays[i]
+                                }
+                            }
+                            if (start == end) {
+                                ranges.add(weekdayNames[start - 1])
+                            } else {
+                                ranges.add("${weekdayNames[start - 1]}-${weekdayNames[end - 1]}")
+                            }
+                            ranges.joinToString("、")
+                        }
+                    }
+                    val timeTextResult = "${startHour.toString().padStart(2, '0')}:00-${endHour.toString().padStart(2, '0')}:00"
+                    workDaysTextResult + "丨" + timeTextResult
+                }
+                
+                // 显示当前设置的工作日和上下班时间
+                Text(
+                    text = formattedScheduleText,
+                    fontSize = 14.sp,
+                    color = Color(0xFF3B82F6),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    weekdayNames.forEachIndexed { index, name ->
+                        val day = index + 1
+                        val isSelected = day in workDays
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(36.dp)
+                                .clickable {
+                                    workDays = if (isSelected) {
+                                        workDays - day
+                                    } else {
+                                        workDays + day
+                                    }
+                                }
+                                .background(
+                                    color = if (isSelected) 
+                                        Color(0xFF3B82F6) else Color.White.copy(alpha = 0.1f),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = name,
+                                fontSize = 12.sp,
+                                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f),
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+                }
+                
+                HorizontalDivider(color = Color.White.copy(alpha = 0.2f))
+                
+                // 上班时间
+                Text(
+                    text = "上班时间：",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                // 显示当前时间提示
+                if (isTimeBeforeCurrent(startHour)) {
+                    Text(
+                        text = "⚠️ 时间不能早于当前时间（${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}）",
+                        fontSize = 11.sp,
+                        color = Color(0xFFEF4444),
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("时", fontSize = 12.sp, color = Color.White.copy(alpha = 0.7f))
+                    Slider(
+                        value = startHour.toFloat(),
+                        onValueChange = { 
+                            val newHour = it.toInt()
+                            if (newHour * 60 >= currentTotalMinutes) {
+                                startHour = newHour
+                            } else {
+                                startHour = currentHour
+                            }
+                        },
+                        valueRange = getMinHour(startHour)..23f,
+                        steps = (23 - getMinHour(startHour).toInt()).coerceAtLeast(0),
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text("${startHour.toString().padStart(2, '0')}:00", 
+                        fontSize = 14.sp, color = Color.White, modifier = Modifier.width(50.dp))
+                }
+                
+                // 下班时间
+                Text(
+                    text = "下班时间：",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                // 显示当前时间提示
+                if (isTimeBeforeCurrent(endHour)) {
+                    Text(
+                        text = "⚠️ 时间不能早于当前时间（${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}）",
+                        fontSize = 11.sp,
+                        color = Color(0xFFEF4444),
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("时", fontSize = 12.sp, color = Color.White.copy(alpha = 0.7f))
+                    Slider(
+                        value = endHour.toFloat(),
+                        onValueChange = { 
+                            val newHour = it.toInt()
+                            if (newHour * 60 >= currentTotalMinutes) {
+                                endHour = newHour
+                            } else {
+                                endHour = maxOf(currentHour, startHour)
+                            }
+                        },
+                        valueRange = getMinHour(endHour)..23f,
+                        steps = (23 - getMinHour(endHour).toInt()).coerceAtLeast(0),
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text("${endHour.toString().padStart(2, '0')}:00", 
+                        fontSize = 14.sp, color = Color.White, modifier = Modifier.width(50.dp))
+                }
+                
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val workSchedule = WorkSchedule(
+                        workDays = workDays,
+                        startHour = startHour,
+                        startMinute = startMinute,
+                        endHour = endHour,
+                        endMinute = endMinute
+                    )
+                    val updatedEmployees = employees.map { it.copy(workSchedule = workSchedule) }
+                    onConfirm(updatedEmployees)
+                },
+                enabled = isValidTime,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isValidTime) Color(0xFF3B82F6) else Color.Gray,
+                    disabledContainerColor = Color.Gray,
+                    disabledContentColor = Color.White.copy(alpha = 0.5f)
+                )
+            ) {
+                Text("应用到所有员工", color = Color.White)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消", color = Color.White)
+            }
+        },
+        containerColor = Color(0xFF1F2937),
+        titleContentColor = Color.White,
+        textContentColor = Color.White
+    )
 }

@@ -129,6 +129,54 @@ enum class DevelopmentPhase(
 }
 
 // 员工数据类
+// 员工工作时间配置数据类
+data class WorkSchedule(
+    val workDays: Set<Int> = setOf(1, 2, 3, 4, 5, 6, 7), // 工作日（1=周一，7=周日），默认每天都上班
+    val startHour: Int = 9, // 上班时间（小时，0-23）
+    val startMinute: Int = 0, // 上班时间（分钟，0-59）
+    val endHour: Int = 18, // 下班时间（小时，0-23）
+    val endMinute: Int = 0, // 下班时间（分钟，0-59）
+    val lunchBreakStartHour: Int = 12, // 午休开始时间（小时）
+    val lunchBreakStartMinute: Int = 0, // 午休开始时间（分钟）
+    val lunchBreakEndHour: Int = 13, // 午休结束时间（小时）
+    val lunchBreakEndMinute: Int = 0 // 午休结束时间（分钟）
+) {
+    /**
+     * 判断指定时间是否在工作时间内
+     * @param weekday 星期几（1=周一，7=周日）
+     * @param hour 当前小时（0-23）
+     * @param minute 当前分钟（0-59）
+     * @return true表示在工作时间，false表示休息
+     */
+    fun isWorkingTime(weekday: Int, hour: Int, minute: Int): Boolean {
+        // 调试日志
+        android.util.Log.d("WorkSchedule", 
+            "isWorkingTime检查: weekday=$weekday, hour=$hour, minute=$minute, " +
+            "workDays=$workDays, startHour=$startHour:$startMinute, endHour=$endHour:$endMinute")
+        
+        // 检查是否是工作日
+        if (weekday !in workDays) {
+            android.util.Log.d("WorkSchedule", "不是工作日: weekday=$weekday not in workDays=$workDays")
+            return false
+        }
+        
+        val currentTimeMinutes = hour * 60 + minute
+        val startTimeMinutes = startHour * 60 + startMinute
+        val endTimeMinutes = endHour * 60 + endMinute
+        
+        val isInWorkHours = currentTimeMinutes >= startTimeMinutes && currentTimeMinutes < endTimeMinutes
+        
+        android.util.Log.d("WorkSchedule", 
+            "时间检查: current=${currentTimeMinutes}分钟($hour:$minute), " +
+            "start=${startTimeMinutes}分钟($startHour:$startMinute), " +
+            "end=${endTimeMinutes}分钟($endHour:$endMinute), " +
+            "isInWorkHours=$isInWorkHours")
+        
+        // 只要在工作时间范围内就算工作时间（已移除午休时间逻辑）
+        return isInWorkHours
+    }
+}
+
 data class Employee(
     val id: Int,
     val name: String,
@@ -149,7 +197,8 @@ data class Employee(
     val isFounder: Boolean = false,
     val hireYear: Int = 1,  // 入职年份
     val hireMonth: Int = 1, // 入职月份
-    val hireDay: Int = 1    // 入职日期
+    val hireDay: Int = 1,    // 入职日期
+    val workSchedule: WorkSchedule = WorkSchedule() // 工作时间配置（默认：每天9:00-18:00，午休12:00-13:00）
 ) {
     /**
      * 获取员工的专属技能类型
@@ -351,10 +400,30 @@ data class Employee(
      * @param currentMonth 当前游戏月份
      * @param currentDay 当前游戏日期
      * @return 工作年数（向下取整）
+     * 
+     * 注意：如果当前日期小于入职日期在同一年，说明还没满1年
+     * 例如：入职第1年1月1日，当前第1年12月31日，还没满1年
+     *      入职第1年1月1日，当前第2年1月1日，刚好满1年
      */
     fun calculateWorkYears(currentYear: Int, currentMonth: Int, currentDay: Int): Int {
-        val workMonths = calculateWorkMonths(currentYear, currentMonth, currentDay)
-        return workMonths / 12
+        // 计算年份差
+        val yearDiff = currentYear - hireYear
+        
+        // 如果年份差为0，说明还没满1年
+        if (yearDiff == 0) return 0
+        
+        // 如果年份差大于等于1，还需要检查月份和日期
+        if (yearDiff >= 1) {
+            // 如果当前月份小于入职月份，说明还没满1年
+            if (currentMonth < hireMonth) return yearDiff - 1
+            // 如果当前月份等于入职月份，需要检查日期
+            if (currentMonth == hireMonth) {
+                // 如果当前日期小于入职日期，说明还没满1年
+                if (currentDay < hireDay) return yearDiff - 1
+            }
+        }
+        
+        return yearDiff
     }
     
     /**
@@ -369,23 +438,55 @@ data class Employee(
     }
     
     /**
+     * 判断员工当前是否在工作时间内
+     * @param weekday 星期几（1=周一，7=周日）
+     * @param hour 当前小时（0-23）
+     * @param minute 当前分钟（0-59）
+     * @return true表示在工作时间，false表示休息
+     */
+    fun isWorking(weekday: Int, hour: Int, minute: Int): Boolean {
+        // 防止 workSchedule 为 null（可能是旧数据或反序列化问题）
+        return try {
+            workSchedule.isWorkingTime(weekday, hour, minute)
+        } catch (e: NullPointerException) {
+            // 如果 workSchedule 为 null，使用默认工作时间（每天9:00-18:00，午休12:00-13:00）
+            WorkSchedule().isWorkingTime(weekday, hour, minute)
+        }
+    }
+    
+    /**
      * 检查员工是否应该提出涨薪要求
      * 条件：入职满1年，且未提出过要求或上次提出要求已过1年
      */
     fun shouldRequestSalaryIncrease(currentYear: Int, currentMonth: Int, currentDay: Int): Boolean {
         if (isFounder) return false // 创始人不提要求
         
+        // 检查是否入职满1年
         val workYears = calculateWorkYears(currentYear, currentMonth, currentDay)
         if (workYears < 1) return false // 未满1年
         
-        // 如果从未提出过要求，或者上次提出要求已过1年
-        if (lastSalaryRequestYear == null) return true
+        // 如果从未提出过要求，检查是否刚好满1年（入职日期）
+        if (lastSalaryRequestYear == null) {
+            // 必须刚好是入职日期（月份和日期相同，年份差1年）
+            if (currentYear == hireYear + 1 && currentMonth == hireMonth && currentDay == hireDay) {
+                return true
+            }
+            return false
+        }
         
+        // 如果已经提出过要求，检查是否距离上次要求已过1年
         val yearsSinceLastRequest = currentYear - lastSalaryRequestYear!!
-        if (yearsSinceLastRequest >= 1) return true
-        
-        // 如果同一年但月份已过
-        if (yearsSinceLastRequest == 0 && currentMonth > (lastSalaryRequestMonth ?: 1)) {
+        if (yearsSinceLastRequest >= 1) {
+            // 如果年份差大于等于1，还需要检查月份和日期
+            if (yearsSinceLastRequest == 1) {
+                // 如果当前月份小于上次提出要求的月份，还没满1年
+                if (currentMonth < lastSalaryRequestMonth!!) return false
+                // 如果当前月份等于上次提出要求的月份，需要检查日期
+                if (currentMonth == lastSalaryRequestMonth) {
+                    // 必须当前日期大于等于上次提出要求的日期（使用入职日期作为参考）
+                    if (currentDay < hireDay) return false
+                }
+            }
             return true
         }
         
@@ -730,6 +831,7 @@ data class SaveData(
     val currentYear: Int = 1,
     val currentMonth: Int = 1,
     val currentDay: Int = 1,
+    val currentMinuteOfDay: Int = 0, // 当天内的分钟数（0-1439，0表示00:00，1439表示23:59）
     val allEmployees: List<Employee> = emptyList(),
     val games: List<Game> = emptyList(),
     val competitors: List<CompetitorCompany> = emptyList(), // 竞争对手公司列表

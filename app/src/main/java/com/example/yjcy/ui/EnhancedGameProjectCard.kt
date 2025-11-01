@@ -52,7 +52,13 @@ fun EnhancedGameProjectCard(
     onPurchaseServer: ((Game, com.example.yjcy.data.ServerType) -> Unit)? = null,  // 新增：购买服务器回调
     showDataOverview: Boolean = true,  // 新增：是否显示数据概览（正在更新标签页设为false）
     money: Long = 0L,  // 新增：资金
-    onMoneyUpdate: (Long) -> Unit = {}  // 新增：资金更新回调
+    onMoneyUpdate: (Long) -> Unit = {},  // 新增：资金更新回调
+    currentYear: Int = 1,  // 新增：当前年份
+    currentMonth: Int = 1,  // 新增：当前月份
+    currentDay: Int = 1,  // 新增：当前日期
+    currentMinuteOfDay: Int = 0,  // 新增：当天内的分钟数（0-1439）
+    onPauseGame: (() -> Unit)? = null,  // 暂停游戏的回调
+    onResumeGame: (() -> Unit)? = null // 恢复游戏的回调
 ) {
     var showRevenueDialog by remember { mutableStateOf(false) }
     
@@ -841,7 +847,13 @@ fun EnhancedGameProjectCard(
                             },
                             modifier = Modifier.fillMaxWidth(),
                             text = if (game.assignedEmployees.isEmpty()) 
-                                "一键分配员工" else "重新分配员工"
+                                "一键分配员工" else "重新分配员工",
+                            currentYear = currentYear,
+                            currentMonth = currentMonth,
+                            currentDay = currentDay,
+                            currentMinuteOfDay = currentMinuteOfDay,
+                            onPauseGame = onPauseGame,
+                            onResumeGame = onResumeGame
                         )
                     }
                     
@@ -1141,7 +1153,13 @@ fun EnhancedGameProjectCard(
                         },
                         modifier = Modifier.fillMaxWidth(),
                         text = if (game.assignedEmployees.isEmpty()) 
-                            "一键分配员工" else "重新分配员工"
+                            "一键分配员工" else "重新分配员工",
+                        currentYear = currentYear,
+                        currentMonth = currentMonth,
+                        currentDay = currentDay,
+                        currentMinuteOfDay = currentMinuteOfDay,
+                        onPauseGame = onPauseGame,
+                        onResumeGame = onResumeGame
                     )
                 }
             }
@@ -1217,7 +1235,13 @@ fun BatchEnhancedAssignmentCard(
     projects: List<Game>,
     availableEmployees: List<Employee>,
     onBatchAssignmentComplete: (EnhancedAssignmentResult) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    currentYear: Int = 1,
+    currentMonth: Int = 1,
+    currentDay: Int = 1,
+    currentMinuteOfDay: Int = 0,
+    onPauseGame: (() -> Unit)? = null,
+    onResumeGame: (() -> Unit)? = null
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -1295,7 +1319,13 @@ fun BatchEnhancedAssignmentCard(
                 employees = availableEmployees,
                 onAssignmentComplete = onBatchAssignmentComplete,
                 modifier = Modifier.fillMaxWidth(),
-                text = "🚀 批量智能分配所有项目"
+                text = "🚀 批量智能分配所有项目",
+                currentYear = currentYear,
+                currentMonth = currentMonth,
+                currentDay = currentDay,
+                currentMinuteOfDay = currentMinuteOfDay,
+                onPauseGame = onPauseGame,
+                onResumeGame = onResumeGame
             )
         }
     }

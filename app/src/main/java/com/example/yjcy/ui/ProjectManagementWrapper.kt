@@ -49,7 +49,9 @@ fun ProjectManagementWrapper(
     currentYear: Int = 1,  // 新增：当前年份
     currentMonth: Int = 1,  // 新增：当前月份
     currentDay: Int = 1,  // 新增：当前日期
-    ownedIPs: List<GameIP> = emptyList()  // 新增：拥有的IP列表
+    ownedIPs: List<GameIP> = emptyList(),  // 新增：拥有的IP列表
+    onPauseGame: (() -> Unit)? = null,  // 暂停游戏的回调
+    onResumeGame: (() -> Unit)? = null // 恢复游戏的回调
 ) {
     // 移除本地状态管理，改为由外部（MainActivity）管理
     // 这样可以确保切换标签时状态不会丢失
@@ -84,6 +86,8 @@ fun ProjectManagementWrapper(
                     currentYear = currentYear,
                     currentMonth = currentMonth,
                     currentDay = currentDay,
-                    ownedIPs = ownedIPs
+                    ownedIPs = ownedIPs,
+                    onPauseGame = onPauseGame,
+                    onResumeGame = onResumeGame
     )
 }

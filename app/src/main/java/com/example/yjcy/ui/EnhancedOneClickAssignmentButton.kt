@@ -43,7 +43,13 @@ fun EnhancedOneClickAssignmentButton(
     onAssignmentComplete: (EnhancedAssignmentResult) -> Unit,
     modifier: Modifier = Modifier,
     text: String = "智能一键分配",
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    currentYear: Int = 1,
+    currentMonth: Int = 1,
+    currentDay: Int = 1,
+    currentMinuteOfDay: Int = 0, // 当天内的分钟数（0-1439）
+    onPauseGame: (() -> Unit)? = null,
+    onResumeGame: (() -> Unit)? = null
 ) {
     var buttonState by remember { mutableStateOf(EnhancedButtonState.NORMAL) }
     var showResultDialog by remember { mutableStateOf(false) }
@@ -53,6 +59,17 @@ fun EnhancedOneClickAssignmentButton(
     val assignmentService = remember { EnhancedAssignmentService() }
     val coroutineScope = rememberCoroutineScope()
     
+    // 监听对话框打开/关闭，控制游戏暂停
+    LaunchedEffect(showResultDialog) {
+        if (showResultDialog) {
+            // 打开结果对话框时暂停游戏
+            onPauseGame?.invoke()
+        } else {
+            // 关闭结果对话框时恢复游戏
+            onResumeGame?.invoke()
+        }
+    }
+    
     // 自动重置状态
     LaunchedEffect(buttonState) {
         if (buttonState == EnhancedButtonState.SUCCESS || buttonState == EnhancedButtonState.ERROR) {
@@ -61,9 +78,12 @@ fun EnhancedOneClickAssignmentButton(
         }
     }
     
-    // 执行分配
+    // 执行分配（包含暂停功能）
     suspend fun performAssignment() {
         try {
+            // 开始分配时暂停游戏
+            onPauseGame?.invoke()
+            
             buttonState = EnhancedButtonState.LOADING
             
             // 模拟分析过程
@@ -78,12 +98,14 @@ fun EnhancedOneClickAssignmentButton(
             assignmentResult = result
             buttonState = EnhancedButtonState.SUCCESS
             
-            // 显示结果对话框
+            // 显示结果对话框（保持暂停状态）
             delay(500)
             showResultDialog = true
             
         } catch (e: Exception) {
             buttonState = EnhancedButtonState.ERROR
+            // 出错时恢复游戏
+            onResumeGame?.invoke()
         }
     }
     
@@ -204,7 +226,13 @@ fun EnhancedOneClickAssignmentButton(
                 showResultDialog = false
                 onAssignmentComplete(assignmentResult!!)
                 buttonState = EnhancedButtonState.NORMAL
-            }
+            },
+            currentYear = currentYear,
+            currentMonth = currentMonth,
+            currentDay = currentDay,
+            currentMinuteOfDay = currentMinuteOfDay,
+            onPauseGame = onPauseGame,
+            onResumeGame = onResumeGame
         )
     }
 }
@@ -298,17 +326,36 @@ fun CompactEnhancedAssignmentButton(
     projects: List<Game>,
     availableEmployees: List<Employee>,
     onAssignmentComplete: (EnhancedAssignmentResult) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    currentYear: Int = 1,
+    currentMonth: Int = 1,
+    currentDay: Int = 1,
+    currentMinuteOfDay: Int = 0, // 当天内的分钟数（0-1439）
+    onPauseGame: (() -> Unit)? = null,
+    onResumeGame: (() -> Unit)? = null
 ) {
     var buttonState by remember { mutableStateOf(EnhancedButtonState.NORMAL) }
     var assignmentResult by remember { mutableStateOf<EnhancedAssignmentResult?>(null) }
     var showResultDialog by remember { mutableStateOf(false) }
     
     val assignmentService = remember { EnhancedAssignmentService() }
+    val coroutineScope = rememberCoroutineScope()
     
-    // 执行分配
+    // 监听对话框打开/关闭，控制游戏暂停
+    LaunchedEffect(showResultDialog) {
+        if (showResultDialog) {
+            onPauseGame?.invoke()
+        } else {
+            onResumeGame?.invoke()
+        }
+    }
+    
+    // 执行分配（包含暂停功能）
     suspend fun performAssignment() {
         try {
+            // 开始分配时暂停游戏
+            onPauseGame?.invoke()
+            
             buttonState = EnhancedButtonState.LOADING
             delay(500)
             
@@ -324,6 +371,8 @@ fun CompactEnhancedAssignmentButton(
             
         } catch (e: Exception) {
             buttonState = EnhancedButtonState.ERROR
+            // 出错时恢复游戏
+            onResumeGame?.invoke()
         }
     }
     
@@ -384,7 +433,13 @@ fun CompactEnhancedAssignmentButton(
                 showResultDialog = false
                 onAssignmentComplete(assignmentResult!!)
                 buttonState = EnhancedButtonState.NORMAL
-            }
+            },
+            currentYear = currentYear,
+            currentMonth = currentMonth,
+            currentDay = currentDay,
+            currentMinuteOfDay = currentMinuteOfDay,
+            onPauseGame = onPauseGame,
+            onResumeGame = onResumeGame
         )
     }
 }

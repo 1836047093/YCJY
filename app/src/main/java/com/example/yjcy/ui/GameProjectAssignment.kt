@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,7 +35,13 @@ import com.example.yjcy.data.*
 fun EnhancedGameProjectCard(
     game: Game,
     availableEmployees: List<Employee> = emptyList(),
-    onEmployeeAssigned: (Game, List<Employee>) -> Unit = { _, _ -> }
+    onEmployeeAssigned: (Game, List<Employee>) -> Unit = { _, _ -> },
+    currentYear: Int = 1,
+    currentMonth: Int = 1,
+    currentDay: Int = 1,
+    currentMinuteOfDay: Int = 0, // 当天内的分钟数（0-1439）
+    onPauseGame: (() -> Unit)? = null,
+    onResumeGame: (() -> Unit)? = null
 ) {
     var showAssignmentDialog by remember { mutableStateOf(false) }
     
@@ -201,7 +209,13 @@ fun EnhancedGameProjectCard(
             onAssignEmployees = { selectedEmployees ->
                 onEmployeeAssigned(game, selectedEmployees)
                 showAssignmentDialog = false
-            }
+            },
+            currentYear = currentYear,
+            currentMonth = currentMonth,
+            currentDay = currentDay,
+            currentMinuteOfDay = currentMinuteOfDay,
+            onPauseGame = onPauseGame,
+            onResumeGame = onResumeGame
         )
     }
 }
@@ -214,7 +228,13 @@ fun EmployeeAssignmentDialog(
     game: Game,
     availableEmployees: List<Employee>,
     onDismiss: () -> Unit,
-    onAssignEmployees: (List<Employee>) -> Unit
+    onAssignEmployees: (List<Employee>) -> Unit,
+    currentYear: Int = 1,
+    currentMonth: Int = 1,
+    currentDay: Int = 1,
+    currentMinuteOfDay: Int = 0, // 当天内的分钟数（0-1439）
+    onPauseGame: (() -> Unit)? = null,
+    onResumeGame: (() -> Unit)? = null
 ) {
     // 过滤掉客服，客服不参与开发
     // 并且只显示符合当前阶段要求的职位
@@ -222,6 +242,35 @@ fun EmployeeAssignmentDialog(
         availableEmployees.filter { 
             it.position != "客服" && 
             it.position in game.currentPhase.requiredPositions 
+        }
+    }
+    
+    // 计算当前星期几和时间
+    val currentWeekday = remember(currentYear, currentMonth, currentDay) {
+        com.example.yjcy.utils.calculateWeekday(currentYear, currentMonth, currentDay)
+    }
+    val currentHour = remember(currentMinuteOfDay) { currentMinuteOfDay / 60 }
+    val currentMinute = remember(currentMinuteOfDay) { currentMinuteOfDay % 60 }
+    
+    // 检查员工是否在工作时间内
+    val employeesWorkingStatus = remember(developmentEmployees, currentWeekday, currentHour, currentMinute) {
+        developmentEmployees.associateWith { employee ->
+            try {
+                employee.isWorking(currentWeekday, currentHour, currentMinute)
+            } catch (e: Exception) {
+                false
+            }
+        }
+    }
+    
+    val workingEmployeesCount = employeesWorkingStatus.values.count { it }
+    val restingEmployeesCount = developmentEmployees.size - workingEmployeesCount
+    
+    // 监听对话框打开/关闭，控制游戏暂停
+    DisposableEffect(Unit) {
+        onPauseGame?.invoke()
+        onDispose {
+            onResumeGame?.invoke()
         }
     }
     
@@ -253,7 +302,71 @@ fun EmployeeAssignmentDialog(
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-
+                // 员工工作状态提示
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (restingEmployeesCount > 0) 
+                            Color(0xFFF59E0B).copy(alpha = 0.2f) 
+                        else Color(0xFF10B981).copy(alpha = 0.2f)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = if (restingEmployeesCount > 0) 
+                                    Color(0xFFF59E0B) 
+                                else Color(0xFF10B981),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = if (restingEmployeesCount > 0) 
+                                    "⚠️ 当前非工作时间" 
+                                else "✅ 当前工作时间",
+                                color = if (restingEmployeesCount > 0) 
+                                    Color(0xFFF59E0B) 
+                                else Color(0xFF10B981),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "工作时间：${workingEmployeesCount}人",
+                                color = Color(0xFF10B981),
+                                fontSize = 13.sp
+                            )
+                            Text(
+                                text = "休息中：${restingEmployeesCount}人",
+                                color = Color(0xFFF59E0B),
+                                fontSize = 13.sp
+                            )
+                        }
+                        if (restingEmployeesCount > 0) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "💡 提示：休息中的员工也可以分配，将在工作时间开始后自动开始工作",
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
                 
                 // 可用员工列表（排除客服）
                 Text(
@@ -270,9 +383,11 @@ fun EmployeeAssignmentDialog(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(developmentEmployees) { employee ->
+                        val isWorking = employeesWorkingStatus[employee] ?: false
                         EmployeeSelectionCard(
                             employee = employee,
                             isSelected = selectedEmployees.contains(employee),
+                            isWorking = isWorking,
                             onSelectionChanged = { isSelected ->
                                 selectedEmployees = if (isSelected) {
                                     selectedEmployees + employee
@@ -373,6 +488,7 @@ fun EmployeeAssignmentDialog(
 fun EmployeeSelectionCard(
     employee: Employee,
     isSelected: Boolean,
+    isWorking: Boolean = true, // 是否在工作时间内
     onSelectionChanged: (Boolean) -> Unit
 ) {
     Card(
@@ -411,7 +527,8 @@ fun EmployeeSelectionCard(
                 Spacer(modifier = Modifier.height(4.dp))
                 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = "${employee.getSpecialtySkillType()}技能：${employee.getSpecialtySkillLevel()}级",
@@ -424,6 +541,24 @@ fun EmployeeSelectionCard(
                         color = Color.White.copy(alpha = 0.8f),
                         fontSize = 12.sp
                     )
+                    
+                    // 工作状态指示
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (isWorking) Icons.Default.Business else Icons.Default.Home,
+                            contentDescription = if (isWorking) "工作中" else "休息中",
+                            tint = if (isWorking) Color(0xFF10B981) else Color(0xFFF59E0B),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = if (isWorking) "工作中" else "休息中",
+                            color = if (isWorking) Color(0xFF10B981) else Color(0xFFF59E0B),
+                            fontSize = 11.sp
+                        )
+                    }
                 }
             }
             

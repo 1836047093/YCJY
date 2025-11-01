@@ -155,7 +155,10 @@ fun EnhancedProjectManagementContent(
     currentYear: Int = 1,  // 新增：当前年份
     currentMonth: Int = 1,  // 新增：当前月份
     currentDay: Int = 1,  // 新增：当前日期
-    ownedIPs: List<com.example.yjcy.data.GameIP> = emptyList()  // 新增：拥有的IP列表
+    currentMinuteOfDay: Int = 0,  // 新增：当天内的分钟数（0-1439）
+    ownedIPs: List<com.example.yjcy.data.GameIP> = emptyList(),  // 新增：拥有的IP列表
+    onPauseGame: (() -> Unit)? = null,  // 暂停游戏的回调
+    onResumeGame: (() -> Unit)? = null // 恢复游戏的回调
 ) {
     var showGameDevelopmentDialog by remember { mutableStateOf(false) }
     var showPromotionCenterDialog by remember { mutableStateOf(false) }
@@ -444,7 +447,13 @@ fun EnhancedProjectManagementContent(
                         onAbandonGame = onAbandonGame,
                         showDataOverview = selectedProjectType != ProjectDisplayType.UPDATING,  // 正在更新标签页不显示数据概览
                         money = money,
-                        onMoneyUpdate = onMoneyUpdate
+                        onMoneyUpdate = onMoneyUpdate,
+                        currentYear = currentYear,
+                        currentMonth = currentMonth,
+                        currentDay = currentDay,
+                        currentMinuteOfDay = currentMinuteOfDay,
+                        onPauseGame = onPauseGame,
+                        onResumeGame = onResumeGame
                     )
                 }
             }
@@ -452,6 +461,17 @@ fun EnhancedProjectManagementContent(
     }
     
     // 游戏开发流程对话框
+    // 监听对话框打开/关闭，控制游戏暂停
+    LaunchedEffect(showGameDevelopmentDialog) {
+        if (showGameDevelopmentDialog) {
+            // 打开对话框时暂停游戏
+            onPauseGame?.invoke()
+        } else {
+            // 关闭对话框时恢复游戏
+            onResumeGame?.invoke()
+        }
+    }
+    
     if (showGameDevelopmentDialog) {
         SuperEnhancedGameDevelopmentDialog(
             money = money,

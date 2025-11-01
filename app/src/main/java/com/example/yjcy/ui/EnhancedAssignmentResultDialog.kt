@@ -36,8 +36,77 @@ fun EnhancedAssignmentResultDialog(
     projectNames: Map<String, String> = emptyMap(),
     games: List<Game> = emptyList(),
     onDismiss: () -> Unit,
-    onConfirm: () -> Unit
+    onConfirm: () -> Unit,
+    currentYear: Int = 1,
+    currentMonth: Int = 1,
+    currentDay: Int = 1,
+    currentMinuteOfDay: Int = 0, // 当天内的分钟数（0-1439）
+    onPauseGame: (() -> Unit)? = null,
+    onResumeGame: (() -> Unit)? = null
 ) {
+    // 监听对话框打开/关闭，控制游戏暂停
+    DisposableEffect(Unit) {
+        onPauseGame?.invoke()
+        onDispose {
+            onResumeGame?.invoke()
+        }
+    }
+    
+    // 计算当前星期几和时间
+    val currentWeekday = remember(currentYear, currentMonth, currentDay) {
+        com.example.yjcy.utils.calculateWeekday(currentYear, currentMonth, currentDay)
+    }
+    val currentHour = remember(currentMinuteOfDay) { currentMinuteOfDay / 60 }
+    val currentMinute = remember(currentMinuteOfDay) { currentMinuteOfDay % 60 }
+    
+    // 添加调试日志，检查传入的时间参数
+    LaunchedEffect(currentMinuteOfDay, currentYear, currentMonth, currentDay) {
+        android.util.Log.d("AssignmentDialog", 
+            "时间参数: year=$currentYear, month=$currentMonth, day=$currentDay, minuteOfDay=$currentMinuteOfDay, " +
+            "weekday=$currentWeekday, hour=$currentHour, minute=$currentMinute")
+    }
+    
+    // 检查所有分配员工的工作状态
+    val allAssignedEmployees = remember(assignmentResult.assignments) {
+        assignmentResult.assignments.values.flatten()
+    }
+    
+    val employeesWorkingStatus = remember(allAssignedEmployees, currentWeekday, currentHour, currentMinute, currentMinuteOfDay) {
+        // 再次计算，确保使用最新的时间
+        val hour = currentMinuteOfDay / 60
+        val minute = currentMinuteOfDay % 60
+        
+        android.util.Log.d("AssignmentDialog", 
+            "开始检查${allAssignedEmployees.size}名员工的工作状态: " +
+            "weekday=$currentWeekday(${com.example.yjcy.utils.getWeekdayName(currentWeekday)}), " +
+            "hour=$hour, minute=$minute, minuteOfDay=$currentMinuteOfDay")
+        
+        allAssignedEmployees.associateWith { employee ->
+            try {
+                // 调试：检查工作时间和员工设置
+                android.util.Log.d("AssignmentDialog", 
+                    "检查员工${employee.name}: " +
+                    "workDays=${employee.workSchedule.workDays}, " +
+                    "startHour=${employee.workSchedule.startHour}:${employee.workSchedule.startMinute}, " +
+                    "endHour=${employee.workSchedule.endHour}:${employee.workSchedule.endMinute}")
+                
+                val isWorking = employee.isWorking(currentWeekday, hour, minute)
+                
+                android.util.Log.d("AssignmentDialog", 
+                    "员工${employee.name}工作状态: isWorking=$isWorking")
+                
+                isWorking
+            } catch (e: Exception) {
+                android.util.Log.e("AssignmentDialog", "检查员工工作时间失败: ${employee.name}", e)
+                e.printStackTrace()
+                false
+            }
+        }
+    }
+    
+    val workingEmployeesCount = employeesWorkingStatus.values.count { it }
+    val restingEmployeesCount = allAssignedEmployees.size - workingEmployeesCount
+    
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
@@ -92,6 +161,73 @@ fun EnhancedAssignmentResultDialog(
                     
                     Spacer(modifier = Modifier.height(16.dp))
                     
+                    // 员工工作状态提示
+                    if (allAssignedEmployees.isNotEmpty()) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (restingEmployeesCount > 0) 
+                                    Color(0xFFF59E0B).copy(alpha = 0.2f) 
+                                else Color(0xFF10B981).copy(alpha = 0.2f)
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Info,
+                                        contentDescription = null,
+                                        tint = if (restingEmployeesCount > 0) 
+                                            Color(0xFFF59E0B) 
+                                        else Color(0xFF10B981),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Text(
+                                        text = if (restingEmployeesCount > 0) 
+                                            "⚠️ 部分员工在休息中" 
+                                        else "✅ 所有员工都在工作时间内",
+                                        color = if (restingEmployeesCount > 0) 
+                                            Color(0xFFF59E0B) 
+                                        else Color(0xFF10B981),
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "工作时间：${workingEmployeesCount}人",
+                                        color = Color(0xFF10B981),
+                                        fontSize = 13.sp
+                                    )
+                                    Text(
+                                        text = "休息中：${restingEmployeesCount}人",
+                                        color = Color(0xFFF59E0B),
+                                        fontSize = 13.sp
+                                    )
+                                }
+                                if (restingEmployeesCount > 0) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "💡 提示：休息中的员工已分配，将在工作时间开始后自动开始工作",
+                                        color = Color.White.copy(alpha = 0.7f),
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
                     // 分配摘要
                     AssignmentSummaryCard(assignmentResult)
                     
@@ -127,13 +263,6 @@ fun EnhancedAssignmentResultDialog(
                                     projectNames = projectNames,
                                     games = games
                                 )
-                            }
-                        }
-                        
-                        // 无法分配的员工
-                        if (assignmentResult.unassignedEmployees.isNotEmpty()) {
-                            item {
-                                UnassignedEmployeesCard(assignmentResult.unassignedEmployees)
                             }
                         }
                     }
@@ -231,13 +360,6 @@ private fun AssignmentSummaryCard(result: EnhancedAssignmentResult) {
                     label = "分配项目",
                     value = "${result.assignments.size}个",
                     color = Color(0xFF3B82F6)
-                )
-                
-                SummaryItem(
-                    icon = Icons.Default.Info,
-                    label = "剩余员工",
-                    value = "${result.unassignedEmployees.size}人",
-                    color = if (result.unassignedEmployees.isEmpty()) Color(0xFF10B981) else Color(0xFFF59E0B)
                 )
             }
         }
