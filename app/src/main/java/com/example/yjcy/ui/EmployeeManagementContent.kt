@@ -26,7 +26,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.yjcy.data.Employee
 import com.example.yjcy.data.TalentCandidate
-import com.example.yjcy.ui.components.TalentMarketDialog
+import com.example.yjcy.ui.components.NewTalentMarketDialog
 import kotlin.random.Random
 
 @Composable
@@ -334,16 +334,19 @@ fun EmployeeManagementContent(
         )
     }
     
-    // 人才市场弹出式对话框（旧版本）
+    // 人才市场对话框（岗位发布系统版本）
     if (showTalentMarketDialog) {
-        val currentSaveData = remember(money, allEmployees) {
+        val currentSaveData = remember(money, allEmployees, currentYear, currentMonth, currentDay) {
             com.example.yjcy.data.SaveData(
                 money = money,
-                allEmployees = allEmployees.toList()
+                allEmployees = allEmployees.toList(),
+                currentYear = currentYear,
+                currentMonth = currentMonth,
+                currentDay = currentDay
             )
         }
         
-        TalentMarketDialog(
+        NewTalentMarketDialog(
             saveData = currentSaveData,
             onDismiss = { showTalentMarketDialog = false },
             onRecruitCandidate = { candidate ->
@@ -351,7 +354,7 @@ fun EmployeeManagementContent(
                     // 检查员工数量限制
                     if (allEmployees.size >= 30) {
                         android.util.Log.w("EmployeeManagement", "员工数量已达上限")
-                        return@TalentMarketDialog
+                        return@NewTalentMarketDialog
                     }
                     
                     // 计算招聘费用（基础费用 + 技能加成）
@@ -362,7 +365,7 @@ fun EmployeeManagementContent(
                     // 检查资金是否足够
                     if (money < recruitmentFee) {
                         android.util.Log.w("EmployeeManagement", "资金不足")
-                        return@TalentMarketDialog
+                        return@NewTalentMarketDialog
                     }
                     
                     // 生成新员工ID
@@ -387,7 +390,8 @@ fun EmployeeManagementContent(
                     android.util.Log.e("EmployeeManagement", "招聘员工时发生异常", e)
                     e.printStackTrace()
                 }
-            }
+            },
+            jobPostingRefreshTrigger = jobPostingRefreshTrigger
         )
     }
 }
