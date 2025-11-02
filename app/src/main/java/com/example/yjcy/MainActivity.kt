@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -1894,9 +1895,14 @@ fun GameScreen(
     var currentDay by remember { mutableIntStateOf(saveData?.currentDay ?: 1) }
     // 当天内的分钟数（0-1439，一天1440分钟）
     var currentMinuteOfDay by remember { mutableIntStateOf(saveData?.currentMinuteOfDay ?: 0) }
-    var gameSpeed by remember { mutableIntStateOf(3) }  // 默认3倍速
-    var selectedTab by remember { mutableIntStateOf(0) }
-    var isPaused by remember { mutableStateOf(false) }
+    var gameSpeed by rememberSaveable { mutableIntStateOf(3) }  // 默认3倍速，使用rememberSaveable确保状态持久化
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    var isPaused by rememberSaveable { mutableStateOf(false) }  // 使用rememberSaveable确保暂停状态在切换标签时保持
+    
+    // 调试：记录状态变化
+    LaunchedEffect(isPaused, gameSpeed, selectedTab) {
+        Log.d("GameScreen", "📊 状态变化: isPaused=$isPaused, gameSpeed=$gameSpeed, selectedTab=$selectedTab")
+    }
     var showTournamentMenu by remember { mutableStateOf(false) }
     var tournamentInitialTab by remember { mutableIntStateOf(0) }
     
@@ -2095,19 +2101,47 @@ fun GameScreen(
                             promotionIndex = releasedGame.promotionIndex
                         )
                         // 初始化游戏信息（商业模式和付费内容）
+                        // 修复：如果付费内容没有设置价格，自动使用推荐价格
+                        val monetizationItemsWithPrices = if (releasedGame.businessModel == BusinessModel.ONLINE_GAME) {
+                            releasedGame.monetizationItems.map { item ->
+                                if (item.price == null || item.price <= 0) {
+                                    // 使用推荐价格
+                                    item.copy(price = item.type.getRecommendedPrice())
+                                } else {
+                                    item
+                                }
+                            }
+                        } else {
+                            releasedGame.monetizationItems
+                        }
+                        
                         RevenueManager.updateGameInfo(
                             releasedGame.id,
                             releasedGame.businessModel,
-                            releasedGame.monetizationItems
+                            monetizationItemsWithPrices
                         )
                         // 初始化游戏IP信息（用于销量加成）
                         RevenueManager.updateGameIP(releasedGame.id, releasedGame.fromIP)
                     } else {
                         // 收益数据存在，更新游戏信息（商业模式和付费内容）
+                        // 修复：如果付费内容没有设置价格，自动使用推荐价格
+                        val monetizationItemsWithPrices = if (releasedGame.businessModel == BusinessModel.ONLINE_GAME) {
+                            releasedGame.monetizationItems.map { item ->
+                                if (item.price == null || item.price <= 0) {
+                                    // 使用推荐价格
+                                    item.copy(price = item.type.getRecommendedPrice())
+                                } else {
+                                    item
+                                }
+                            }
+                        } else {
+                            releasedGame.monetizationItems
+                        }
+                        
                         RevenueManager.updateGameInfo(
                             releasedGame.id,
                             releasedGame.businessModel,
-                            releasedGame.monetizationItems
+                            monetizationItemsWithPrices
                         )
                         // 更新游戏IP信息（用于销量加成）
                         RevenueManager.updateGameIP(releasedGame.id, releasedGame.fromIP)
@@ -2265,6 +2299,14 @@ fun GameScreen(
     
     // 时间推进系统
     LaunchedEffect(gameSpeed, isPaused) {
+        // 如果暂停，立即退出
+        if (isPaused) {
+            Log.d("MainActivity", "⏸️ 游戏暂停: currentMinuteOfDay=$currentMinuteOfDay, money=¥$money")
+            return@LaunchedEffect
+        }
+        
+        Log.d("MainActivity", "▶️ 游戏开始/恢复: currentMinuteOfDay=$currentMinuteOfDay, money=¥$money")
+        
         while (!isPaused) {
             delay(when (gameSpeed) {
                 1 -> 100L // 慢速：0.1秒1分钟（1440分钟需要144秒=2.4分钟）
@@ -2272,6 +2314,12 @@ fun GameScreen(
                 3 -> 20L // 快速：0.02秒1分钟（1440分钟需要28.8秒=0.48分钟，比原来快约1.65倍）
                 else -> 50L
             })
+            
+            // 关键修复：delay 后立即检查暂停状态
+            if (isPaused) {
+                Log.d("MainActivity", "⏸️ 检测到暂停，退出时间循环")
+                break
+            }
             
             // 更新时间：每0.1秒（1倍速）推进1分钟
             currentMinuteOfDay++
@@ -2301,6 +2349,9 @@ fun GameScreen(
                     )
                     money += minuteRevenue.toLong()
                 }
+            
+            // 触发收益数据刷新（每分钟都刷新，确保财务状况实时更新）
+            revenueRefreshTrigger++
             
             // 自动存档检查（如果启用了自动存档）
             if (autoSaveEnabled) {
@@ -2586,20 +2637,9 @@ fun GameScreen(
                     // 添加新闻，保持最近30条
                     competitorNews = (newNews + competitorNews).take(30)
                     
-                    // 月结算：生成客诉
-                    val newComplaints = CustomerServiceManager.generateMonthlyComplaints(
-                        games,
-                        currentYear,
-                        currentMonth,
-                        currentDay
-                    )
-                    if (newComplaints.isNotEmpty()) {
-                        complaints = complaints + newComplaints
-                        Log.d("MainActivity", "月结算：生成${newComplaints.size}个新客诉")
-                    }
-                    
-                    // 月结算：清理旧客诉
-                    complaints = CustomerServiceManager.cleanupOldComplaints(complaints)
+                    // 月结算：清理旧客诉（不再生成新客诉，只清理）
+                    // 修复：传入当前年月，确保不会删除本月完成的客诉
+                    complaints = CustomerServiceManager.cleanupOldComplaints(complaints, currentYear, currentMonth)
                     
                     // 更新上次月结算时间
                     lastSettlementYear = currentYear
@@ -3221,14 +3261,43 @@ fun GameScreen(
                 }
             }
             
-            // 每日处理客诉
+            // 每日处理客诉（传入当前日期以记录完成时间）
             val (updatedComplaints, _) = CustomerServiceManager.processDailyComplaints(
                 complaints,
-                allEmployees
+                allEmployees,
+                currentYear,
+                currentMonth,
+                currentDay
             )
             complaints = updatedComplaints
             
-            // 计算超时客诉造成的粉丝损失
+            // 清理旧客诉并限制数量上限（每日清理一次，避免客诉累积过多）
+            // 修复：传入当前年月，确保不会删除本月完成的客诉
+            complaints = CustomerServiceManager.cleanupOldComplaints(complaints, currentYear, currentMonth)
+            
+            // 每日生成新客诉（实时生成）
+            // 限制：如果活动客诉数量已达到上限（50个），则不再生成新客诉
+            val activeComplaintCount = complaints.count { it.status != ComplaintStatus.COMPLETED }
+            if (activeComplaintCount < 50) {
+                val dailyNewComplaints = CustomerServiceManager.generateDailyComplaints(
+                    games,
+                    currentYear,
+                    currentMonth,
+                    currentDay
+                )
+                if (dailyNewComplaints.isNotEmpty()) {
+                    complaints = complaints + dailyNewComplaints
+                    Log.d("MainActivity", "每日生成 ${dailyNewComplaints.size} 个新客诉（当前活动客诉: ${activeComplaintCount + dailyNewComplaints.size}）")
+                }
+            } else {
+                // 活动客诉数量已达上限，跳过生成
+                if (activeComplaintCount >= 50 && activeComplaintCount % 10 == 0) {
+                    // 每10个客诉记录一次日志，避免日志过多
+                    Log.d("MainActivity", "⚠️ 活动客诉数量已达上限（${activeComplaintCount}个），暂停生成新客诉")
+                }
+            }
+            
+            // 计算超时客诉造成的粉丝损失（优化：只遍历活动客诉）
             val fanLoss: Long = CustomerServiceManager.calculateOverdueFanLoss(
                 complaints,
                 currentYear,
@@ -3393,7 +3462,8 @@ fun GameScreen(
                             currentDay = currentDay,
                             competitors = competitors,
                             competitorNews = competitorNews,
-                            onSecretaryChatClick = { showSecretaryChat = true }
+                            onSecretaryChatClick = { showSecretaryChat = true },
+                            revenueRefreshTrigger = revenueRefreshTrigger // 传递收益刷新触发器
                         )
                         1 -> EmployeeManagementContent(
                             allEmployees = allEmployees,
@@ -3485,7 +3555,8 @@ fun GameScreen(
                             currentMinuteOfDay = currentMinuteOfDay,
                             ownedIPs = ownedIPs,
                             onPauseGame = { isPaused = true },
-                            onResumeGame = { isPaused = false }
+                            onResumeGame = { isPaused = false },
+                            isPaused = isPaused
                         )
                         3 -> CompetitorContent(
                             saveData = SaveData(
@@ -3663,7 +3734,11 @@ fun GameScreen(
             if (selectedTab != 6) {
                 EnhancedBottomNavigationBar(
                     selectedTab = selectedTab,
-                    onTabSelected = { selectedTab = it },
+                    onTabSelected = { newTab ->
+                        // 调试：记录标签切换
+                        Log.d("GameScreen", "🔄 切换标签: $selectedTab -> $newTab, isPaused=$isPaused, gameSpeed=$gameSpeed")
+                        selectedTab = newTab
+                    },
                     pendingApplicantsCount = pendingApplicantsCount,
                     pendingAssignmentCount = pendingAssignmentCount,
                     onTournamentClick = { showTournamentMenu = true }
@@ -3778,16 +3853,31 @@ fun GameScreen(
                             }
                             
                             // 更新游戏信息（商业模式和付费内容）
+                            // 修复：如果付费内容没有设置价格，自动使用推荐价格
+                            val monetizationItemsWithPrices = if (releasedGame.businessModel == BusinessModel.ONLINE_GAME) {
+                                releasedGame.monetizationItems.map { item ->
+                                    if (item.price == null || item.price <= 0) {
+                                        // 使用推荐价格
+                                        item.copy(price = item.type.getRecommendedPrice())
+                                    } else {
+                                        item
+                                    }
+                                }
+                            } else {
+                                releasedGame.monetizationItems
+                            }
+                            
                             RevenueManager.updateGameInfo(
                                 releasedGame.id,
                                 releasedGame.businessModel,
-                                releasedGame.monetizationItems
+                                monetizationItemsWithPrices
                             )
                             
                             // 更新游戏IP信息（用于销量加成）
                             RevenueManager.updateGameIP(releasedGame.id, releasedGame.fromIP)
                             
-                            releasedGame
+                            // 同时更新游戏对象中的付费内容价格
+                            releasedGame.copy(monetizationItems = monetizationItemsWithPrices)
                         } else {
                             existingGame
                         }
@@ -4655,7 +4745,7 @@ fun TopInfoBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 左边区域：资金和粉丝（垂直排列）
@@ -4728,15 +4818,18 @@ fun TopInfoBar(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // 日期列
-                    Column {
+                    // 日期列 - 自适应宽度，但设置最小宽度
+                    Column(
+                        modifier = Modifier.weight(1f).widthIn(min = 100.dp)
+                    ) {
                         // 日期
                         Text(
                             text = "第${year}年${month}月${day}日",
                             color = Color.White,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         // 星期几和时间
                         val weekday = calculateWeekday(year, month, day)
@@ -4745,17 +4838,22 @@ fun TopInfoBar(
                             text = "${getWeekdayName(weekday)}丨$gameTime",
                             color = Color.White.copy(alpha = 0.7f),
                             fontSize = 11.sp,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                     
-                    // 游戏速度下拉选择
-                    GameSpeedDropdown(
-                        currentSpeed = gameSpeed,
-                        isPaused = isPaused,
-                        onSpeedChange = onSpeedChange,
-                        onPauseToggle = onPauseToggle
-                    )
+                    // 游戏速度下拉选择 - 确保始终可见，不被压缩
+                    Box(
+                        modifier = Modifier.widthIn(min = 72.dp)
+                    ) {
+                        GameSpeedDropdown(
+                            currentSpeed = gameSpeed,
+                            isPaused = isPaused,
+                            onSpeedChange = onSpeedChange,
+                            onPauseToggle = onPauseToggle
+                        )
+                    }
                 }
             }
             
@@ -4809,7 +4907,8 @@ fun CompanyOverviewContent(
     currentDay: Int = 1,
     competitors: List<CompetitorCompany> = emptyList(),
     competitorNews: List<CompetitorNews> = emptyList(),
-    onSecretaryChatClick: () -> Unit = {}
+    onSecretaryChatClick: () -> Unit = {},
+    revenueRefreshTrigger: Int = 0 // 新增：收益刷新触发器
 ) {
     var showSecretaryBubble by remember { mutableStateOf(false) }
     
@@ -4990,10 +5089,11 @@ fun CompanyOverviewContent(
                 val profit: Double
             )
             
-            val financialData = remember(games.size, currentYear, currentMonth, currentDay, selectedFinancialYear, allEmployees.size) {
+            val financialData = remember(games.size, currentYear, currentMonth, currentDay, selectedFinancialYear, allEmployees.size, revenueRefreshTrigger) {
                 derivedStateOf {
                     Log.d("MainActivity", "===== 财务状况计算开始 =====")
                     Log.d("MainActivity", "查询年份: 第${selectedFinancialYear}年")
+                    Log.d("MainActivity", "revenueRefreshTrigger: $revenueRefreshTrigger")
                     
                     val releasedGames = games.filter { 
                         it.releaseStatus == GameReleaseStatus.RELEASED || 
@@ -7749,13 +7849,12 @@ fun GameSpeedDropdown(
     var expanded by remember { mutableStateOf(false) }
     
     Box {
-        // 下拉按钮 - 现代化设计
+        // 下拉按钮 - 现代化设计，固定宽度避免抖动
         Button(
             onClick = { expanded = true },
             modifier = Modifier
                 .height(32.dp)
-                .widthIn(min = 80.dp, max = 120.dp)
-                .wrapContentWidth()
+                .widthIn(min = 72.dp, max = 72.dp) // 固定宽度，避免因时间更新导致布局变化
                 .shadow(
                     elevation = 2.dp,
                     shape = RoundedCornerShape(8.dp),
@@ -7779,7 +7878,9 @@ fun GameSpeedDropdown(
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
             )
         }
         
@@ -7840,10 +7941,13 @@ fun GameSpeedDropdown(
                         )
                     },
                     onClick = {
-                        // 如果当前是暂停状态，先取消暂停
+                        // 修复：如果当前是暂停状态，先取消暂停，然后切换速度
+                        // 这样用户可以正常切换速度
                         if (isPaused) {
+                            // 先取消暂停
                             onPauseToggle()
                         }
+                        // 切换速度
                         onSpeedChange(speed)
                         expanded = false
                     },

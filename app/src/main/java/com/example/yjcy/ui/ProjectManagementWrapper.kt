@@ -52,7 +52,8 @@ fun ProjectManagementWrapper(
     currentMinuteOfDay: Int = 0,  // 新增：当天内的分钟数（0-1439）
     ownedIPs: List<GameIP> = emptyList(),  // 新增：拥有的IP列表
     onPauseGame: (() -> Unit)? = null,  // 暂停游戏的回调
-    onResumeGame: (() -> Unit)? = null // 恢复游戏的回调
+    onResumeGame: (() -> Unit)? = null, // 恢复游戏的回调
+    isPaused: Boolean = false  // 新增：当前暂停状态
 ) {
     // 移除本地状态管理，改为由外部（MainActivity）管理
     // 这样可以确保切换标签时状态不会丢失
@@ -90,6 +91,7 @@ fun ProjectManagementWrapper(
                     currentMinuteOfDay = currentMinuteOfDay,
                     ownedIPs = ownedIPs,
                     onPauseGame = onPauseGame,
-                    onResumeGame = onResumeGame
+                    onResumeGame = onResumeGame,
+                    isPaused = isPaused
     )
 }

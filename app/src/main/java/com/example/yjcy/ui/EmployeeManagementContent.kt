@@ -50,6 +50,7 @@ fun EmployeeManagementContent(
     var showFireDialog by remember { mutableStateOf(false) }
     var showTalentMarketDialog by remember { mutableStateOf(false) }
     var showBatchTrainingDialog by remember { mutableStateOf(false) }
+    var showPositionCountDialog by remember { mutableStateOf(false) }
     var selectedEmployee by remember { mutableStateOf<Employee?>(null) }
     var filterType by remember { mutableStateOf("全部") }
     val listState = rememberLazyListState()
@@ -172,7 +173,9 @@ fun EmployeeManagementContent(
                 label = "总员工数",
                 icon = Icons.Default.People,
                 color = Color(0xFF3B82F6),
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { showPositionCountDialog = true }
             )
             
             EmployeeStatItem(
@@ -411,6 +414,14 @@ fun EmployeeManagementContent(
                 selectedEmployee = null
                 Unit
             }
+        )
+    }
+    
+    // 岗位人数统计对话框
+    if (showPositionCountDialog) {
+        PositionCountDialog(
+            employees = allEmployees,
+            onDismiss = { showPositionCountDialog = false }
         )
     }
     
@@ -1508,6 +1519,200 @@ fun EnhancedFireDialog(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * 岗位人数统计对话框
+ */
+@Composable
+fun PositionCountDialog(
+    employees: List<Employee>,
+    onDismiss: () -> Unit
+) {
+    // 计算各岗位人数
+    val positionCounts = remember(employees) {
+        mapOf(
+            "程序员" to employees.count { it.position == "程序员" },
+            "策划师" to employees.count { it.position == "策划师" },
+            "美术师" to employees.count { it.position == "美术师" },
+            "音效师" to employees.count { it.position == "音效师" },
+            "客服" to employees.count { it.position == "客服" }
+        )
+    }
+    
+    val totalCount = employees.size
+    
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF1E293B)
+            )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // 标题
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "👥 各岗位人数统计",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "关闭",
+                            tint = Color.White.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // 总人数
+                Text(
+                    text = "总员工数：$totalCount/30",
+                    fontSize = 16.sp,
+                    color = Color.White.copy(alpha = 0.8f),
+                    modifier = Modifier.padding(bottom = 20.dp)
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // 各岗位统计
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    positionCounts.forEach { (position, count) ->
+                        PositionCountRow(
+                            position = position,
+                            count = count,
+                            total = totalCount
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(20.dp))
+                
+                // 关闭按钮
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF3B82F6)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = "关闭",
+                        color = Color.White,
+                        fontSize = 16.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 岗位人数统计行
+ */
+@Composable
+private fun PositionCountRow(
+    position: String,
+    count: Int,
+    total: Int
+) {
+    val icon = when (position) {
+        "程序员" -> "💻"
+        "策划师" -> "📝"
+        "美术师" -> "🎨"
+        "音效师" -> "🎵"
+        "客服" -> "💬"
+        else -> "👤"
+    }
+    
+    val positionColor = when (position) {
+        "程序员" -> Color(0xFF3B82F6)
+        "策划师" -> Color(0xFF10B981)
+        "美术师" -> Color(0xFFF59E0B)
+        "音效师" -> Color(0xFF8B5CF6)
+        "客服" -> Color(0xFFEF4444)
+        else -> Color(0xFF6B7280)
+    }
+    
+    val percentage = if (total > 0) {
+        (count.toFloat() / total.toFloat() * 100f).toInt()
+    } else {
+        0
+    }
+    
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = Color.White.copy(alpha = 0.1f)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = icon,
+                    fontSize = 24.sp
+                )
+                Column {
+                    Text(
+                        text = position,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "${count}人 ($percentage%)",
+                        fontSize = 14.sp,
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+                }
+            }
+            
+            // 人数显示
+            Box(
+                modifier = Modifier
+                    .background(
+                        color = positionColor.copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = count.toString(),
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = positionColor
+                )
             }
         }
     }

@@ -42,8 +42,12 @@ fun CustomerServiceContent(
     var showAssignDialog by remember { mutableStateOf(false) }
     
     // 获取统计信息
-    val statistics = remember(complaints, currentYear, currentMonth) {
-        CustomerServiceManager.getComplaintStatistics(complaints, currentYear, currentMonth)
+    // 修复：使用key确保每次complaints变化时都重新计算（实时更新）
+    // 使用complaints.size和complaints的hashCode作为key，确保任何变化都能检测到
+    val statistics = remember(complaints.size, complaints.hashCode(), currentYear, currentMonth) {
+        val stats = CustomerServiceManager.getComplaintStatistics(complaints, currentYear, currentMonth)
+        android.util.Log.d("CustomerServiceContent", "📊 重新计算统计: 本月完成=${stats.completedThisMonth}, 总客诉=${complaints.size}")
+        stats
     }
     
     // 获取可用客服列表
@@ -52,7 +56,8 @@ fun CustomerServiceContent(
     }
     
     // 按状态分类客诉
-    val activeComplaints = remember(complaints) {
+    // 修复：使用size和hashCode作为key，确保变化时重新计算
+    val activeComplaints = remember(complaints.size, complaints.hashCode()) {
         complaints.filter { it.status != ComplaintStatus.COMPLETED }
             .sortedWith(
                 compareByDescending<Complaint> { it.severity }
@@ -317,9 +322,16 @@ fun CompactComplaintCard(
     onAssign: () -> Unit,
     onUnassign: () -> Unit
 ) {
-    val assignedEmployee = employees.find { it.id == complaint.assignedEmployeeId }
-    val isOverdue = complaint.isOverdue(currentYear, currentMonth, currentDay)
-    val existingDays = complaint.calculateExistingDays(currentYear, currentMonth, currentDay)
+    // 使用remember缓存计算结果，避免每次重组都重新计算
+    val assignedEmployee = remember(complaint.assignedEmployeeId, employees.size) {
+        employees.find { it.id == complaint.assignedEmployeeId }
+    }
+    val isOverdue = remember(complaint, currentYear, currentMonth, currentDay) {
+        complaint.isOverdue(currentYear, currentMonth, currentDay)
+    }
+    val existingDays = remember(complaint, currentYear, currentMonth, currentDay) {
+        complaint.calculateExistingDays(currentYear, currentMonth, currentDay)
+    }
     
     Card(
         modifier = Modifier.fillMaxWidth(),

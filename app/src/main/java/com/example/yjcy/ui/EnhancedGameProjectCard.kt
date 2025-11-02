@@ -1217,6 +1217,11 @@ fun EnhancedGameProjectCard(
                     val updatedGame = game.copy(autoUpdate = enabled)
                     onGameUpdate(updatedGame)
                 },
+                onPriceChange = { newPrice ->
+                    // 更新游戏价格
+                    val updatedGame = game.copy(releasePrice = newPrice.toFloat())
+                    onGameUpdate(updatedGame)
+                },
                 businessModel = game.businessModel,
                 money = money,
                 onMoneyUpdate = onMoneyUpdate

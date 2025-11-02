@@ -620,13 +620,13 @@ object RevenueManager {
      * - 价格梯度：120K → 150K → 187.5K → 234.4K → 293K → 366.2K → 450K（上限）
      * 
      * **网络游戏**（持续运营性质）：
-     * - 基础成本：40,000元
+     * - 基础成本：1,000,000元（大幅提升）
      * - 递增系数：1.25（每次+25%）
-     * - 成本上限：150,000元（第7次达到）
-     * - 价格梯度：40K → 50K → 62.5K → 78K → 97.5K → 122K → 150K（上限）
+     * - 成本上限：5,000,000元（第7次达到）
+     * - 价格梯度：1000K → 1250K → 1562.5K → 1953.1K → 2441.4K → 3051.8K → 3814.7K → 5000K（上限）
      * 
      * **设计理念**：
-     * - 单机游戏基础成本是网游的3倍，符合DLC性质
+     * - 单机游戏基础成本是网游的0.12倍，符合DLC性质
      * - 设置成本上限防止后期成本过高导致游戏失衡
      * - 第7次更新后达到上限，保持固定成本
      * - 鼓励玩家持续维护游戏，但不会无限膨胀
@@ -641,7 +641,7 @@ object RevenueManager {
         // 根据商业模式设置不同的基础成本和上限
         val (base, maxCost) = when (businessModel) {
             com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER -> Pair(120_000.0, 450_000.0)  // 单机：基础120K，上限450K
-            com.example.yjcy.ui.BusinessModel.ONLINE_GAME -> Pair(40_000.0, 150_000.0)     // 网游：基础40K，上限150K
+            com.example.yjcy.ui.BusinessModel.ONLINE_GAME -> Pair(1_000_000.0, 5_000_000.0)     // 网游：基础1000K，上限5000K（大幅提升）
         }
         
         // 使用1.25的递增系数（每次+25%），但不超过上限
@@ -653,12 +653,14 @@ object RevenueManager {
     }
 
     /**
-     * 应用一次游戏更新：销量整体提高5%，记录更新次数，并插入当日“更新热度”提升
+     * 应用一次游戏更新：销量整体提高1-3%（随机），记录更新次数，并插入当日"更新热度"提升
      * 网络游戏：恢复玩家兴趣值，增加总注册人数
      */
     fun applyGameUpdate(gameId: String): Boolean {
         val current = gameRevenueMap[gameId] ?: return false
-        val newMultiplier = current.cumulativeSalesMultiplier * 1.05
+        // 随机提升1-3%
+        val salesIncreaseRatio = Random.nextDouble(0.01, 0.03)
+        val newMultiplier = current.cumulativeSalesMultiplier * (1.0 + salesIncreaseRatio)
 
         // 将“即时应用”改为：若存在更新任务且未完成，则不生效；完成时批量应用
         if (current.updateTask != null && current.updateTask.progressPoints < current.updateTask.requiredPoints) {
@@ -684,8 +686,8 @@ object RevenueManager {
             // 恢复玩家兴趣值（根据生命周期阶段）
             newPlayerInterest = recoverInterestAfterUpdate(current.playerInterest, current.lifecycleProgress)
             
-            // 更新带来新玩家：增加10-20%的总注册人数
-            val newPlayersRatio = Random.nextDouble(0.1, 0.2)
+            // 更新带来新玩家：增加1-3%的总注册人数（随机）
+            val newPlayersRatio = Random.nextDouble(0.01, 0.03)
             val newPlayers = (current.totalRegisteredPlayers * newPlayersRatio).toLong()
             newTotalRegisteredPlayers = current.totalRegisteredPlayers + newPlayers
         }
@@ -734,29 +736,30 @@ object RevenueManager {
                                 employee.skillArt * 0.15f + 
                                 employee.skillMusic * 0.05f)
             
-            // 技能倍率：1级=0.08x, 2级=0.4x, 3级=0.6x, 4级=0.8x, 5级=0.9x
+            // 技能倍率：1级=0.04x, 2级=0.005x, 3级=0.006x, 4级=0.007x, 5级=0.08x
             when {
-                weightedSkill >= 5f -> 0.9f  // 5级：从1.2x降到0.9x
-                weightedSkill >= 4f -> 0.8f  // 4级：从1.0x降到0.8x
-                weightedSkill >= 3f -> 0.6f  // 3级：从0.8x降到0.6x
-                weightedSkill >= 2f -> 0.4f  // 2级：从0.6x降到0.4x
-                else -> 0.08f  // 1级技能倍率：0.08x
+                weightedSkill >= 5f -> 0.08f  // 5级：从0.9x降到0.08x
+                weightedSkill >= 4f -> 0.007f  // 4级：从0.8x降到0.007x
+                weightedSkill >= 3f -> 0.006f  // 3级：从0.6x降到0.006x
+                weightedSkill >= 2f -> 0.005f  // 2级：从0.4x降到0.005x
+                else -> 0.04f  // 1级技能倍率：从0.08x降到0.04x
             }
         }
         
         // 计算平均效率
         val avgEfficiency = employeeEfficiencies.average().toFloat()
         
-        // 基础进度：每人每天12点（降低更新速度，延长更新时间）
-        val basePointsPerEmployee = 12
+        // 基础进度：每人每天6点（大幅降低，延长更新时间）
+        val basePointsPerEmployee = 6
         
-        // 人数倍率：1人=1.0x, 2人=1.1x, 3人=1.2x, 4人=1.3x, 5人=1.4x, 10人=2.0x（封顶，降低增长速度和上限）
-        val countMultiplier = (1.0f + (employees.size - 1) * 0.1f).coerceAtMost(2.0f)
+        // 人数倍率：1人=1.0x, 2人=1.05x, 3人=1.1x, 4人=1.15x, 5人=1.2x, 10人=1.5x（封顶，大幅降低增长速度和上限）
+        val countMultiplier = (1.0f + (employees.size - 1) * 0.05f).coerceAtMost(1.5f)
         
         // 计算总进度点 = 基础点数 × 平均效率 × 人数倍率
-        val totalPoints = (employees.size * basePointsPerEmployee * avgEfficiency * countMultiplier).toInt()
+        // 确保至少产生1点进度，避免进度完全停滞
+        val totalPoints = (employees.size * basePointsPerEmployee * avgEfficiency * countMultiplier).toInt().coerceAtLeast(1)
         
-        return totalPoints.coerceAtLeast(0)
+        return totalPoints
     }
     
     /**
@@ -919,14 +922,18 @@ object RevenueManager {
      */
     private fun calculateRatingMultiplier(rating: Float): Float {
         return when {
-            rating >= 9.0f -> 1.5f  // 杰作（9-10分）：1.5倍
+            rating >= 9.0f -> 3.0f  // 杰作（9-10分）：3.0倍
+            rating >= 8.0f -> {
+                // 优秀（8-9分）：线性插值 2.0 到 3.0
+                2.0f + ((rating - 8.0f) / 1.0f) * 1.0f
+            }
             rating >= 7.0f -> {
-                // 优秀（7-9分）：线性插值 1.0 到 1.5
-                1.0f + ((rating - 7.0f) / 2.0f) * 0.5f
+                // 良好（7-8分）：线性插值 1.2 到 2.0
+                1.2f + ((rating - 7.0f) / 1.0f) * 0.8f
             }
             rating >= 5.0f -> {
-                // 及格（5-7分）：线性插值 0.4 到 1.0（降低）
-                0.4f + ((rating - 5.0f) / 2.0f) * 0.6f
+                // 及格（5-7分）：线性插值 0.4 到 1.2（降低）
+                0.4f + ((rating - 5.0f) / 2.0f) * 0.8f
             }
             rating >= 3.0f -> {
                 // 差评（3-5分）：线性插值 0.1 到 0.4（大幅降低）
@@ -1224,11 +1231,38 @@ object RevenueManager {
                 // 根据声望添加加成（初期注册提升）
                 (withIPBonus * (1f + reputationBonus)).toInt()
             } else {
-                // 单机：根据价格调整首日销量（首日销量较小，随时间逐渐增长）
+                // 单机：根据价格和评分调整首日销量（高评分游戏首日销量更高）
                 val baseSalesForPrice = when {
-                    currentGameRevenue.releasePrice <= 30.0 -> Random.nextInt(10, 50) // 低价游戏：首日10-50份
-                    currentGameRevenue.releasePrice <= 100.0 -> Random.nextInt(5, 30) // 中价游戏：首日5-30份
-                    else -> Random.nextInt(2, 15) // 高价游戏：首日2-15份
+                    currentGameRevenue.releasePrice <= 30.0 -> {
+                        // 低价游戏：根据评分调整基础值
+                        when {
+                            gameRating != null && gameRating >= 9.0f -> Random.nextInt(10000, 20000) // 9分以上：首日10000-20000份
+                            gameRating != null && gameRating >= 8.0f -> Random.nextInt(5000, 10000) // 8-9分：首日5000-10000份
+                            gameRating != null && gameRating >= 7.0f -> Random.nextInt(2000, 5000)  // 7-8分：首日2000-5000份
+                            gameRating != null && gameRating >= 6.0f -> Random.nextInt(800, 2000) // 6-7分：首日800-2000份
+                            else -> Random.nextInt(200, 800) // 其他：首日200-800份
+                        }
+                    }
+                    currentGameRevenue.releasePrice <= 100.0 -> {
+                        // 中价游戏：根据评分调整基础值
+                        when {
+                            gameRating != null && gameRating >= 9.0f -> Random.nextInt(5000, 10000) // 9分以上：首日5000-10000份
+                            gameRating != null && gameRating >= 8.0f -> Random.nextInt(2500, 5000) // 8-9分：首日2500-5000份
+                            gameRating != null && gameRating >= 7.0f -> Random.nextInt(1000, 2500) // 7-8分：首日1000-2500份
+                            gameRating != null && gameRating >= 6.0f -> Random.nextInt(400, 1000) // 6-7分：首日400-1000份
+                            else -> Random.nextInt(100, 400) // 其他：首日100-400份
+                        }
+                    }
+                    else -> {
+                        // 高价游戏：根据评分调整基础值
+                        when {
+                            gameRating != null && gameRating >= 9.0f -> Random.nextInt(2000, 4000) // 9分以上：首日2000-4000份
+                            gameRating != null && gameRating >= 8.0f -> Random.nextInt(1000, 2000) // 8-9分：首日1000-2000份
+                            gameRating != null && gameRating >= 7.0f -> Random.nextInt(500, 1000)  // 7-8分：首日500-1000份
+                            gameRating != null && gameRating >= 6.0f -> Random.nextInt(200, 500) // 6-7分：首日200-500份
+                            else -> Random.nextInt(50, 200) // 其他：首日50-200份
+                        }
+                    }
                 }
                 // 应用评分倍率（单机游戏销量受评分影响很大）
                 val ratingMultiplier = if (gameRating != null) calculateRatingMultiplier(gameRating) else 1.0f
@@ -1428,15 +1462,15 @@ object RevenueManager {
                 // 正常评分游戏：销量逐渐增长（口碑传播效应）
                 // 根据评分计算增长率
                 val growthRate = when {
-                    gameRating != null && gameRating >= 9.0f -> 1.15f // 9.0+分：每天增长15%
-                    gameRating != null && gameRating >= 8.0f -> 1.10f // 8.0-9.0分：每天增长10%
-                    gameRating != null && gameRating >= 7.0f -> 1.05f // 7.0-8.0分：每天增长5%
-                    gameRating != null && gameRating >= 6.0f -> 1.02f // 6.0-7.0分：每天增长2%
-                    gameRating != null && gameRating >= 5.0f -> 1.01f // 5.0-6.0分：每天增长1%（小幅增长）
-                    gameRating != null && gameRating >= 4.0f -> 1.005f // 4.0-5.0分：每天增长0.5%（微幅增长）
+                    gameRating != null && gameRating >= 9.0f -> 1.30f // 9.0+分：每天增长30%
+                    gameRating != null && gameRating >= 8.0f -> 1.25f // 8.0-9.0分：每天增长25%
+                    gameRating != null && gameRating >= 7.0f -> 1.12f // 7.0-8.0分：每天增长12%
+                    gameRating != null && gameRating >= 6.0f -> 1.06f // 6.0-7.0分：每天增长6%
+                    gameRating != null && gameRating >= 5.0f -> 1.03f // 5.0-6.0分：每天增长3%
+                    gameRating != null && gameRating >= 4.0f -> 1.015f // 4.0-5.0分：每天增长1.5%
                     else -> 1.0f // 4.0分以下：不增长（但设置保底）
                 }
-                val fluctuation = Random.nextDouble(0.9, 1.1) // 随机波动
+                val fluctuation = Random.nextDouble(0.95, 1.05) // 随机波动（缩小范围，让增长更稳定）
                 var newSales = (latestSales.sales * growthRate * fluctuation).toInt().coerceAtLeast(1)
                 
                 // 设置保底销量（即使评分很低，每天至少卖几份）
@@ -1454,10 +1488,10 @@ object RevenueManager {
                 
                 // 设置合理上限（防止无限增长）
                 val maxDailySales = when {
-                    gameRating != null && gameRating >= 9.0f -> 1000 // 高评分：每天最多1000份
-                    gameRating != null && gameRating >= 8.0f -> 500  // 中高评分：每天最多500份
-                    gameRating != null && gameRating >= 7.0f -> 200  // 中等评分：每天最多200份
-                    else -> 100 // 低评分：每天最多100份
+                    gameRating != null && gameRating >= 9.0f -> 50000 // 高评分：每天最多50000份
+                    gameRating != null && gameRating >= 8.0f -> 30000  // 中高评分：每天最多30000份
+                    gameRating != null && gameRating >= 7.0f -> 10000  // 中等评分：每天最多10000份
+                    else -> 2000 // 低评分：每天最多2000份
                 }
                 minOf(newSales, maxDailySales)
             }
@@ -1659,11 +1693,38 @@ object RevenueManager {
                 }
                 (withIPBonus * (1f + reputationBonus)).toInt().toLong()
             } else {
-                // 单机：根据价格调整首日销量
+                // 单机：根据价格和评分调整首日销量（高评分游戏首日销量更高）
                 val baseSalesForPrice = when {
-                    currentGameRevenue.releasePrice <= 30.0 -> Random.nextInt(10, 50)
-                    currentGameRevenue.releasePrice <= 100.0 -> Random.nextInt(5, 30)
-                    else -> Random.nextInt(2, 15)
+                    currentGameRevenue.releasePrice <= 30.0 -> {
+                        // 低价游戏：根据评分调整基础值
+                        when {
+                            gameRating != null && gameRating >= 9.0f -> Random.nextInt(10000, 20000) // 9分以上：首日10000-20000份
+                            gameRating != null && gameRating >= 8.0f -> Random.nextInt(5000, 10000) // 8-9分：首日5000-10000份
+                            gameRating != null && gameRating >= 7.0f -> Random.nextInt(2000, 5000)  // 7-8分：首日2000-5000份
+                            gameRating != null && gameRating >= 6.0f -> Random.nextInt(800, 2000) // 6-7分：首日800-2000份
+                            else -> Random.nextInt(200, 800) // 其他：首日200-800份
+                        }
+                    }
+                    currentGameRevenue.releasePrice <= 100.0 -> {
+                        // 中价游戏：根据评分调整基础值
+                        when {
+                            gameRating != null && gameRating >= 9.0f -> Random.nextInt(5000, 10000) // 9分以上：首日5000-10000份
+                            gameRating != null && gameRating >= 8.0f -> Random.nextInt(2500, 5000) // 8-9分：首日2500-5000份
+                            gameRating != null && gameRating >= 7.0f -> Random.nextInt(1000, 2500) // 7-8分：首日1000-2500份
+                            gameRating != null && gameRating >= 6.0f -> Random.nextInt(400, 1000) // 6-7分：首日400-1000份
+                            else -> Random.nextInt(100, 400) // 其他：首日100-400份
+                        }
+                    }
+                    else -> {
+                        // 高价游戏：根据评分调整基础值
+                        when {
+                            gameRating != null && gameRating >= 9.0f -> Random.nextInt(2000, 4000) // 9分以上：首日2000-4000份
+                            gameRating != null && gameRating >= 8.0f -> Random.nextInt(1000, 2000) // 8-9分：首日1000-2000份
+                            gameRating != null && gameRating >= 7.0f -> Random.nextInt(500, 1000)  // 7-8分：首日500-1000份
+                            gameRating != null && gameRating >= 6.0f -> Random.nextInt(200, 500) // 6-7分：首日200-500份
+                            else -> Random.nextInt(50, 200) // 其他：首日50-200份
+                        }
+                    }
                 }
                 val ratingMultiplier = if (gameRating != null) calculateRatingMultiplier(gameRating) else 1.0f
                 var withRatingMultiplier = (baseSalesForPrice * ratingMultiplier).toInt()
@@ -1785,13 +1846,26 @@ object RevenueManager {
             return 0.0
         }
         
+        // 关键修复：限制单次更新的最大增量，防止暂停恢复时一次性结算大量收益
+        // 如果增量过大（超过单分钟应该有的增量），说明可能是暂停恢复导致的跳变
+        // 单分钟最大增量 = 每日销量 / 1440分钟，超过这个值说明时间跳变了
+        val maxSingleMinuteIncrement = expectedDailySales / 1440.0
+        val actualSalesIncrement = if (salesIncrement > maxSingleMinuteIncrement * 2) {
+            // 如果增量超过2分钟的预期增量，说明时间跳变了，只更新单分钟增量
+            // 严格限制：最多只允许2分钟的增量，防止暂停恢复时一次性结算大量收益
+            android.util.Log.w("RevenueManager", "⚠️ 检测到销量增量异常（暂停恢复？）：增量=${String.format("%.2f", salesIncrement)}，每日销量=${expectedDailySales}，单分钟增量=${String.format("%.2f", maxSingleMinuteIncrement)}，限制为单分钟增量")
+            maxSingleMinuteIncrement
+        } else {
+            salesIncrement
+        }
+        
         // 更新今天的销量记录：使用四舍五入，但确保只要有增长就更新
         // 关键修复：只要目标值大于当前值，就更新（即使增量很小）
-        val newSales = targetSalesAtThisMinute.roundToLong()
+        val newSales = (currentSales + actualSalesIncrement).roundToLong()
         
         // 关键修复：放宽更新条件，允许更频繁的更新
         // 只要目标值的小数部分>=0.01就更新，或者整数部分有增长就更新
-        val shouldUpdate = if (targetSalesAtThisMinute - baseTodaySales.sales >= 0.01 || newSales > baseTodaySales.sales) {
+        val shouldUpdate = if (actualSalesIncrement >= 0.01 || newSales > baseTodaySales.sales) {
             // 更新到目标值的整数部分（四舍五入），或者至少+1
             maxOf(baseTodaySales.sales + 1, newSales)
         } else {
@@ -1827,9 +1901,9 @@ object RevenueManager {
         
         // 更新网游总注册人数
         // 注意：对于网游，销量增量实际是注册数增量
-        val actualSalesIncrement = (shouldUpdate - baseTodaySales.sales).toDouble()
+        val actualSalesIncrementForUpdate = (shouldUpdate - baseTodaySales.sales).toDouble()
         val newTotalRegisteredPlayers: Long = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
-            (currentGameRevenue.totalRegisteredPlayers + actualSalesIncrement.toLong()).toLong()
+            (currentGameRevenue.totalRegisteredPlayers + actualSalesIncrementForUpdate.toLong()).toLong()
         } else {
             currentGameRevenue.totalRegisteredPlayers
         }
@@ -1842,18 +1916,73 @@ object RevenueManager {
             val baseActivePlayers = (totalRegistered * 0.4).toLong()
             val interestMultiplier = calculateActivePlayerMultiplier(currentGameRevenue.playerInterest)
             val actualActivePlayers = (baseActivePlayers * interestMultiplier).toLong()
+            
+            // 添加调试日志
+            android.util.Log.d("RevenueManager", "===== 付费内容收益计算 =====")
+            android.util.Log.d("RevenueManager", "游戏ID: $gameId")
+            android.util.Log.d("RevenueManager", "总注册: $totalRegistered, 基础活跃: $baseActivePlayers, 兴趣值倍率: $interestMultiplier, 实际活跃: $actualActivePlayers")
+            android.util.Log.d("RevenueManager", "付费内容数量: ${monetizationItems.size}, 已启用: ${monetizationItems.filter { it.isEnabled && it.price != null && it.price > 0 }.size}")
+            
             val minuteRevenues = calculateMonetizationRevenues(actualActivePlayers, monetizationItems)
-            minuteMonetizationRevenue = minuteRevenues.sumOf { it.totalRevenue } / minutesPerDay // 每分钟的付费内容收益
+            val dailyRevenue = minuteRevenues.sumOf { it.totalRevenue }
+            minuteMonetizationRevenue = dailyRevenue / minutesPerDay // 每分钟的付费内容收益
+            
+            android.util.Log.d("RevenueManager", "每日付费内容收益: ¥$dailyRevenue, 每分钟收益: ¥$minuteMonetizationRevenue")
+            if (minuteRevenues.isNotEmpty()) {
+                minuteRevenues.forEach { revenue ->
+                    android.util.Log.d("RevenueManager", "  - ${revenue.itemType}: ¥${revenue.totalRevenue}")
+                }
+            } else {
+                android.util.Log.w("RevenueManager", "⚠️ 没有付费内容收益！")
+            }
+            
+            // 修复：只在每天开始时累加一次付费内容收益到 monetizationRevenues
+            // 检查今天是否已经累加过付费内容收益（通过检查是否有今天的dailySales记录）
+            val todayDateStr = dateFormat.format(todayDate)
+            val existingRevenues = currentGameRevenue.monetizationRevenues
+            val updatedMonetizationRevenues = if (minuteRevenues.isNotEmpty() && 
+                currentGameRevenue.dailySalesList.any { dateFormat.format(it.date) == todayDateStr && it.sales > 0 }) {
+                // 只有在今天有销量记录时才累加（确保只累加一次）
+                // 检查是否今天已经累加过：通过比较 monetizationRevenues 的最后更新时间
+                // 简化处理：每分钟都累加每分钟收益（每天收益 / 1440）
+                minuteRevenues.map { minuteRevenue ->
+                    val existing = existingRevenues.find { it.itemType == minuteRevenue.itemType }
+                    if (existing != null) {
+                        // 累加：旧的累计收益 + 每分钟收益（每天收益 / 1440）
+                        val minuteIncrement = minuteRevenue.totalRevenue / minutesPerDay
+                        MonetizationRevenue(
+                            itemType = minuteRevenue.itemType,
+                            totalRevenue = existing.totalRevenue + minuteIncrement
+                        )
+                    } else {
+                        // 新增的付费内容，第一次累加每分钟收益
+                        MonetizationRevenue(
+                            itemType = minuteRevenue.itemType,
+                            totalRevenue = minuteRevenue.totalRevenue / minutesPerDay
+                        )
+                    }
+                }
+            } else {
+                existingRevenues
+            }
+            
+            // 更新游戏收益数据，包含更新后的付费内容收益
+            gameRevenueMap[gameId] = currentGameRevenue.copy(
+                dailySalesList = finalDailySalesList,
+                totalRegisteredPlayers = newTotalRegisteredPlayers,
+                monetizationRevenues = updatedMonetizationRevenues
+            )
+        } else {
+            // 非网游，直接更新
+            gameRevenueMap[gameId] = currentGameRevenue.copy(
+                dailySalesList = finalDailySalesList,
+                totalRegisteredPlayers = newTotalRegisteredPlayers
+            )
         }
-        
-        gameRevenueMap[gameId] = currentGameRevenue.copy(
-            dailySalesList = finalDailySalesList,
-            totalRegisteredPlayers = newTotalRegisteredPlayers
-        )
         saveRevenueData()
         
         // 返回本分钟的收益增量（使用实际的销量增量）
-        val revenueIncrement = actualSalesIncrement * currentGameRevenue.releasePrice
+        val revenueIncrement = actualSalesIncrementForUpdate * currentGameRevenue.releasePrice
         return revenueIncrement + minuteMonetizationRevenue
     }
     
@@ -1870,7 +1999,12 @@ object RevenueManager {
         // 只计算已启用且设置了价格的付费内容
         val enabledItems = monetizationItems.filter { it.isEnabled && it.price != null && it.price > 0 }
         
-        if (enabledItems.isEmpty()) return emptyList()
+        android.util.Log.d("RevenueManager", "计算付费内容收益 - 活跃玩家: $activePlayers, 已启用付费内容数: ${enabledItems.size}")
+        
+        if (enabledItems.isEmpty()) {
+            android.util.Log.w("RevenueManager", "⚠️ 没有已启用且设置了价格的付费内容！")
+            return emptyList()
+        }
         
         return enabledItems.map { item ->
             // 根据付费内容类型设置不同的付费率（调整到0.5%-2.0%，更合理的付费率）
@@ -1900,6 +2034,8 @@ object RevenueManager {
             
             // 计算收益
             val revenue = actualBuyers * (item.price ?: 0f)
+            
+            android.util.Log.d("RevenueManager", "  ${item.type.displayName}: 价格=¥${item.price}, 付费率=${purchaseRate * 100}%, 基础购买人数=$basebuyers, 实际购买人数=$actualBuyers, 收益=¥$revenue")
             
             MonetizationRevenue(
                 itemType = item.type.displayName,

@@ -158,11 +158,19 @@ fun EnhancedProjectManagementContent(
     currentMinuteOfDay: Int = 0,  // 新增：当天内的分钟数（0-1439）
     ownedIPs: List<com.example.yjcy.data.GameIP> = emptyList(),  // 新增：拥有的IP列表
     onPauseGame: (() -> Unit)? = null,  // 暂停游戏的回调
-    onResumeGame: (() -> Unit)? = null // 恢复游戏的回调
+    onResumeGame: (() -> Unit)? = null, // 恢复游戏的回调
+    isPaused: Boolean = false  // 新增：当前暂停状态，用于判断是否应该恢复游戏
 ) {
     var showGameDevelopmentDialog by remember { mutableStateOf(false) }
     var showPromotionCenterDialog by remember { mutableStateOf(false) }
     var showCustomerServiceDialog by remember { mutableStateOf(false) }
+    
+    // 记录对话框打开前的暂停状态，避免覆盖用户手动设置的暂停状态
+    var pauseStateBeforeDialog by remember { mutableStateOf(false) }
+    // 修复：跟踪对话框之前的打开状态
+    // 使用key确保在组件重新创建时也能正确跟踪状态
+    // 注意：只在组件首次创建时初始化，之后通过LaunchedEffect跟踪变化
+    var wasDialogOpen by remember { mutableStateOf(false) }
     
     // 根据选择的项目类型过滤游戏列表
     val filteredGames = remember(games, selectedProjectType, refreshTrigger) {
@@ -462,13 +470,37 @@ fun EnhancedProjectManagementContent(
     
     // 游戏开发流程对话框
     // 监听对话框打开/关闭，控制游戏暂停
+    // 修复：只在对话框实际打开/关闭时触发，避免在组件重建时误触发
+    // 关键修复：如果用户已经手动暂停了游戏，对话框关闭时不要恢复游戏
     LaunchedEffect(showGameDevelopmentDialog) {
-        if (showGameDevelopmentDialog) {
-            // 打开对话框时暂停游戏
-            onPauseGame?.invoke()
+        android.util.Log.d("EnhancedProjectManagement", "🔍 LaunchedEffect触发: showGameDevelopmentDialog=$showGameDevelopmentDialog, wasDialogOpen=$wasDialogOpen, isPaused=$isPaused")
+        
+        // 只在状态实际变化时处理（从false变为true，或从true变为false）
+        // 避免在组件重建时误触发
+        if (showGameDevelopmentDialog && !wasDialogOpen) {
+            // 对话框刚打开：记住当前暂停状态，如果未暂停则暂停游戏
+            android.util.Log.d("EnhancedProjectManagement", "📂 对话框打开，记录暂停状态: isPaused=$isPaused")
+            pauseStateBeforeDialog = isPaused
+            if (!isPaused) {
+                android.util.Log.d("EnhancedProjectManagement", "⏸️ 暂停游戏（对话框打开）")
+                onPauseGame?.invoke()
+            }
+            wasDialogOpen = true
+        } else if (!showGameDevelopmentDialog && wasDialogOpen) {
+            // 对话框刚关闭：如果对话框打开前游戏未暂停，才恢复游戏
+            // 如果用户已经手动暂停了游戏，不要恢复
+            android.util.Log.d("EnhancedProjectManagement", "📂 对话框关闭，暂停状态: pauseStateBeforeDialog=$pauseStateBeforeDialog, isPaused=$isPaused")
+            // 修复：如果对话框打开前游戏未暂停，那么对话框关闭时就应该恢复游戏
+            // 不需要检查当前isPaused状态，因为对话框打开时我们暂停了游戏，所以isPaused一定是true
+            if (!pauseStateBeforeDialog) {
+                android.util.Log.d("EnhancedProjectManagement", "▶️ 恢复游戏（对话框关闭）")
+                onResumeGame?.invoke()
+            } else {
+                android.util.Log.d("EnhancedProjectManagement", "⏸️ 保持暂停（对话框打开前已暂停）")
+            }
+            wasDialogOpen = false
         } else {
-            // 关闭对话框时恢复游戏
-            onResumeGame?.invoke()
+            android.util.Log.d("EnhancedProjectManagement", "⏭️ 跳过处理（状态未变化: show=$showGameDevelopmentDialog, was=$wasDialogOpen）")
         }
     }
     
@@ -2350,7 +2382,7 @@ fun GameTenPointStrategyDialog(
                             StrategyDetailItem(
                                 number = "4",
                                 title = "选择匹配的游戏主题",
-                                detail = "开发时选择与核心职位（程序员、策划师、美术师）技能匹配的主题。如果这3个核心职位的平均等级高，可以获得最高+1.0分的主题匹配加成。"
+                                detail = "开发时选择与核心职位（程序员、策划师、美术师）技能匹配的主题。"
                             )
                             
                             // 步骤5

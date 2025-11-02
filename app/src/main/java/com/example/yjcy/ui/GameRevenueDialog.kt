@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -58,6 +59,7 @@ fun GameRevenueDialog(
     onMonetizationUpdate: (List<MonetizationItem>) -> Unit = {},
     onPurchaseServer: (ServerType) -> Unit = {},
     onAutoUpdateToggle: (Boolean) -> Unit = {},
+    onPriceChange: (Double) -> Unit = {},
     businessModel: BusinessModel,
     money: Long = 0L,  // 新增：资金
     onMoneyUpdate: (Long) -> Unit = {}  // 新增：资金更新回调
@@ -66,6 +68,7 @@ fun GameRevenueDialog(
     var showUpdateDialog by remember { mutableStateOf(false) }
     var showPaymentSettingsDialog by remember { mutableStateOf(false) }
     var showServerManagementDialog by remember { mutableStateOf(false) }
+    var showChangePriceDialog by remember { mutableStateOf(false) }
     val statistics = RevenueManager.calculateStatistics(gameRevenue)
     
     Dialog(
@@ -154,6 +157,7 @@ fun GameRevenueDialog(
                             onShowUpdateDialog = { showUpdateDialog = true },
                             onShowPaymentSettings = { showPaymentSettingsDialog = true },
                             onShowServerManagement = { showServerManagementDialog = true },
+                            onShowChangePrice = { showChangePriceDialog = true },
                             onAutoUpdateToggle = onAutoUpdateToggle,
                             businessModel = businessModel
                         )
@@ -218,6 +222,23 @@ fun GameRevenueDialog(
             onPurchaseServer = { serverType ->
                 onPurchaseServer(serverType)
                 showServerManagementDialog = false
+            }
+        )
+    }
+    
+    // 更改价格对话框（仅单机游戏）
+    if (showChangePriceDialog && businessModel == BusinessModel.SINGLE_PLAYER) {
+        ChangePriceDialog(
+            gameName = gameRevenue.gameName,
+            currentPrice = gameRevenue.releasePrice,
+            onDismiss = { showChangePriceDialog = false },
+            onConfirm = { newPrice ->
+                // 更新价格
+                RevenueManager.updateGamePrice(gameRevenue.gameId, newPrice)
+                onPriceChange(newPrice)
+                showChangePriceDialog = false
+                // 关闭对话框并刷新
+                onDismiss()
             }
         )
     }
@@ -779,6 +800,7 @@ fun ActionButtonsCard(
     onShowUpdateDialog: () -> Unit,
     onShowPaymentSettings: () -> Unit = {},
     onShowServerManagement: () -> Unit = {},
+    onShowChangePrice: () -> Unit = {},
     onAutoUpdateToggle: (Boolean) -> Unit = {},
     businessModel: BusinessModel
 ) {
@@ -896,6 +918,28 @@ fun ActionButtonsCard(
                     }
                 }
                 
+                // 新增：更改价格按钮（仅对单机游戏显示）
+                if (businessModel == BusinessModel.SINGLE_PLAYER) {
+                    Button(
+                        onClick = onShowChangePrice,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF3B82F6)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "更改价格",
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("更改价格", fontWeight = FontWeight.Medium)
+                    }
+                }
+                
                 Button(
                     onClick = onRemoveFromMarket,
                     modifier = Modifier.fillMaxWidth(),
@@ -950,6 +994,81 @@ fun ConfirmRemovalDialog(
                 )
             ) {
                 Text("确认下架", fontWeight = FontWeight.Medium)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消")
+            }
+        },
+        shape = RoundedCornerShape(16.dp)
+    )
+}
+
+@Composable
+fun ChangePriceDialog(
+    gameName: String,
+    currentPrice: Double,
+    onDismiss: () -> Unit,
+    onConfirm: (Double) -> Unit
+) {
+    var priceText by remember { mutableStateOf(currentPrice.toString()) }
+    var priceError by remember { mutableStateOf(false) }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "更改价格",
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("游戏：《$gameName》")
+                Text("当前价格：¥${formatMoneyWithDecimals(currentPrice)}")
+                
+                OutlinedTextField(
+                    value = priceText,
+                    onValueChange = { newValue ->
+                        priceText = newValue
+                        priceError = false
+                    },
+                    label = { Text("新价格") },
+                    placeholder = { Text("请输入价格（例如：50.0）") },
+                    singleLine = true,
+                    isError = priceError,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                    prefix = { Text("¥") }
+                )
+                
+                if (priceError) {
+                    Text(
+                        text = "请输入有效的价格（大于0）",
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val newPrice = priceText.toDoubleOrNull()
+                    if (newPrice != null && newPrice > 0) {
+                        onConfirm(newPrice)
+                    } else {
+                        priceError = true
+                    }
+                },
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Text("确认", fontWeight = FontWeight.Medium)
             }
         },
         dismissButton = {

@@ -97,13 +97,13 @@ enum class DevelopmentPhase(
                 PROGRAMMING -> employee.skillDevelopment
             }
             
-            // 技能倍率：1级=0.08x, 2级=0.2x, 3级=0.3x, 4级=0.4x, 5级=0.5x
+            // 技能倍率：1级=0.04x, 2级=0.005x, 3级=0.006x, 4级=0.007x, 5级=0.08x
             when {
-                skillLevel >= 5 -> 0.5f  // 5级：从0.75x降到0.5x
-                skillLevel >= 4 -> 0.4f  // 4级：从0.6x降到0.4x
-                skillLevel >= 3 -> 0.3f  // 3级：从0.45x降到0.3x
-                skillLevel >= 2 -> 0.2f  // 2级：从0.3x降到0.2x
-                else -> 0.08f  // 1级技能倍率：0.08x
+                skillLevel >= 5 -> 0.08f  // 5级：从0.16x降到0.08x
+                skillLevel >= 4 -> 0.007f  // 4级：从0.014x降到0.007x
+                skillLevel >= 3 -> 0.006f  // 3级：从0.012x降到0.006x
+                skillLevel >= 2 -> 0.005f  // 2级：从0.010x降到0.005x
+                else -> 0.04f  // 1级技能倍率：从0.08x降到0.04x
             }
         }
         
@@ -600,7 +600,10 @@ data class Complaint(
     val status: ComplaintStatus = ComplaintStatus.PENDING, // 状态
     val createdYear: Int,         // 生成年份
     val createdMonth: Int,        // 生成月份
-    val createdDay: Int           // 生成日期
+    val createdDay: Int,          // 生成日期
+    val completedYear: Int? = null, // 完成年份（可选，用于统计本月完成）
+    val completedMonth: Int? = null, // 完成月份（可选，用于统计本月完成）
+    val completedDay: Int? = null   // 完成日期（可选，用于统计本月完成）
 ) {
     /**
      * 计算客诉存在天数
