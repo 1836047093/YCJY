@@ -1682,19 +1682,12 @@ private fun PositionCountRow(
                     text = icon,
                     fontSize = 24.sp
                 )
-                Column {
-                    Text(
-                        text = position,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    Text(
-                        text = "${count}人",
-                        fontSize = 14.sp,
-                        color = Color.White.copy(alpha = 0.7f)
-                    )
-                }
+                Text(
+                    text = position,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
             }
             
             // 人数显示

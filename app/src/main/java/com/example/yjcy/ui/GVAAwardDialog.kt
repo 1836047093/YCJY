@@ -52,20 +52,16 @@ fun GVAAwardDialog(
         showContent = true
     }
     
-    // 背景缩放动画
+    // 优化：简化动画，减少性能开销
     val scale by animateFloatAsState(
-        targetValue = if (isVisible) 1f else 0.8f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
+        targetValue = if (isVisible) 1f else 0.95f,
+        animationSpec = tween(200),
         label = "scale"
     )
     
-    // 背景透明度动画
     val alpha by animateFloatAsState(
         targetValue = if (isVisible) 1f else 0f,
-        animationSpec = tween(300),
+        animationSpec = tween(200),
         label = "alpha"
     )
     
@@ -194,7 +190,10 @@ fun GVAAwardDialog(
                                 .padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            items(filteredNominations) { nomination ->
+                            items(
+                                items = filteredNominations,
+                                key = { nomination -> nomination.award.displayName }
+                            ) { nomination ->
                                 if (nomination.winner != null) {
                                     AwardItemCard(nomination)
                                 }
@@ -242,19 +241,11 @@ private fun AnimatedTrophy(isVisible: Boolean) {
         }
     }
     
+    // 优化：简化奖杯动画
     val scale by animateFloatAsState(
         targetValue = if (isAnimating) 1f else 0f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
+        animationSpec = tween(300),
         label = "trophy_scale"
-    )
-    
-    val rotation by animateFloatAsState(
-        targetValue = if (isAnimating) 0f else -180f,
-        animationSpec = tween(600, easing = EaseOutBack),
-        label = "trophy_rotation"
     )
     
     Box(
@@ -275,8 +266,7 @@ private fun AnimatedTrophy(isVisible: Boolean) {
         
         SingleLineText(
             text = "🏆",
-            fontSize = 48.sp,
-            modifier = Modifier.offset(y = rotation.dp)
+            fontSize = 48.sp
         )
     }
 }
@@ -290,17 +280,7 @@ private fun PlayerAwardSummary(
     totalReward: Long,
     fansGain: Long
 ) {
-    var isVisible by remember { mutableStateOf(false) }
-    
-    LaunchedEffect(Unit) {
-        delay(500)
-        isVisible = true
-    }
-    
-    AnimatedVisibility(
-        visible = isVisible,
-        enter = fadeIn() + expandVertically()
-    ) {
+    // 优化：移除动画以提升性能
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -341,7 +321,6 @@ private fun PlayerAwardSummary(
                         value = "+$fansGain",
                         color = Color(0xFF2196F3)
                     )
-                }
             }
         }
     }
@@ -382,17 +361,7 @@ private fun AwardItemCard(nomination: AwardNomination) {
     val winner = nomination.winner ?: return
     val isPlayerWon = winner.isPlayerGame
     
-    var isVisible by remember { mutableStateOf(false) }
-    
-    LaunchedEffect(Unit) {
-        delay(100)
-        isVisible = true
-    }
-    
-    AnimatedVisibility(
-        visible = isVisible,
-        enter = fadeIn() + slideInHorizontally()
-    ) {
+    // 移除卡片进入动画以提升性能
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -474,7 +443,6 @@ private fun AwardItemCard(nomination: AwardNomination) {
                             text = "🏆",
                             fontSize = 28.sp
                         )
-                    }
                 }
             }
         }

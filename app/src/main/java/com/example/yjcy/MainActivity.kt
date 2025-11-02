@@ -134,6 +134,7 @@ import com.example.yjcy.data.ChatMessage
 import com.example.yjcy.data.MessageSender
 import com.example.yjcy.ui.GVAScreen
 import com.example.yjcy.ui.GVAAwardDialog
+import com.example.yjcy.ui.ChallengeCompleteDialog
 import com.example.yjcy.ui.SalaryRequestDialog
 import com.example.yjcy.ui.YearEndBonusDialog
 import com.example.yjcy.ui.YearEndStatistics
@@ -1987,6 +1988,10 @@ fun GameScreen(
     var gvaPlayerTotalReward by remember { mutableLongStateOf(0L) }
     var gvaPlayerFansGain by remember { mutableLongStateOf(0L) }
     
+    // 挑战完成对话框状态
+    var showChallengeCompleteDialog by remember { mutableStateOf(false) }
+    var totalAcquiredCompanies by remember { mutableIntStateOf(0) }
+    
     // 赛事完成弹窗状态
     var showTournamentResultDialog by remember { mutableStateOf(false) }
     var tournamentResult by remember { mutableStateOf(null as EsportsTournament?) }
@@ -2070,9 +2075,9 @@ fun GameScreen(
                 Log.d("GameScreen", "【实例 $instanceId】⚠ 存档中没有收益数据（可能是旧存档）")
             }
             
-            // 为已发售但没有收益数据的游戏初始化数据（向后兼容旧存档）
+            // 为已发售但没有收益数据的游戏初始化数据（向后兼容旧存档，只处理RELEASED状态）
             saveData.games
-                .filter { it.releaseStatus == GameReleaseStatus.RELEASED || it.releaseStatus == GameReleaseStatus.RATED }
+                .filter { it.releaseStatus == GameReleaseStatus.RELEASED }
                 .forEach { releasedGame ->
                     val exists = RevenueManager.getGameRevenue(releasedGame.id)
                     if (exists == null) {
@@ -2136,9 +2141,9 @@ fun GameScreen(
                     }
                 }
             
-            // 调整低评分游戏的历史销量（旧存档兼容）- 必须在游戏信息设置之后
+            // 调整低评分游戏的历史销量（旧存档兼容）- 必须在游戏信息设置之后（只处理RELEASED状态）
             saveData.games
-                .filter { it.releaseStatus == GameReleaseStatus.RELEASED || it.releaseStatus == GameReleaseStatus.RATED }
+                .filter { it.releaseStatus == GameReleaseStatus.RELEASED }
                 .forEach { game ->
                     val rating = game.rating
                     if (rating != null && rating < 3.0f && game.businessModel == BusinessModel.SINGLE_PLAYER) {
@@ -2332,10 +2337,17 @@ fun GameScreen(
                 Log.d("MainActivity", "📅 日期推进: ${currentYear}年${currentMonth}月${currentDay}日")
             }
             
-            // 每天更新已发售游戏的收益
+            // 每天更新已发售游戏的收益（只有RELEASED状态才产生收益）
             val releasedGames = games.filter { 
-                it.releaseStatus == GameReleaseStatus.RELEASED || 
-                it.releaseStatus == GameReleaseStatus.RATED 
+                it.releaseStatus == GameReleaseStatus.RELEASED
+            }
+            
+            // 调试：输出发售游戏信息
+            if (releasedGames.isNotEmpty() && currentDay == 1) {
+                releasedGames.forEach { game ->
+                    val isInherited = game.id.startsWith("inherited_")
+                    Log.d("MainActivity", "💰 发售中的游戏: ${game.name} (状态=${game.releaseStatus}, 继承游戏=$isInherited)")
+                }
             }
             
             if (!isPaused) {
@@ -3058,12 +3070,20 @@ fun GameScreen(
                     // 检查当前阶段是否有足够的员工
                     if (!currentPhase.checkRequirements(game.assignedEmployees)) {
                         // 没有满足要求的员工，进度不增长
+                        if (ENABLE_VERBOSE_GAME_LOGS) {
+                            Log.w("MainActivity", "⚠️ 游戏${game.name}阶段${currentPhase.displayName}员工不足")
+                        }
                         return@map game
                     }
                     
                     // 计算当前阶段的进度增长
                     val phaseProgressIncrease = currentPhase.calculateProgressSpeed(game.assignedEmployees)
                     val newPhaseProgress = (game.phaseProgress + phaseProgressIncrease).coerceAtMost(1.0f)
+                    
+                    // 优化：仅在详细日志模式或阶段完成时输出
+                    if (ENABLE_VERBOSE_GAME_LOGS || newPhaseProgress >= 1.0f) {
+                        Log.d("MainActivity", "📈 ${game.name}开发：阶段=${currentPhase.displayName}, 进度=${(newPhaseProgress * 100).toInt()}%, 员工=${game.assignedEmployees.size}人")
+                    }
                     
                     // 检查当前阶段是否完成
                     if (newPhaseProgress >= 1.0f) {
@@ -3112,9 +3132,10 @@ fun GameScreen(
                         }
                         val newTotalProgress = phaseBaseProgress + (newPhaseProgress * phaseWeight)
                         
-                        // 更新assignedEmployees中的员工信息（同步体力值），保留所有已分配的员工（包括休息中的）
+                        // 优化：使用Map提升查找效率
+                        val employeeMap = allEmployees.associateBy { it.id }
                         val updatedAssignedEmployees = game.assignedEmployees.map { assignedEmployee ->
-                            allEmployees.find { it.id == assignedEmployee.id } ?: assignedEmployee
+                            employeeMap[assignedEmployee.id] ?: assignedEmployee
                         }
                         
                         game.copy(
@@ -3130,8 +3151,8 @@ fun GameScreen(
             }
             
             // 注意：已发售游戏的收益现在在每分钟更新中实时计算，这里不再重复计算
-            // 每天结束时只推进更新任务进度
-            games.filter { it.releaseStatus == GameReleaseStatus.RELEASED || it.releaseStatus == GameReleaseStatus.RATED }
+            // 每天结束时只推进更新任务进度（只有RELEASED状态）
+            games.filter { it.releaseStatus == GameReleaseStatus.RELEASED }
                 .forEach { releasedGame ->
                     // 更新游戏信息（商业模式和付费内容）
                     RevenueManager.updateGameInfo(
@@ -3148,9 +3169,10 @@ fun GameScreen(
                     // 若存在更新任务，根据已分配员工数量和技能等级推进进度
                     var employeesForUpdate = releasedGame.assignedEmployees
                     if (employeesForUpdate.isNotEmpty()) {
-                        // 更新assignedEmployees中的员工信息
+                        // 优化：使用Map提升查找效率
+                        val employeeMap = allEmployees.associateBy { it.id }
                         val updatedAssignedEmployees = employeesForUpdate.map { assignedEmployee ->
-                            allEmployees.find { it.id == assignedEmployee.id } ?: assignedEmployee
+                            employeeMap[assignedEmployee.id] ?: assignedEmployee
                         }
                         
                         // 更新游戏中的assignedEmployees
@@ -3423,13 +3445,6 @@ fun GameScreen(
                 )
             )
     ) {
-        // FPS监测（左上角）
-        FpsMonitor(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(8.dp)
-        )
-        
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
@@ -3598,9 +3613,19 @@ fun GameScreen(
                                 // 将获得的IP添加到玩家的IP库
                                 ownedIPs = ownedIPs + inheritedIPs
                                 
+                                // 统计收购公司数量
+                                totalAcquiredCompanies++
+                                
                                 Log.d("MainActivity", "收购成功：获得${inheritedIPs.size}个IP")
                                 inheritedIPs.forEach { ip: GameIP ->
                                     Log.d("MainActivity", "  - IP: ${ip.name} (${ip.getIPLevel()}, 评分${ip.originalRating}, 加成${(ip.calculateIPBonus() * 100).toInt()}%)")
+                                }
+                                
+                                // 检查是否收购了所有竞争对手（9家全部收购）
+                                if (competitors.isEmpty()) {
+                                    Log.d("MainActivity", "🏆 挑战完成：已收购所有竞争对手！")
+                                    showChallengeCompleteDialog = true
+                                    isPaused = true
                                 }
                                 
                                 // 生成收购新闻
@@ -4542,6 +4567,26 @@ fun GameScreen(
             )
         }
         
+        // 挑战完成对话框
+        if (showChallengeCompleteDialog) {
+            ChallengeCompleteDialog(
+                currentYear = currentYear,
+                currentMonth = currentMonth,
+                acquiredCompaniesCount = totalAcquiredCompanies,
+                totalIPs = ownedIPs.size,
+                onContinue = {
+                    showChallengeCompleteDialog = false
+                    isPaused = false
+                },
+                onNewGame = {
+                    showChallengeCompleteDialog = false
+                    navController.navigate("main_menu") {
+                        popUpTo("main_menu") { inclusive = true }
+                    }
+                }
+            )
+        }
+        
         // 涨薪请求对话框
         if (showSalaryRequestDialog && salaryRequestEmployee != null) {
             val employee = salaryRequestEmployee!!
@@ -4737,17 +4782,14 @@ fun TopInfoBar(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp)
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
                         Color.White.copy(alpha = 0.08f),
                         Color.White.copy(alpha = 0.12f)
                     )
-                ),
-                shape = RoundedCornerShape(16.dp)
+                )
             )
-            .clip(RoundedCornerShape(16.dp))
     ) {
         Row(
             modifier = Modifier
@@ -4757,7 +4799,7 @@ fun TopInfoBar(
         ) {
             // 左边区域：资金和粉丝（垂直排列）
             Column(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1.2f),
                 horizontalAlignment = Alignment.Start,
                 verticalArrangement = Arrangement.Center
             ) {
@@ -4814,49 +4856,41 @@ fun TopInfoBar(
                 }
             }
             
-            // 中间区域：日期和游戏速度
-            Column(
-                modifier = Modifier.weight(1.5f),
-                horizontalAlignment = Alignment.Start
+            // 中间区域：日期、游戏速度和FPS
+            Row(
+                modifier = Modifier.weight(2.2f),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // 日期和游戏速度下拉选择
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // 日期列 - 自适应宽度，但设置最小宽度
-                    Column(
-                        modifier = Modifier.weight(1f).widthIn(min = 100.dp)
-                    ) {
-                        // 日期
-                        Text(
-                            text = "第${year}年${month}月${day}日",
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    
-                    // 游戏速度下拉选择 - 确保始终可见，不被压缩
-                    Box(
-                        modifier = Modifier.widthIn(min = 72.dp)
-                    ) {
-                        GameSpeedDropdown(
-                            currentSpeed = gameSpeed,
-                            isPaused = isPaused,
-                            onSpeedChange = onSpeedChange,
-                            onPauseToggle = onPauseToggle
-                        )
-                    }
-                }
+                // 日期 - 固定宽度防止抖动，紧贴左边
+                Text(
+                    text = "第${year}年${month}月${day}日",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Clip,
+                    modifier = Modifier.width(84.dp)
+                )
+                
+                Spacer(modifier = Modifier.width(6.dp))
+                
+                // 游戏速度下拉选择
+                GameSpeedDropdown(
+                    currentSpeed = gameSpeed,
+                    isPaused = isPaused,
+                    onSpeedChange = onSpeedChange,
+                    onPauseToggle = onPauseToggle
+                )
+                
+                // FPS监测 - 固定宽度防止抖动
+                FpsMonitor(
+                    modifier = Modifier
+                )
             }
             
             // 右边区域：设置按钮
             Box(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(0.6f),
                 contentAlignment = Alignment.CenterEnd
             ) {
                 Column(
@@ -7903,7 +7937,7 @@ fun GameSpeedDropdown(
             onClick = { expanded = true },
             modifier = Modifier
                 .height(32.dp)
-                .widthIn(min = 72.dp, max = 72.dp) // 固定宽度，避免因时间更新导致布局变化
+                .widthIn(min = 58.dp, max = 58.dp) // 减少宽度，更紧凑
                 .shadow(
                     elevation = 2.dp,
                     shape = RoundedCornerShape(8.dp),
@@ -7915,7 +7949,7 @@ fun GameSpeedDropdown(
                 contentColor = Color.White
             ),
             shape = RoundedCornerShape(8.dp),
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
             elevation = ButtonDefaults.buttonElevation(
                 defaultElevation = 2.dp,
                 pressedElevation = 1.dp,
@@ -8174,34 +8208,28 @@ fun FpsMonitor(
     
     Box(
         modifier = modifier
+            .width(42.dp)
             .background(
                 color = Color.Black.copy(alpha = 0.6f),
                 shape = RoundedCornerShape(8.dp)
             )
-            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .padding(horizontal = 6.dp, vertical = 4.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(
-                text = "FPS",
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White.copy(alpha = 0.7f)
-            )
-            Text(
-                text = "$fps",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = when {
-                    fps >= 110 -> Color(0xFF10B981) // 绿色：性能优秀（接近120fps）
-                    fps >= 55 -> Color(0xFF3B82F6) // 蓝色：性能良好（60fps左右）
-                    fps >= 30 -> Color(0xFFF59E0B) // 黄色：性能一般
-                    else -> Color(0xFFEF4444) // 红色：性能较差
-                }
-            )
-        }
+        Text(
+            text = "$fps",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = when {
+                fps >= 110 -> Color(0xFF10B981) // 绿色：性能优秀（接近120fps）
+                fps >= 55 -> Color(0xFF3B82F6) // 蓝色：性能良好（60fps左右）
+                fps >= 30 -> Color(0xFFF59E0B) // 黄色：性能一般
+                else -> Color(0xFFEF4444) // 红色：性能较差
+            },
+            maxLines = 1,
+            softWrap = false,
+            textAlign = TextAlign.Center
+        )
     }
 }
 

@@ -99,23 +99,23 @@ enum class DevelopmentPhase(
             
             // 技能倍率：1级=0.04x, 2级=0.005x, 3级=0.006x, 4级=0.007x, 5级=0.08x
             when {
-                skillLevel >= 5 -> 0.08f  // 5级：从0.16x降到0.08x
-                skillLevel >= 4 -> 0.007f  // 4级：从0.014x降到0.007x
-                skillLevel >= 3 -> 0.006f  // 3级：从0.012x降到0.006x
-                skillLevel >= 2 -> 0.005f  // 2级：从0.010x降到0.005x
-                else -> 0.04f  // 1级技能倍率：从0.08x降到0.04x
+                skillLevel >= 5 -> 1.0f   // 5级：大幅提升
+                skillLevel >= 4 -> 0.8f   // 4级：提升
+                skillLevel >= 3 -> 0.6f   // 3级：提升
+                skillLevel >= 2 -> 0.4f   // 2级：提升
+                else -> 0.2f              // 1级：提升
             }
         }
         
         // 计算平均效率
         val avgEfficiency = employeeEfficiencies.average().toFloat()
         
-        // 基础进度：每天2%
-        val baseProgress = 0.02f
+        // 基础进度：每天5%（提升开发速度）
+        val baseProgress = 0.05f
         
-        // 人数倍率：每人+0.3倍率，最高10人封顶4.0倍
-        // 1人=1.0x, 2人=1.3x, 3人=1.6x, 4人=1.9x, 5人=2.2x, ..., 10人=4.0x
-        val countMultiplier = (1.0f + (validEmployees.size - 1) * 0.3f).coerceAtMost(4.0f)
+        // 人数倍率：每人+0.5倍率，最高10人封顶6.0倍
+        // 1人=1.0x, 2人=1.5x, 3人=2.0x, 4人=2.5x, 5人=3.0x, 6人=3.5x, ..., 10人=5.5x
+        val countMultiplier = (1.0f + (validEmployees.size - 1) * 0.5f).coerceAtMost(6.0f)
         
         // 总进度 = 基础进度 × 平均效率 × 人数倍率
         return baseProgress * avgEfficiency * countMultiplier

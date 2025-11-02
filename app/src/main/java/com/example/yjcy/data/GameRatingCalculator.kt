@@ -115,7 +115,7 @@ object GameRatingCalculator {
                 contribution = contribution
             )
         }
-        val skillScore = skillContributions.sumOf { it.contribution.toDouble() }.toFloat().coerceAtMost(5.5f)
+        val skillScore = skillContributions.sumOf { it.contribution.toDouble() }.toFloat().coerceAtMost(5.8f)
         
         // 2. 计算团队协作加成（多职位配合）- 只计算开发岗位
         val teamworkBonus = calculateTeamworkBonus(developmentEmployees)
@@ -155,7 +155,7 @@ object GameRatingCalculator {
         
         // 技能评分详情
         val rawSkillScore = skillContributions.sumOf { it.contribution.toDouble() }.toFloat()
-        android.util.Log.d("GameRatingCalculator", "  技能评分: $rawSkillScore (原始) → $skillScore (封顶5.5)")
+        android.util.Log.d("GameRatingCalculator", "  技能评分: $rawSkillScore (原始) → $skillScore (封顶5.8)")
         skillContributions.forEach { contribution ->
             android.util.Log.d("GameRatingCalculator", "    - ${contribution.employeeName}(${contribution.skillType} Lv${contribution.skillLevel}): +${contribution.contribution}")
         }
@@ -200,27 +200,26 @@ object GameRatingCalculator {
     }
     
     /**
-     * 计算单个技能等级的贡献（递减收益曲线）
+     * 计算单个技能等级的贡献（优化后更容易拿高分）
      * 技能范围：1-5级
      * 
-     * 1级: 0.30  2级: 0.50  3级: 0.65  4级: 0.75  5级: 0.85
+     * 1级: 0.35  2级: 0.60  3级: 0.75  4级: 0.85  5级: 0.95
      * 
      * 设计理念：
-     * - 低级技能收益较低，鼓励培养高级员工
-     * - 高级技能收益递减，但5级仍有明显优势
-     * - 5级员工对评分贡献0.85分，24个5级员工（4个开发岗×6人）=20.4分（封顶5.5）
-     * - 递增幅度：1→2(+0.20) > 2→3(+0.15) > 3→4(+0.10) > 4→5(+0.10)
+     * - 提升高级员工的贡献值
+     * - 满配置（24人×5级）确保能拿10分
+     * - 技能评分：24×0.95=22.8分 → 封顶到5.8分
      * 
      * 顶配配置：4个开发岗各6人（程序员、策划师、美术师、音效师），全员5级
-     * 技能评分：24×0.85=20.4分 → 封顶到5.5分
+     * 技能评分：24×0.95=22.8分 → 封顶到5.8分
      */
     private fun calculateSkillContribution(skillLevel: Int): Float {
         return when (skillLevel) {
-            1 -> 0.30f
-            2 -> 0.50f
-            3 -> 0.65f
-            4 -> 0.75f
-            5 -> 0.85f
+            1 -> 0.35f
+            2 -> 0.60f
+            3 -> 0.75f
+            4 -> 0.85f
+            5 -> 0.95f
             else -> 0f
         }
     }
@@ -230,19 +229,19 @@ object GameRatingCalculator {
      * 激励玩家招募不同职位的员工而不是单一职位
      * 
      * 1个职位: 0分
-     * 2个职位: 0.3分
-     * 3个职位: 0.7分
-     * 4个职位: 1.5分（满配加成 - 4个开发岗满配）
-     * 5个职位: 1.5分（保留兼容性）
+     * 2个职位: 0.4分
+     * 3个职位: 0.8分
+     * 4个职位: 1.7分（满配加成 - 4个开发岗满配，提升到1.7）
+     * 5个职位: 1.7分（保留兼容性）
      */
     private fun calculateTeamworkBonus(employees: List<Employee>): Float {
         val uniquePositions = employees.map { it.position }.toSet().size
         return when (uniquePositions) {
             1 -> 0f
-            2 -> 0.3f
-            3 -> 0.7f
-            4 -> 1.5f
-            5 -> 1.5f
+            2 -> 0.4f
+            3 -> 0.8f
+            4 -> 1.7f
+            5 -> 1.7f
             else -> 0f
         }
     }
@@ -335,7 +334,7 @@ object GameRatingCalculator {
         // 技能评分
         val skillScore = developmentEmployees.sumOf { employee ->
             calculateSkillContribution(employee.getSpecialtySkillLevel()).toDouble()
-        }.toFloat().coerceAtMost(5.5f)
+        }.toFloat().coerceAtMost(5.8f)
         
         // 团队协作加成
         val teamworkBonus = calculateTeamworkBonus(developmentEmployees)

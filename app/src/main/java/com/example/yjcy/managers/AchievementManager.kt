@@ -68,9 +68,12 @@ object AchievementManager {
         saveData: SaveData,
         revenueData: Map<String, GameRevenue>
     ): Boolean {
-        // 找出所有单机游戏的最高销量
+        // 找出所有单机游戏的最高销量（只统计已发售的游戏）
         val maxSingleGameSales = saveData.games
-            .filter { it.businessModel == BusinessModel.SINGLE_PLAYER }
+            .filter { 
+                it.businessModel == BusinessModel.SINGLE_PLAYER && 
+                it.releaseStatus == GameReleaseStatus.RELEASED  // 只统计真正发售的游戏
+            }
             .mapNotNull { game ->
                 revenueData[game.id]?.getTotalSales()
             }
@@ -87,9 +90,12 @@ object AchievementManager {
         saveData: SaveData,
         revenueData: Map<String, GameRevenue>
     ): Boolean {
-        // 计算所有网游的总活跃玩家数
+        // 计算所有网游的总活跃玩家数（只统计已发售的游戏）
         val totalActivePlayers = saveData.games
-            .filter { it.businessModel == BusinessModel.ONLINE_GAME }
+            .filter { 
+                it.businessModel == BusinessModel.ONLINE_GAME && 
+                it.releaseStatus == GameReleaseStatus.RELEASED  // 只统计真正发售的游戏
+            }
             .mapNotNull { game ->
                 revenueData[game.id]?.getActivePlayers()
             }
@@ -138,13 +144,19 @@ object AchievementManager {
             AchievementCategory.COMPANY -> saveData.money
             AchievementCategory.SINGLE_GAME -> {
                 saveData.games
-                    .filter { it.businessModel == BusinessModel.SINGLE_PLAYER }
+                    .filter { 
+                        it.businessModel == BusinessModel.SINGLE_PLAYER && 
+                        it.releaseStatus == GameReleaseStatus.RELEASED  // 只统计已发售的游戏
+                    }
                     .mapNotNull { game -> revenueData[game.id]?.getTotalSales() }
                     .maxOrNull() ?: 0L
             }
             AchievementCategory.ONLINE_GAME -> {
                 saveData.games
-                    .filter { it.businessModel == BusinessModel.ONLINE_GAME }
+                    .filter { 
+                        it.businessModel == BusinessModel.ONLINE_GAME && 
+                        it.releaseStatus == GameReleaseStatus.RELEASED  // 只统计已发售的游戏
+                    }
                     .mapNotNull { game -> revenueData[game.id]?.getActivePlayers() }
                     .sum()
             }

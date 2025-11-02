@@ -2003,12 +2003,12 @@ object RevenueManager {
         val enabledItems = monetizationItems.filter { it.isEnabled && it.price != null && it.price > 0 }
         
         if (ENABLE_VERBOSE_LOGS) {
-            android.util.Log.d("RevenueManager", "计算付费内容收益 - 活跃玩家: $activePlayers, 已启用付费内容数: ${enabledItems.size}")
+        android.util.Log.d("RevenueManager", "计算付费内容收益 - 活跃玩家: $activePlayers, 已启用付费内容数: ${enabledItems.size}")
         }
         
         if (enabledItems.isEmpty()) {
             if (ENABLE_VERBOSE_LOGS) {
-                android.util.Log.w("RevenueManager", "⚠️ 没有已启用且设置了价格的付费内容！")
+            android.util.Log.w("RevenueManager", "⚠️ 没有已启用且设置了价格的付费内容！")
             }
             return emptyList()
         }
@@ -2043,7 +2043,7 @@ object RevenueManager {
             val revenue = actualBuyers * (item.price ?: 0f)
             
             if (ENABLE_VERBOSE_LOGS) {
-                android.util.Log.d("RevenueManager", "  ${item.type.displayName}: 价格=¥${item.price}, 付费率=${purchaseRate * 100}%, 基础购买人数=$basebuyers, 实际购买人数=$actualBuyers, 收益=¥$revenue")
+            android.util.Log.d("RevenueManager", "  ${item.type.displayName}: 价格=¥${item.price}, 付费率=${purchaseRate * 100}%, 基础购买人数=$basebuyers, 实际购买人数=$actualBuyers, 收益=¥$revenue")
             }
             
             MonetizationRevenue(
@@ -2208,9 +2208,9 @@ object RevenueManager {
         currentDay: Int
     ): Long {
         if (ENABLE_VERBOSE_LOGS) {
-            android.util.Log.d("ServerBilling", "========== 开始检查服务器扣费 ==========")
-            android.util.Log.d("ServerBilling", "当前日期: ${currentYear}年${currentMonth}月${currentDay}日")
-            android.util.Log.d("ServerBilling", "服务器总数: ${gameServerMap.size}, 详情: ${gameServerMap.keys}")
+        android.util.Log.d("ServerBilling", "========== 开始检查服务器扣费 ==========")
+        android.util.Log.d("ServerBilling", "当前日期: ${currentYear}年${currentMonth}月${currentDay}日")
+        android.util.Log.d("ServerBilling", "服务器总数: ${gameServerMap.size}, 详情: ${gameServerMap.keys}")
         }
         
         var totalBillingCost = 0L
@@ -2218,7 +2218,7 @@ object RevenueManager {
         
         gameServerMap.entries.forEach { (gameId, serverInfo) ->
             if (ENABLE_VERBOSE_LOGS) {
-                android.util.Log.d("ServerBilling", "检查游戏/池: $gameId, 服务器数量: ${serverInfo.servers.size}")
+            android.util.Log.d("ServerBilling", "检查游戏/池: $gameId, 服务器数量: ${serverInfo.servers.size}")
             }
             
             val updatedServers = serverInfo.servers.map { server ->
@@ -2234,12 +2234,12 @@ object RevenueManager {
                     )
                     
                     if (ENABLE_VERBOSE_LOGS) {
-                        android.util.Log.d("ServerBilling", 
-                            "服务器${server.id} - 类型:${server.type.displayName}, " +
-                            "上次扣费:${server.lastBillingYear}年${server.lastBillingMonth}月${server.lastBillingDay}日, " +
-                            "当前:${currentYear}年${currentMonth}月${currentDay}日, " +
-                            "距离天数:${daysSinceLastBilling}天(包含租用当天=${daysSinceLastBilling + 1}天), 月费:¥${server.type.cost}"
-                        )
+                    android.util.Log.d("ServerBilling", 
+                        "服务器${server.id} - 类型:${server.type.displayName}, " +
+                        "上次扣费:${server.lastBillingYear}年${server.lastBillingMonth}月${server.lastBillingDay}日, " +
+                        "当前:${currentYear}年${currentMonth}月${currentDay}日, " +
+                        "距离天数:${daysSinceLastBilling}天(包含租用当天=${daysSinceLastBilling + 1}天), 月费:¥${server.type.cost}"
+                    )
                     }
                     
                     // 如果已经过了29天（即第30天，包含租用当天），扣费
@@ -2247,9 +2247,9 @@ object RevenueManager {
                     if (daysSinceLastBilling >= 29) {
                         totalBillingCost += server.type.cost
                         if (ENABLE_VERBOSE_LOGS) {
-                            android.util.Log.d("ServerBilling", 
-                                "✓ 扣费成功！服务器${server.id} - ¥${server.type.cost}, 累计:¥${totalBillingCost}"
-                            )
+                        android.util.Log.d("ServerBilling", 
+                            "✓ 扣费成功！服务器${server.id} - ¥${server.type.cost}, 累计:¥${totalBillingCost}"
+                        )
                         }
                         // 更新扣费日期
                         server.copy(
@@ -2259,15 +2259,15 @@ object RevenueManager {
                         )
                     } else {
                         if (ENABLE_VERBOSE_LOGS) {
-                            android.util.Log.d("ServerBilling", 
-                                "○ 未到扣费周期，服务器${server.id} - 还需${29 - daysSinceLastBilling}天"
-                            )
+                        android.util.Log.d("ServerBilling", 
+                            "○ 未到扣费周期，服务器${server.id} - 还需${29 - daysSinceLastBilling}天"
+                        )
                         }
                         server
                     }
                 } else {
                     if (ENABLE_VERBOSE_LOGS) {
-                        android.util.Log.d("ServerBilling", "服务器${server.id} - 已停用，跳过")
+                    android.util.Log.d("ServerBilling", "服务器${server.id} - 已停用，跳过")
                     }
                     server
                 }
@@ -2283,8 +2283,8 @@ object RevenueManager {
         }
         
         if (ENABLE_VERBOSE_LOGS) {
-            android.util.Log.d("ServerBilling", "========== 扣费检查完成 ==========")
-            android.util.Log.d("ServerBilling", "本次扣费总额: ¥$totalBillingCost")
+        android.util.Log.d("ServerBilling", "========== 扣费检查完成 ==========")
+        android.util.Log.d("ServerBilling", "本次扣费总额: ¥$totalBillingCost")
         } else if (totalBillingCost > 0) {
             // 只在实际扣费时输出简要日志
             android.util.Log.d("ServerBilling", "服务器扣费: ¥$totalBillingCost")
@@ -2433,19 +2433,19 @@ object RevenueManager {
         val shouldDecay = currentDecayInterval > lastDecayInterval
         
         if (ENABLE_VERBOSE_LOGS) {
-            println("=== 每日兴趣值更新 ===")
-            println("游戏ID: $gameId")
-            println("上线天数: $newDaysSinceLaunch")
-            println("当前衰减周期: $currentDecayInterval")
-            println("上次衰减周期: $lastDecayInterval")
-            println("是否触发衰减: $shouldDecay")
-            println("当前兴趣值: ${gameRevenue.playerInterest}%")
+        println("=== 每日兴趣值更新 ===")
+        println("游戏ID: $gameId")
+        println("上线天数: $newDaysSinceLaunch")
+        println("当前衰减周期: $currentDecayInterval")
+        println("上次衰减周期: $lastDecayInterval")
+        println("是否触发衰减: $shouldDecay")
+        println("当前兴趣值: ${gameRevenue.playerInterest}%")
         }
         
         val newInterest = if (shouldDecay) {
             val decayed = calculateInterestDecay(gameRevenue.playerInterest, newLifecycleProgress)
             if (ENABLE_VERBOSE_LOGS) {
-                println("衰减后兴趣值: $decayed%")
+            println("衰减后兴趣值: $decayed%")
             }
             decayed
         } else {
