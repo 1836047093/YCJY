@@ -39,7 +39,6 @@ fun EnhancedGameProjectCard(
     currentYear: Int = 1,
     currentMonth: Int = 1,
     currentDay: Int = 1,
-    currentMinuteOfDay: Int = 0, // 当天内的分钟数（0-1439）
     onPauseGame: (() -> Unit)? = null,
     onResumeGame: (() -> Unit)? = null
 ) {
@@ -253,7 +252,6 @@ fun EnhancedGameProjectCard(
             currentYear = currentYear,
             currentMonth = currentMonth,
             currentDay = currentDay,
-            currentMinuteOfDay = currentMinuteOfDay,
             onPauseGame = onPauseGame,
             onResumeGame = onResumeGame
         )
@@ -272,7 +270,6 @@ fun EmployeeAssignmentDialog(
     currentYear: Int = 1,
     currentMonth: Int = 1,
     currentDay: Int = 1,
-    currentMinuteOfDay: Int = 0, // 当天内的分钟数（0-1439）
     onPauseGame: (() -> Unit)? = null,
     onResumeGame: (() -> Unit)? = null
 ) {

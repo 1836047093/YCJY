@@ -732,7 +732,6 @@ data class SaveData(
     val currentYear: Int = 1,
     val currentMonth: Int = 1,
     val currentDay: Int = 1,
-    val currentMinuteOfDay: Int = 0, // 当天内的分钟数（0-1439，0表示00:00，1439表示23:59）
     val allEmployees: List<Employee> = emptyList(),
     val games: List<Game> = emptyList(),
     val competitors: List<CompetitorCompany> = emptyList(), // 竞争对手公司列表
@@ -743,6 +742,7 @@ data class SaveData(
     val complaints: List<Complaint> = emptyList(), // 客诉列表
     val autoProcessComplaints: Boolean = false, // 新增：自动处理客诉开关（默认关闭）
     val autoPromotionThreshold: Float = 0.5f, // 新增：自动宣传阈值（0-1，表示0%-100%，低于此值自动宣传）
+    val autoApproveSalaryIncrease: Boolean = false, // 新增：自动审批员工涨薪开关（默认关闭）
     val unlockedAchievements: List<UnlockedAchievement> = emptyList(), // 新增：已解锁的成就列表
     val completedTutorials: Set<String> = emptySet(), // 新增：已完成的教程ID集合（使用String存储以便序列化）
     val skipTutorial: Boolean = false, // 新增：是否跳过所有教程（默认不跳过）
@@ -754,8 +754,8 @@ data class SaveData(
     val gmModeEnabled: Boolean = false, // GM模式开关（通过兑换码激活）
     val usedRedeemCodes: Set<String> = emptySet(), // 已使用的兑换码列表
     val autoSaveEnabled: Boolean = false, // 自动存档开关（默认关闭）
-    val autoSaveInterval: Int = 5, // 自动存档间隔（分钟，默认5分钟）
-    val lastAutoSaveMinute: Int = 0, // 上次自动存档时的分钟数（用于计算是否到达存档间隔）
+    val autoSaveInterval: Int = 5, // 自动存档间隔（天，默认5天）
+    val lastAutoSaveDay: Int = 0, // 上次自动存档时的游戏天数（用于计算是否到达存档间隔）
     val saveTime: Long = System.currentTimeMillis(),
     val version: String = "1.0.0" // 存档版本号（创建时会被覆盖为当前版本）
 )

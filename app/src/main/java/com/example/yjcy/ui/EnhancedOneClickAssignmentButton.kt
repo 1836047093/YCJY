@@ -47,20 +47,12 @@ fun EnhancedOneClickAssignmentButton(
     currentYear: Int = 1,
     currentMonth: Int = 1,
     currentDay: Int = 1,
-    currentMinuteOfDay: Int = 0, // 当天内的分钟数（0-1439）
     onPauseGame: (() -> Unit)? = null,
     onResumeGame: (() -> Unit)? = null
 ) {
     var buttonState by remember { mutableStateOf(EnhancedButtonState.NORMAL) }
     var showResultDialog by remember { mutableStateOf(false) }
     var assignmentResult by remember { mutableStateOf<EnhancedAssignmentResult?>(null) }
-    
-    // 添加调试日志，追踪接收到的时间参数
-    LaunchedEffect(currentMinuteOfDay) {
-        android.util.Log.d("AssignmentButton", 
-            "EnhancedOneClickAssignmentButton 接收到时间参数: minuteOfDay=$currentMinuteOfDay, " +
-            "year=$currentYear, month=$currentMonth, day=$currentDay")
-    }
     
     val context = LocalContext.current
     val assignmentService = remember { EnhancedAssignmentService() }
@@ -237,7 +229,6 @@ fun EnhancedOneClickAssignmentButton(
             currentYear = currentYear,
             currentMonth = currentMonth,
             currentDay = currentDay,
-            currentMinuteOfDay = currentMinuteOfDay,
             onPauseGame = onPauseGame,
             onResumeGame = onResumeGame
         )
@@ -337,7 +328,6 @@ fun CompactEnhancedAssignmentButton(
     currentYear: Int = 1,
     currentMonth: Int = 1,
     currentDay: Int = 1,
-    currentMinuteOfDay: Int = 0, // 当天内的分钟数（0-1439）
     onPauseGame: (() -> Unit)? = null,
     onResumeGame: (() -> Unit)? = null
 ) {
@@ -444,7 +434,6 @@ fun CompactEnhancedAssignmentButton(
             currentYear = currentYear,
             currentMonth = currentMonth,
             currentDay = currentDay,
-            currentMinuteOfDay = currentMinuteOfDay,
             onPauseGame = onPauseGame,
             onResumeGame = onResumeGame
         )

@@ -40,7 +40,6 @@ fun EmployeeManagementContent(
     currentYear: Int,
     currentMonth: Int,
     currentDay: Int,
-    currentMinuteOfDay: Int = 0, // 当天内的分钟数（0-1439）
     @Suppress("UNUSED_PARAMETER") onNavigateToTalentMarket: () -> Unit = {},
     jobPostingRefreshTrigger: Int = 0, // 用于触发应聘者数据刷新
     onPauseGame: (() -> Unit)? = null, // 暂停游戏的回调
@@ -1691,7 +1690,7 @@ private fun PositionCountRow(
                         color = Color.White
                     )
                     Text(
-                        text = "${count}人 ($percentage%)",
+                        text = "${count}人",
                         fontSize = 14.sp,
                         color = Color.White.copy(alpha = 0.7f)
                     )

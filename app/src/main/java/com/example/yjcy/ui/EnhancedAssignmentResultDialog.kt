@@ -40,7 +40,6 @@ fun EnhancedAssignmentResultDialog(
     currentYear: Int = 1,
     currentMonth: Int = 1,
     currentDay: Int = 1,
-    currentMinuteOfDay: Int = 0, // 当天内的分钟数（0-1439）
     onPauseGame: (() -> Unit)? = null,
     onResumeGame: (() -> Unit)? = null
 ) {
@@ -52,19 +51,6 @@ fun EnhancedAssignmentResultDialog(
         }
     }
     
-    // 计算当前星期几和时间
-    val currentWeekday = remember(currentYear, currentMonth, currentDay) {
-        com.example.yjcy.utils.calculateWeekday(currentYear, currentMonth, currentDay)
-    }
-    
-    // 添加调试日志，检查传入的时间参数
-    LaunchedEffect(currentMinuteOfDay, currentYear, currentMonth, currentDay) {
-        val hour = currentMinuteOfDay / 60
-        val minute = currentMinuteOfDay % 60
-        android.util.Log.d("AssignmentDialog", 
-            "时间参数: year=$currentYear, month=$currentMonth, day=$currentDay, minuteOfDay=$currentMinuteOfDay, " +
-            "weekday=$currentWeekday, hour=$hour, minute=$minute")
-    }
     
     // 检查所有分配员工
     val allAssignedEmployees = remember(assignmentResult.assignments) {

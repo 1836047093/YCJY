@@ -56,7 +56,6 @@ fun EnhancedGameProjectCard(
     currentYear: Int = 1,  // 新增：当前年份
     currentMonth: Int = 1,  // 新增：当前月份
     currentDay: Int = 1,  // 新增：当前日期
-    currentMinuteOfDay: Int = 0,  // 新增：当天内的分钟数（0-1439）
     onPauseGame: (() -> Unit)? = null,  // 暂停游戏的回调
     onResumeGame: (() -> Unit)? = null // 恢复游戏的回调
 ) {
@@ -76,8 +75,8 @@ fun EnhancedGameProjectCard(
     // 检查是否正在开发中（未完成、未发售也未下架）
     val isDeveloping = !isReleased && !isRemoved && !isReadyForRelease
     
-    // 当 refreshTrigger 或 currentMinuteOfDay 改变时，强制重新获取收益数据（确保实时更新）
-    val gameRevenue by remember(game.id, refreshTrigger, currentMinuteOfDay) {
+    // 当 refreshTrigger 改变时，强制重新获取收益数据（确保实时更新）
+    val gameRevenue by remember(game.id, refreshTrigger) {
         derivedStateOf { 
             if (isReleased || isRemoved) RevenueManager.getGameRevenue(game.id) else null
         }
@@ -612,8 +611,8 @@ fun EnhancedGameProjectCard(
             // 收益信息显示区域（根据 showDataOverview 参数控制，已下架的游戏不显示）
             if (showDataOverview && !isRemoved) {
                 gameRevenue?.let { revenue ->
-                    // 使用derivedStateOf确保每分钟实时更新统计数据
-                    val statistics = remember(revenue, currentMinuteOfDay) {
+                    // 使用derivedStateOf确保实时更新统计数据
+                    val statistics = remember(revenue) {
                         RevenueManager.calculateStatistics(revenue)
                     }
                     
@@ -852,7 +851,6 @@ fun EnhancedGameProjectCard(
                             currentYear = currentYear,
                             currentMonth = currentMonth,
                             currentDay = currentDay,
-                            currentMinuteOfDay = currentMinuteOfDay,
                             onPauseGame = onPauseGame,
                             onResumeGame = onResumeGame
                         )
@@ -1166,7 +1164,6 @@ fun EnhancedGameProjectCard(
                         currentYear = currentYear,
                         currentMonth = currentMonth,
                         currentDay = currentDay,
-                        currentMinuteOfDay = currentMinuteOfDay,
                         onPauseGame = onPauseGame,
                         onResumeGame = onResumeGame
                     )
@@ -1243,7 +1240,6 @@ fun BatchEnhancedAssignmentCard(
     currentYear: Int = 1,
     currentMonth: Int = 1,
     currentDay: Int = 1,
-    currentMinuteOfDay: Int = 0,
     onPauseGame: (() -> Unit)? = null,
     onResumeGame: (() -> Unit)? = null
 ) {
@@ -1327,7 +1323,6 @@ fun BatchEnhancedAssignmentCard(
                 currentYear = currentYear,
                 currentMonth = currentMonth,
                 currentDay = currentDay,
-                currentMinuteOfDay = currentMinuteOfDay,
                 onPauseGame = onPauseGame,
                 onResumeGame = onResumeGame
             )

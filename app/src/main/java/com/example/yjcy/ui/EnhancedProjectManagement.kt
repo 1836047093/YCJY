@@ -155,7 +155,6 @@ fun EnhancedProjectManagementContent(
     currentYear: Int = 1,  // 新增：当前年份
     currentMonth: Int = 1,  // 新增：当前月份
     currentDay: Int = 1,  // 新增：当前日期
-    currentMinuteOfDay: Int = 0,  // 新增：当天内的分钟数（0-1439）
     ownedIPs: List<com.example.yjcy.data.GameIP> = emptyList(),  // 新增：拥有的IP列表
     onPauseGame: (() -> Unit)? = null,  // 暂停游戏的回调
     onResumeGame: (() -> Unit)? = null, // 恢复游戏的回调
@@ -459,7 +458,6 @@ fun EnhancedProjectManagementContent(
                         currentYear = currentYear,
                         currentMonth = currentMonth,
                         currentDay = currentDay,
-                        currentMinuteOfDay = currentMinuteOfDay,
                         onPauseGame = onPauseGame,
                         onResumeGame = onResumeGame
                     )
