@@ -2172,7 +2172,10 @@ fun GameScreen(
                         )
                     }
                     Log.d("GameScreen", "【实例 $instanceId】✓ 为旧存档子公司网游 ${game.name} 生成付费内容（${monetizationItems.size}个）")
-                    game.copy(monetizationItems = monetizationItems)
+                    game.copy(
+                        monetizationItems = monetizationItems,
+                        allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                    )
                 } else {
                     game
                 }
@@ -2194,13 +2197,33 @@ fun GameScreen(
             // 触发一次UI刷新以显示已恢复的收益
             revenueRefreshTrigger++
             jobPostingRefreshTrigger++
+            
+            // 🔍 调试：检查恢复后的收入数据
+            val loadedRevenue = RevenueManager.exportRevenueData()
             Log.d("GameScreen", "【实例 $instanceId】===== 读档数据恢复完成 =====")
+            Log.d("GameScreen", "🔍 收入数据检查:")
+            Log.d("GameScreen", "  总条目数: ${loadedRevenue.size}")
+            loadedRevenue.forEach { (gameId, revenue) ->
+                val totalRevenue = revenue.dailySalesList.sumOf { it.revenue }
+                Log.d("GameScreen", "  - ${revenue.gameName} (${if (gameId.startsWith("inherited_")) "继承" else "自研"}): 记录${revenue.dailySalesList.size}天, 总收入¥${totalRevenue.toLong()}")
+            }
         } else {
             // ===== 新游戏：清空旧数据 =====
             Log.d("GameScreen", "【实例 $instanceId】===== 新游戏模式：清空旧数据 =====")
             RevenueManager.clearAllData()
             jobPostingService.clearAllData()
             Log.d("GameScreen", "【实例 $instanceId】✓ 清空招聘岗位数据")
+            
+            // 🔍 调试：确认清空后没有收入数据
+            val afterClear = RevenueManager.exportRevenueData()
+            if (afterClear.isNotEmpty()) {
+                Log.e("GameScreen", "⚠️ 警告：清空后仍有${afterClear.size}条收入数据！")
+                afterClear.forEach { (gameId, revenue) ->
+                    Log.e("GameScreen", "  - ${revenue.gameName} (ID: ${gameId.take(20)}...)")
+                }
+            } else {
+                Log.d("GameScreen", "✓ 确认收入数据已清空")
+            }
         }
     }
     
@@ -2342,12 +2365,23 @@ fun GameScreen(
                 it.releaseStatus == GameReleaseStatus.RELEASED
             }
             
-            // 调试：输出发售游戏信息
-            if (releasedGames.isNotEmpty() && currentDay == 1) {
+            // 🔍 调试：每月1日输出发售游戏详情
+            if (currentDay == 1) {
+                Log.d("MainActivity", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                Log.d("MainActivity", "📅 ${currentYear}年${currentMonth}月${currentDay}日 - 发售游戏检查")
+                Log.d("MainActivity", "发售中游戏数量: ${releasedGames.size}")
                 releasedGames.forEach { game ->
                     val isInherited = game.id.startsWith("inherited_")
-                    Log.d("MainActivity", "💰 发售中的游戏: ${game.name} (状态=${game.releaseStatus}, 继承游戏=$isInherited)")
+                    Log.d("MainActivity", "  ${game.name}:")
+                    Log.d("MainActivity", "    - 类型: ${if (isInherited) "继承游戏" else "自研游戏"}")
+                    Log.d("MainActivity", "    - 商业模式: ${game.businessModel}")
+                    Log.d("MainActivity", "    - 状态: ${game.releaseStatus}")
+                    Log.d("MainActivity", "    - ID: ${game.id.take(30)}...")
                 }
+                if (releasedGames.isEmpty()) {
+                    Log.d("MainActivity", "  ⚠️ 没有任何发售中的游戏！")
+                }
+                Log.d("MainActivity", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             }
             
             if (!isPaused) {
@@ -2577,7 +2611,10 @@ fun GameScreen(
                                 Log.d("MainActivity", "宣传指数衰减: ${game.name} ($statusText) ${(game.promotionIndex * 100).toInt()}% -> ${(newPromotionIndex * 100).toInt()}% (衰减${(decayRate * 100).toInt()}%)")
                             }
                             
-                            game.copy(promotionIndex = newPromotionIndex)
+                            game.copy(
+                                promotionIndex = newPromotionIndex,
+                                allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                            )
                         } else {
                             game
                         }
@@ -2617,7 +2654,10 @@ fun GameScreen(
                             games = games.map { game ->
                                 if (gamesNeedingPromotion.any { it.id == game.id }) {
                                     val newPromotionIndex = (game.promotionIndex + selectedPromotionType.promotionIndexGain).coerceAtMost(1.0f)
-                                    game.copy(promotionIndex = newPromotionIndex)
+                                    game.copy(
+                                promotionIndex = newPromotionIndex,
+                                allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                            )
                                 } else {
                                     game
                                 }
@@ -2728,7 +2768,10 @@ fun GameScreen(
                             games = games.map { game ->
                                 if (gamesNeedingPromotion.any { it.id == game.id }) {
                                     val newPromotionIndex = (game.promotionIndex + selectedPromotionType.promotionIndexGain).coerceAtMost(1.0f)
-                                    game.copy(promotionIndex = newPromotionIndex)
+                                    game.copy(
+                                promotionIndex = newPromotionIndex,
+                                allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                            )
                                 } else {
                                     game
                                 }
@@ -2855,7 +2898,10 @@ fun GameScreen(
                         val wonAwards = finalNominations
                             .filter { it.winner?.gameId == game.id }
                             .map { it.award }
-                        game.copy(awards = (game.awards + wonAwards).distinct())
+                        game.copy(
+                            awards = (game.awards + wonAwards).distinct(),
+                            allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                        )
                     } else {
                         game
                     }
@@ -2882,16 +2928,42 @@ fun GameScreen(
             
             // 年终奖系统：12月31日触发年度总结和年终奖分发
             if (currentMonth == 12 && currentDay == 31 && currentYear != lastYearEndBonusYear) {
-                // 计算年度统计数据
-                val gamesReleasedThisYear = games.count { game ->
-                    game.releaseYear == currentYear && 
-                    (game.releaseStatus == GameReleaseStatus.RELEASED || 
-                     game.releaseStatus == GameReleaseStatus.RATED)
+                // 计算年度统计数据 - 统计本年有收入的游戏数量（而非本年新发售的）
+                val revenueData = RevenueManager.exportRevenueData()
+                
+                // 🔍 调试：输出所有收入数据
+                Log.d("YearEnd", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                Log.d("YearEnd", "📊 年度总结数据调试 - ${currentYear}年")
+                Log.d("YearEnd", "收入数据总条目数: ${revenueData.size}")
+                revenueData.forEach { (gameId, revenue) ->
+                    val recordsThisYear = revenue.dailySalesList.filter { dailySales ->
+                        val recordCalendar = Calendar.getInstance()
+                        recordCalendar.time = dailySales.date
+                        val recordGameYear = recordCalendar.get(Calendar.YEAR)
+                        recordGameYear == currentYear
+                    }
+                    val revenueThisYear = recordsThisYear.sumOf { it.revenue }
+                    val isInherited = gameId.startsWith("inherited_")
+                    Log.d("YearEnd", "  游戏: ${revenue.gameName} (ID=${gameId.take(20)}...)")
+                    Log.d("YearEnd", "    类型: ${if (isInherited) "继承游戏" else "自研游戏"}")
+                    Log.d("YearEnd", "    发售日期: ${revenue.releaseYear}年${revenue.releaseMonth}月${revenue.releaseDay}日")
+                    Log.d("YearEnd", "    本年收入记录数: ${recordsThisYear.size}")
+                    Log.d("YearEnd", "    本年总收入: ¥${revenueThisYear.toLong()}")
+                }
+                Log.d("YearEnd", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                
+                val gamesReleasedThisYear = revenueData.values.count { revenue ->
+                    // 检查该游戏在当年是否有收入记录
+                    revenue.dailySalesList.any { dailySales ->
+                        val recordCalendar = Calendar.getInstance()
+                        recordCalendar.time = dailySales.date
+                        val recordGameYear = recordCalendar.get(Calendar.YEAR)
+                        recordGameYear == currentYear && dailySales.revenue > 0
+                    }
                 }
                 
                 // 计算年度总收入（从RevenueManager获取，统计所有已发售游戏在当年的收入）
-                val totalRevenue = RevenueManager.exportRevenueData()
-                    .values
+                val totalRevenue = revenueData.values
                     .flatMap { revenue ->
                         revenue.dailySalesList.filter { dailySales ->
                             // 直接从recordDate中提取游戏内年份
@@ -3042,7 +3114,8 @@ fun GameScreen(
                         game.copy(
                             assignedEmployees = game.assignedEmployees.filter { emp ->
                                 emp.id !in employeeIdsToRemove
-                            }
+                            },
+                            allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
                         )
                     }
                     
@@ -3090,6 +3163,10 @@ fun GameScreen(
                         // 当前阶段完成，进入下一阶段
                         val nextPhase = currentPhase.getNextPhase()
                         
+                        // 累积当前阶段的员工到allDevelopmentEmployees（去重）
+                        val updatedAllEmployees = (game.allDevelopmentEmployees + game.assignedEmployees)
+                            .distinctBy { it.id } // 按ID去重，避免同一员工多次计入
+                        
                         if (nextPhase != null) {
                             // 进入下一阶段
                             val updatedGame = game.copy(
@@ -3100,12 +3177,18 @@ fun GameScreen(
                                     DevelopmentPhase.ART_SOUND -> 0.33f // 需求文档完成
                                     DevelopmentPhase.PROGRAMMING -> 0.66f // 美术音效完成
                                 },
-                                assignedEmployees = emptyList() // 清空员工，让玩家重新分配
+                                assignedEmployees = emptyList(), // 清空当前阶段员工，让玩家重新分配
+                                allDevelopmentEmployees = updatedAllEmployees // 保存所有参与开发的员工
                             )
                             updatedGame
                         } else {
                             // 所有阶段完成，游戏开发完成
-                            val gameRating = GameRatingCalculator.calculateRating(game)
+                            // 使用allDevelopmentEmployees计算评分
+                            val gameWithAllEmployees = game.copy(
+                                assignedEmployees = updatedAllEmployees,
+                                allDevelopmentEmployees = updatedAllEmployees
+                            )
+                            val gameRating = GameRatingCalculator.calculateRating(gameWithAllEmployees)
                             val completedGame = game.copy(
                                 developmentProgress = 1.0f,
                                 phaseProgress = 1.0f,
@@ -3113,7 +3196,8 @@ fun GameScreen(
                                 rating = gameRating.finalScore,
                                 gameRating = gameRating,
                                 releaseStatus = GameReleaseStatus.READY_FOR_RELEASE,
-                                assignedEmployees = emptyList()
+                                assignedEmployees = emptyList(),
+                                allDevelopmentEmployees = updatedAllEmployees // 保存所有参与开发的员工
                             )
                             
                             // 先显示评分对话框
@@ -3142,7 +3226,8 @@ fun GameScreen(
                             phaseProgress = newPhaseProgress,
                             developmentProgress = newTotalProgress,
                             isCompleted = false,
-                            assignedEmployees = updatedAssignedEmployees
+                            assignedEmployees = updatedAssignedEmployees,
+                            allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList() ?: emptyList() // 兼容旧存档
                         )
                     }
                 } else {
@@ -3178,7 +3263,10 @@ fun GameScreen(
                         // 更新游戏中的assignedEmployees
                         games = games.map { game ->
                             if (game.id == releasedGame.id) {
-                                game.copy(assignedEmployees = updatedAssignedEmployees)
+                                game.copy(
+                                    assignedEmployees = updatedAssignedEmployees,
+                                    allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                                )
                             } else {
                                 game
                             }
@@ -3403,13 +3491,20 @@ fun GameScreen(
                             
                             game.copy(
                                 currentTournament = null,
-                                tournamentHistory = history
+                                tournamentHistory = history,
+                                allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
                             )
                         } else {
-                            game.copy(currentTournament = updatedTournament)
+                            game.copy(
+                                currentTournament = updatedTournament,
+                                allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                            )
                         }
                     } else {
-                        game.copy(currentTournament = updatedTournament)
+                        game.copy(
+                            currentTournament = updatedTournament,
+                            allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                        )
                     }
                 } else {
                     game
@@ -4334,33 +4429,95 @@ fun GameScreen(
                                 // 一键增加1000万
                                 money += 10000000L
                             },
-                            onCreateTopEmployees = {
-                                // 创建各个职位6名5级专属技能员工
+                            onCreateTopEmployees = { skillLevel ->
+                                // 智能调整模式：优先修改现有员工等级，不足时才新增
                                 val existingNames = allEmployees.map { it.name }.toSet().toMutableSet()
                                 val maxId = allEmployees.maxOfOrNull { it.id } ?: 0
+                                val updatedEmployees = mutableListOf<Employee>()
                                 val newEmployees = mutableListOf<Employee>()
                                 
                                 // 职位列表
                                 val positions = listOf("程序员", "策划师", "美术师", "音效师", "客服")
                                 
-                                // 为每个职位创建6名5级专属技能员工
+                                // 根据技能等级计算薪资（等级 × 10000 + 5000）
+                                val baseSalary = skillLevel * 10000 + 5000
+                                
+                                // 为每个职位处理员工（优先修改现有，不足时新增）
                                 for (position in positions) {
-                                    repeat(6) {
+                                    // 找到该职位的现有员工（排除创始人）
+                                    val existingForPosition = allEmployees.filter { 
+                                        it.position == position && !it.isFounder 
+                                    }.take(6)
+                                    
+                                    val existingCount = existingForPosition.size
+                                    val needNewCount = 6 - existingCount
+                                    
+                                    // 修改现有员工的等级
+                                    for (existingEmp in existingForPosition) {
+                                        val updatedEmp = when (position) {
+                                            "程序员" -> existingEmp.copy(
+                                                skillDevelopment = skillLevel,
+                                                skillDesign = 0,
+                                                skillArt = 0,
+                                                skillMusic = 0,
+                                                skillService = 0,
+                                                salary = baseSalary
+                                            )
+                                            "策划师" -> existingEmp.copy(
+                                                skillDevelopment = 0,
+                                                skillDesign = skillLevel,
+                                                skillArt = 0,
+                                                skillMusic = 0,
+                                                skillService = 0,
+                                                salary = baseSalary
+                                            )
+                                            "美术师" -> existingEmp.copy(
+                                                skillDevelopment = 0,
+                                                skillDesign = 0,
+                                                skillArt = skillLevel,
+                                                skillMusic = 0,
+                                                skillService = 0,
+                                                salary = baseSalary
+                                            )
+                                            "音效师" -> existingEmp.copy(
+                                                skillDevelopment = 0,
+                                                skillDesign = 0,
+                                                skillArt = 0,
+                                                skillMusic = skillLevel,
+                                                skillService = 0,
+                                                salary = baseSalary
+                                            )
+                                            "客服" -> existingEmp.copy(
+                                                skillDevelopment = 0,
+                                                skillDesign = 0,
+                                                skillArt = 0,
+                                                skillMusic = 0,
+                                                skillService = skillLevel,
+                                                salary = baseSalary
+                                            )
+                                            else -> existingEmp
+                                        }
+                                        updatedEmployees.add(updatedEmp)
+                                    }
+                                    
+                                    // 如果数量不足6个，新增员工
+                                    repeat(needNewCount) {
                                         val employeeName = com.example.yjcy.service.TalentMarketService.generateUniqueName(existingNames)
                                         existingNames.add(employeeName)
+
                                         
-                                        // 根据职位设置专属技能为5级，其他技能为0
+                                        // 根据职位设置专属技能为指定等级，其他技能为0
                                         val newEmployee = when (position) {
                                             "程序员" -> Employee(
                                                 id = maxId + newEmployees.size + 1,
                                                 name = employeeName,
                                                 position = position,
-                                                skillDevelopment = 5,
+                                                skillDevelopment = skillLevel,
                                                 skillDesign = 0,
                                                 skillArt = 0,
                                                 skillMusic = 0,
                                                 skillService = 0,
-                                                salary = 15000, // 5级技能对应薪资
+                                                salary = baseSalary,
                                                 experience = 100,
                                                 motivation = 100,
                                                 isFounder = false,
@@ -4373,11 +4530,11 @@ fun GameScreen(
                                                 name = employeeName,
                                                 position = position,
                                                 skillDevelopment = 0,
-                                                skillDesign = 5,
+                                                skillDesign = skillLevel,
                                                 skillArt = 0,
                                                 skillMusic = 0,
                                                 skillService = 0,
-                                                salary = 15000,
+                                                salary = baseSalary,
                                                 experience = 100,
                                                 motivation = 100,
                                                 isFounder = false,
@@ -4391,10 +4548,10 @@ fun GameScreen(
                                                 position = position,
                                                 skillDevelopment = 0,
                                                 skillDesign = 0,
-                                                skillArt = 5,
+                                                skillArt = skillLevel,
                                                 skillMusic = 0,
                                                 skillService = 0,
-                                                salary = 15000,
+                                                salary = baseSalary,
                                                 experience = 100,
                                                 motivation = 100,
                                                 isFounder = false,
@@ -4409,9 +4566,9 @@ fun GameScreen(
                                                 skillDevelopment = 0,
                                                 skillDesign = 0,
                                                 skillArt = 0,
-                                                skillMusic = 5,
+                                                skillMusic = skillLevel,
                                                 skillService = 0,
-                                                salary = 15000,
+                                                salary = baseSalary,
                                                 experience = 100,
                                                 motivation = 100,
                                                 isFounder = false,
@@ -4427,8 +4584,8 @@ fun GameScreen(
                                                 skillDesign = 0,
                                                 skillArt = 0,
                                                 skillMusic = 0,
-                                                skillService = 5,
-                                                salary = 15000,
+                                                skillService = skillLevel,
+                                                salary = baseSalary,
                                                 experience = 100,
                                                 motivation = 100,
                                                 isFounder = false,
@@ -4440,7 +4597,7 @@ fun GameScreen(
                                                 id = maxId + newEmployees.size + 1,
                                                 name = employeeName,
                                                 position = position,
-                                                salary = 15000,
+                                                salary = baseSalary,
                                                 experience = 100,
                                                 motivation = 100,
                                                 isFounder = false,
@@ -4453,8 +4610,17 @@ fun GameScreen(
                                     }
                                 }
                                 
-                                // 添加新员工到列表
-                                allEmployees.addAll(newEmployees)
+                                // 收集被更新的员工ID
+                                val updatedEmployeeIds = updatedEmployees.map { it.id }.toSet()
+                                
+                                // 合并员工列表：保留未被更新的员工 + 更新后的员工 + 新增的员工
+                                val finalEmployees = allEmployees.filter { !updatedEmployeeIds.contains(it.id) } + 
+                                                     updatedEmployees + 
+                                                     newEmployees
+                                
+                                // 更新员工列表
+                                allEmployees.clear()
+                                allEmployees.addAll(finalEmployees)
                             },
                             onMoneyUpdate = { updatedMoney -> money = updatedMoney }
                         )
@@ -4650,16 +4816,20 @@ fun GameScreen(
         
         // 年终奖对话框
         if (showYearEndBonusDialog) {
-            // 重新计算年度统计数据（确保数据最新）
-            val gamesReleasedThisYear = games.count { game ->
-                game.releaseYear == currentYear && 
-                (game.releaseStatus == GameReleaseStatus.RELEASED || 
-                 game.releaseStatus == GameReleaseStatus.RATED)
+            // 重新计算年度统计数据（确保数据最新）- 统计本年有收入的游戏数量
+            val revenueDataForDialog = RevenueManager.exportRevenueData()
+            val gamesReleasedThisYear = revenueDataForDialog.values.count { revenue ->
+                // 检查该游戏在当年是否有收入记录
+                revenue.dailySalesList.any { dailySales ->
+                    val recordCalendar = Calendar.getInstance()
+                    recordCalendar.time = dailySales.date
+                    val recordGameYear = recordCalendar.get(Calendar.YEAR)
+                    recordGameYear == currentYear && dailySales.revenue > 0
+                }
             }
             
             // 计算年度总收入（从RevenueManager获取，统计所有已发售游戏在当年的收入）
-            val totalRevenue = RevenueManager.exportRevenueData()
-                .values
+            val totalRevenue = revenueDataForDialog.values
                 .flatMap { revenue ->
                     revenue.dailySalesList.filter { dailySales ->
                         // 直接从recordDate中提取游戏内年份
@@ -6542,7 +6712,10 @@ class SaveManager(context: Context) {
                     promotionIndex = game.promotionIndex,
                     autoUpdate = game.autoUpdate,
                     autoPromotion = game.autoPromotion,
-                    version = game.version
+                    version = game.version,
+                    
+                    // 分阶段开发累积员工（新增字段）
+                    allDevelopmentEmployees = game.allDevelopmentEmployees
                 )
             }
             
@@ -6859,7 +7032,7 @@ fun InGameSettingsContent(
     onAutoSaveIntervalChange: (Int) -> Unit = {}, // 自动存档间隔修改回调
     onMaxEmployees: () -> Unit = {}, // 一键满配员工回调
     onAddMoney: () -> Unit = {}, // 一键加钱回调
-    onCreateTopEmployees: () -> Unit = {}, // 创建各职位6名5级专属技能员工回调
+    onCreateTopEmployees: (Int) -> Unit = {}, // 创建各职位6名指定等级专属技能员工回调（参数：技能等级1-5）
     onMoneyUpdate: (Long) -> Unit = {}, // 资金更新回调
     usedRedeemCodes: Set<String> = emptySet(), // 已使用的兑换码列表
     onUsedRedeemCodesUpdate: (Set<String>) -> Unit = {} // 已使用兑换码更新回调
@@ -7234,6 +7407,8 @@ fun InGameSettingsContent(
         
         // GM工具箱
         if (gmModeEnabled) {
+            var showSkillLevelDialog by remember { mutableStateOf(false) }
+            
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -7308,9 +7483,9 @@ fun InGameSettingsContent(
                         }
                     }
                     
-                    // 创建各职位6名5级专属技能员工
+                    // 创建各职位6名指定等级专属技能员工
                     Button(
-                        onClick = onCreateTopEmployees,
+                        onClick = { showSkillLevelDialog = true },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF10B981)
@@ -7330,6 +7505,104 @@ fun InGameSettingsContent(
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
                             )
+                        }
+                    }
+                }
+            }
+            
+            // 技能等级选择对话框
+            if (showSkillLevelDialog) {
+                Dialog(onDismissRequest = { showSkillLevelDialog = false }) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF1F2937)
+                        ),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "⭐ 选择员工技能等级",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            
+                            Text(
+                                text = "将创建各职位6名员工",
+                                fontSize = 14.sp,
+                                color = Color.White.copy(alpha = 0.7f),
+                                modifier = Modifier.padding(bottom = 24.dp)
+                            )
+                            
+                            // 等级选择按钮
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                for (level in 1..5) {
+                                    val levelColor = when (level) {
+                                        5 -> Color(0xFFFF6B6B) // 红色 - 5级
+                                        4 -> Color(0xFFF59E0B) // 橙色 - 4级
+                                        3 -> Color(0xFF10B981) // 绿色 - 3级
+                                        2 -> Color(0xFF3B82F6) // 蓝色 - 2级
+                                        else -> Color(0xFF6B7280) // 灰色 - 1级
+                                    }
+                                    
+                                    val levelLabel = when (level) {
+                                        5 -> "★★★★★ 5级"
+                                        4 -> "★★★★☆ 4级"
+                                        3 -> "★★★☆☆ 3级"
+                                        2 -> "★★☆☆☆ 2级"
+                                        else -> "★☆☆☆☆ 1级"
+                                    }
+                                    
+                                    Button(
+                                        onClick = {
+                                            showSkillLevelDialog = false
+                                            onCreateTopEmployees(level)
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = levelColor
+                                        ),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Text(
+                                            text = levelLabel,
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White,
+                                            modifier = Modifier.padding(vertical = 8.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            // 取消按钮
+                            OutlinedButton(
+                                onClick = { showSkillLevelDialog = false },
+                                modifier = Modifier.fillMaxWidth(),
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text(
+                                    text = "取消",
+                                    color = Color.White,
+                                    fontSize = 16.sp,
+                                    modifier = Modifier.padding(vertical = 4.dp)
+                                )
+                            }
                         }
                     }
                 }

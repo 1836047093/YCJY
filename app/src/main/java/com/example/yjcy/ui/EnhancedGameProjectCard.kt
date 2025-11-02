@@ -928,7 +928,10 @@ fun EnhancedGameProjectCard(
                                             }
                                         }
                                         updatedHistory[updateIndex] = update.copy(comments = updatedComments)
-                                        onGameUpdate(game.copy(updateHistory = updatedHistory))
+                                        onGameUpdate(game.copy(
+                                            updateHistory = updatedHistory,
+                                            allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                                        ))
                                     }
                                 }
                             )
@@ -1014,7 +1017,10 @@ fun EnhancedGameProjectCard(
                                                     }
                                                 }
                                                 updatedHistory[updateIndex] = update.copy(comments = updatedComments)
-                                                onGameUpdate(game.copy(updateHistory = updatedHistory))
+                                                onGameUpdate(game.copy(
+                                            updateHistory = updatedHistory,
+                                            allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                                        ))
                                             }
                                         }
                                     )
@@ -1091,7 +1097,10 @@ fun EnhancedGameProjectCard(
                                                     }
                                                 }
                                                 updatedHistory[updateIndex] = update.copy(comments = updatedComments)
-                                                onGameUpdate(game.copy(updateHistory = updatedHistory))
+                                                onGameUpdate(game.copy(
+                                            updateHistory = updatedHistory,
+                                            allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                                        ))
                                             }
                                         }
                                     )
@@ -1184,7 +1193,8 @@ fun EnhancedGameProjectCard(
                     RevenueManager.removeGameFromMarket(gameId)
                     // 更新游戏状态为下架
                     val updatedGame = game.copy(
-                        releaseStatus = GameReleaseStatus.REMOVED_FROM_MARKET
+                        releaseStatus = GameReleaseStatus.REMOVED_FROM_MARKET,
+                        allDevelopmentEmployees = game.allDevelopmentEmployees
                     )
                     onGameUpdate(updatedGame)
                     showRevenueDialog = false
@@ -1196,7 +1206,10 @@ fun EnhancedGameProjectCard(
                 },
                 onMonetizationUpdate = { updatedItems ->
                     // 更新游戏的付费内容配置
-                    val updatedGame = game.copy(monetizationItems = updatedItems)
+                    val updatedGame = game.copy(
+                        monetizationItems = updatedItems,
+                        allDevelopmentEmployees = game.allDevelopmentEmployees
+                    )
                     onGameUpdate(updatedGame)
                     // 同步更新 RevenueManager 中的游戏信息
                     RevenueManager.updateGameInfo(
@@ -1211,12 +1224,18 @@ fun EnhancedGameProjectCard(
                 },
                 onAutoUpdateToggle = { enabled ->
                     // 更新自动更新开关状态
-                    val updatedGame = game.copy(autoUpdate = enabled)
+                    val updatedGame = game.copy(
+                        autoUpdate = enabled,
+                        allDevelopmentEmployees = game.allDevelopmentEmployees
+                    )
                     onGameUpdate(updatedGame)
                 },
                 onPriceChange = { newPrice ->
                     // 更新游戏价格
-                    val updatedGame = game.copy(releasePrice = newPrice.toFloat())
+                    val updatedGame = game.copy(
+                        releasePrice = newPrice.toFloat(),
+                        allDevelopmentEmployees = game.allDevelopmentEmployees
+                    )
                     onGameUpdate(updatedGame)
                 },
                 businessModel = game.businessModel,
@@ -1385,11 +1404,11 @@ fun GamePromotionDialog(
     var investmentAmount by remember { mutableIntStateOf(0) }
     var selectedOption by remember { mutableIntStateOf(0) } // 0=小规模, 1=中等规模, 2=大规模
     
-    // 宣传选项配置
+    // 宣传选项配置（费用已大幅上调）
     val promotionOptions = listOf(
-        PromotionOption("小规模宣传", 50000, 0.2f, "社交媒体、论坛推广"),
-        PromotionOption("中等规模宣传", 150000, 0.4f, "游戏展会、媒体评测"),
-        PromotionOption("大规模宣传", 500000, 0.8f, "电视广告、网络推广、明星代言")
+        PromotionOption("小规模宣传", 100000, 0.2f, "社交媒体、论坛推广"),
+        PromotionOption("中等规模宣传", 300000, 0.4f, "游戏展会、媒体评测"),
+        PromotionOption("大规模宣传", 1000000, 0.8f, "电视广告、网络推广、明星代言")
     )
     
     // 当前宣传指数

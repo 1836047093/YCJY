@@ -80,7 +80,8 @@ data class CompetitorGame(
     val monetizationRevenue: Double = 0.0, // 累计付费内容收入（仅网游）
     val currentTournament: EsportsTournament? = null, // 当前进行中的赛事
     val lastTournamentDate: GameDate? = null, // 上次举办赛事的日期
-    val tournamentHistory: List<EsportsTournament>? = emptyList() // 赛事历史记录
+    val tournamentHistory: List<EsportsTournament>? = emptyList(), // 赛事历史记录
+    val allDevelopmentEmployees: List<Employee> = emptyList() // 所有参与开发的员工（兼容性字段，竞争对手不使用）
 )
 
 /**
@@ -323,26 +324,28 @@ object CompetitorManager {
                     Quadruple(activePlayers, 0L, totalRevenue, totalMonetizationRevenue)
                 }
                 BusinessModel.SINGLE_PLAYER -> {
-                    // 单机游戏销量：大幅提高基础销量，增强竞争力
+                    // 单机游戏销量：大幅提高基础销量，增强竞争压力
                     val ratingBase = when {
-                        rating >= 9.0f -> Random.nextLong(100000L, 300000L)  // 9.0+分：10万-30万（大幅提高）
-                        rating >= 8.5f -> Random.nextLong(50000L, 150000L)   // 8.5-9.0分：5万-15万（大幅提高）
-                        rating >= 8.0f -> Random.nextLong(30000L, 100000L)   // 8.0-8.5分：3万-10万（大幅提高）
-                        rating >= 7.0f -> Random.nextLong(15000L, 50000L)    // 7.0-8.0分：1.5万-5万（大幅提高）
-                        rating >= 6.5f -> Random.nextLong(8000L, 25000L)    // 6.5-7.0分：8千-2.5万（提高）
-                        else -> Random.nextLong(5000L, 15000L)              // 6.5分以下：5千-1.5万（提高）
+                        rating >= 9.0f -> Random.nextLong(200000L, 500000L)  // 9.0+分：20万-50万（大幅增强）
+                        rating >= 8.5f -> Random.nextLong(120000L, 300000L)  // 8.5-9.0分：12万-30万（大幅增强）
+                        rating >= 8.0f -> Random.nextLong(80000L, 200000L)   // 8.0-8.5分：8万-20万（大幅增强）
+                        rating >= 7.5f -> Random.nextLong(50000L, 120000L)   // 7.5-8.0分：5万-12万（增强）
+                        rating >= 7.0f -> Random.nextLong(30000L, 80000L)    // 7.0-7.5分：3万-8万（增强）
+                        rating >= 6.5f -> Random.nextLong(15000L, 40000L)    // 6.5-7.0分：1.5万-4万
+                        else -> Random.nextLong(8000L, 20000L)               // 6.5分以下：8千-2万
                     }
                     
-                    // 时间累积销量（发售越久销量越高，但增速递减）
+                    // 时间累积销量（发售越久销量越高，增速更快）
                     val timeMultiplier = when {
-                        monthsSinceRelease <= 12 -> Random.nextDouble(0.5, 1.0)   // 1年内：50%-100%加成
-                        monthsSinceRelease <= 24 -> Random.nextDouble(1.0, 2.0)    // 1-2年：100%-200%加成
-                        monthsSinceRelease <= 36 -> Random.nextDouble(2.0, 3.5)    // 2-3年：200%-350%加成
-                        else -> Random.nextDouble(3.0, 5.0)                        // 3年以上：300%-500%加成
+                        monthsSinceRelease <= 12 -> Random.nextDouble(1.0, 2.0)   // 1年内：100%-200%
+                        monthsSinceRelease <= 24 -> Random.nextDouble(2.0, 4.0)   // 1-2年：200%-400%
+                        monthsSinceRelease <= 36 -> Random.nextDouble(4.0, 7.0)   // 2-3年：400%-700%
+                        monthsSinceRelease <= 48 -> Random.nextDouble(6.0, 10.0)  // 3-4年：600%-1000%
+                        else -> Random.nextDouble(8.0, 12.0)                      // 4年以上：800%-1200%
                     }
                     
-                    // 计算总销量：基础销量 × 时间倍率
-                    val totalSales = ((ratingBase * timeMultiplier).toLong()).coerceIn(1000L, 2000000L)
+                    // 计算总销量：基础销量 × 时间倍率，大幅提高上限
+                    val totalSales = ((ratingBase * timeMultiplier).toLong()).coerceIn(1000L, 6000000L)
                     
                     // 单机收入 = 销量 × 单价（假设50元）
                     val totalRevenue = totalSales * 50.0
@@ -480,33 +483,36 @@ object CompetitorManager {
                         updatedGames.add(game.copy(
                             activePlayers = newActivePlayers,
                             totalRevenue = newTotalRevenue,
-                            monetizationRevenue = newMonetizationRevenue
+                            monetizationRevenue = newMonetizationRevenue,
+                            allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
                         ))
                     }
                     BusinessModel.SINGLE_PLAYER -> {
-                        // 单机游戏持续销售：根据评分和当前销量动态计算增长
+                        // 单机游戏持续销售：根据评分和当前销量动态计算增长（增强版）
                         // 基础增长：评分越高，增长越快
                         val baseGrowthRate = when {
-                            game.rating >= 9.0f -> Random.nextDouble(0.8, 1.5)   // 9.0+分：0.8%-1.5%
-                            game.rating >= 8.5f -> Random.nextDouble(0.5, 1.0)   // 8.5-9.0分：0.5%-1.0%
-                            game.rating >= 8.0f -> Random.nextDouble(0.3, 0.7)   // 8.0-8.5分：0.3%-0.7%
-                            game.rating >= 7.0f -> Random.nextDouble(0.2, 0.5)   // 7.0-8.0分：0.2%-0.5%
-                            else -> Random.nextDouble(0.1, 0.3)                 // 7.0分以下：0.1%-0.3%
+                            game.rating >= 9.0f -> Random.nextDouble(1.2, 2.5)   // 9.0+分：1.2%-2.5%（大幅增强）
+                            game.rating >= 8.5f -> Random.nextDouble(0.9, 1.8)   // 8.5-9.0分：0.9%-1.8%（大幅增强）
+                            game.rating >= 8.0f -> Random.nextDouble(0.6, 1.2)   // 8.0-8.5分：0.6%-1.2%（增强）
+                            game.rating >= 7.5f -> Random.nextDouble(0.4, 0.9)   // 7.5-8.0分：0.4%-0.9%（增强）
+                            game.rating >= 7.0f -> Random.nextDouble(0.3, 0.6)   // 7.0-7.5分：0.3%-0.6%
+                            else -> Random.nextDouble(0.15, 0.4)                 // 7.0分以下：0.15%-0.4%
                         }
                         
                         // 计算增长：当前销量 × 增长比例
                         val proportionalGrowth = (game.salesCount * baseGrowthRate / 100.0).toLong()
                         
-                        // 保底增长（防止销量太低的游戏增长过慢）
+                        // 保底增长（防止销量太低的游戏增长过慢）- 大幅提高
                         val minGrowth = when {
-                            game.rating >= 9.0f -> Random.nextInt(2000, 5000)   // 高评分：2000-5000/月
-                            game.rating >= 8.0f -> Random.nextInt(1000, 3000)   // 中高评分：1000-3000/月
-                            game.rating >= 7.0f -> Random.nextInt(500, 1500)    // 中等评分：500-1500/月
-                            else -> Random.nextInt(100, 800)                    // 低评分：100-800/月
+                            game.rating >= 9.0f -> Random.nextInt(5000, 12000)   // 高评分：5000-12000/月（大幅增强）
+                            game.rating >= 8.5f -> Random.nextInt(3000, 8000)    // 中高评分：3000-8000/月（大幅增强）
+                            game.rating >= 8.0f -> Random.nextInt(2000, 5000)    // 中等评分：2000-5000/月（增强）
+                            game.rating >= 7.0f -> Random.nextInt(1000, 3000)    // 中低评分：1000-3000/月（增强）
+                            else -> Random.nextInt(300, 1200)                    // 低评分：300-1200/月
                         }.toLong()
                         
-                        // 取两者中的较大值，但不超过当前销量的5%（防止增长过快）
-                        val maxGrowth = (game.salesCount * 0.05).toLong()
+                        // 取两者中的较大值，但不超过当前销量的8%（提高上限，允许更快增长）
+                        val maxGrowth = (game.salesCount * 0.08).toLong()
                         val salesGrowth = maxOf(proportionalGrowth, minGrowth).coerceAtMost(maxGrowth)
                         
                         val newSalesCount = game.salesCount + salesGrowth
@@ -527,7 +533,8 @@ object CompetitorManager {
                         
                         updatedGames.add(game.copy(
                             salesCount = newSalesCount,
-                            totalRevenue = newTotalRevenue
+                            totalRevenue = newTotalRevenue,
+                            allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
                         ))
                     }
                 }
@@ -703,13 +710,15 @@ object CompetitorManager {
                 Quadruple(players, 0L, monetizationRevenue, monetizationRevenue)
             }
             BusinessModel.SINGLE_PLAYER -> {
-                // 新发售游戏的初始销量：大幅提高首发销量
+                // 新发售游戏的初始销量：大幅提高首发销量，增强竞争压力
                 val sales = when {
-                    rating >= 9.0f -> Random.nextInt(60000, 150000).toLong()   // 9.0+分：6万-15万首发（大幅提高）
-                    rating >= 8.5f -> Random.nextInt(30000, 80000).toLong()    // 8.5-9.0分：3万-8万首发（大幅提高）
-                    rating >= 8.0f -> Random.nextInt(20000, 50000).toLong()     // 8.0-8.5分：2万-5万首发（大幅提高）
-                    rating >= 7.0f -> Random.nextInt(10000, 30000).toLong()    // 7.0-8.0分：1万-3万首发（大幅提高）
-                    else -> Random.nextInt(5000, 15000).toLong()              // 7.0分以下：5千-1.5万首发（提高）
+                    rating >= 9.0f -> Random.nextInt(150000, 350000).toLong()   // 9.0+分：15万-35万首发（超强）
+                    rating >= 8.5f -> Random.nextInt(80000, 200000).toLong()    // 8.5-9.0分：8万-20万首发（超强）
+                    rating >= 8.0f -> Random.nextInt(50000, 120000).toLong()    // 8.0-8.5分：5万-12万首发（大幅增强）
+                    rating >= 7.5f -> Random.nextInt(30000, 80000).toLong()     // 7.5-8.0分：3万-8万首发（增强）
+                    rating >= 7.0f -> Random.nextInt(18000, 50000).toLong()     // 7.0-7.5分：1.8万-5万首发（增强）
+                    rating >= 6.5f -> Random.nextInt(10000, 30000).toLong()     // 6.5-7.0分：1万-3万首发
+                    else -> Random.nextInt(5000, 18000).toLong()                // 6.5分以下：5千-1.8万首发
                 }
                 // 首月收入 = 销量 × 单价(50元)
                 val revenue = sales * 50.0
@@ -1032,12 +1041,14 @@ object CompetitorManager {
                         
                         updatedGame = game.copy(
                             currentTournament = null,
-                            tournamentHistory = history
+                            tournamentHistory = history,
+                            allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
                         )
                     } else {
                         // 继续进行
                         updatedGame = game.copy(
-                            currentTournament = tournament.copy(currentDay = newDay)
+                            currentTournament = tournament.copy(currentDay = newDay),
+                            allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
                         )
                     }
                 }
@@ -1062,7 +1073,8 @@ object CompetitorManager {
                 if (game.id == selectedGameId) {
                     game.copy(
                         currentTournament = selectedTournament,
-                        lastTournamentDate = GameDate(currentYear, currentMonth, currentDay)
+                        lastTournamentDate = GameDate(currentYear, currentMonth, currentDay),
+                        allDevelopmentEmployees = game.allDevelopmentEmployees
                     )
                 } else {
                     game

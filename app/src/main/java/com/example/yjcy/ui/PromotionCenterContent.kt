@@ -182,7 +182,10 @@ fun PromotionCenterContent(
                 val updatedGames = games.map { game ->
                     if (game.id == selectedGame!!.id) {
                         val newPromotionIndex = (game.promotionIndex + promotionType.promotionIndexGain).coerceAtMost(1.0f)
-                        game.copy(promotionIndex = newPromotionIndex)
+                        game.copy(
+                            promotionIndex = newPromotionIndex,
+                            allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                        )
                     } else {
                         game
                     }
@@ -839,10 +842,16 @@ fun PromotionCenterDialog(
                         val updatedGames = games.map { game ->
                             if (autoPromotionSelectedGameIds.contains(game.id)) {
                                 // 选中的游戏开启自动宣传
-                                game.copy(autoPromotion = true)
+                                game.copy(
+                                    autoPromotion = true,
+                                    allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                                )
                             } else {
                                 // 未选中的游戏关闭自动宣传
-                                game.copy(autoPromotion = false)
+                                game.copy(
+                                    autoPromotion = false,
+                                    allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                                )
                             }
                         }
                         onGamesUpdate(updatedGames)
@@ -902,7 +911,10 @@ fun PromotionCenterDialog(
                     val updatedGames = games.map { game ->
                         if (selectedGameIds.contains(game.id)) {
                             val newPromotionIndex = (game.promotionIndex + promotionType.promotionIndexGain).coerceAtMost(1.0f)
-                            game.copy(promotionIndex = newPromotionIndex)
+                            game.copy(
+                            promotionIndex = newPromotionIndex,
+                            allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                        )
                         } else {
                             game
                         }

@@ -565,9 +565,9 @@ object RevenueManager {
                 i == 0 -> {
                     // 首日销量/注册，应用宣传指数提升
                     val baseValue = Random.nextInt(800, 1200)
-                    // 宣传指数100%时，首发销量/注册提升25%（已下调，原50%）
+                    // 宣传指数100%时，首发销量/注册提升10%（已大幅下调，原25%，最初50%）
                     // 低于100%也有提升，但效果没有100%多
-                    val promotionBonus = 1f + (promotionIndex * 0.25f)
+                    val promotionBonus = 1f + (promotionIndex * 0.1f)
                     val withPromotionBonus = (baseValue * promotionBonus).toInt()
                     // 应用IP加成（如果有）
                     val ipBonus = getIPBonus(gameId)
@@ -617,22 +617,22 @@ object RevenueManager {
      * 计算下一次更新成本（随更新次数递增，带成本上限）
      * 
      * **单机游戏**（DLC/资料片性质）：
-     * - 基础成本：120,000元
+     * - 基础成本：300,000元（大幅上调）
      * - 递增系数：1.25（每次+25%）
-     * - 成本上限：450,000元（第7次达到）
-     * - 价格梯度：120K → 150K → 187.5K → 234.4K → 293K → 366.2K → 450K（上限）
+     * - 成本上限：1,000,000元（第6次达到）
+     * - 价格梯度：300K → 375K → 468.75K → 585.9K → 732.4K → 915.5K → 1000K（上限）
      * 
      * **网络游戏**（持续运营性质）：
-     * - 基础成本：1,000,000元（大幅提升）
+     * - 基础成本：1,000,000元
      * - 递增系数：1.25（每次+25%）
      * - 成本上限：5,000,000元（第7次达到）
      * - 价格梯度：1000K → 1250K → 1562.5K → 1953.1K → 2441.4K → 3051.8K → 3814.7K → 5000K（上限）
      * 
      * **设计理念**：
-     * - 单机游戏基础成本是网游的0.12倍，符合DLC性质
+     * - 单机游戏基础成本大幅提升至30万，使更新成为重大投资决策
      * - 设置成本上限防止后期成本过高导致游戏失衡
-     * - 第7次更新后达到上限，保持固定成本
-     * - 鼓励玩家持续维护游戏，但不会无限膨胀
+     * - 第6次更新后达到上限100万，保持固定成本
+     * - 鼓励玩家谨慎规划更新策略，而非无脑更新
      */
     fun calculateUpdateCost(gameId: String): Double {
         val gameRevenue = gameRevenueMap[gameId] ?: return 0.0
@@ -643,8 +643,8 @@ object RevenueManager {
         
         // 根据商业模式设置不同的基础成本和上限
         val (base, maxCost) = when (businessModel) {
-            com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER -> Pair(120_000.0, 450_000.0)  // 单机：基础120K，上限450K
-            com.example.yjcy.ui.BusinessModel.ONLINE_GAME -> Pair(1_000_000.0, 5_000_000.0)     // 网游：基础1000K，上限5000K（大幅提升）
+            com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER -> Pair(300_000.0, 1_000_000.0)  // 单机：基础300K（大幅上调），上限1000K
+            com.example.yjcy.ui.BusinessModel.ONLINE_GAME -> Pair(1_000_000.0, 5_000_000.0)     // 网游：基础1000K，上限5000K
         }
         
         // 使用1.25的递增系数（每次+25%），但不超过上限

@@ -446,7 +446,8 @@ object GVAManager {
                 if (gameIndex >= 0) {
                     val game = newGames[gameIndex]
                     newGames[gameIndex] = game.copy(
-                        awards = game.awards + nomination.award
+                        awards = game.awards + nomination.award,
+                        allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
                     )
                 }
             }

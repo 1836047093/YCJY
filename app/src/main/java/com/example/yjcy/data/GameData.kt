@@ -452,7 +452,8 @@ data class Game(
     val revenue: Long = 0L,
     val rating: Float? = null, // 游戏评分
     val gameRating: GameRating? = null, // 新增：详细评分信息
-    val assignedEmployees: List<Employee> = emptyList(), // 已分配的员工列表
+    val assignedEmployees: List<Employee> = emptyList(), // 已分配的员工列表（当前阶段）
+    val allDevelopmentEmployees: List<Employee> = emptyList(), // 所有参与开发的员工列表（所有阶段累积）
     val monetizationItems: List<MonetizationItem> = emptyList(), // 付费内容列表（仅网络游戏）
     val developmentCost: Long = 0L, // 新增：开发成本（用于废弃时返还80%）
     val serverInfo: GameServerInfo? = null, // 新增：服务器信息（仅网络游戏）

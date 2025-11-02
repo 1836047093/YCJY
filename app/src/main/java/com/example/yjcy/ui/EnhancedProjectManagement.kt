@@ -923,7 +923,10 @@ fun SuperEnhancedGameDevelopmentDialog(
                                 ).let { game ->
                                     // 计算平台开发费用
                                     val totalPlatformCost = selectedPlatforms.sumOf { it.developmentCost.toLong() }
-                                    game.copy(developmentCost = totalPlatformCost)
+                                    game.copy(
+                                        developmentCost = totalPlatformCost,
+                                        allDevelopmentEmployees = emptyList()
+                                    )
                                 }
                                 onGameCreated(newGame)
                             }
@@ -1202,7 +1205,10 @@ fun EnhancedGameDevelopmentDialog(
                                         ).let { game ->
                                             // 计算平台开发费用
                                             val totalPlatformCost = selectedPlatforms.sumOf { it.developmentCost.toLong() }
-                                            game.copy(developmentCost = totalPlatformCost)
+                                            game.copy(
+                                        developmentCost = totalPlatformCost,
+                                        allDevelopmentEmployees = emptyList()
+                                    )
                                         }
                                         onGameCreated(newGame)
                                     }
@@ -2070,7 +2076,7 @@ fun IPSelectionStep(
         )
         
         Text(
-            text = "使用已有IP可以获得销量加成",
+            text = "使用已有IP可以获得销量加成 (共${ownedIPs.size}个IP)",
             color = Color.White.copy(alpha = 0.6f),
             fontSize = 12.sp,
             modifier = Modifier.padding(top = 4.dp)
@@ -2078,56 +2084,63 @@ fun IPSelectionStep(
         
         Spacer(modifier = Modifier.height(12.dp))
         
-        // 原创选项
-        Card(
+        // 添加可滚动容器，限制最大高度
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { onIPSelected(null) },
-            colors = CardDefaults.cardColors(
-                containerColor = if (selectedIP == null) 
-                    Color(0xFF10B981).copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f)
-            ),
-            shape = RoundedCornerShape(8.dp)
+                .heightIn(max = 400.dp) // 限制最大高度
+                .verticalScroll(rememberScrollState()) // 添加垂直滚动
         ) {
-            Row(
+            // 原创选项
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .clickable { onIPSelected(null) },
+                colors = CardDefaults.cardColors(
+                    containerColor = if (selectedIP == null) 
+                        Color(0xFF10B981).copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f)
+                ),
+                shape = RoundedCornerShape(8.dp)
             ) {
-                Text(
-                    text = "✨",
-                    fontSize = 20.sp,
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-                Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
-                        text = "原创游戏",
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Text(
-                        text = "不使用IP，全新原创作品",
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 12.sp
-                    )
-                }
-                if (selectedIP == null) {
-                    Text(
-                        text = "✓",
-                        color = Color(0xFF10B981),
+                        text = "✨",
                         fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
+                        modifier = Modifier.padding(end = 8.dp)
                     )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "原创游戏",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "不使用IP，全新原创作品",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 12.sp
+                        )
+                    }
+                    if (selectedIP == null) {
+                        Text(
+                            text = "✓",
+                            color = Color(0xFF10B981),
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
-        }
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        // 拥有的IP列表
-        ownedIPs.forEach { ip ->
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // 拥有的IP列表
+            ownedIPs.forEach { ip ->
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -2203,6 +2216,7 @@ fun IPSelectionStep(
             }
             Spacer(modifier = Modifier.height(4.dp))
         }
+        } // 关闭可滚动Column
     }
 }
 

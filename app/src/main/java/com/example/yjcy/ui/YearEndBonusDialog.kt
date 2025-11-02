@@ -130,7 +130,7 @@ fun YearEndBonusDialog(
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         StatRow(
-                            label = "发售游戏",
+                            label = "运营游戏",
                             value = "${statistics.gamesReleased}款",
                             icon = Icons.Default.Games
                         )
