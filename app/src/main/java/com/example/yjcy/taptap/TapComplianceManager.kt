@@ -23,11 +23,27 @@ object TapComplianceManager {
      * @param userId 用户唯一标识（建议使用TapTap的unionId）
      */
     fun startup(activity: Activity, userId: String) {
+        Log.d(TAG, "开始合规认证: userId=$userId")
         try {
-            Log.d(TAG, "开始合规认证: userId=$userId")
             TapTapCompliance.startup(activity, userId)
+            Log.d(TAG, "✅ 合规认证启动成功")
         } catch (e: Exception) {
-            Log.e(TAG, "开始合规认证失败: ${e.message}", e)
+            val errorMsg = e.message ?: "未知错误"
+            Log.e(TAG, "❌ 合规认证启动失败: $errorMsg")
+            
+            // 如果是"应用未初始化"错误，延迟重试
+            if (errorMsg.contains("初始化") || errorMsg.contains("未初始化")) {
+                Log.w(TAG, "⚠️ SDK可能未初始化，延迟后重试...")
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    try {
+                        Log.d(TAG, "重试启动合规认证...")
+                        TapTapCompliance.startup(activity, userId)
+                        Log.d(TAG, "✅ 重试合规认证启动成功")
+                    } catch (retryError: Exception) {
+                        Log.e(TAG, "❌ 重试合规认证仍然失败: ${retryError.message}")
+                    }
+                }, 2000) // 延迟2秒后重试
+            }
         }
     }
     

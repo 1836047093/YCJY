@@ -52,6 +52,8 @@ tap-core = { group = "com.taptap.sdk", name = "tap-core", version.ref = "tapSdk"
 tap-login = { group = "com.taptap.sdk", name = "tap-login", version.ref = "tapSdk" }
 tap-compliance = { group = "com.taptap.sdk", name = "tap-compliance", version.ref = "tapSdk" }
 tap-update = { group = "com.taptap.sdk", name = "tap-update", version.ref = "tapSdk" }
+# 根据Maven Central，tap-core已包含tap-db，但可能需要显式添加依赖
+tap-db = { group = "com.taptap.sdk", name = "tap-db", version.ref = "tapSdk" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 
 

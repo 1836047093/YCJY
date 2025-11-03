@@ -22,6 +22,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.yjcy.taptap.TapComplianceManager
+import com.example.yjcy.taptap.TapDBManager
 import com.example.yjcy.taptap.TapLoginManager
 import com.taptap.sdk.login.TapTapAccount
 import kotlinx.coroutines.delay
@@ -55,18 +56,24 @@ class TapLoginViewModel : ViewModel() {
     )
     
     init {
-        checkLoginState()
+        // 延迟检查登录状态，避免在SDK初始化前调用TapSDK功能
+        // checkLoginState()
     }
     
     /**
      * 检查登录状态
      */
     fun checkLoginState() {
-        val account = TapLoginManager.getCurrentAccount()
-        loginState = if (account != null) {
-            LoginState.LoggedIn(account)
-        } else {
-            LoginState.NotLoggedIn
+        try {
+            val account = TapLoginManager.getCurrentAccount()
+            loginState = if (account != null) {
+                LoginState.LoggedIn(account)
+            } else {
+                LoginState.NotLoggedIn
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("TapLoginViewModel", "检查登录状态失败（SDK可能未初始化）: ${e.message}")
+            loginState = LoginState.NotLoggedIn
         }
     }
     
@@ -77,15 +84,32 @@ class TapLoginViewModel : ViewModel() {
         viewModelScope.launch {
             isLoading = true
             try {
+                android.util.Log.d("TapLoginScreen", "========== 开始登录流程 ==========")
                 when (val result = TapLoginManager.loginWithBasicProfile(activity)) {
                     is TapLoginManager.LoginResult.Success -> {
+                        android.util.Log.d("TapLoginScreen", "✅ 登录成功回调收到")
+                        android.util.Log.d("TapLoginScreen", "账户信息: name=${result.account.name}, unionId=${result.account.unionId}, openId=${result.account.openId}")
+                        
                         loginState = LoginState.LoggedIn(result.account)
                         
-                        // 登录成功后自动触发合规认证
+                        // 登录成功后设置TapDB账号ID
                         val unionId = result.account.unionId
+                        android.util.Log.d("TapLoginScreen", "unionId检查: ${if (unionId.isNullOrEmpty()) "为空或null" else "有值，长度=${unionId.length}"}")
+                        
                         if (!unionId.isNullOrEmpty()) {
+                            android.util.Log.d("TapLoginScreen", "准备调用TapDBManager.setUser，unionId=$unionId")
+                            TapDBManager.setUser(activity, unionId)
+                            android.util.Log.d("TapLoginScreen", "TapDBManager.setUser调用完成")
+                        } else {
+                            android.util.Log.w("TapLoginScreen", "⚠️ unionId为空，跳过TapDB设置账号")
+                        }
+                        
+                        // 登录成功后自动触发合规认证
+                        if (!unionId.isNullOrEmpty()) {
+                            android.util.Log.d("TapLoginScreen", "登录成功，准备启动合规认证: $unionId")
+                            // 直接调用合规认证，由合规管理器处理可能的初始化问题
                             TapComplianceManager.startup(activity, unionId)
-                            onResult(true, "登录成功！正在进行合规认证...")
+                            onResult(true, "登录成功！")
                             
                             // 等待一小段时间后刷新合规信息
                             delay(2000)
@@ -93,14 +117,20 @@ class TapLoginViewModel : ViewModel() {
                         } else {
                             onResult(true, "登录成功！")
                         }
+                        android.util.Log.d("TapLoginScreen", "========== 登录流程完成 ==========")
                     }
                     is TapLoginManager.LoginResult.Error -> {
+                        android.util.Log.e("TapLoginScreen", "❌ 登录失败: ${result.exception.message}")
                         onResult(false, "登录失败: ${result.exception.message}")
                     }
                     TapLoginManager.LoginResult.Cancelled -> {
+                        android.util.Log.d("TapLoginScreen", "用户取消登录")
                         onResult(false, "用户取消登录")
                     }
                 }
+            } catch (e: Exception) {
+                android.util.Log.e("TapLoginScreen", "登录异常: ${e.message}", e)
+                onResult(false, "登录异常: ${e.message}")
             } finally {
                 isLoading = false
             }
@@ -110,9 +140,12 @@ class TapLoginViewModel : ViewModel() {
     /**
      * 登出
      */
-    fun logout(onResult: () -> Unit) {
+    fun logout(context: android.content.Context, onResult: () -> Unit) {
         // 退出合规认证
         TapComplianceManager.exit()
+        
+        // 清除TapDB账号ID（需要在登出TapTap之前调用）
+        TapDBManager.clearUser(context)
         
         // 登出 TapTap
         TapLoginManager.logout()
@@ -206,7 +239,7 @@ fun TapLoginScreen(
                             account = state.account,
                             complianceInfo = viewModel.complianceInfo,
                             onLogoutClick = {
-                                viewModel.logout {
+                                viewModel.logout(context) {
                                     showSnackbar = "已登出"
                                 }
                             },

@@ -17,4 +17,13 @@ object TapSDKConfig {
     
     /** Server Secret（用于服务器端，客户端请勿使用） */
     const val SERVER_SECRET = "FTiojsHBkvJb4Pjhq8KXGN48oR2Xc7BJ"
+    
+    /** TapDB AppID（与Client ID相同，TapDB使用Client ID作为AppID） */
+    const val TAPDB_APP_ID = CLIENT_ID
+    
+    /** TapDB 渠道名称 */
+    const val TAPDB_CHANNEL = "TapTap"
+    
+    /** TapDB 游戏版本 */
+    const val TAPDB_GAME_VERSION = "2.2.1"
 }

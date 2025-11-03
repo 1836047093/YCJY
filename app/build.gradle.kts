@@ -113,6 +113,9 @@ dependencies {
     implementation(libs.tap.login)
     implementation(libs.tap.compliance)
     implementation(libs.tap.update)
+    // TapDB SDK - 根据Maven Central，tap-core已包含tap-db，但显式添加以确保可用
+    // 参考：https://central.sonatype.com/artifact/com.taptap.sdk/tap-core/4.8.3
+    implementation(libs.tap.db)
     
     // JSON序列化（TapSDK需要）
     implementation(libs.kotlinx.serialization.json)

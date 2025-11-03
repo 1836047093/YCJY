@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +66,9 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import android.view.Choreographer
@@ -212,15 +216,16 @@ class MainActivity : ComponentActivity() {
         
         // 如果用户已同意隐私政策，则初始化SDK并检查更新
         if (hasAgreedPrivacy) {
+            Log.d("MainActivity", "✅ 用户已同意隐私政策，开始初始化TapSDK")
             (application as? YjcyApplication)?.initTapSDKIfNeeded()
             
             // 延迟500ms后检查更新，确保SDK完全初始化
-            Handler(Looper.getMainLooper()).postDelayed({
-                Log.d("MainActivity", "开始检查TapTap更新...")
-                TapUpdateManager.checkForceUpdate()
-            }, 500)
+            // Handler(Looper.getMainLooper()).postDelayed({
+            //     Log.d("MainActivity", "开始检查TapTap更新...")
+            //     TapUpdateManager.checkForceUpdate()
+            // }, 500)
         } else {
-            Log.d("MainActivity", "用户未同意隐私政策，等待用户同意后再初始化SDK")
+            Log.d("MainActivity", "⚠️ 用户未同意隐私政策，等待用户同意后再初始化SDK")
         }
         
         setContent {
@@ -231,7 +236,8 @@ class MainActivity : ComponentActivity() {
                 var showPrivacyDialog by remember { mutableStateOf(!hasAgreedPrivacy) }
                 
                 // TapTap登录状态检查（Activity重启后会重新检查）
-                var isTapTapLoggedIn by remember { mutableStateOf(TapLoginManager.isLoggedIn()) }
+                // 初始为false，用户同意隐私政策后再检查真实状态
+                var isTapTapLoggedIn by remember { mutableStateOf(false) }
                 
                 // Privacy Policy Dialog
                 if (showPrivacyDialog) {
@@ -245,6 +251,12 @@ class MainActivity : ComponentActivity() {
                             
                             // 用户同意隐私政策后，立即初始化TapSDK
                             (application as? YjcyApplication)?.initTapSDKIfNeeded()
+                            
+                            // 延迟更长时间，确保SDK完全初始化后再显示登录界面
+                            // 避免合规认证时出现"当前应用还未初始化"的错误
+                            Handler(Looper.getMainLooper()).postDelayed({
+                                Log.d("MainActivity", "✅ SDK初始化延迟完成（1秒），准备显示登录界面")
+                            }, 1000)
                         },
                         onReject = {
                             // 用户拒绝隐私政策，退出游戏
@@ -474,20 +486,35 @@ fun ForcedTapLoginScreen(
     
     var showMessage by remember { mutableStateOf(null as String?) }
     
+    // 标题发光动画
+    val titleGlow by rememberInfiniteTransition(label = "title_glow").animateFloat(
+        initialValue = 0.5f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = EaseInOut),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "title_glow_animation"
+    )
+    
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF667eea),
-                        Color(0xFF764ba2)
-                    )
+                        Color(0xFF0F0C29),  // 深紫蓝色
+                        Color(0xFF1A0A2E),  // 深紫色
+                        Color(0xFF16213E),  // 深蓝色
+                        Color(0xFF0F0C29)   // 回到深紫蓝色
+                    ),
+                    startY = 0f,
+                    endY = Float.POSITIVE_INFINITY
                 )
             )
     ) {
-        // 背景粒子动画
-        ParticleBackground()
+        // 游戏风格背景动画
+        GameStyleBackground()
         
         Column(
             modifier = Modifier
@@ -496,59 +523,76 @@ fun ForcedTapLoginScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Logo展示
+            // Logo展示 - 带霓虹发光效果
             Text(
                 text = "🎮 游创纪元",
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold,
+                fontSize = 40.sp,
+                fontWeight = FontWeight.ExtraBold,
                 color = Color.White,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                style = androidx.compose.ui.text.TextStyle(
+                    shadow = Shadow(
+                        color = Color(0xFF9B51E0).copy(alpha = titleGlow * 0.9f),
+                        offset = Offset(0f, 0f),
+                        blurRadius = 30f * titleGlow
+                    )
+                )
             )
             
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             
             Text(
                 text = "打造你的游戏帝国",
-                fontSize = 16.sp,
-                color = Color.White.copy(alpha = 0.8f),
-                textAlign = TextAlign.Center
+                fontSize = 18.sp,
+                color = Color(0xFFA0A0FF),
+                textAlign = TextAlign.Center,
+                fontWeight = FontWeight.Medium,
+                style = androidx.compose.ui.text.TextStyle(
+                    shadow = Shadow(
+                        color = Color(0xFF667eea).copy(alpha = 0.5f),
+                        offset = Offset(0f, 0f),
+                        blurRadius = 15f
+                    )
+                )
             )
             
             Spacer(modifier = Modifier.height(48.dp))
             
-            // TapTap登录卡片
+            // TapTap登录卡片 - 游戏风格半透明设计
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(16.dp, shape = RoundedCornerShape(20.dp)),
+                shape = RoundedCornerShape(20.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = Color.White.copy(alpha = 0.95f)
+                    containerColor = Color(0xCC1A1A2E)  // 深紫色半透明
                 )
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(24.dp),
+                        .padding(32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
                         text = "🎮 TapTap 登录",
-                        fontSize = 24.sp,
+                        fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF667eea)
+                        color = Color.White
                     )
                     
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     
                     Text(
                         text = "请先登录TapTap账号",
-                        fontSize = 14.sp,
-                        color = Color.Gray
+                        fontSize = 16.sp,
+                        color = Color(0xFFA0A0FF),  // 浅紫色
                     )
                     
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(32.dp))
                     
-                    // 登录按钮
+                    // 登录按钮 - 霓虹效果
                     Button(
                         onClick = {
                             activity?.let { act ->
@@ -565,8 +609,8 @@ fun ForcedTapLoginScreen(
                         enabled = !viewModel.isLoading,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(56.dp),
-                        shape = RoundedCornerShape(12.dp),
+                            .height(60.dp),
+                        shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF667eea)
                         )
@@ -580,7 +624,7 @@ fun ForcedTapLoginScreen(
                             Text(
                                 text = "🚀 使用 TapTap 登录",
                                 fontSize = 18.sp,
-                                fontWeight = FontWeight.SemiBold,
+                                fontWeight = FontWeight.Bold,
                                 color = Color.White
                             )
                         }
@@ -722,7 +766,6 @@ fun SettingsOption(
         )
     }
 }
-
 @Composable
 fun MainMenuScreen(navController: NavController) {
     val context = LocalContext.current
@@ -1490,7 +1533,6 @@ fun ModernGameBackground() {
     // 粒子效果（保留原有的粒子效果但优化）
     ParticleBackground()
 }
-
 @Composable
 fun ParticleBackground() {
     // 减少粒子数量，降低性能消耗
@@ -1543,8 +1585,266 @@ data class Particle(
     val y: Float,
     val size: Float,
     val speed: Float,
-    val alpha: Float
+    val alpha: Float,
+    val color: Color = Color.White
 )
+
+/**
+ * 游戏风格背景 - 超炫酷视觉动效
+ * 包含：动态网格、光流效果、扫描线、波形、多色粒子等
+ */
+@Composable
+fun GameStyleBackground() {
+    val infiniteTransition = rememberInfiniteTransition(label = "game_background")
+    
+    // 网格扫描动画
+    val gridOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(10000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "grid_offset"
+    )
+    
+    // 光晕脉冲
+    val glowPulse by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = EaseInOut),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "glow_pulse"
+    )
+    
+    // 扫描线位置
+    val scanLineOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "scan_line"
+    )
+    
+    // 波形动画
+    val waveOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(4000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "wave_offset"
+    )
+    
+    // 多色彩粒子 - 不同颜色
+    val particles = remember {
+        List(30) { index ->
+            val colors = listOf(
+                Color(0xFFFF6B9D),  // 粉红
+                Color(0xFF9B51E0),  // 紫色
+                Color(0xFF667eea),  // 蓝色
+                Color(0xFF00D4FF),  // 青色
+                Color(0xFFFFF700)   // 黄色
+            )
+            Particle(
+                x = Random.nextFloat(),
+                y = Random.nextFloat(),
+                size = Random.nextFloat() * 3f + 1.5f,
+                speed = Random.nextFloat() * 0.015f + 0.008f,
+                alpha = Random.nextFloat() * 0.6f + 0.3f,
+                color = colors[index % colors.size]
+            )
+        }
+    }
+    
+    // 粒子动画进度
+    val particleProgress by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(15000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "particle_progress"
+    )
+    
+    Canvas(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        // 1. 绘制动态扫描网格
+        val gridSpacing = 60.dp.toPx()
+        val gridColor = Color(0xFF667eea).copy(alpha = 0.15f * glowPulse)
+        
+        // 垂直线
+        var x = 0f
+        while (x < size.width) {
+            drawLine(
+                color = gridColor,
+                start = Offset(x, 0f),
+                end = Offset(x, size.height),
+                strokeWidth = 1.5f
+            )
+            x += gridSpacing
+        }
+        
+        // 水平线
+        var y = (gridOffset * gridSpacing) % gridSpacing
+        while (y < size.height) {
+            drawLine(
+                color = gridColor,
+                start = Offset(0f, y),
+                end = Offset(size.width, y),
+                strokeWidth = 1.5f
+            )
+            y += gridSpacing
+        }
+        
+        // 2. 绘制扫描线（水平移动的光带）
+        val scanY = scanLineOffset * size.height
+        drawLine(
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    Color.Transparent,
+                    Color(0xFF00D4FF).copy(alpha = 0.5f * glowPulse),
+                    Color.Transparent
+                )
+            ),
+            start = Offset(0f, scanY - 20.dp.toPx()),
+            end = Offset(size.width, scanY - 20.dp.toPx()),
+            strokeWidth = 40.dp.toPx()
+        )
+        
+        // 3. 绘制波形效果（底部）
+        val waveY = size.height * 0.8f
+        val waveHeight = 30.dp.toPx()
+        val waveCount = 3
+        val points = mutableListOf<Offset>()
+        
+        for (i in 0..100) {
+            val xPos = i / 100f * size.width
+            var yPos = waveY
+            for (j in 0 until waveCount) {
+                yPos += kotlin.math.sin((xPos * 0.02f + waveOffset * 5f + j * 2f) * kotlin.math.PI.toFloat()).toFloat() * waveHeight / waveCount
+            }
+            points.add(Offset(xPos, yPos))
+        }
+        
+        drawPath(
+            path = Path().apply {
+                moveTo(points[0].x, points[0].y)
+                points.drop(1).forEach { point ->
+                    lineTo(point.x, point.y)
+                }
+            },
+            color = Color(0xFF9B51E0).copy(alpha = 0.4f * glowPulse),
+            style = Stroke(width = 3f)
+        )
+        
+        // 4. 绘制多个光晕中心（不同位置）
+        val glowCenters = listOf(
+            Offset(size.width * 0.3f, size.height * 0.3f),
+            Offset(size.width * 0.7f, size.height * 0.7f),
+            Offset(size.width * 0.5f, size.height * 0.5f)
+        )
+        val glowColors = listOf(
+            Color(0xFF00D4FF),
+            Color(0xFF9B51E0),
+            Color(0xFFFF6B9D)
+        )
+        
+        glowCenters.forEachIndexed { index, center ->
+            val radius = size.width * 0.5f
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        glowColors[index].copy(alpha = 0.15f * glowPulse),
+                        Color.Transparent
+                    ),
+                    radius = radius
+                ),
+                radius = radius,
+                center = center
+            )
+        }
+        
+        // 5. 绘制光流线条（对角线光流）
+        for (i in 0..4) {
+            val progress = (gridOffset + i * 0.2f) % 1f
+            val startX = progress * size.width
+            val startY = -progress * size.height
+            val endX = startX + size.width * 0.5f
+            val endY = startY + size.height * 0.5f
+            
+            drawLine(
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        Color.Transparent,
+                        Color(0xFF667eea).copy(alpha = 0.3f * glowPulse),
+                        Color.Transparent
+                    )
+                ),
+                start = Offset(startX.coerceIn(0f, size.width), startY.coerceIn(0f, size.height)),
+                end = Offset(endX.coerceIn(0f, size.width), endY.coerceIn(0f, size.height)),
+                strokeWidth = 2f
+            )
+        }
+        
+        // 6. 绘制多色彩粒子
+        particles.forEach { particle ->
+            val currentY = (particle.y + particleProgress * particle.speed) % 1f
+            val currentX = particle.x
+            
+            // 粒子拖尾效果
+            for (i in 1..3) {
+                val trailY = (currentY - i * 0.02f).let { if (it < 0) it + 1f else it }
+                drawCircle(
+                    color = particle.color.copy(alpha = particle.alpha / i / 2),
+                    radius = particle.size / i,
+                    center = Offset(
+                        x = currentX * size.width,
+                        y = trailY * size.height
+                    )
+                )
+            }
+            
+            // 主粒子
+            drawCircle(
+                color = particle.color.copy(alpha = particle.alpha),
+                radius = particle.size,
+                center = Offset(
+                    x = currentX * size.width,
+                    y = currentY * size.height
+                )
+            )
+        }
+        
+        // 7. 绘制霓虹边框（四角装饰）
+        val neonWidth = 3f
+        val neonColor1 = Color(0xFF00D4FF).copy(alpha = 0.6f * glowPulse)
+        val neonColor2 = Color(0xFFFF6B9D).copy(alpha = 0.6f * glowPulse)
+        
+        // 左上角
+        drawLine(neonColor1, Offset(0f, 0f), Offset(size.width * 0.2f, 0f), strokeWidth = neonWidth)
+        drawLine(neonColor1, Offset(0f, 0f), Offset(0f, size.height * 0.2f), strokeWidth = neonWidth)
+        
+        // 右上角
+        drawLine(neonColor2, Offset(size.width, 0f), Offset(size.width * 0.8f, 0f), strokeWidth = neonWidth)
+        drawLine(neonColor2, Offset(size.width, 0f), Offset(size.width, size.height * 0.2f), strokeWidth = neonWidth)
+        
+        // 左下角
+        drawLine(neonColor2, Offset(0f, size.height), Offset(size.width * 0.2f, size.height), strokeWidth = neonWidth)
+        drawLine(neonColor2, Offset(0f, size.height), Offset(0f, size.height * 0.8f), strokeWidth = neonWidth)
+        
+        // 右下角
+        drawLine(neonColor1, Offset(size.width, size.height), Offset(size.width * 0.8f, size.height), strokeWidth = neonWidth)
+        drawLine(neonColor1, Offset(size.width, size.height), Offset(size.width, size.height * 0.8f), strokeWidth = neonWidth)
+    }
+}
 
 @Composable
 fun GameMenuButton(
@@ -1858,7 +2158,6 @@ fun GameSetupScreen(navController: NavController) {
         }
     }
 }
-
 @Composable
 fun GameScreen(
     navController: NavController,
@@ -2309,8 +2608,6 @@ fun GameScreen(
             }
         }
     }
-    
-    
     // 时间推进系统 - 直接按天推进
     LaunchedEffect(gameSpeed) {
         val loopId = System.currentTimeMillis()
@@ -3100,7 +3397,6 @@ fun GameScreen(
                     }
                 }
             }
-            
             // 移除离职员工（使用安全的filter方式避免并发修改）
             if (employeesToRemove.isNotEmpty()) {
                 try {
@@ -3527,7 +3823,6 @@ fun GameScreen(
     BackHandler {
         showExitDialog = true
     }
-    
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -4325,7 +4620,6 @@ fun GameScreen(
                 dismissButton = null
             )
         }
-        
         // 设置界面覆盖层
         if (showSettings) {
             Box(
@@ -4718,21 +5012,6 @@ fun GameScreen(
             )
         }
         
-        // GVA颁奖典礼对话框
-        if (showGVAAwardDialog) {
-            GVAAwardDialog(
-                year = gvaAwardYear,
-                nominations = gvaAwardNominations,
-                playerWonCount = gvaPlayerWonCount,
-                playerTotalReward = gvaPlayerTotalReward,
-                playerFansGain = gvaPlayerFansGain,
-                onDismiss = {
-                    showGVAAwardDialog = false
-                    isPaused = false // 关闭对话框后恢复游戏
-                }
-            )
-        }
-        
         // 挑战完成对话框
         if (showChallengeCompleteDialog) {
             ChallengeCompleteDialog(
@@ -5093,7 +5372,6 @@ fun TopInfoBar(
         }
     }
 }
-
 @Composable
 fun CompanyOverviewContent(
     companyName: String = "我的游戏公司",
@@ -5871,7 +6149,6 @@ fun ExpandableFinancialItem(
         }
     }
 }
-
 // 优化版本的底部导航栏组件 - 字体加粗+黑色
 @Composable
 fun EnhancedBottomNavigationBar(
@@ -6668,7 +6945,6 @@ fun SettingsScreen(navController: NavController) {
         }
     }
 }
-
 // 存档管理类（异步版本，支持数据清理和压缩）
 class SaveManager(context: Context) {
     private val sharedPreferences = context.getSharedPreferences("game_saves", Context.MODE_PRIVATE)
@@ -6975,25 +7251,6 @@ data class SaveResult(
     val compressedSizeKB: Double = 0.0,
     val errorMessage: String? = null
 )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 @Composable
 fun InGameSettingsContent(
     navController: NavController,
@@ -7609,7 +7866,6 @@ fun InGameSettingsContent(
             }
         }
     }
-    
     // 保存游戏对话框
     if (showSaveDialog) {
         var showOverwriteConfirmDialog by remember { mutableStateOf(false) }
