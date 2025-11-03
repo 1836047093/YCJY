@@ -505,7 +505,7 @@ data class MediaReview(
 data class GameRating(
     val gameId: String,
     val finalScore: Float, // 最终评分 (0-10)
-    val baseScore: Float = 5.0f, // 基础分
+    val baseScore: Float = GameRatingCalculator.BASE_SCORE, // 基础分
     val skillBonus: Float, // 技能加成
     val skillContributions: List<SkillContribution>, // 技能贡献详情
     val mediaReviews: List<MediaReview> = emptyList(), // 媒体评测列表
@@ -517,7 +517,7 @@ data class SkillContribution(
     val employeeName: String,
     val skillType: String, // 主要技能类型
     val skillLevel: Int, // 技能等级
-    val contribution: Float // 对评分的贡献值 (skillLevel / 2)
+    val contribution: Float // 对评分的贡献值
 )
 
 // 价格推荐相关数据类
