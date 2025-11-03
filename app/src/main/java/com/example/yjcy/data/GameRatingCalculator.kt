@@ -9,25 +9,42 @@ import kotlin.random.Random
  * 游戏评分计算器 - 10分制评分系统
  *
  * 评分维度：
- * 1. 基础分：2.0分
- * 2. 技能评分：根据员工技能等级（最高6.0分）
- * 3. 团队协作加成：多职位配合（0-0.8分）
- * 4. 复杂度惩罚：已移除，多平台和网游不再扣分
- * 5. 平衡性加成：员工技能均衡度（0-0.6分）
- * 6. 精英团队加成：高级员工比例（0-0.6分）
+ * 1. 基础分：2.0分（固定）
+ * 2. 技能评分：根据员工技能等级（动态封顶）
+ *    - 5级员工团队（平均≥4.8级）：最高4.0分 → 总分10分
+ *    - 4级员工团队（平均≥3.8级）：最高2.5分 → 总分8-9分
+ *    - 3级员工团队（平均≥2.8级）：最高1.5分 → 总分6-7分
+ *    - 2级员工团队（平均≥1.8级）：最高0.3分 → 总分4-5分
+ *    - 1级员工团队（平均<1.8级）：最高0.0分 → 总分1-3分
+ * 3. 团队协作加成：多职位配合（根据等级调整）
+ *    - 5-4级团队：保持原值（最高3.0分）
+ *    - 3级团队：降低到85%（最高2.55分）
+ *    - 2级团队：降低到40%（最高1.2分）
+ *    - 1级团队：降低到15%（最高0.45分）
+ * 4. 平衡性加成：员工技能均衡度（最高0.5分）
+ * 5. 精英团队加成：高级员工比例（根据等级调整）
+ *    - 4-5级团队：保持原值（最高0.5分）
+ *    - 3级及以下：不给予精英加成（0分）
  *
  * 最终评分 = 基础分 + 技能评分 + 团队协作 + 平衡性 + 精英加成
- * 评分范围：2.0 - 10.0分
+ * 评分范围：1.0 - 10.0分
  *
- * 示例（24人满配）：
- * - 24个1级：约 2.0 + 1.2 + 0.8 + 0.12 = 4.12分
- * - 24个3级：约 2.0 + 3.6 + 0.8 + 0.36 + 0.30 = 7.06分
- * - 24个5级：2.0 + 6.0 + 0.8 + 0.6 + 0.6 = 10.0分（满分）
+ * 示例（25人满配，4个职位）：
+ * - 25个5级员工：2.0 + 4.0 + 3.0 + 0.5 + 0.5 = 10.0分（满分）
+ * - 25个4级员工：2.0 + 2.5 + 3.0 + 0.5 + 0.5 = 8.5分
+ * - 25个3级员工：2.0 + 1.5 + 2.55 + 0.5 + 0 = 6.55分
+ * - 25个2级员工：2.0 + 0.3 + 1.2 + 0.5 + 0 = 4.0分
+ * - 25个1级员工：2.0 + 0.0 + 0.45 + 0.5 + 0 = 2.95分
  */
 object GameRatingCalculator {
     const val BASE_SCORE = 2.0f
     const val MAX_SCORE = 10.0f
-    private const val MAX_SKILL_SCORE = 6.0f
+    // 根据平均技能等级设置不同的技能评分封顶值
+    private const val MAX_SKILL_SCORE_LV5 = 4.0f  // 5级员工团队：封顶4.0分 → 总分10分
+    private const val MAX_SKILL_SCORE_LV4 = 2.5f  // 4级员工团队：封顶2.5分 → 总分8.5分
+    private const val MAX_SKILL_SCORE_LV3 = 1.5f  // 3级员工团队：封顶1.5分 → 总分约6.5-7分
+    private const val MAX_SKILL_SCORE_LV2 = 0.3f  // 2级员工团队：封顶0.3分 → 总分约4.5-5分
+    private const val MAX_SKILL_SCORE_LV1 = 0.0f  // 1级员工团队：封顶0.0分 → 总分约2-3分
     
     // 媒体列表
     private val mediaOutlets = listOf(
@@ -121,22 +138,34 @@ object GameRatingCalculator {
                 contribution = contribution
             )
         }
-        val skillScore = skillContributions.sumOf { it.contribution.toDouble() }.toFloat().coerceAtMost(MAX_SKILL_SCORE)
+        // 根据团队平均技能等级动态调整技能评分封顶值
+        val avgSkillLevel = if (developmentEmployees.isNotEmpty()) {
+            developmentEmployees.map { it.getSpecialtySkillLevel() }.average()
+        } else {
+            0.0
+        }
+        val maxSkillScore = when {
+            avgSkillLevel >= 4.8 -> MAX_SKILL_SCORE_LV5  // 5级团队：封顶4.0 → 总分10分
+            avgSkillLevel >= 3.8 -> MAX_SKILL_SCORE_LV4  // 4级团队：封顶2.5 → 总分8.5分
+            avgSkillLevel >= 2.8 -> MAX_SKILL_SCORE_LV3  // 3级团队：封顶1.0 → 总分6.5-7分
+            avgSkillLevel >= 1.8 -> MAX_SKILL_SCORE_LV2  // 2级团队：封顶0.3 → 总分4.5-5分
+            else -> MAX_SKILL_SCORE_LV1                  // 1级团队：封顶0.0 → 总分2-3分
+        }
+        val skillScore = skillContributions.sumOf { it.contribution.toDouble() }.toFloat().coerceAtMost(maxSkillScore)
         
-        // 2. 计算团队协作加成（多职位配合）- 只计算开发岗位
-        val teamworkBonus = calculateTeamworkBonus(developmentEmployees)
+        // 2. 计算团队协作加成（多职位配合）- 根据平均等级调整
+        val baseTeamworkBonus = calculateTeamworkBonus(developmentEmployees)
+        val teamworkBonus = adjustTeamworkBonusByLevel(baseTeamworkBonus, avgSkillLevel)
         
-        // 3. 计算复杂度惩罚
-        val complexityPenalty = calculateComplexityPenalty(game)
-        
-        // 4. 计算平衡性加成
+        // 3. 计算平衡性加成
         val balanceBonus = calculateBalanceBonus(developmentEmployees)
         
-        // 5. 计算精英团队加成
-        val eliteBonus = calculateEliteBonus(developmentEmployees)
+        // 4. 计算精英团队加成 - 根据平均等级调整
+        val baseEliteBonus = calculateEliteBonus(developmentEmployees)
+        val eliteBonus = adjustEliteBonusByLevel(baseEliteBonus, avgSkillLevel)
         
         // 计算最终评分
-        val rawScore = BASE_SCORE + skillScore + teamworkBonus - complexityPenalty + balanceBonus + eliteBonus
+        val rawScore = BASE_SCORE + skillScore + teamworkBonus + balanceBonus + eliteBonus
         val finalScore = rawScore.coerceAtMost(MAX_SCORE)
         
         // 输出详细评分日志 - 使用try-catch保护，确保日志错误不影响游戏
@@ -172,7 +201,8 @@ object GameRatingCalculator {
             // 技能评分详情
             android.util.Log.d("GameRatingCalculator", ">>> 开始输出技能评分")
             val rawSkillScore = skillContributions.sumOf { it.contribution.toDouble() }.toFloat()
-            android.util.Log.d("GameRatingCalculator", "  技能评分: $rawSkillScore (原始) -> $skillScore (封顶6.0)")
+            android.util.Log.d("GameRatingCalculator", "  平均技能等级: ${String.format("%.2f", avgSkillLevel)}")
+            android.util.Log.d("GameRatingCalculator", "  技能评分: $rawSkillScore (原始) -> $skillScore (封顶$maxSkillScore)")
             
             android.util.Log.d("GameRatingCalculator", ">>> 开始遍历员工贡献 数量=${skillContributions.size}")
             for (i in skillContributions.indices) {
@@ -183,7 +213,12 @@ object GameRatingCalculator {
             // 团队协作详情
             android.util.Log.d("GameRatingCalculator", ">>> 输出团队协作")
             val uniquePositions = developmentEmployees.map { it.position }.toSet().size
-            android.util.Log.d("GameRatingCalculator", "  团队协作: +$teamworkBonus (${uniquePositions}个不同职位)")
+            val baseTeamworkForLog = calculateTeamworkBonus(developmentEmployees)
+            if (baseTeamworkForLog != teamworkBonus) {
+                android.util.Log.d("GameRatingCalculator", "  团队协作: +$baseTeamworkForLog (基础) -> +$teamworkBonus (调整后, ${uniquePositions}个不同职位)")
+            } else {
+                android.util.Log.d("GameRatingCalculator", "  团队协作: +$teamworkBonus (${uniquePositions}个不同职位)")
+            }
             
             // 平衡性详情
             android.util.Log.d("GameRatingCalculator", ">>> 输出平衡性")
@@ -203,12 +238,23 @@ object GameRatingCalculator {
             val eliteCount = developmentEmployees.count { it.getSpecialtySkillLevel() >= 4 }
             val eliteRatio = if (developmentEmployees.isNotEmpty()) eliteCount.toFloat() / developmentEmployees.size else 0f
             val elitePercent = (eliteRatio * 100).toInt()
-            android.util.Log.d("GameRatingCalculator", "  精英团队加成: +$eliteBonus (${eliteCount}/${developmentEmployees.size}=${elitePercent}% >=4级)")
+            val baseEliteForLog = calculateEliteBonus(developmentEmployees)
+            if (baseEliteForLog != eliteBonus) {
+                android.util.Log.d("GameRatingCalculator", "  精英团队加成: +$baseEliteForLog (基础) -> +$eliteBonus (调整后, ${eliteCount}/${developmentEmployees.size}=${elitePercent}% >=4级)")
+            } else {
+                android.util.Log.d("GameRatingCalculator", "  精英团队加成: +$eliteBonus (${eliteCount}/${developmentEmployees.size}=${elitePercent}% >=4级)")
+            }
             
             android.util.Log.d("GameRatingCalculator", "")
             android.util.Log.d("GameRatingCalculator", "[最终评分]")
-            android.util.Log.d("GameRatingCalculator", "  计算: $BASE_SCORE + $skillScore + $teamworkBonus - $complexityPenalty + $balanceBonus + $eliteBonus = $rawScore")
+            android.util.Log.d("GameRatingCalculator", "  基础分: $BASE_SCORE")
+            android.util.Log.d("GameRatingCalculator", "  技能评分: +$skillScore")
+            android.util.Log.d("GameRatingCalculator", "  团队协作: +$teamworkBonus")
+            android.util.Log.d("GameRatingCalculator", "  平衡性加成: +$balanceBonus")
+            android.util.Log.d("GameRatingCalculator", "  精英团队加成: +$eliteBonus")
+            android.util.Log.d("GameRatingCalculator", "  计算: $BASE_SCORE + $skillScore + $teamworkBonus + $balanceBonus + $eliteBonus = $rawScore")
             android.util.Log.d("GameRatingCalculator", "  最终得分: $finalScore / $MAX_SCORE")
+            android.util.Log.d("GameRatingCalculator", "  距离满分还差: ${MAX_SCORE - finalScore} 分")
             android.util.Log.d("GameRatingCalculator", "===========================================")
             android.util.Log.d("GameRatingCalculator", ">>> 日志输出完成")
         } catch (e: Exception) {
@@ -233,19 +279,19 @@ object GameRatingCalculator {
      * 计算单个技能等级的贡献（10分制）
      * 技能范围：1-5级
      *
-     * 1级: 0.05  2级: 0.10  3级: 0.15  4级: 0.20  5级: 0.25
+     * 1级: 0.30  2级: 0.50  3级: 0.65  4级: 0.75  5级: 0.85
      *
      * 设计理念：
-     * - 技能评分部分最高 6.0 分（24人×0.25 → 封顶）
+     * - 技能评分部分最高 4.0 分（24人×0.85 → 封顶）
      * - 保持递减收益，鼓励培养高等级员工
      */
     private fun calculateSkillContribution(skillLevel: Int): Float {
         return when (skillLevel) {
-            1 -> 0.05f
-            2 -> 0.10f
-            3 -> 0.15f
-            4 -> 0.20f
-            5 -> 0.25f
+            1 -> 0.30f
+            2 -> 0.50f
+            3 -> 0.65f
+            4 -> 0.75f
+            5 -> 0.85f
             else -> 0f
         }
     }
@@ -255,30 +301,94 @@ object GameRatingCalculator {
      * 激励玩家招募不同职位的员工而不是单一职位
      *
      * 1个职位: 0分
-     * 2个职位: 0.4分
-     * 3个职位: 0.6分
-     * 4个职位: 0.8分
-     * 5个职位: 0.8分（保留兼容性）
+     * 2个职位: 1.0分
+     * 3个职位: 2.0分
+     * 4个职位: 3.0分（满分）
+     * 5个职位及以上: 3.0分（满分）
      */
     private fun calculateTeamworkBonus(employees: List<Employee>): Float {
         val uniquePositions = employees.map { it.position }.toSet().size
         return when (uniquePositions) {
             1 -> 0f
-            2 -> 0.4f
-            3 -> 0.6f
-            4 -> 0.8f
-            5 -> 0.8f
-            else -> 0f
+            2 -> 1.0f
+            3 -> 2.0f
+            4 -> 3.0f
+            else -> 3.0f  // 4个及以上职位都满分
         }
     }
     
     /**
+     * 计算主题匹配加成（最高1.0分）
+     * 根据游戏主题和核心职位的技能等级计算加成
+     * 
+     * 核心职位定义：
+     * - 动作/射击/体育/竞速：程序员
+     * - RPG/冒险/策略/恐怖：策划师
+     * - 休闲：美工、音乐家
+     * - 模拟/解谜：策划师、程序员
+     * - MOBA：策划师、程序员
+     * 
+     * 计算公式：核心职位的平均技能等级 × 0.1（上限1.0分）
+     */
+    private fun calculateThemeBonus(game: Game, employees: List<Employee>): Float {
+        if (employees.isEmpty()) return 0f
+        
+        val theme = game.theme.name
+        
+        // 职位名称映射 - 统一职位名称
+        fun normalizePosition(position: String): String {
+            return when (position) {
+                "策划师" -> "设计"
+                "美术师" -> "美工"
+                "音效师" -> "音乐"
+                "程序员" -> "开发"
+                else -> position
+            }
+        }
+        
+        val corePositions = when (theme) {
+            "ACTION", "SHOOTER", "SPORTS", "RACING" -> listOf("开发")
+            "RPG", "ADVENTURE", "STRATEGY", "HORROR" -> listOf("设计")
+            "CASUAL" -> listOf("美工", "音乐")
+            "SIMULATION", "PUZZLE" -> listOf("设计", "开发")
+            "MOBA" -> listOf("设计", "开发")
+            else -> listOf<String>()
+        }
+        
+        if (corePositions.isEmpty()) return 0f
+        
+        // 获取核心职位的员工（使用标准化后的职位名称）
+        val coreEmployees = employees.filter { normalizePosition(it.position) in corePositions }
+        if (coreEmployees.isEmpty()) return 0f
+        
+        // 计算核心职位的平均技能等级
+        val avgSkillLevel = coreEmployees.map { it.getSpecialtySkillLevel() }.average()
+        
+        // 主题匹配加成 = 平均技能等级 × 0.1，上限1.0分
+        val bonus = (avgSkillLevel * 0.1f).toFloat().coerceAtMost(1.0f)
+        
+        return bonus
+    }
+    
+    /**
      * 计算复杂度惩罚
-     * 多平台和网游不再扣分
+     * 多平台和网游会扣分
      */
     private fun calculateComplexityPenalty(game: Game): Float {
-        // 已移除多平台和网游的扣分逻辑
-        return 0f
+        var penalty = 0f
+        
+        // 多平台惩罚：每增加1个平台-0.2分
+        val platformCount = game.platforms.size
+        if (platformCount > 1) {
+            penalty += (platformCount - 1) * 0.2f
+        }
+        
+        // 网络游戏惩罚：-0.5分
+        if (game.businessModel == BusinessModel.ONLINE_GAME) {
+            penalty += 0.5f
+        }
+        
+        return penalty
     }
     
     /**
@@ -288,18 +398,11 @@ object GameRatingCalculator {
      * 计算方法：
      * - 计算所有员工技能等级的标准差
      * - 标准差越小，团队越均衡
-     * - 根据平均技能等级调整加成系数，避免低级员工占便宜
      *
      * 标准差加成：
-     * - 标准差≤1.0: +0.6分
-     * - 标准差≤2.0: +0.4分
-     * - 标准差≤3.0: +0.2分
-     *
-     * 平均等级系数：
-     * - 平均≥4级: 100%
-     * - 平均≥3级: 70%
-     * - 平均≥2级: 40%
-     * - 平均<2级: 20%
+     * - 标准差≤1.0: +0.5分
+     * - 标准差≤2.0: +0.3分
+     * - 标准差≤3.0: +0.1分
      */
     private fun calculateBalanceBonus(employees: List<Employee>): Float {
         if (employees.size <= 1) return 0f
@@ -309,23 +412,12 @@ object GameRatingCalculator {
         val variance = skillLevels.map { (it - avg) * (it - avg) }.average()
         val stdDev = kotlin.math.sqrt(variance)
         
-        // 基础平衡性加成
-        val baseBonus = when {
-            stdDev <= 1.0 -> 0.6f
-            stdDev <= 2.0 -> 0.4f
-            stdDev <= 3.0 -> 0.2f
+        return when {
+            stdDev <= 1.0 -> 0.5f
+            stdDev <= 2.0 -> 0.3f
+            stdDev <= 3.0 -> 0.1f
             else -> 0f
         }
-        
-        // 根据平均技能等级调整系数
-        val avgFactor = when {
-            avg >= 4.0 -> 1.0f
-            avg >= 3.0 -> 0.7f
-            avg >= 2.0 -> 0.4f
-            else -> 0.2f
-        }
-        
-        return baseBonus * avgFactor
     }
     
     /**
@@ -337,7 +429,7 @@ object GameRatingCalculator {
      * - 40%以上: +0.20分
      * - 60%以上: +0.30分
      * - 80%以上: +0.40分
-     * - 100%: +0.60分
+     * - 100%: +0.50分
      */
     private fun calculateEliteBonus(employees: List<Employee>): Float {
         if (employees.isEmpty()) return 0f
@@ -346,12 +438,37 @@ object GameRatingCalculator {
         val eliteRatio = eliteCount.toFloat() / employees.size
         
         return when {
-            eliteRatio >= 1.0f -> 0.60f
+            eliteRatio >= 1.0f -> 0.50f
             eliteRatio >= 0.8f -> 0.40f
             eliteRatio >= 0.6f -> 0.30f
             eliteRatio >= 0.4f -> 0.20f
             eliteRatio >= 0.2f -> 0.10f
             else -> 0f
+        }
+    }
+    
+    /**
+     * 根据平均技能等级调整团队协作加成
+     * 低等级团队降低团队协作加成，使总分控制在目标范围
+     */
+    private fun adjustTeamworkBonusByLevel(baseBonus: Float, avgSkillLevel: Double): Float {
+        return when {
+            avgSkillLevel >= 4.8 -> baseBonus  // 5级团队：保持原值（3.0）
+            avgSkillLevel >= 3.8 -> baseBonus  // 4级团队：保持原值（3.0）
+            avgSkillLevel >= 2.8 -> baseBonus * 0.85f  // 3级团队：降低到85%（2.55）
+            avgSkillLevel >= 1.8 -> baseBonus * 0.4f   // 2级团队：降低到40%（1.2）
+            else -> baseBonus * 0.15f                  // 1级团队：降低到15%（0.45）
+        }
+    }
+    
+    /**
+     * 根据平均技能等级调整精英团队加成
+     * 低等级团队不给予精英团队加成
+     */
+    private fun adjustEliteBonusByLevel(baseBonus: Float, avgSkillLevel: Double): Float {
+        return when {
+            avgSkillLevel >= 3.8 -> baseBonus  // 4-5级团队：保持原值
+            else -> 0f                          // 3级及以下：不给予精英加成
         }
     }
     
@@ -366,29 +483,43 @@ object GameRatingCalculator {
     
     /**
      * 预览评分计算结果（不保存）- 简化版本
-     * 注意：这是简化预览，实际评分还会考虑游戏主题、平台等因素
      * @param assignedEmployees 分配的员工列表
+     * @param game 游戏对象（用于兼容性，不再使用）
      * @return Float 预计的最终评分（仅供参考）
      */
-    fun previewRating(assignedEmployees: List<Employee>): Float {
+    fun previewRating(assignedEmployees: List<Employee>, game: Game): Float {
         // 过滤掉客服，客服不参与开发评分
         val developmentEmployees = assignedEmployees.filter { it.position != "客服" }
         
         if (developmentEmployees.isEmpty()) return BASE_SCORE
         
-        // 技能评分
+        // 技能评分 - 根据平均等级动态调整封顶值
+        val avgSkillLevel = if (developmentEmployees.isNotEmpty()) {
+            developmentEmployees.map { it.getSpecialtySkillLevel() }.average()
+        } else {
+            0.0
+        }
+        val maxSkillScore = when {
+            avgSkillLevel >= 4.8 -> MAX_SKILL_SCORE_LV5
+            avgSkillLevel >= 3.8 -> MAX_SKILL_SCORE_LV4
+            avgSkillLevel >= 2.8 -> MAX_SKILL_SCORE_LV3
+            avgSkillLevel >= 1.8 -> MAX_SKILL_SCORE_LV2
+            else -> MAX_SKILL_SCORE_LV1
+        }
         val skillScore = developmentEmployees.sumOf { employee ->
             calculateSkillContribution(employee.getSpecialtySkillLevel()).toDouble()
-        }.toFloat().coerceAtMost(MAX_SKILL_SCORE)
+        }.toFloat().coerceAtMost(maxSkillScore)
         
-        // 团队协作加成
-        val teamworkBonus = calculateTeamworkBonus(developmentEmployees)
+        // 团队协作加成 - 根据平均等级调整
+        val baseTeamworkBonus = calculateTeamworkBonus(developmentEmployees)
+        val teamworkBonus = adjustTeamworkBonusByLevel(baseTeamworkBonus, avgSkillLevel)
         
         // 平衡性加成
         val balanceBonus = calculateBalanceBonus(developmentEmployees)
         
-        // 精英团队加成
-        val eliteBonus = calculateEliteBonus(developmentEmployees)
+        // 精英团队加成 - 根据平均等级调整
+        val baseEliteBonus = calculateEliteBonus(developmentEmployees)
+        val eliteBonus = adjustEliteBonusByLevel(baseEliteBonus, avgSkillLevel)
         
         val estimated = BASE_SCORE + skillScore + teamworkBonus + balanceBonus + eliteBonus
         return estimated.coerceIn(0f, MAX_SCORE)

@@ -731,7 +731,7 @@ object RevenueManager {
         // 未分配员工时，进度条不增长
         if (employees.isEmpty()) return 0
         
-        // 计算每个员工的技能效率
+        // 计算每个员工的技能效率（与游戏开发进度保持一致）
         val employeeEfficiencies = employees.map { employee ->
             // 更新任务主要依赖开发技能（60%），其次是设计（20%）、美工（15%）、音乐（5%）
             val weightedSkill = (employee.skillDevelopment * 0.6f + 
@@ -739,24 +739,25 @@ object RevenueManager {
                                 employee.skillArt * 0.15f + 
                                 employee.skillMusic * 0.05f)
             
-            // 技能倍率：1级=0.04x, 2级=0.005x, 3级=0.006x, 4级=0.007x, 5级=0.08x
+            // 技能倍率：与游戏开发进度保持一致（1级=0.2x, 2级=0.4x, 3级=0.6x, 4级=0.8x, 5级=1.0x）
             when {
-                weightedSkill >= 5f -> 0.08f  // 5级：从0.9x降到0.08x
-                weightedSkill >= 4f -> 0.007f  // 4级：从0.8x降到0.007x
-                weightedSkill >= 3f -> 0.006f  // 3级：从0.6x降到0.006x
-                weightedSkill >= 2f -> 0.005f  // 2级：从0.4x降到0.005x
-                else -> 0.04f  // 1级技能倍率：从0.08x降到0.04x
+                weightedSkill >= 5f -> 1.0f   // 5级：大幅提升
+                weightedSkill >= 4f -> 0.8f   // 4级：提升
+                weightedSkill >= 3f -> 0.6f   // 3级：提升
+                weightedSkill >= 2f -> 0.4f   // 2级：提升
+                else -> 0.2f                  // 1级：提升
             }
         }
         
         // 计算平均效率
         val avgEfficiency = employeeEfficiencies.average().toFloat()
         
-        // 基础进度：每人每天6点（大幅降低，延长更新时间）
-        val basePointsPerEmployee = 6
+        // 基础进度：每人每天8点（降低更新速度）
+        val basePointsPerEmployee = 8
         
-        // 人数倍率：1人=1.0x, 2人=1.05x, 3人=1.1x, 4人=1.15x, 5人=1.2x, 10人=1.5x（封顶，大幅降低增长速度和上限）
-        val countMultiplier = (1.0f + (employees.size - 1) * 0.05f).coerceAtMost(1.5f)
+        // 人数倍率：与游戏开发进度保持一致（每人+0.5倍率，最高10人封顶6.0倍）
+        // 1人=1.0x, 2人=1.5x, 3人=2.0x, 4人=2.5x, 5人=3.0x, 6人=3.5x, ..., 10人=5.5x
+        val countMultiplier = (1.0f + (employees.size - 1) * 0.5f).coerceAtMost(6.0f)
         
         // 计算总进度点 = 基础点数 × 平均效率 × 人数倍率
         // 确保至少产生1点进度，避免进度完全停滞
