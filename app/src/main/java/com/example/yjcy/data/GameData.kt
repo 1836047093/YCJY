@@ -319,6 +319,20 @@ data class Employee(
     }
     
     /**
+     * 根据技能等级计算对应的薪资标准
+     * 公式：技能等级 × 10,000元
+     * Lv.1: ¥10,000
+     * Lv.2: ¥20,000
+     * Lv.3: ¥30,000
+     * Lv.4: ¥40,000
+     * Lv.5: ¥50,000
+     */
+    fun calculateSalaryBySkillLevel(): Int {
+        val skillLevel = getSpecialtySkillLevel().coerceIn(1, 5)
+        return skillLevel * 10000
+    }
+    
+    /**
      * 计算员工期望的薪资（基于技能等级和涨薪次数）
      * 公式：基础薪资 × (1 + 技能等级 × 0.05 + 涨薪次数 × 0.03)
      * 首次涨薪：技能等级加成5%每级 + 3%基础涨幅
@@ -679,11 +693,26 @@ data class PlayerComment(
 // 游戏更新记录数据类
 data class GameUpdate(
     val updateNumber: Int,  // 第几次更新（1, 2, 3...）
+    val version: Float = 1.0f,  // 更新后的游戏版本号（如 1.1, 1.2, 1.3...），默认值用于兼容旧数据
     val updateDate: GameDate,  // 更新日期
     val updateContent: List<String>,  // 更新内容列表（如："新皮肤", "新道具"）
     val announcement: String,  // 更新公告（玩家输入的，或默认的）
     val comments: List<PlayerComment> = emptyList()  // 玩家评论
-)
+) {
+    /**
+     * 获取显示的版本号
+     * 兼容旧数据：如果version是默认值，根据updateNumber计算版本号
+     */
+    fun getDisplayVersion(): Float {
+        return if (version <= 1.0f && updateNumber > 0) {
+            // 旧数据：根据更新次数计算版本号（初始版本1.0，每次更新+0.1）
+            // 第1次更新 → 1.1，第2次更新 → 1.2，第n次更新 → 1.0 + n * 0.1
+            1.0f + updateNumber * 0.1f
+        } else {
+            version
+        }
+    }
+}
 
 // 游戏IP数据类（收购竞争对手后获得的IP）
 data class GameIP(

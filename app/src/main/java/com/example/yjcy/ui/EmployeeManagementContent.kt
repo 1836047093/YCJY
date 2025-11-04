@@ -312,7 +312,7 @@ fun EmployeeManagementContent(
                                     if (emp.id == employeeId) {
                                         // 只提升专属技能
                                         try {
-                                            when (val skillType = emp.getSpecialtySkillType()) {
+                                            val updatedEmp = when (val skillType = emp.getSpecialtySkillType()) {
                                                 "开发" -> emp.copy(
                                                     skillDevelopment = minOf(SkillConstants.MAX_SKILL_LEVEL, emp.skillDevelopment + skillBoost)
                                                 )
@@ -333,6 +333,9 @@ fun EmployeeManagementContent(
                                                     emp
                                                 }
                                             }
+                                            // 根据新的技能等级自动更新薪资
+                                            val newSalary = updatedEmp.calculateSalaryBySkillLevel()
+                                            updatedEmp.copy(salary = newSalary)
                                         } catch (e: Exception) {
                                             android.util.Log.e("EmployeeManagement", "提升技能时异常: ${e.message}", e)
                                             emp
@@ -504,7 +507,7 @@ fun EmployeeManagementContent(
                         if (currentSkillLevel < 5) {
                             // 提升专属技能1级
                             try {
-                                when (emp.getSpecialtySkillType()) {
+                                val updatedEmp = when (emp.getSpecialtySkillType()) {
                                     "开发" -> emp.copy(
                                         skillDevelopment = minOf(SkillConstants.MAX_SKILL_LEVEL, emp.skillDevelopment + 1)
                                     )
@@ -522,6 +525,9 @@ fun EmployeeManagementContent(
                                     )
                                     else -> emp
                                 }
+                                // 根据新的技能等级自动更新薪资
+                                val newSalary = updatedEmp.calculateSalaryBySkillLevel()
+                                updatedEmp.copy(salary = newSalary)
                             } catch (_: Exception) {
                                 emp
                             }

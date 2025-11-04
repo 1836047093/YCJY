@@ -1201,7 +1201,8 @@ fun CompetitorsListContent(
                             selectedCompetitor = company
                         }
                     },
-                    isPlayer = isPlayer
+                    isPlayer = isPlayer,
+                    playerGameCount = if (isPlayer) saveData.games.size else 0
                 )
             }
         }
@@ -1243,7 +1244,8 @@ fun CompetitorCard(
     rank: Int,
     competitor: CompetitorCompany,
     onClick: () -> Unit,
-    isPlayer: Boolean = false
+    isPlayer: Boolean = false,
+    playerGameCount: Int = 0 // 玩家公司的游戏数量（仅当isPlayer为true时使用）
 ) {
     Card(
         modifier = Modifier
@@ -1329,7 +1331,7 @@ fun CompetitorCard(
                     )
                 }
                 Text(
-                    text = "成立${competitor.yearsFounded}年 | ${competitor.games.size}款游戏",
+                    text = "成立${competitor.yearsFounded}年 | ${if (isPlayer) playerGameCount else competitor.games.size}款游戏",
                     color = Color.White.copy(alpha = 0.7f),
                     fontSize = 12.sp
                 )

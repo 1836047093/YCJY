@@ -926,25 +926,25 @@ object RevenueManager {
      */
     private fun calculateRatingMultiplier(rating: Float): Float {
         return when {
-            rating >= 9.0f -> 1.8f  // 杰作（9-10分）：1.8倍（原3.0倍）
+            rating >= 9.0f -> 1.3f  // 杰作（9-10分）：1.3倍（原1.8倍）
             rating >= 8.0f -> {
-                // 优秀（8-9分）：线性插值 1.3 到 1.8（原2.0-3.0）
-                1.3f + ((rating - 8.0f) / 1.0f) * 0.5f
+                // 优秀（8-9分）：线性插值 1.15 到 1.3（原1.3-1.8）
+                1.15f + ((rating - 8.0f) / 1.0f) * 0.15f
             }
             rating >= 7.0f -> {
-                // 良好（7-8分）：线性插值 1.0 到 1.3（原1.2-2.0）
-                1.0f + ((rating - 7.0f) / 1.0f) * 0.3f
+                // 良好（7-8分）：线性插值 1.0 到 1.15（原1.0-1.3）
+                1.0f + ((rating - 7.0f) / 1.0f) * 0.15f
             }
             rating >= 5.0f -> {
-                // 及格（5-7分）：线性插值 0.4 到 1.0（原0.4-1.2）
+                // 及格（5-7分）：线性插值 0.4 到 1.0（保持不变）
                 0.4f + ((rating - 5.0f) / 2.0f) * 0.6f
             }
             rating >= 3.0f -> {
-                // 差评（3-5分）：线性插值 0.1 到 0.4（大幅降低）
+                // 差评（3-5分）：线性插值 0.1 到 0.4（保持不变）
                 0.1f + ((rating - 3.0f) / 2.0f) * 0.3f
             }
             else -> {
-                // 烂作（0-3分）：线性插值 0.01 到 0.1（极低，几乎卖不出去）
+                // 烂作（0-3分）：线性插值 0.01 到 0.1（保持不变）
                 0.01f + (rating / 3.0f) * 0.09f
             }
         }
@@ -1213,13 +1213,13 @@ object RevenueManager {
             
             // 首日销量/注册：根据商业模式调整
             val baseSales = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
-                // 网游：首日注册数根据评分调整，高评分游戏更多初始玩家
+                // 网游：首日注册数根据评分调整，高评分游戏更多初始玩家（已下调数值）
                 val baseRegistrations = when {
-                    gameRating != null && gameRating >= 9.0f -> Random.nextInt(3000, 6000)  // 9.0+分：3000-6000人
-                    gameRating != null && gameRating >= 8.5f -> Random.nextInt(2000, 4000) // 8.5-9.0分：2000-4000人
-                    gameRating != null && gameRating >= 8.0f -> Random.nextInt(1500, 3000) // 8.0-8.5分：1500-3000人
-                    gameRating != null && gameRating >= 7.0f -> Random.nextInt(1200, 2500) // 7.0-8.0分：1200-2500人
-                    else -> Random.nextInt(1000, 2000)                                    // 7.0分以下：1000-2000人（原值）
+                    gameRating != null && gameRating >= 9.0f -> Random.nextInt(1200, 2000)  // 9.0+分：1200-2000人（原3000-6000）
+                    gameRating != null && gameRating >= 8.5f -> Random.nextInt(1000, 1800) // 8.5-9.0分：1000-1800人（原2000-4000）
+                    gameRating != null && gameRating >= 8.0f -> Random.nextInt(800, 1500)  // 8.0-8.5分：800-1500人（原1500-3000）
+                    gameRating != null && gameRating >= 7.0f -> Random.nextInt(600, 1200)  // 7.0-8.0分：600-1200人（原1200-2500）
+                    else -> Random.nextInt(400, 1000)                                     // 7.0分以下：400-1000人（原1000-2000）
                 }
                 // 根据游戏评分添加加成
                 val withRatingBonus = applyRatingBonus(baseRegistrations, gameRating)
@@ -1258,28 +1258,45 @@ object RevenueManager {
                         }
                     }
                     else -> {
-                        // 高价游戏（>100元）：根据评分和价格调整基础值（价格越高销量越少）
-                        // 价格影响系数：150元 = 0.67倍，200元 = 0.5倍，300元 = 0.33倍
+                        // 高价游戏（>100元）：根据评分和价格调整基础值（价格越高销量越少，已大幅下调）
+                        // 价格影响系数：大幅增强价格惩罚
                         val priceFactor = when {
-                            currentGameRevenue.releasePrice <= 150.0 -> 1.0 // 100-150元：正常
-                            currentGameRevenue.releasePrice <= 200.0 -> 0.67 // 150-200元：降低33%
-                            currentGameRevenue.releasePrice <= 300.0 -> 0.5  // 200-300元：降低50%
-                            else -> 0.33 // 300元以上：降低67%
+                            currentGameRevenue.releasePrice <= 150.0 -> 0.6  // 100-150元：0.6倍（原0.8）
+                            currentGameRevenue.releasePrice <= 200.0 -> 0.35 // 150-200元：0.35倍（原0.5）
+                            currentGameRevenue.releasePrice <= 300.0 -> 0.2  // 200-300元：0.2倍（原0.3）
+                            currentGameRevenue.releasePrice <= 500.0 -> 0.1  // 300-500元：0.1倍（原0.15）
+                            else -> 0.05 // 500元以上：0.05倍（原0.08）
                         }
                         
+                        // 大幅降低基础销量范围（高价格下即使高分销量也很低）
                         val baseRange = when {
-                            gameRating != null && gameRating >= 9.0f -> Random.nextInt(300, 600) // 9分以上：首日300-600份（原2000-4000）
-                            gameRating != null && gameRating >= 8.0f -> Random.nextInt(200, 400) // 8-9分：首日200-400份（原1000-2000）
-                            gameRating != null && gameRating >= 7.0f -> Random.nextInt(150, 300) // 7-8分：首日150-300份（原500-1000）
-                            gameRating != null && gameRating >= 6.0f -> Random.nextInt(100, 200) // 6-7分：首日100-200份（原200-500）
-                            else -> Random.nextInt(30, 100) // 其他：首日30-100份（原50-200）
+                            gameRating != null && gameRating >= 9.0f -> Random.nextInt(80, 150)  // 9分以上：首日80-150份（原150-300）
+                            gameRating != null && gameRating >= 8.0f -> Random.nextInt(60, 120) // 8-9分：首日60-120份（原100-200）
+                            gameRating != null && gameRating >= 7.0f -> Random.nextInt(40, 80)  // 7-8分：首日40-80份（原80-150）
+                            gameRating != null && gameRating >= 6.0f -> Random.nextInt(30, 60) // 6-7分：首日30-60份（原50-100）
+                            else -> Random.nextInt(15, 30) // 其他：首日15-30份（原20-50）
                         }
                         (baseRange * priceFactor).toInt()
                     }
                 }
                 // 应用评分倍率（单机游戏销量受评分影响很大）
+                // 但对于高价格游戏，评分倍率的效果会被价格限制
                 val ratingMultiplier = if (gameRating != null) calculateRatingMultiplier(gameRating) else 1.0f
-                var withRatingMultiplier = (baseSalesForPrice * ratingMultiplier).toInt()
+                // 高价格游戏：评分倍率效果受到价格惩罚限制（即使高分也不会大幅增加销量）
+                val effectiveRatingMultiplier = if (currentGameRevenue.releasePrice > 100.0) {
+                    // 价格越高，评分倍率的效果越弱
+                    val pricePenaltyOnRating = when {
+                        currentGameRevenue.releasePrice <= 200.0 -> 0.8f  // 100-200元：评分倍率效果打8折
+                        currentGameRevenue.releasePrice <= 300.0 -> 0.6f  // 200-300元：评分倍率效果打6折
+                        currentGameRevenue.releasePrice <= 500.0 -> 0.4f  // 300-500元：评分倍率效果打4折
+                        else -> 0.3f // 500元以上：评分倍率效果打3折
+                    }
+                    // 基础倍率1.0，加上受限的评分加成
+                    1.0f + (ratingMultiplier - 1.0f) * pricePenaltyOnRating
+                } else {
+                    ratingMultiplier
+                }
+                var withRatingMultiplier = (baseSalesForPrice * effectiveRatingMultiplier).toInt()
                 
                 // 设置保底销量（即使评分很低，每天至少卖几份，更符合现实）
                 // 只对已评分的游戏应用保底，未评分游戏保持原始计算值
@@ -1406,13 +1423,13 @@ object RevenueManager {
         
         // 计算新增销量/注册
         val newSales = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
-            // 网游：根据评分动态调整基础增长率，高评分游戏增长更快
+            // 网游：根据评分动态调整基础增长率，高评分游戏增长更快（已下调并添加上限）
             val baseGrowthRate = when {
-                gameRating != null && gameRating >= 9.0f -> 0.12  // 9.0+分：12%增长
-                gameRating != null && gameRating >= 8.5f -> 0.10   // 8.5-9.0分：10%增长
-                gameRating != null && gameRating >= 8.0f -> 0.08   // 8.0-8.5分：8%增长
-                gameRating != null && gameRating >= 7.0f -> 0.06   // 7.0-8.0分：6%增长
-                else -> 0.05                                       // 7.0分以下：5%增长（原基础值）
+                gameRating != null && gameRating >= 9.0f -> 0.04  // 9.0+分：4%增长（原12%）
+                gameRating != null && gameRating >= 8.5f -> 0.035 // 8.5-9.0分：3.5%增长（原10%）
+                gameRating != null && gameRating >= 8.0f -> 0.03  // 8.0-8.5分：3%增长（原8%）
+                gameRating != null && gameRating >= 7.0f -> 0.025 // 7.0-8.0分：2.5%增长（原6%）
+                else -> 0.02                                       // 7.0分以下：2%增长（原5%）
             }
             
             // 基础新增注册：前一天注册数 × 增长率
@@ -1420,23 +1437,31 @@ object RevenueManager {
             
             // 兴趣值影响（高兴趣值增加增长，低兴趣值降低增长）
             val interestMultiplier = when {
-                currentGameRevenue.playerInterest >= 80.0 -> 1.2   // 高兴趣：+20%
-                currentGameRevenue.playerInterest >= 70.0 -> 1.0   // 正常
-                currentGameRevenue.playerInterest >= 50.0 -> 0.8   // 下降：-20%
-                currentGameRevenue.playerInterest >= 30.0 -> 0.6   // 大幅下降：-40%
-                else -> 0.4                                       // 严重下降：-60%
+                currentGameRevenue.playerInterest >= 80.0 -> 1.15  // 高兴趣：+15%（原+20%）
+                currentGameRevenue.playerInterest >= 70.0 -> 1.0    // 正常
+                currentGameRevenue.playerInterest >= 50.0 -> 0.85   // 下降：-15%（原-20%）
+                currentGameRevenue.playerInterest >= 30.0 -> 0.7    // 大幅下降：-30%（原-40%）
+                else -> 0.5                                        // 严重下降：-50%（原-60%）
             }
             
             // 随机波动（缩小波动范围，让增长更稳定）
-            val fluctuation = Random.nextDouble(0.9, 1.3)
+            val fluctuation = Random.nextDouble(0.9, 1.2) // 缩小波动范围（原0.9-1.3）
             
-            // 计算基础增长
+            // 计算基础增长（不再应用评分加成，避免重复加成）
             val registrationsBeforeBonus = (baseNewRegistrations * interestMultiplier * fluctuation).toInt().coerceAtLeast(10)
             
-            // 根据游戏评分添加加成（在基础增长上再次加成）
-            val withRatingBonus = applyRatingBonus(registrationsBeforeBonus, gameRating)
-            // 根据粉丝数量添加加成
-            applyFansBonus(withRatingBonus, fanCount)
+            // 仅根据粉丝数量添加加成（不再应用评分加成，避免重复加成）
+            val withFansBonus = applyFansBonus(registrationsBeforeBonus, fanCount)
+            
+            // 设置每日新增上限（防止数值爆炸）
+            val maxDailyNewRegistrations = when {
+                gameRating != null && gameRating >= 9.0f -> 5000   // 9.0+分：每天最多新增5000人
+                gameRating != null && gameRating >= 8.0f -> 3000   // 8.0-9.0分：每天最多新增3000人
+                gameRating != null && gameRating >= 7.0f -> 2000   // 7.0-8.0分：每天最多新增2000人
+                else -> 1500                                      // 其他：每天最多新增1500人
+            }
+            
+            minOf(withFansBonus, maxDailyNewRegistrations)
         } else {
             // 单机：销量衰减模式
             // 对于低评分游戏，检查总销量上限
@@ -1473,15 +1498,15 @@ object RevenueManager {
                 minOf(baseNewSales.toLong(), maxDailySales, remainingQuota).toInt()
             } else {
                 // 正常评分游戏：销量逐渐衰减（单机游戏通常首日最高，之后逐渐下降）
-                // 根据评分计算衰减率（高评分游戏衰减更慢）
+                // 根据评分计算衰减率（高评分游戏衰减更慢，但已加快衰减速度）
                 val decayFactor = when {
-                    gameRating != null && gameRating >= 9.0f -> 0.98f // 9.0+分：每天衰减2%（原增长30%）
-                    gameRating != null && gameRating >= 8.0f -> 0.96f // 8.0-9.0分：每天衰减4%（原增长25%）
-                    gameRating != null && gameRating >= 7.0f -> 0.94f // 7.0-8.0分：每天衰减6%（原增长12%）
-                    gameRating != null && gameRating >= 6.0f -> 0.92f // 6.0-7.0分：每天衰减8%（原增长6%）
-                    gameRating != null && gameRating >= 5.0f -> 0.90f // 5.0-6.0分：每天衰减10%（原增长3%）
-                    gameRating != null && gameRating >= 4.0f -> 0.88f // 4.0-5.0分：每天衰减12%（原增长1.5%）
-                    else -> 0.85f // 4.0分以下：每天衰减15%（原不增长）
+                    gameRating != null && gameRating >= 9.0f -> 0.95f // 9.0+分：每天衰减5%（原2%，加快衰减）
+                    gameRating != null && gameRating >= 8.0f -> 0.94f // 8.0-9.0分：每天衰减6%（原4%，加快衰减）
+                    gameRating != null && gameRating >= 7.0f -> 0.92f // 7.0-8.0分：每天衰减8%（原6%，加快衰减）
+                    gameRating != null && gameRating >= 6.0f -> 0.90f // 6.0-7.0分：每天衰减10%（原8%，加快衰减）
+                    gameRating != null && gameRating >= 5.0f -> 0.88f // 5.0-6.0分：每天衰减12%（原10%，加快衰减）
+                    gameRating != null && gameRating >= 4.0f -> 0.85f // 4.0-5.0分：每天衰减15%（原12%，加快衰减）
+                    else -> 0.80f // 4.0分以下：每天衰减20%（原15%，加快衰减）
                 }
                 val fluctuation = Random.nextDouble(0.9, 1.1) // 随机波动
                 var newSales = (latestSales.sales * decayFactor * fluctuation).toInt().coerceAtLeast(1)
@@ -1688,13 +1713,13 @@ object RevenueManager {
                 ?: (com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER to emptyList())
             
             if (businessModelForCalc == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
-                // 网游：首日注册数根据评分调整
+                // 网游：首日注册数根据评分调整（已下调数值）
                 val baseRegistrations = when {
-                    gameRating != null && gameRating >= 9.0f -> Random.nextInt(3000, 6000)
-                    gameRating != null && gameRating >= 8.5f -> Random.nextInt(2000, 4000)
-                    gameRating != null && gameRating >= 8.0f -> Random.nextInt(1500, 3000)
-                    gameRating != null && gameRating >= 7.0f -> Random.nextInt(1200, 2500)
-                    else -> Random.nextInt(1000, 2000)
+                    gameRating != null && gameRating >= 9.0f -> Random.nextInt(1200, 2000)  // 9.0+分：1200-2000人（原3000-6000）
+                    gameRating != null && gameRating >= 8.5f -> Random.nextInt(1000, 1800) // 8.5-9.0分：1000-1800人（原2000-4000）
+                    gameRating != null && gameRating >= 8.0f -> Random.nextInt(800, 1500)   // 8.0-8.5分：800-1500人（原1500-3000）
+                    gameRating != null && gameRating >= 7.0f -> Random.nextInt(600, 1200)  // 7.0-8.0分：600-1200人（原1200-2500）
+                    else -> Random.nextInt(400, 1000)                                     // 7.0分以下：400-1000人（原1000-2000）
                 }
                 val withRatingBonus = applyRatingBonus(baseRegistrations, gameRating)
                 val withFansBonus = applyFansBonus(withRatingBonus, fanCount)
@@ -1729,27 +1754,45 @@ object RevenueManager {
                         }
                     }
                     else -> {
-                        // 高价游戏（>100元）：根据评分和价格调整基础值（价格越高销量越少）
-                        // 价格影响系数：150元 = 0.67倍，200元 = 0.5倍，300元 = 0.33倍
+                        // 高价游戏（>100元）：根据评分和价格调整基础值（价格越高销量越少，已大幅下调）
+                        // 价格影响系数：大幅增强价格惩罚
                         val priceFactor = when {
-                            currentGameRevenue.releasePrice <= 150.0 -> 1.0 // 100-150元：正常
-                            currentGameRevenue.releasePrice <= 200.0 -> 0.67 // 150-200元：降低33%
-                            currentGameRevenue.releasePrice <= 300.0 -> 0.5  // 200-300元：降低50%
-                            else -> 0.33 // 300元以上：降低67%
+                            currentGameRevenue.releasePrice <= 150.0 -> 0.6  // 100-150元：0.6倍（原0.8）
+                            currentGameRevenue.releasePrice <= 200.0 -> 0.35 // 150-200元：0.35倍（原0.5）
+                            currentGameRevenue.releasePrice <= 300.0 -> 0.2  // 200-300元：0.2倍（原0.3）
+                            currentGameRevenue.releasePrice <= 500.0 -> 0.1  // 300-500元：0.1倍（原0.15）
+                            else -> 0.05 // 500元以上：0.05倍（原0.08）
                         }
                         
+                        // 大幅降低基础销量范围（高价格下即使高分销量也很低）
                         val baseRange = when {
-                            gameRating != null && gameRating >= 9.0f -> Random.nextInt(300, 600) // 9分以上：首日300-600份（原2000-4000）
-                            gameRating != null && gameRating >= 8.0f -> Random.nextInt(200, 400) // 8-9分：首日200-400份（原1000-2000）
-                            gameRating != null && gameRating >= 7.0f -> Random.nextInt(150, 300) // 7-8分：首日150-300份（原500-1000）
-                            gameRating != null && gameRating >= 6.0f -> Random.nextInt(100, 200) // 6-7分：首日100-200份（原200-500）
-                            else -> Random.nextInt(30, 100) // 其他：首日30-100份（原50-200）
+                            gameRating != null && gameRating >= 9.0f -> Random.nextInt(80, 150)  // 9分以上：首日80-150份（原150-300）
+                            gameRating != null && gameRating >= 8.0f -> Random.nextInt(60, 120) // 8-9分：首日60-120份（原100-200）
+                            gameRating != null && gameRating >= 7.0f -> Random.nextInt(40, 80)  // 7-8分：首日40-80份（原80-150）
+                            gameRating != null && gameRating >= 6.0f -> Random.nextInt(30, 60) // 6-7分：首日30-60份（原50-100）
+                            else -> Random.nextInt(15, 30) // 其他：首日15-30份（原20-50）
                         }
                         (baseRange * priceFactor).toInt()
                     }
                 }
+                // 应用评分倍率（单机游戏销量受评分影响很大）
+                // 但对于高价格游戏，评分倍率的效果会被价格限制
                 val ratingMultiplier = if (gameRating != null) calculateRatingMultiplier(gameRating) else 1.0f
-                var withRatingMultiplier = (baseSalesForPrice * ratingMultiplier).toInt()
+                // 高价格游戏：评分倍率效果受到价格惩罚限制（即使高分也不会大幅增加销量）
+                val effectiveRatingMultiplier = if (currentGameRevenue.releasePrice > 100.0) {
+                    // 价格越高，评分倍率的效果越弱
+                    val pricePenaltyOnRating = when {
+                        currentGameRevenue.releasePrice <= 200.0 -> 0.8f  // 100-200元：评分倍率效果打8折
+                        currentGameRevenue.releasePrice <= 300.0 -> 0.6f  // 200-300元：评分倍率效果打6折
+                        currentGameRevenue.releasePrice <= 500.0 -> 0.4f  // 300-500元：评分倍率效果打4折
+                        else -> 0.3f // 500元以上：评分倍率效果打3折
+                    }
+                    // 基础倍率1.0，加上受限的评分加成
+                    1.0f + (ratingMultiplier - 1.0f) * pricePenaltyOnRating
+                } else {
+                    ratingMultiplier
+                }
+                var withRatingMultiplier = (baseSalesForPrice * effectiveRatingMultiplier).toInt()
                 
                 if (gameRating != null) {
                     val minSalesForRating = when {
@@ -2492,24 +2535,24 @@ object RevenueManager {
         
         return when {
             gameRating >= 9.5f -> {
-                // 评分 >= 9.5（满分神作）：10倍（+900%）
-                (baseRegistrations * 10.0).toInt()
+                // 评分 >= 9.5（满分神作）：2.5倍（+150%）（原10倍）
+                (baseRegistrations * 2.5).toInt()
             }
             gameRating >= 9.0f -> {
-                // 评分 9.0-9.5（神作）：6倍（+500%）
-                (baseRegistrations * 6.0).toInt()
+                // 评分 9.0-9.5（神作）：2.0倍（+100%）（原6倍）
+                (baseRegistrations * 2.0).toInt()
             }
             gameRating >= 8.0f -> {
-                // 评分 8.0-9.0（佳作）：3倍（+200%）
-                (baseRegistrations * 3.0).toInt()
+                // 评分 8.0-9.0（佳作）：1.5倍（+50%）（原3倍）
+                (baseRegistrations * 1.5).toInt()
             }
             gameRating >= 7.0f -> {
-                // 评分 7.0-8.0（优秀）：1.8倍（+80%）
-                (baseRegistrations * 1.8).toInt()
+                // 评分 7.0-8.0（优秀）：1.3倍（+30%）（原1.8倍）
+                (baseRegistrations * 1.3).toInt()
             }
             gameRating >= 6.0f -> {
-                // 评分 6.0-7.0（良好）：1.3倍（+30%）
-                (baseRegistrations * 1.3).toInt()
+                // 评分 6.0-7.0（良好）：1.15倍（+15%）（原1.3倍）
+                (baseRegistrations * 1.15).toInt()
             }
             gameRating >= 5.0f -> {
                 // 评分 5.0-6.0（及格）：无加成

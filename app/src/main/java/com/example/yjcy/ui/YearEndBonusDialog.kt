@@ -28,7 +28,9 @@ import com.example.yjcy.utils.formatMoney
  */
 data class YearEndStatistics(
     val year: Int,
-    val gamesReleased: Int, // 发售的游戏数量
+    val gamesReleased: Int, // 发售的游戏数量（已废弃，保留用于兼容）
+    val singlePlayerGames: Int, // 单机游戏数量
+    val onlineGames: Int, // 网络游戏数量
     val totalRevenue: Long, // 总收入
     val netProfit: Long, // 净利润（总收入 - 总支出）
     val totalEmployees: Int // 员工总数
@@ -130,8 +132,16 @@ fun YearEndBonusDialog(
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         StatRow(
-                            label = "运营游戏",
-                            value = "${statistics.gamesReleased}款",
+                            label = "单机游戏",
+                            value = "${statistics.singlePlayerGames}款",
+                            icon = Icons.Default.Games
+                        )
+                        
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+                        
+                        StatRow(
+                            label = "网络游戏",
+                            value = "${statistics.onlineGames}款",
                             icon = Icons.Default.Games
                         )
                         

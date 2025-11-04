@@ -2562,16 +2562,23 @@ fun GameScreen(
         }
     }
     
-    // 初始化竞争对手（只执行一次）
-    LaunchedEffect(Unit) {
-        if (competitors.isEmpty()) {
-            // 生成初始竞争对手（新游戏或继承后的存档都会触发）
-            competitors = CompetitorManager.generateInitialCompetitors(
-                companyName, 
-                currentYear, 
-                currentMonth
-            )
-            Log.d("MainActivity", "初始化竞争对手：生成${competitors.size}家竞争公司")
+    // 初始化竞争对手（只执行一次，且只在存档中没有竞争对手时才生成）
+    LaunchedEffect(saveData) {
+        if (saveData == null) {
+            // 新游戏：生成初始竞争对手
+            if (competitors.isEmpty()) {
+                competitors = CompetitorManager.generateInitialCompetitors(
+                    companyName, 
+                    currentYear, 
+                    currentMonth
+                )
+                Log.d("MainActivity", "初始化竞争对手：生成${competitors.size}家竞争公司")
+            }
+        } else {
+            // 读档：从存档中恢复竞争对手列表
+            // 注意：即使存档中competitors为空（所有对手都被收购），也不应该重新生成
+            competitors = saveData.competitors
+            Log.d("MainActivity", "从存档恢复竞争对手：${competitors.size}家竞争公司")
         }
     }
     
@@ -2645,7 +2652,7 @@ fun GameScreen(
             
             // 根据游戏速度延迟不同的时间后推进一天
             delay(when (gameSpeed) {
-                1 -> 3000L // 慢速：3秒推进1天
+                1 -> 5000L // 慢速：5秒推进1天（调整：从3秒改为5秒）
                 2 -> 2000L // 中速：2秒推进1天
                 3 -> 1000L // 快速：1秒推进1天
                 else -> 2000L
@@ -3601,6 +3608,7 @@ fun GameScreen(
                         val newUpdateHistory = if (completedTask != null) {
                             val updateNumber = (releasedGame.updateHistory ?: emptyList()).size + 1
                             val updateDate = GameDate(currentYear, currentMonth, currentDay)
+                            val newVersion = releasedGame.version + 0.1f // 更新后的版本号
                             
                             // 生成玩家评论
                             val comments = CommentGenerator.generateComments(
@@ -3611,6 +3619,7 @@ fun GameScreen(
                             // 创建更新记录
                             val gameUpdate = GameUpdate(
                                 updateNumber = updateNumber,
+                                version = newVersion, // 保存更新后的版本号
                                 updateDate = updateDate,
                                 updateContent = completedTask.features,
                                 announcement = completedTask.announcement,
@@ -5113,7 +5122,7 @@ fun GameScreen(
         
         // 年终奖对话框
         if (showYearEndBonusDialog) {
-            // 重新计算年度统计数据（确保数据最新）- 统计本年有收入的游戏数量
+            // 重新计算年度统计数据（确保数据最新）- 统计本年有收入的游戏数量，并分别统计单机游戏和网络游戏
             val revenueDataForDialog = RevenueManager.exportRevenueData()
             val gamesReleasedThisYear = revenueDataForDialog.values.count { revenue ->
                 // 检查该游戏在当年是否有收入记录
@@ -5123,6 +5132,37 @@ fun GameScreen(
                     val recordGameYear = recordCalendar.get(Calendar.YEAR)
                     recordGameYear == currentYear && dailySales.revenue > 0
                 }
+            }
+            
+            // 分别统计单机游戏和网络游戏数量
+            val singlePlayerGames = revenueDataForDialog.values.count { revenue ->
+                // 检查该游戏在当年是否有收入记录
+                val hasRevenueThisYear = revenue.dailySalesList.any { dailySales ->
+                    val recordCalendar = Calendar.getInstance()
+                    recordCalendar.time = dailySales.date
+                    val recordGameYear = recordCalendar.get(Calendar.YEAR)
+                    recordGameYear == currentYear && dailySales.revenue > 0
+                }
+                if (!hasRevenueThisYear) return@count false
+                
+                // 通过游戏ID找到对应的游戏，判断类型
+                val game = games.find { it.id == revenue.gameId }
+                game?.businessModel == com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER
+            }
+            
+            val onlineGames = revenueDataForDialog.values.count { revenue ->
+                // 检查该游戏在当年是否有收入记录
+                val hasRevenueThisYear = revenue.dailySalesList.any { dailySales ->
+                    val recordCalendar = Calendar.getInstance()
+                    recordCalendar.time = dailySales.date
+                    val recordGameYear = recordCalendar.get(Calendar.YEAR)
+                    recordGameYear == currentYear && dailySales.revenue > 0
+                }
+                if (!hasRevenueThisYear) return@count false
+                
+                // 通过游戏ID找到对应的游戏，判断类型
+                val game = games.find { it.id == revenue.gameId }
+                game?.businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME
             }
             
             // 计算年度总收入（从RevenueManager获取，统计所有已发售游戏在当年的收入）
@@ -5164,6 +5204,8 @@ fun GameScreen(
             val yearEndStatistics = YearEndStatistics(
                 year = currentYear,
                 gamesReleased = gamesReleasedThisYear,
+                singlePlayerGames = singlePlayerGames,
+                onlineGames = onlineGames,
                 totalRevenue = totalRevenue,
                 netProfit = netProfit,
                 totalEmployees = allEmployees.size
@@ -7568,175 +7610,179 @@ fun InGameSettingsContent(
         
         Spacer(modifier = Modifier.height(24.dp))
         
-        // 兑换码区域
-        if (!gmModeEnabled) {
-            var redeemCode by remember { mutableStateOf("") }
-            var showRedeemError by remember { mutableStateOf(false) }
-            var showRedeemSuccessDialog by remember { mutableStateOf(false) }
-            var redeemSuccessMessage by remember { mutableStateOf("") }
-            
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = Color.White.copy(alpha = 0.05f)
-                ),
-                shape = RoundedCornerShape(12.dp)
+        // 兑换码区域（始终显示，GM模式激活后仍可使用其他兑换码）
+        var redeemCode by remember { mutableStateOf("") }
+        var showRedeemError by remember { mutableStateOf(false) }
+        var showRedeemSuccessDialog by remember { mutableStateOf(false) }
+        var redeemSuccessMessage by remember { mutableStateOf("") }
+        
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = Color.White.copy(alpha = 0.05f)
+            ),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+                Text(
+                    text = "🎁 兑换码",
+                    color = Color(0xFFF59E0B),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                OutlinedTextField(
+                    value = redeemCode,
+                    onValueChange = { 
+                        redeemCode = it
+                        showRedeemError = false
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { 
+                        Text(
+                            text = "请输入兑换码",
+                            color = Color.White.copy(alpha = 0.4f)
+                        ) 
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF10B981),
+                        unfocusedBorderColor = Color.White.copy(alpha = 0.3f),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    ),
+                    singleLine = true,
+                    shape = RoundedCornerShape(8.dp)
+                )
+                
+                if (showRedeemError) {
+                    @Suppress("SpellCheckingInspection")
+                    val codeUpper = redeemCode.uppercase()
+                    val isUsedByUser = RedeemCodeManager.isCodeUsedByUser(userId, codeUpper)
+                    val isUsedInSave = usedRedeemCodes.contains(codeUpper)
+                    
+                    val errorMessage = when {
+                        userId.isNullOrBlank() -> "❌ 请先登录TapTap账号后再使用兑换码"
+                        isUsedByUser -> "❌ 该兑换码已在本账号中使用过，每个账号仅限使用1次"
+                        isUsedInSave -> "❌ 该兑换码已在本存档中使用过，每个存档仅限使用1次"
+                        else -> "❌ 兑换码错误，请重新输入"
+                    }
+                    
                     Text(
-                        text = "🎁 兑换码",
-                        color = Color(0xFFF59E0B),
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
+                        text = errorMessage,
+                        color = Color(0xFFEF4444),
+                        fontSize = 14.sp
                     )
-                    
-                    OutlinedTextField(
-                        value = redeemCode,
-                        onValueChange = { 
-                            redeemCode = it
-                            showRedeemError = false
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("请输入兑换码", color = Color.White.copy(alpha = 0.4f)) },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF10B981),
-                            unfocusedBorderColor = Color.White.copy(alpha = 0.3f),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        ),
-                        singleLine = true,
-                        shape = RoundedCornerShape(8.dp)
-                    )
-                    
-                    if (showRedeemError) {
+                }
+                
+                Button(
+                    onClick = {
                         @Suppress("SpellCheckingInspection")
                         val codeUpper = redeemCode.uppercase()
+                        
+                        // 检查用户是否已登录
+                        if (userId.isNullOrBlank()) {
+                            showRedeemError = true
+                            return@Button
+                        }
+                        
+                        // 先检查用户是否已使用过（全局检查）
                         val isUsedByUser = RedeemCodeManager.isCodeUsedByUser(userId, codeUpper)
-                        val isUsedInSave = usedRedeemCodes.contains(codeUpper)
                         
-                        val errorMessage = when {
-                            userId.isNullOrBlank() -> "❌ 请先登录TapTap账号后再使用兑换码"
-                            isUsedByUser -> "❌ 该兑换码已在本账号中使用过，每个账号仅限使用1次"
-                            isUsedInSave -> "❌ 该兑换码已在本存档中使用过，每个存档仅限使用1次"
-                            else -> "❌ 兑换码错误，请重新输入"
-                        }
-                        
-                        Text(
-                            text = errorMessage,
-                            color = Color(0xFFEF4444),
-                            fontSize = 14.sp
-                        )
-                    }
-                    
-                    Button(
-                        onClick = {
-                            @Suppress("SpellCheckingInspection")
-                            val codeUpper = redeemCode.uppercase()
-                            
-                            // 检查用户是否已登录
-                            if (userId.isNullOrBlank()) {
-                                showRedeemError = true
-                                return@Button
-                            }
-                            
-                            // 先检查用户是否已使用过（全局检查）
-                            val isUsedByUser = RedeemCodeManager.isCodeUsedByUser(userId, codeUpper)
-                            
-                            when (codeUpper) {
-                                "PROGM" -> {
-                                    // 检查是否已使用过
-                                    if (isUsedByUser) {
-                                        // 账号已使用过，自动启用GM模式（不再显示错误）
-                                        if (!gmModeEnabled) {
-                                            onGMToggle(true)
-                                        }
-                                        redeemCode = ""
-                                        redeemSuccessMessage = "GM工具箱已激活！（账号已解锁，自动启用）"
-                                        showRedeemSuccessDialog = true
-                                    } else {
-                                        // 标记为已使用并启用GM模式
-                                        RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
+                        when (codeUpper) {
+                            "PROGM" -> {
+                                // 检查是否已使用过
+                                if (isUsedByUser) {
+                                    // 账号已使用过，自动启用GM模式（不再显示错误）
+                                    if (!gmModeEnabled) {
                                         onGMToggle(true)
-                                        redeemCode = ""
-                                        redeemSuccessMessage = "GM工具箱已激活！"
-                                        showRedeemSuccessDialog = true
                                     }
-                                }
-                                "YCJY2025" -> {
-                                    // 检查是否已使用过（全局 + 存档本地）
-                                    val isUsedInSave = usedRedeemCodes.contains(codeUpper)
-                                    
-                                    if (isUsedByUser || isUsedInSave) {
-                                        showRedeemError = true
-                                    } else {
-                                        // 标记为已使用（全局）
-                                        RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
-                                        // 兑换码：YCJY2025，获得5M资金
-                                        val rewardAmount = 5000000L // 5M = 500万
-                                        onMoneyUpdate(money + rewardAmount)
-                                        // 标记兑换码为已使用（存档本地）
-                                        onUsedRedeemCodesUpdate(usedRedeemCodes + codeUpper)
-                                        redeemCode = ""
-                                        redeemSuccessMessage = "兑换成功！获得 ${formatMoney(rewardAmount)}"
-                                        showRedeemSuccessDialog = true
-                                    }
-                                }
-                                else -> {
-                                    showRedeemError = true
+                                    redeemCode = ""
+                                    redeemSuccessMessage = "GM工具箱已激活！（账号已解锁，自动启用）"
+                                    showRedeemSuccessDialog = true
+                                } else {
+                                    // 标记为已使用并启用GM模式
+                                    RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
+                                    onGMToggle(true)
+                                    redeemCode = ""
+                                    redeemSuccessMessage = "GM工具箱已激活！"
+                                    showRedeemSuccessDialog = true
                                 }
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF10B981)
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("兑换", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-            
-            // 兑换成功弹窗
-            if (showRedeemSuccessDialog) {
-                AlertDialog(
-                    onDismissRequest = { showRedeemSuccessDialog = false },
-                    title = {
-                        Text(
-                            text = "✅ 兑换成功",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    },
-                    text = {
-                        Text(
-                            text = redeemSuccessMessage,
-                            fontSize = 15.sp,
-                            color = Color.White.copy(alpha = 0.9f),
-                            lineHeight = 22.sp
-                        )
-                    },
-                    containerColor = Color(0xFF1E293B),
-                    shape = RoundedCornerShape(20.dp),
-                    confirmButton = {
-                        Button(
-                            onClick = { showRedeemSuccessDialog = false },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF10B981)
-                            )
-                        ) {
-                            Text("知道了", color = Color.White, fontSize = 15.sp)
+                            "YCJY2025" -> {
+                                // 检查是否已使用过（全局 + 存档本地）
+                                val isUsedInSave = usedRedeemCodes.contains(codeUpper)
+                                
+                                if (isUsedByUser || isUsedInSave) {
+                                    showRedeemError = true
+                                } else {
+                                    // 标记为已使用（全局）
+                                    RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
+                                    // 兑换码：YCJY2025，获得5M资金
+                                    val rewardAmount = 5000000L // 5M = 500万
+                                    onMoneyUpdate(money + rewardAmount)
+                                    // 标记兑换码为已使用（存档本地）
+                                    onUsedRedeemCodesUpdate(usedRedeemCodes + codeUpper)
+                                    redeemCode = ""
+                                    redeemSuccessMessage = "兑换成功！获得 ${formatMoney(rewardAmount)}"
+                                    showRedeemSuccessDialog = true
+                                }
+                            }
+                            else -> {
+                                showRedeemError = true
+                            }
                         }
-                    }
-                )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF10B981)
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    Text("兑换", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
         
-        // GM工具箱
+        // 兑换成功弹窗
+        if (showRedeemSuccessDialog) {
+            AlertDialog(
+                onDismissRequest = { showRedeemSuccessDialog = false },
+                title = {
+                    Text(
+                        text = "✅ 兑换成功",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                },
+                text = {
+                    Text(
+                        text = redeemSuccessMessage,
+                        fontSize = 15.sp,
+                        color = Color.White.copy(alpha = 0.9f),
+                        lineHeight = 22.sp
+                    )
+                },
+                containerColor = Color(0xFF1E293B),
+                shape = RoundedCornerShape(20.dp),
+                confirmButton = {
+                    Button(
+                        onClick = { showRedeemSuccessDialog = false },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF10B981)
+                        )
+                    ) {
+                        Text("知道了", color = Color.White, fontSize = 15.sp)
+                    }
+                }
+            )
+        }
+        
+        // GM工具箱（仅在GM模式激活时显示）
         if (gmModeEnabled) {
             var showSkillLevelDialog by remember { mutableStateOf(false) }
             
@@ -7748,20 +7794,14 @@ fun InGameSettingsContent(
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
                         text = "🛠️ GM工具箱",
                         color = Color(0xFFFF6B6B),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
-                    )
-                    
-                    Text(
-                        text = "GM模式已激活",
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 14.sp
                     )
                     
                     // 一键满配员工
@@ -7771,7 +7811,8 @@ fun InGameSettingsContent(
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF8B5CF6)
                         ),
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically
@@ -7796,7 +7837,8 @@ fun InGameSettingsContent(
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFFF59E0B)
                         ),
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically
@@ -7821,7 +7863,8 @@ fun InGameSettingsContent(
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF10B981)
                         ),
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically

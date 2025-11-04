@@ -176,7 +176,7 @@ fun UpdateCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "V${update.updateNumber}.0 更新",
+                    text = "V${String.format("%.1f", update.getDisplayVersion())} 更新",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF60A5FA) // 蓝色
