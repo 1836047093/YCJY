@@ -57,7 +57,9 @@ fun EnhancedGameProjectCard(
     currentMonth: Int = 1,  // 新增：当前月份
     currentDay: Int = 1,  // 新增：当前日期
     onPauseGame: (() -> Unit)? = null,  // 暂停游戏的回调
-    onResumeGame: (() -> Unit)? = null // 恢复游戏的回调
+    onResumeGame: (() -> Unit)? = null, // 恢复游戏的回调
+    isSupporterUnlocked: Boolean = false, // 是否解锁支持者功能
+    onShowFeatureLockedDialog: () -> Unit = {} // 显示功能解锁对话框的回调
 ) {
     var showRevenueDialog by remember { mutableStateOf(false) }
     
@@ -1240,7 +1242,9 @@ fun EnhancedGameProjectCard(
                 },
                 businessModel = game.businessModel,
                 money = money,
-                onMoneyUpdate = onMoneyUpdate
+                onMoneyUpdate = onMoneyUpdate,
+                isSupporterUnlocked = isSupporterUnlocked,
+                onShowFeatureLockedDialog = onShowFeatureLockedDialog
             )
         }
     }

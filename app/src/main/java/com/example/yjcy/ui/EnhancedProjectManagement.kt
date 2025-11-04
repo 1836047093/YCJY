@@ -158,7 +158,9 @@ fun EnhancedProjectManagementContent(
     ownedIPs: List<com.example.yjcy.data.GameIP> = emptyList(),  // 新增：拥有的IP列表
     onPauseGame: (() -> Unit)? = null,  // 暂停游戏的回调
     onResumeGame: (() -> Unit)? = null, // 恢复游戏的回调
-    isPaused: Boolean = false  // 新增：当前暂停状态，用于判断是否应该恢复游戏
+    isPaused: Boolean = false,  // 新增：当前暂停状态，用于判断是否应该恢复游戏
+    isSupporterUnlocked: Boolean = false, // 是否解锁支持者功能
+    onShowFeatureLockedDialog: () -> Unit = {} // 显示功能解锁对话框的回调
 ) {
     var showGameDevelopmentDialog by remember { mutableStateOf(false) }
     var showPromotionCenterDialog by remember { mutableStateOf(false) }
@@ -459,7 +461,9 @@ fun EnhancedProjectManagementContent(
                         currentMonth = currentMonth,
                         currentDay = currentDay,
                         onPauseGame = onPauseGame,
-                        onResumeGame = onResumeGame
+                        onResumeGame = onResumeGame,
+                        isSupporterUnlocked = isSupporterUnlocked,
+                        onShowFeatureLockedDialog = onShowFeatureLockedDialog
                     )
                 }
             }
@@ -527,7 +531,9 @@ fun EnhancedProjectManagementContent(
             onMoneyUpdate = onMoneyUpdate,
             onFansUpdate = onFansUpdate,
             onGamesUpdate = onGamesUpdate,
-            onAutoPromotionThresholdUpdate = onAutoPromotionThresholdUpdate
+            onAutoPromotionThresholdUpdate = onAutoPromotionThresholdUpdate,
+            isSupporterUnlocked = isSupporterUnlocked,
+            onShowFeatureLockedDialog = onShowFeatureLockedDialog
         )
     }
     
@@ -543,7 +549,9 @@ fun EnhancedProjectManagementContent(
             autoProcessEnabled = autoProcessComplaints,
             onAutoProcessToggle = onAutoProcessToggle,
             onDismiss = { showCustomerServiceDialog = false },
-            onComplaintsUpdate = onComplaintsUpdate
+            onComplaintsUpdate = onComplaintsUpdate,
+            isSupporterUnlocked = isSupporterUnlocked,
+            onShowFeatureLockedDialog = onShowFeatureLockedDialog
         )
     }
 }
@@ -562,7 +570,9 @@ fun CustomerServiceDialog(
     autoProcessEnabled: Boolean,
     onAutoProcessToggle: (Boolean) -> Unit,
     onDismiss: () -> Unit,
-    onComplaintsUpdate: (List<Complaint>) -> Unit
+    onComplaintsUpdate: (List<Complaint>) -> Unit,
+    isSupporterUnlocked: Boolean = false, // 是否解锁支持者功能
+    onShowFeatureLockedDialog: () -> Unit = {} // 显示功能解锁对话框的回调
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -591,7 +601,9 @@ fun CustomerServiceDialog(
                 currentDay = currentDay,
                 autoProcessEnabled = autoProcessEnabled,
                 onAutoProcessToggle = onAutoProcessToggle,
-                onComplaintsUpdate = onComplaintsUpdate
+                onComplaintsUpdate = onComplaintsUpdate,
+                isSupporterUnlocked = isSupporterUnlocked,
+                onShowFeatureLockedDialog = onShowFeatureLockedDialog
             )
         },
         confirmButton = {

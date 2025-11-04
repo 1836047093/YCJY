@@ -52,7 +52,9 @@ fun ProjectManagementWrapper(
     ownedIPs: List<GameIP> = emptyList(),  // 新增：拥有的IP列表
     onPauseGame: (() -> Unit)? = null,  // 暂停游戏的回调
     onResumeGame: (() -> Unit)? = null, // 恢复游戏的回调
-    isPaused: Boolean = false  // 新增：当前暂停状态
+    isPaused: Boolean = false,  // 新增：当前暂停状态
+    isSupporterUnlocked: Boolean = false, // 是否解锁支持者功能
+    onShowFeatureLockedDialog: () -> Unit = {} // 显示功能解锁对话框的回调
 ) {
     // 移除本地状态管理，改为由外部（MainActivity）管理
     // 这样可以确保切换标签时状态不会丢失
@@ -90,6 +92,8 @@ fun ProjectManagementWrapper(
                     ownedIPs = ownedIPs,
                     onPauseGame = onPauseGame,
                     onResumeGame = onResumeGame,
-                    isPaused = isPaused
+                    isPaused = isPaused,
+                    isSupporterUnlocked = isSupporterUnlocked,
+                    onShowFeatureLockedDialog = onShowFeatureLockedDialog
     )
 }

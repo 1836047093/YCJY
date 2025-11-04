@@ -36,7 +36,9 @@ fun CustomerServiceContent(
     currentDay: Int,
     autoProcessEnabled: Boolean,
     onAutoProcessToggle: (Boolean) -> Unit,
-    onComplaintsUpdate: (List<Complaint>) -> Unit
+    onComplaintsUpdate: (List<Complaint>) -> Unit,
+    isSupporterUnlocked: Boolean = false, // 是否解锁支持者功能
+    onShowFeatureLockedDialog: () -> Unit = {} // 显示功能解锁对话框的回调
 ) {
     var selectedComplaint by remember { mutableStateOf<Complaint?>(null) }
     var showAssignDialog by remember { mutableStateOf(false) }
@@ -127,7 +129,13 @@ fun CustomerServiceContent(
                     if (autoProcessEnabled) Color(0xFF10B981).copy(alpha = 0.1f) else Color.White.copy(alpha = 0.05f),
                     RoundedCornerShape(8.dp)
                 )
-                .clickable { onAutoProcessToggle(!autoProcessEnabled) }
+                .clickable { 
+                    if (!isSupporterUnlocked) {
+                        onShowFeatureLockedDialog()
+                    } else {
+                        onAutoProcessToggle(!autoProcessEnabled)
+                    }
+                }
                 .padding(12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
@@ -153,10 +161,24 @@ fun CustomerServiceContent(
                         color = if (autoProcessEnabled) Color(0xFF10B981).copy(alpha = 0.8f) else Color.Gray
                     )
                 }
+                if (!isSupporterUnlocked) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "🔒",
+                        fontSize = 12.sp
+                    )
+                }
             }
             Switch(
                 checked = autoProcessEnabled,
-                onCheckedChange = onAutoProcessToggle,
+                onCheckedChange = { 
+                    if (!isSupporterUnlocked) {
+                        onShowFeatureLockedDialog()
+                    } else {
+                        onAutoProcessToggle(it)
+                    }
+                },
+                enabled = isSupporterUnlocked,
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = Color.White,
                     checkedTrackColor = Color(0xFF10B981),

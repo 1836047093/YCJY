@@ -3,6 +3,7 @@ package com.example.yjcy
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.view.Display
 import android.view.WindowManager
 import android.os.Handler
@@ -2297,6 +2298,17 @@ fun GameScreen(
     // 已使用的兑换码状态
     var usedRedeemCodes by remember { mutableStateOf(saveData?.usedRedeemCodes ?: emptySet()) }
     
+    // 支持者功能解锁状态
+    // 优先使用存档中的状态，如果没有则通过兑换码检查（向后兼容）
+    val isSupporterUnlocked = if (saveData != null) {
+        saveData.isSupporterUnlocked || RedeemCodeManager.isSupporterFeatureUnlocked(userId, usedRedeemCodes)
+    } else {
+        RedeemCodeManager.isSupporterFeatureUnlocked(userId, usedRedeemCodes)
+    }
+    
+    // 功能解锁对话框状态
+    var showFeatureLockedDialog by remember { mutableStateOf(false) }
+    
     // GVA颁奖对话框状态
     var showGVAAwardDialog by remember { mutableStateOf(false) }
     var gvaAwardYear by remember { mutableIntStateOf(1) }
@@ -2827,6 +2839,7 @@ fun GameScreen(
                                     ownedIPs = ownedIPs,
                                     gmModeEnabled = gmModeEnabled,
                                     usedRedeemCodes = usedRedeemCodes,
+                                    isSupporterUnlocked = isSupporterUnlocked,
                                     autoSaveEnabled = autoSaveEnabled,
                                     autoSaveInterval = autoSaveInterval,
                                     lastAutoSaveDay = lastAutoSaveDay,
@@ -3878,7 +3891,9 @@ fun GameScreen(
                 onPauseToggle = { isPaused = !isPaused },
                 companyName = companyName,
                 selectedLogo = selectedLogo,
-                onSettingsClick = { showSettings = true }
+                onSettingsClick = { showSettings = true },
+                isSupporterUnlocked = isSupporterUnlocked,
+                onShowFeatureLockedDialog = { showFeatureLockedDialog = true }
             )
             
             // 主要内容区域
@@ -3956,7 +3971,9 @@ fun GameScreen(
                             currentDay = currentDay,
                             jobPostingRefreshTrigger = jobPostingRefreshTrigger,
                             onPauseGame = { isPaused = true },
-                            onResumeGame = { isPaused = false }
+                            onResumeGame = { isPaused = false },
+                            isSupporterUnlocked = isSupporterUnlocked,
+                            onShowFeatureLockedDialog = { showFeatureLockedDialog = true }
                         )
                         2 -> ProjectManagementWrapper(
                             games = games,
@@ -3995,7 +4012,9 @@ fun GameScreen(
                             ownedIPs = ownedIPs,
                             onPauseGame = { isPaused = true },
                             onResumeGame = { isPaused = false },
-                            isPaused = isPaused
+                            isPaused = isPaused,
+                            isSupporterUnlocked = isSupporterUnlocked,
+                            onShowFeatureLockedDialog = { showFeatureLockedDialog = true }
                         )
                         3 -> CompetitorContent(
                             saveData = SaveData(
@@ -4732,6 +4751,8 @@ fun GameScreen(
                             onAutoSaveIntervalChange = { interval -> autoSaveInterval = interval },
                             usedRedeemCodes = usedRedeemCodes,
                             onUsedRedeemCodesUpdate = { updatedCodes -> usedRedeemCodes = updatedCodes },
+                            isSupporterUnlocked = isSupporterUnlocked,
+                            onShowFeatureLockedDialog = { showFeatureLockedDialog = true },
                             onMaxEmployees = {
                                 // 一键将所有员工技能设置为5级
                                 val maxedEmployees = allEmployees.map { employee ->
@@ -5262,6 +5283,23 @@ fun GameScreen(
                 }
             )
         }
+        
+        // 功能解锁对话框
+        if (showFeatureLockedDialog) {
+            FeatureLockedDialog(
+                onDismiss = { showFeatureLockedDialog = false },
+                onOpenAfdian = {
+                    try {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://afdian.com/a/LTDHMNDH"))
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "无法打开链接", Toast.LENGTH_SHORT).show()
+                    }
+                    showFeatureLockedDialog = false
+                }
+            )
+        }
+        
         if (pendingAchievementsToShow.isNotEmpty()) {
             AchievementPopupQueue(
                 achievements = pendingAchievementsToShow,
@@ -5286,7 +5324,9 @@ fun TopInfoBar(
     onPauseToggle: () -> Unit,
     companyName: String = "我的游戏公司",
     selectedLogo: String = "🎮",
-    onSettingsClick: () -> Unit = {}
+    onSettingsClick: () -> Unit = {},
+    isSupporterUnlocked: Boolean = false,
+    onShowFeatureLockedDialog: () -> Unit = {}
 ) {
     Box(
         modifier = Modifier
@@ -5402,7 +5442,9 @@ fun TopInfoBar(
                     currentSpeed = gameSpeed,
                     isPaused = isPaused,
                     onSpeedChange = onSpeedChange,
-                    onPauseToggle = onPauseToggle
+                    onPauseToggle = onPauseToggle,
+                    isSupporterUnlocked = isSupporterUnlocked,
+                    onShowFeatureLockedDialog = onShowFeatureLockedDialog
                 )
                 
                 // FPS监测 - 固定宽度防止抖动
@@ -7103,7 +7145,17 @@ class SaveManager(context: Context) {
                 revenueData = saveData.revenueData,
                 
                 // 创始人职业（可空）
-                founderProfession = saveData.founderProfession
+                founderProfession = saveData.founderProfession,
+                
+                // 兑换码和支持者功能
+                usedRedeemCodes = saveData.usedRedeemCodes,
+                // 如果旧存档中已使用SUPPORTER兑换码，则自动设置解锁状态
+                isSupporterUnlocked = saveData.isSupporterUnlocked || saveData.usedRedeemCodes.contains("SUPPORTER"),
+                
+                // 自动存档设置
+                autoSaveEnabled = saveData.autoSaveEnabled,
+                autoSaveInterval = saveData.autoSaveInterval,
+                lastAutoSaveDay = saveData.lastAutoSaveDay
             )
             
             Log.d("SaveManager", "修复完成：游戏${fixedGames.size}个，员工${fixedSaveData.allEmployees.size}人")
@@ -7366,7 +7418,9 @@ fun InGameSettingsContent(
     onCreateTopEmployees: (Int) -> Unit = {}, // 创建各职位6名指定等级专属技能员工回调（参数：技能等级1-5）
     onMoneyUpdate: (Long) -> Unit = {}, // 资金更新回调
     usedRedeemCodes: Set<String> = emptySet(), // 已使用的兑换码列表
-    onUsedRedeemCodesUpdate: (Set<String>) -> Unit = {} // 已使用兑换码更新回调
+    onUsedRedeemCodesUpdate: (Set<String>) -> Unit = {}, // 已使用兑换码更新回调
+    isSupporterUnlocked: Boolean = false, // 是否解锁支持者功能
+    onShowFeatureLockedDialog: () -> Unit = {} // 显示功能解锁对话框的回调
 ) {
     val context = LocalContext.current
     val saveManager = remember { SaveManager(context) }
@@ -7468,7 +7522,14 @@ fun InGameSettingsContent(
                     }
                     Switch(
                         checked = autoSaveEnabled,
-                        onCheckedChange = { onAutoSaveEnabledToggle(it) },
+                        onCheckedChange = { 
+                            if (!isSupporterUnlocked) {
+                                onShowFeatureLockedDialog()
+                            } else {
+                                onAutoSaveEnabledToggle(it)
+                            }
+                        },
+                        enabled = isSupporterUnlocked,
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
                             checkedTrackColor = Color(0xFF3B82F6),
@@ -7570,7 +7631,14 @@ fun InGameSettingsContent(
                 }
                 Switch(
                     checked = autoApproveSalaryIncrease,
-                    onCheckedChange = { onAutoApproveSalaryToggle(it) },
+                    onCheckedChange = { 
+                        if (!isSupporterUnlocked) {
+                            onShowFeatureLockedDialog()
+                        } else {
+                            onAutoApproveSalaryToggle(it)
+                        }
+                    },
+                    enabled = isSupporterUnlocked,
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = Color.White,
                         checkedTrackColor = Color(0xFF3B82F6),
@@ -7727,6 +7795,22 @@ fun InGameSettingsContent(
                                     onUsedRedeemCodesUpdate(usedRedeemCodes + codeUpper)
                                     redeemCode = ""
                                     redeemSuccessMessage = "兑换成功！获得 ${formatMoney(rewardAmount)}"
+                                    showRedeemSuccessDialog = true
+                                }
+                            }
+                            "SUPPORTER" -> {
+                                // 检查是否已使用过（全局 + 存档本地）
+                                val isUsedInSave = usedRedeemCodes.contains(codeUpper)
+                                
+                                if (isUsedByUser || isUsedInSave) {
+                                    showRedeemError = true
+                                } else {
+                                    // 标记为已使用（全局）
+                                    RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
+                                    // 标记兑换码为已使用（存档本地）
+                                    onUsedRedeemCodesUpdate(usedRedeemCodes + codeUpper)
+                                    redeemCode = ""
+                                    redeemSuccessMessage = "兑换成功！已解锁所有支持者功能"
                                     showRedeemSuccessDialog = true
                                 }
                             }
@@ -8070,6 +8154,7 @@ fun InGameSettingsContent(
                                 ownedIPs = ownedIPs, // 保存拥有的IP列表（收购竞争对手后获得）
                                 gmModeEnabled = gmModeEnabled, // 保存GM模式状态
                                 usedRedeemCodes = usedRedeemCodes, // 保存已使用的兑换码列表
+                                isSupporterUnlocked = isSupporterUnlocked, // 保存支持者功能解锁状态
                                 autoSaveEnabled = autoSaveEnabled, // 保存自动存档开关
                                 autoSaveInterval = autoSaveInterval, // 保存自动存档间隔
                                 lastAutoSaveDay = lastAutoSaveDay, // 保存上次自动存档时间
@@ -8153,15 +8238,22 @@ fun InGameSettingsContent(
                             CircularProgressIndicator(color = Color.White)
                         }
                     } else {
-                        repeat(3) { index ->
+                        repeat(5) { index ->
                             val slotNumber = index + 1
                             val existingSave = saveSlots[slotNumber]
+                            // 检查是否需要解锁（第4、5个槽位需要解锁）
+                            val isLocked = slotNumber > 3 && !isSupporterUnlocked
                         
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
                                 .clickable {
+                                    if (isLocked) {
+                                        // 显示功能解锁对话框
+                                        onShowFeatureLockedDialog()
+                                        return@clickable
+                                    }
                                     if (existingSave != null) {
                                         // 有存档，显示覆盖确认对话框
                                         selectedSlotNumber = slotNumber
@@ -8239,12 +8331,24 @@ fun InGameSettingsContent(
                                     .fillMaxWidth()
                                     .padding(12.dp)
                             ) {
-                                Text(
-                                    text = "存档位 $slotNumber",
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "存档位 $slotNumber",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                    if (isLocked) {
+                                        Text(
+                                            text = "🔒",
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                }
                                 
                                 if (existingSave != null) {
                                     Text(
@@ -8259,7 +8363,7 @@ fun InGameSettingsContent(
                                     )
                                 } else {
                                     Text(
-                                        text = "空存档",
+                                        text = if (isLocked) "需要解锁" else "空存档",
                                         color = Color.White.copy(alpha = 0.5f),
                                         fontSize = 12.sp
                                     )
@@ -8573,9 +8677,12 @@ fun GameSpeedDropdown(
     currentSpeed: Int,
     isPaused: Boolean,
     onSpeedChange: (Int) -> Unit,
-    onPauseToggle: () -> Unit
+    onPauseToggle: () -> Unit,
+    isSupporterUnlocked: Boolean = false, // 是否解锁支持者功能
+    onShowFeatureLockedDialog: () -> Unit = {} // 显示功能解锁对话框的回调
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     
     Box {
         // 下拉按钮 - 现代化设计，固定宽度避免抖动
@@ -8660,16 +8767,35 @@ fun GameSpeedDropdown(
             
             // 速度选项 - 现代化样式
             listOf(1, 2, 3).forEach { speed ->
+                val isLocked = speed > 1 && !isSupporterUnlocked
                 DropdownMenuItem(
                     text = {
-                        Text(
-                            text = "${speed}x",
-                            color = if (currentSpeed == speed && !isPaused) Color(0xFF10B981) else Color(0xFFE5E7EB),
-                            fontSize = 14.sp,
-                            fontWeight = if (currentSpeed == speed && !isPaused) FontWeight.SemiBold else FontWeight.Medium
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "${speed}x",
+                                color = if (currentSpeed == speed && !isPaused) Color(0xFF10B981) else Color(0xFFE5E7EB),
+                                fontSize = 14.sp,
+                                fontWeight = if (currentSpeed == speed && !isPaused) FontWeight.SemiBold else FontWeight.Medium
+                            )
+                            if (isLocked) {
+                                Text(
+                                    text = "🔒",
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
                     },
                     onClick = {
+                        // 检查是否需要解锁
+                        if (isLocked) {
+                            expanded = false
+                            onShowFeatureLockedDialog()
+                            return@DropdownMenuItem
+                        }
                         // 修复：如果当前是暂停状态，先取消暂停，然后切换速度
                         // 这样用户可以正常切换速度
                         if (isPaused) {
@@ -8804,6 +8930,59 @@ fun TournamentMenuDialog(
             Spacer(modifier = Modifier.height(8.dp))
         }
     }
+}
+
+/**
+ * 功能未解锁对话框
+ * 当玩家点击未解锁的功能时显示
+ */
+@Composable
+fun FeatureLockedDialog(
+    onDismiss: () -> Unit,
+    onOpenAfdian: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "功能未解锁",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        },
+        text = {
+            Text(
+                text = "该功能需通过爱发电赞助解锁，您的支持将直接用于游戏内容迭代与开发。",
+                fontSize = 15.sp,
+                color = Color.White.copy(alpha = 0.9f),
+                lineHeight = 22.sp
+            )
+        },
+        containerColor = Color(0xFF1E293B),
+        shape = RoundedCornerShape(20.dp),
+        confirmButton = {
+            Button(
+                onClick = onOpenAfdian,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF10B981)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("去爱发电支持", color = Color.White, fontSize = 15.sp)
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = Color.White.copy(alpha = 0.7f)
+                )
+            ) {
+                Text("稍后再说", fontSize = 15.sp)
+            }
+        }
+    )
 }
 
 /**

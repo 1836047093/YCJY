@@ -62,7 +62,9 @@ fun GameRevenueDialog(
     onPriceChange: (Double) -> Unit = {},
     businessModel: BusinessModel,
     money: Long = 0L,  // 新增：资金
-    onMoneyUpdate: (Long) -> Unit = {}  // 新增：资金更新回调
+    onMoneyUpdate: (Long) -> Unit = {},  // 新增：资金更新回调
+    isSupporterUnlocked: Boolean = false, // 是否解锁支持者功能
+    onShowFeatureLockedDialog: () -> Unit = {} // 显示功能解锁对话框的回调
 ) {
     var showConfirmDialog by remember { mutableStateOf(false) }
     var showUpdateDialog by remember { mutableStateOf(false) }
@@ -159,7 +161,9 @@ fun GameRevenueDialog(
                             onShowServerManagement = { showServerManagementDialog = true },
                             onShowChangePrice = { showChangePriceDialog = true },
                             onAutoUpdateToggle = onAutoUpdateToggle,
-                            businessModel = businessModel
+                            businessModel = businessModel,
+                            isSupporterUnlocked = isSupporterUnlocked,
+                            onShowFeatureLockedDialog = onShowFeatureLockedDialog
                         )
                     }
                 }
@@ -802,7 +806,9 @@ fun ActionButtonsCard(
     onShowServerManagement: () -> Unit = {},
     onShowChangePrice: () -> Unit = {},
     onAutoUpdateToggle: (Boolean) -> Unit = {},
-    businessModel: BusinessModel
+    businessModel: BusinessModel,
+    isSupporterUnlocked: Boolean = false,
+    onShowFeatureLockedDialog: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -880,8 +886,13 @@ fun ActionButtonsCard(
                                 Switch(
                                     checked = game.autoUpdate,
                                     onCheckedChange = { enabled ->
-                                        onAutoUpdateToggle(enabled)
+                                        if (!isSupporterUnlocked) {
+                                            onShowFeatureLockedDialog()
+                                        } else {
+                                            onAutoUpdateToggle(enabled)
+                                        }
                                     },
+                                    enabled = isSupporterUnlocked,
                                     modifier = Modifier.scale(0.8f),
                                     colors = SwitchDefaults.colors(
                                         checkedThumbColor = Color(0xFF10B981),

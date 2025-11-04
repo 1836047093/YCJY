@@ -43,7 +43,9 @@ fun EmployeeManagementContent(
     @Suppress("UNUSED_PARAMETER") onNavigateToTalentMarket: () -> Unit = {},
     jobPostingRefreshTrigger: Int = 0, // 用于触发应聘者数据刷新
     onPauseGame: (() -> Unit)? = null, // 暂停游戏的回调
-    onResumeGame: (() -> Unit)? = null // 恢复游戏的回调
+    onResumeGame: (() -> Unit)? = null, // 恢复游戏的回调
+    isSupporterUnlocked: Boolean = false, // 是否解锁支持者功能
+    onShowFeatureLockedDialog: () -> Unit = {} // 显示功能解锁对话框的回调
 ) {
     var showTrainingDialog by remember { mutableStateOf(false) }
     var showFireDialog by remember { mutableStateOf(false) }
@@ -119,7 +121,13 @@ fun EmployeeManagementContent(
             Surface(
                 modifier = Modifier
                     .height(36.dp)
-                    .clickable { showBatchTrainingDialog = true },
+                    .clickable { 
+                        if (!isSupporterUnlocked) {
+                            onShowFeatureLockedDialog()
+                        } else {
+                            showBatchTrainingDialog = true
+                        }
+                    },
                 shape = RoundedCornerShape(18.dp),
                 color = Color.Transparent,
                 shadowElevation = 2.dp
@@ -155,6 +163,12 @@ fun EmployeeManagementContent(
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
+                        if (!isSupporterUnlocked) {
+                            Text(
+                                text = "🔒",
+                                fontSize = 10.sp
+                            )
+                        }
                     }
                 }
             }

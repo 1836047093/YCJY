@@ -36,7 +36,10 @@ fun PromotionCenterContent(
     fans: Long,
     onMoneyUpdate: (Long) -> Unit,
     onFansUpdate: (Long) -> Unit,
-    onGamesUpdate: (List<Game>) -> Unit
+    onGamesUpdate: (List<Game>) -> Unit,
+    autoPromotionThreshold: Float = 0.5f,
+    isSupporterUnlocked: Boolean = false, // 是否解锁支持者功能
+    onShowFeatureLockedDialog: () -> Unit = {} // 显示功能解锁对话框的回调
 ) {
     var selectedGame by remember { mutableStateOf<Game?>(null) }
     var showPromotionDialog by remember { mutableStateOf(false) }
@@ -385,7 +388,9 @@ fun PromotionCenterDialog(
     onMoneyUpdate: (Long) -> Unit,
     onFansUpdate: (Long) -> Unit,
     onGamesUpdate: (List<Game>) -> Unit,
-    onAutoPromotionThresholdUpdate: (Float) -> Unit = {}
+    onAutoPromotionThresholdUpdate: (Float) -> Unit = {},
+    isSupporterUnlocked: Boolean = false, // 是否解锁支持者功能
+    onShowFeatureLockedDialog: () -> Unit = {} // 显示功能解锁对话框的回调
 ) {
     var selectedGameIds by remember { mutableStateOf(emptySet<String>()) }
     var showBatchPromotionDialog by remember { mutableStateOf(false) }
@@ -611,15 +616,27 @@ fun PromotionCenterDialog(
                     // 自动宣传设置按钮
                     TextButton(
                         onClick = { 
-                            // 初始化已开启自动宣传的游戏ID列表
-                            autoPromotionSelectedGameIds = releasedGames.filter { it.autoPromotion }.map { it.id }.toSet()
-                            showAutoPromotionSettings = true 
+                            if (!isSupporterUnlocked) {
+                                onShowFeatureLockedDialog()
+                            } else {
+                                // 初始化已开启自动宣传的游戏ID列表
+                                autoPromotionSelectedGameIds = releasedGames.filter { it.autoPromotion }.map { it.id }.toSet()
+                                showAutoPromotionSettings = true
+                            }
                         },
                         colors = ButtonDefaults.textButtonColors(
                             contentColor = Color(0xFF3B82F6)
                         )
                     ) {
-                        Text("⚙️ 自动宣传设置", fontSize = 12.sp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text("⚙️ 自动宣传设置", fontSize = 12.sp)
+                            if (!isSupporterUnlocked) {
+                                Text("🔒", fontSize = 10.sp)
+                            }
+                        }
                     }
                     
                     // 一键宣传按钮

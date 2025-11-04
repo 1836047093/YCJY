@@ -154,5 +154,32 @@ object RedeemCodeManager {
         prefs.edit().remove(key).apply()
         Log.d(TAG, "已清除用户兑换码记录: userId=$userId")
     }
+    
+    /**
+     * 检查用户是否已解锁支持者功能
+     * 支持者功能需要通过兑换码解锁
+     * @param userId 用户ID
+     * @param usedRedeemCodes 存档中已使用的兑换码集合（用于存档级别的解锁检查）
+     * @return true表示已解锁，false表示未解锁
+     */
+    fun isSupporterFeatureUnlocked(userId: String?, usedRedeemCodes: Set<String>): Boolean {
+        // 检查是否使用了支持者兑换码（需要定义具体的兑换码，例如"SUPPORTER"）
+        val supporterCode = "SUPPORTER"
+        return isCodeUsedByUser(userId, supporterCode) || usedRedeemCodes.contains(supporterCode.uppercase())
+    }
+    
+    /**
+     * 支持者功能类型枚举
+     */
+    enum class SupporterFeature {
+        SPEED_2X_3X,           // 2X,3X游戏速度
+        EXTRA_SAVE_SLOTS,      // 额外的游戏存档（第4、5个槽位）
+        AUTO_SAVE,             // 游戏自动存档功能
+        AUTO_APPROVE_SALARY,   // 薪资自动审批功能
+        AUTO_UPDATE,           // 游戏自动更新功能
+        AUTO_PROMOTION,        // 游戏自动宣传功能
+        AUTO_COMPLAINT,        // 客诉自动处理功能
+        BATCH_TRAINING         // 员工一键培训功能
+    }
 }
 
