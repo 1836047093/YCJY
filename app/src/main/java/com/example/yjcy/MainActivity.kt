@@ -172,6 +172,7 @@ import kotlinx.coroutines.delay
 import com.example.yjcy.taptap.TapLoginManager
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.yjcy.ui.taptap.TapLoginViewModel
+import com.example.yjcy.utils.RedeemCodeManager
 
 
 
@@ -2268,8 +2269,25 @@ fun GameScreen(
     // 自动审批涨薪状态
     var autoApproveSalaryIncrease by remember { mutableStateOf(saveData?.autoApproveSalaryIncrease ?: false) }
     
-    // GM模式状态
-    var gmModeEnabled by remember { mutableStateOf(saveData?.gmModeEnabled ?: false) }
+    // 获取当前登录的TapTap用户ID并检查账号是否已解锁GM模式
+    val tapTapAccount = TapLoginManager.getCurrentAccount()
+    val userId = tapTapAccount?.unionId ?: tapTapAccount?.openId
+    val isGMModeUnlockedByAccount = RedeemCodeManager.isGMModeUnlocked(userId)
+    
+    // GM模式状态（优先使用账号级别解锁状态，否则使用存档状态）
+    var gmModeEnabled by remember { 
+        mutableStateOf(
+            // 如果账号已解锁GM模式，则自动启用；否则使用存档中的状态
+            isGMModeUnlockedByAccount || (saveData?.gmModeEnabled ?: false)
+        ) 
+    }
+    
+    // 当账号GM模式解锁状态变化时，自动更新GM模式状态
+    LaunchedEffect(isGMModeUnlockedByAccount) {
+        if (isGMModeUnlockedByAccount && !gmModeEnabled) {
+            gmModeEnabled = true
+        }
+    }
     
     // 自动存档设置
     var autoSaveEnabled by remember { mutableStateOf(saveData?.autoSaveEnabled ?: false) }
@@ -5231,13 +5249,27 @@ fun TopInfoBar(
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .shadow(
+                elevation = 8.dp,
+                shape = RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp),
+                spotColor = Color.Black.copy(alpha = 0.3f)
+            )
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        Color.White.copy(alpha = 0.08f),
-                        Color.White.copy(alpha = 0.12f)
-                    )
-                )
+                        Color(0xFF1E3A8A).copy(alpha = 0.95f), // 深蓝色，增加不透明度
+                        Color(0xFF3B5BDB).copy(alpha = 0.90f), // 亮一点的蓝色
+                        Color(0xFF1E3A8A).copy(alpha = 0.95f) // 回到深蓝色，创造渐变效果
+                    ),
+                    startY = 0f,
+                    endY = Float.POSITIVE_INFINITY
+                ),
+                shape = RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)
+            )
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = 0.2f),
+                shape = RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)
             )
     ) {
         Row(
@@ -7303,6 +7335,13 @@ fun InGameSettingsContent(
     var saveSlots by remember { mutableStateOf(emptyMap<Int, SaveData?>()) }
     val coroutineScope = rememberCoroutineScope()
     
+    // 获取当前登录的TapTap用户ID
+    val tapTapAccount = TapLoginManager.getCurrentAccount()
+    val userId = tapTapAccount?.unionId ?: tapTapAccount?.openId
+    
+    // 检查账号是否已解锁GM模式（账号级别）
+    val isGMModeUnlockedByAccount = RedeemCodeManager.isGMModeUnlocked(userId)
+    
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -7574,12 +7613,19 @@ fun InGameSettingsContent(
                     
                     if (showRedeemError) {
                         @Suppress("SpellCheckingInspection")
+                        val codeUpper = redeemCode.uppercase()
+                        val isUsedByUser = RedeemCodeManager.isCodeUsedByUser(userId, codeUpper)
+                        val isUsedInSave = usedRedeemCodes.contains(codeUpper)
+                        
+                        val errorMessage = when {
+                            userId.isNullOrBlank() -> "❌ 请先登录TapTap账号后再使用兑换码"
+                            isUsedByUser -> "❌ 该兑换码已在本账号中使用过，每个账号仅限使用1次"
+                            isUsedInSave -> "❌ 该兑换码已在本存档中使用过，每个存档仅限使用1次"
+                            else -> "❌ 兑换码错误，请重新输入"
+                        }
+                        
                         Text(
-                            text = if (redeemCode.uppercase() == "YCJY2025" && usedRedeemCodes.contains("YCJY2025")) {
-                                "❌ 该兑换码已在本存档中使用过，每个存档仅限使用1次"
-                            } else {
-                                "❌ 兑换码错误，请重新输入"
-                            },
+                            text = errorMessage,
                             color = Color(0xFFEF4444),
                             fontSize = 14.sp
                         )
@@ -7588,23 +7634,51 @@ fun InGameSettingsContent(
                     Button(
                         onClick = {
                             @Suppress("SpellCheckingInspection")
-                            when (redeemCode.uppercase()) {
+                            val codeUpper = redeemCode.uppercase()
+                            
+                            // 检查用户是否已登录
+                            if (userId.isNullOrBlank()) {
+                                showRedeemError = true
+                                return@Button
+                            }
+                            
+                            // 先检查用户是否已使用过（全局检查）
+                            val isUsedByUser = RedeemCodeManager.isCodeUsedByUser(userId, codeUpper)
+                            
+                            when (codeUpper) {
                                 "PROGM" -> {
-                                    onGMToggle(true)
-                                    redeemCode = ""
-                                    redeemSuccessMessage = "GM工具箱已激活！"
-                                    showRedeemSuccessDialog = true
+                                    // 检查是否已使用过
+                                    if (isUsedByUser) {
+                                        // 账号已使用过，自动启用GM模式（不再显示错误）
+                                        if (!gmModeEnabled) {
+                                            onGMToggle(true)
+                                        }
+                                        redeemCode = ""
+                                        redeemSuccessMessage = "GM工具箱已激活！（账号已解锁，自动启用）"
+                                        showRedeemSuccessDialog = true
+                                    } else {
+                                        // 标记为已使用并启用GM模式
+                                        RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
+                                        onGMToggle(true)
+                                        redeemCode = ""
+                                        redeemSuccessMessage = "GM工具箱已激活！"
+                                        showRedeemSuccessDialog = true
+                                    }
                                 }
                                 "YCJY2025" -> {
-                                    // 检查兑换码是否已使用
-                                    if (usedRedeemCodes.contains("YCJY2025")) {
+                                    // 检查是否已使用过（全局 + 存档本地）
+                                    val isUsedInSave = usedRedeemCodes.contains(codeUpper)
+                                    
+                                    if (isUsedByUser || isUsedInSave) {
                                         showRedeemError = true
                                     } else {
+                                        // 标记为已使用（全局）
+                                        RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
                                         // 兑换码：YCJY2025，获得5M资金
                                         val rewardAmount = 5000000L // 5M = 500万
                                         onMoneyUpdate(money + rewardAmount)
-                                        // 标记兑换码为已使用
-                                        onUsedRedeemCodesUpdate(usedRedeemCodes + "YCJY2025")
+                                        // 标记兑换码为已使用（存档本地）
+                                        onUsedRedeemCodesUpdate(usedRedeemCodes + codeUpper)
                                         redeemCode = ""
                                         redeemSuccessMessage = "兑换成功！获得 ${formatMoney(rewardAmount)}"
                                         showRedeemSuccessDialog = true

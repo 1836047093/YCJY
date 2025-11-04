@@ -12,6 +12,7 @@ import com.taptap.sdk.core.TapTapSdk
 import com.taptap.sdk.core.TapTapSdkOptions
 import com.example.yjcy.taptap.TapDBManager
 import com.example.yjcy.taptap.TapLoginManager
+import com.example.yjcy.utils.RedeemCodeManager
 import dagger.hilt.android.HiltAndroidApp
 
 @HiltAndroidApp
@@ -34,6 +35,9 @@ class YjcyApplication : Application() {
     
     override fun onCreate() {
         super.onCreate()
+        
+        // 初始化兑换码管理器（不需要等待隐私政策）
+        RedeemCodeManager.initialize(this)
         
         // 注意：不在这里初始化TapSDK！
         // 必须等待用户同意隐私政策后，才能初始化SDK
