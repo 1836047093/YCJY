@@ -64,7 +64,8 @@ fun GameRevenueDialog(
     money: Long = 0L,  // 新增：资金
     onMoneyUpdate: (Long) -> Unit = {},  // 新增：资金更新回调
     isSupporterUnlocked: Boolean = false, // 是否解锁支持者功能
-    onShowFeatureLockedDialog: () -> Unit = {} // 显示功能解锁对话框的回调
+    onShowFeatureLockedDialog: () -> Unit = {}, // 显示功能解锁对话框的回调
+    onShowAutoUpdateInfoDialog: (Game) -> Unit = {} // 显示自动更新提示对话框的回调
 ) {
     var showConfirmDialog by remember { mutableStateOf(false) }
     var showUpdateDialog by remember { mutableStateOf(false) }
@@ -163,7 +164,8 @@ fun GameRevenueDialog(
                             onAutoUpdateToggle = onAutoUpdateToggle,
                             businessModel = businessModel,
                             isSupporterUnlocked = isSupporterUnlocked,
-                            onShowFeatureLockedDialog = onShowFeatureLockedDialog
+                            onShowFeatureLockedDialog = onShowFeatureLockedDialog,
+                            onShowAutoUpdateInfoDialog = { onShowAutoUpdateInfoDialog(game) }
                         )
                     }
                 }
@@ -808,7 +810,8 @@ fun ActionButtonsCard(
     onAutoUpdateToggle: (Boolean) -> Unit = {},
     businessModel: BusinessModel,
     isSupporterUnlocked: Boolean = false,
-    onShowFeatureLockedDialog: () -> Unit = {}
+    onShowFeatureLockedDialog: () -> Unit = {},
+    onShowAutoUpdateInfoDialog: () -> Unit = {} // 显示自动更新提示对话框的回调
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -889,7 +892,7 @@ fun ActionButtonsCard(
                                         if (!isSupporterUnlocked) {
                                             onShowFeatureLockedDialog()
                                         } else {
-                                            onAutoUpdateToggle(enabled)
+                                            onShowAutoUpdateInfoDialog()
                                         }
                                     },
                                     enabled = isSupporterUnlocked,

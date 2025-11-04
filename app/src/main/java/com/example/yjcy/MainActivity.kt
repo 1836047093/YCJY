@@ -2309,6 +2309,13 @@ fun GameScreen(
     // 功能解锁对话框状态
     var showFeatureLockedDialog by remember { mutableStateOf(false) }
     
+    // 自动功能提示对话框状态
+    var showAutoProcessInfoDialog by remember { mutableStateOf(false) }
+    var showAutoSaveInfoDialog by remember { mutableStateOf(false) }
+    var showAutoApproveInfoDialog by remember { mutableStateOf(false) }
+    var showAutoUpdateInfoDialog by remember { mutableStateOf(false) }
+    var pendingAutoUpdateGame by remember { mutableStateOf(null as Game?) }
+    
     // GVA颁奖对话框状态
     var showGVAAwardDialog by remember { mutableStateOf(false) }
     var gvaAwardYear by remember { mutableIntStateOf(1) }
@@ -2526,6 +2533,13 @@ fun GameScreen(
             // 触发一次UI刷新以显示已恢复的收益
             revenueRefreshTrigger++
             jobPostingRefreshTrigger++
+            
+            // 检查游戏速度：如果加载旧存档且未解锁2x/3x速度，自动重置为1x速度
+            val isSupporterUnlockedForSpeedCheck = saveData.isSupporterUnlocked || RedeemCodeManager.isSupporterFeatureUnlocked(userId, saveData.usedRedeemCodes)
+            if (!isSupporterUnlockedForSpeedCheck && gameSpeed > 1) {
+                gameSpeed = 1
+                Log.d("GameScreen", "【实例 $instanceId】⚠ 旧存档未解锁2x/3x速度，已重置为1x速度")
+            }
             
             // 🔍 调试：检查恢复后的收入数据
             val loadedRevenue = RevenueManager.exportRevenueData()
@@ -4014,7 +4028,12 @@ fun GameScreen(
                             onResumeGame = { isPaused = false },
                             isPaused = isPaused,
                             isSupporterUnlocked = isSupporterUnlocked,
-                            onShowFeatureLockedDialog = { showFeatureLockedDialog = true }
+                            onShowFeatureLockedDialog = { showFeatureLockedDialog = true },
+                            onShowAutoProcessInfoDialog = { showAutoProcessInfoDialog = true },
+                            onShowAutoUpdateInfoDialog = { game ->
+                                pendingAutoUpdateGame = game
+                                showAutoUpdateInfoDialog = true
+                            }
                         )
                         3 -> CompetitorContent(
                             saveData = SaveData(
@@ -4753,6 +4772,8 @@ fun GameScreen(
                             onUsedRedeemCodesUpdate = { updatedCodes -> usedRedeemCodes = updatedCodes },
                             isSupporterUnlocked = isSupporterUnlocked,
                             onShowFeatureLockedDialog = { showFeatureLockedDialog = true },
+                            onShowAutoSaveInfoDialog = { showAutoSaveInfoDialog = true },
+                            onShowAutoApproveInfoDialog = { showAutoApproveInfoDialog = true },
                             onMaxEmployees = {
                                 // 一键将所有员工技能设置为5级
                                 val maxedEmployees = allEmployees.map { employee ->
@@ -5297,6 +5318,256 @@ fun GameScreen(
                     }
                     showFeatureLockedDialog = false
                 }
+            )
+        }
+        
+        // 自动处理功能提示对话框
+        if (showAutoProcessInfoDialog) {
+            AlertDialog(
+                onDismissRequest = { showAutoProcessInfoDialog = false },
+                title = {
+                    Text(
+                        text = "自动处理",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Column {
+                        Text(
+                            text = "开启后，客服中心将自动分配和处理客诉，无需手动操作。",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 14.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = if (isSupporterUnlocked) "点击下方按钮切换开关状态。" else "此功能需要解锁支持者功能。",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 12.sp
+                        )
+                    }
+                },
+                confirmButton = {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (isSupporterUnlocked) {
+                            TextButton(
+                                onClick = {
+                                    autoProcessComplaints = !autoProcessComplaints
+                                    showAutoProcessInfoDialog = false
+                                }
+                            ) {
+                                Text(
+                                    text = if (autoProcessComplaints) "关闭" else "开启",
+                                    color = Color.White
+                                )
+                            }
+                        }
+                        TextButton(
+                            onClick = { showAutoProcessInfoDialog = false }
+                        ) {
+                            Text(
+                                text = "知道了",
+                                color = Color.White
+                            )
+                        }
+                    }
+                },
+                containerColor = Color(0xFF1F2937),
+                titleContentColor = Color.White,
+                textContentColor = Color.White
+            )
+        }
+        
+        // 自动存档功能提示对话框
+        if (showAutoSaveInfoDialog) {
+            AlertDialog(
+                onDismissRequest = { showAutoSaveInfoDialog = false },
+                title = {
+                    Text(
+                        text = "自动存档",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Column {
+                        Text(
+                            text = "开启后，游戏将每隔${autoSaveInterval}天自动保存到存档位1，防止进度丢失。",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 14.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = if (isSupporterUnlocked) "点击下方按钮切换开关状态。" else "此功能需要解锁支持者功能。",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 12.sp
+                        )
+                    }
+                },
+                confirmButton = {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (isSupporterUnlocked) {
+                            TextButton(
+                                onClick = {
+                                    autoSaveEnabled = !autoSaveEnabled
+                                    showAutoSaveInfoDialog = false
+                                }
+                            ) {
+                                Text(
+                                    text = if (autoSaveEnabled) "关闭" else "开启",
+                                    color = Color.White
+                                )
+                            }
+                        }
+                        TextButton(
+                            onClick = { showAutoSaveInfoDialog = false }
+                        ) {
+                            Text(
+                                text = "知道了",
+                                color = Color.White
+                            )
+                        }
+                    }
+                },
+                containerColor = Color(0xFF1F2937),
+                titleContentColor = Color.White,
+                textContentColor = Color.White
+            )
+        }
+        
+        // 自动审批功能提示对话框
+        if (showAutoApproveInfoDialog) {
+            AlertDialog(
+                onDismissRequest = { showAutoApproveInfoDialog = false },
+                title = {
+                    Text(
+                        text = "自动审批",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Column {
+                        Text(
+                            text = "开启后，当员工请求涨薪时，系统将自动同意涨薪请求，无需手动审批。",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 14.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = if (isSupporterUnlocked) "点击下方按钮切换开关状态。" else "此功能需要解锁支持者功能。",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 12.sp
+                        )
+                    }
+                },
+                confirmButton = {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (isSupporterUnlocked) {
+                            TextButton(
+                                onClick = {
+                                    autoApproveSalaryIncrease = !autoApproveSalaryIncrease
+                                    showAutoApproveInfoDialog = false
+                                }
+                            ) {
+                                Text(
+                                    text = if (autoApproveSalaryIncrease) "关闭" else "开启",
+                                    color = Color.White
+                                )
+                            }
+                        }
+                        TextButton(
+                            onClick = { showAutoApproveInfoDialog = false }
+                        ) {
+                            Text(
+                                text = "知道了",
+                                color = Color.White
+                            )
+                        }
+                    }
+                },
+                containerColor = Color(0xFF1F2937),
+                titleContentColor = Color.White,
+                textContentColor = Color.White
+            )
+        }
+        
+        // 自动更新功能提示对话框
+        if (showAutoUpdateInfoDialog && pendingAutoUpdateGame != null) {
+            AlertDialog(
+                onDismissRequest = { 
+                    showAutoUpdateInfoDialog = false
+                    pendingAutoUpdateGame = null
+                },
+                title = {
+                    Text(
+                        text = "自动更新",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Column {
+                        Text(
+                            text = "开启后，当游戏更新任务完成时，系统将自动发布更新，无需手动操作。",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 14.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = if (isSupporterUnlocked) "点击下方按钮切换开关状态。" else "此功能需要解锁支持者功能。",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 12.sp
+                        )
+                    }
+                },
+                confirmButton = {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (isSupporterUnlocked) {
+                            TextButton(
+                                onClick = {
+                                    val game = pendingAutoUpdateGame!!
+                                    games = games.map { g ->
+                                        if (g.id == game.id) {
+                                            g.copy(autoUpdate = !game.autoUpdate)
+                                        } else {
+                                            g
+                                        }
+                                    }
+                                    showAutoUpdateInfoDialog = false
+                                    pendingAutoUpdateGame = null
+                                }
+                            ) {
+                                Text(
+                                    text = if (pendingAutoUpdateGame!!.autoUpdate) "关闭" else "开启",
+                                    color = Color.White
+                                )
+                            }
+                        }
+                        TextButton(
+                            onClick = { 
+                                showAutoUpdateInfoDialog = false
+                                pendingAutoUpdateGame = null
+                            }
+                        ) {
+                            Text(
+                                text = "知道了",
+                                color = Color.White
+                            )
+                        }
+                    }
+                },
+                containerColor = Color(0xFF1F2937),
+                titleContentColor = Color.White,
+                textContentColor = Color.White
             )
         }
         
@@ -7420,7 +7691,9 @@ fun InGameSettingsContent(
     usedRedeemCodes: Set<String> = emptySet(), // 已使用的兑换码列表
     onUsedRedeemCodesUpdate: (Set<String>) -> Unit = {}, // 已使用兑换码更新回调
     isSupporterUnlocked: Boolean = false, // 是否解锁支持者功能
-    onShowFeatureLockedDialog: () -> Unit = {} // 显示功能解锁对话框的回调
+    onShowFeatureLockedDialog: () -> Unit = {}, // 显示功能解锁对话框的回调
+    onShowAutoSaveInfoDialog: () -> Unit = {}, // 显示自动存档提示对话框的回调
+    onShowAutoApproveInfoDialog: () -> Unit = {} // 显示自动审批提示对话框的回调
 ) {
     val context = LocalContext.current
     val saveManager = remember { SaveManager(context) }
@@ -7526,7 +7799,7 @@ fun InGameSettingsContent(
                             if (!isSupporterUnlocked) {
                                 onShowFeatureLockedDialog()
                             } else {
-                                onAutoSaveEnabledToggle(it)
+                                onShowAutoSaveInfoDialog()
                             }
                         },
                         enabled = isSupporterUnlocked,
@@ -7635,7 +7908,7 @@ fun InGameSettingsContent(
                         if (!isSupporterUnlocked) {
                             onShowFeatureLockedDialog()
                         } else {
-                            onAutoApproveSalaryToggle(it)
+                            onShowAutoApproveInfoDialog()
                         }
                     },
                     enabled = isSupporterUnlocked,
@@ -8241,8 +8514,8 @@ fun InGameSettingsContent(
                         repeat(5) { index ->
                             val slotNumber = index + 1
                             val existingSave = saveSlots[slotNumber]
-                            // 检查是否需要解锁（第4、5个槽位需要解锁）
-                            val isLocked = slotNumber > 3 && !isSupporterUnlocked
+                            // 检查是否需要解锁（第2、3个槽位需要解锁）
+                            val isLocked = (slotNumber == 2 || slotNumber == 3) && !isSupporterUnlocked
                         
                         Card(
                             modifier = Modifier

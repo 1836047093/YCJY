@@ -54,7 +54,9 @@ fun ProjectManagementWrapper(
     onResumeGame: (() -> Unit)? = null, // 恢复游戏的回调
     isPaused: Boolean = false,  // 新增：当前暂停状态
     isSupporterUnlocked: Boolean = false, // 是否解锁支持者功能
-    onShowFeatureLockedDialog: () -> Unit = {} // 显示功能解锁对话框的回调
+    onShowFeatureLockedDialog: () -> Unit = {}, // 显示功能解锁对话框的回调
+    onShowAutoProcessInfoDialog: () -> Unit = {}, // 显示自动处理提示对话框的回调
+    onShowAutoUpdateInfoDialog: (Game) -> Unit = {} // 显示自动更新提示对话框的回调
 ) {
     // 移除本地状态管理，改为由外部（MainActivity）管理
     // 这样可以确保切换标签时状态不会丢失
@@ -94,6 +96,8 @@ fun ProjectManagementWrapper(
                     onResumeGame = onResumeGame,
                     isPaused = isPaused,
                     isSupporterUnlocked = isSupporterUnlocked,
-                    onShowFeatureLockedDialog = onShowFeatureLockedDialog
+                    onShowFeatureLockedDialog = onShowFeatureLockedDialog,
+                    onShowAutoProcessInfoDialog = onShowAutoProcessInfoDialog,
+                    onShowAutoUpdateInfoDialog = onShowAutoUpdateInfoDialog
     )
 }

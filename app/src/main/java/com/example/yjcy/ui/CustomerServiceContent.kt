@@ -38,7 +38,8 @@ fun CustomerServiceContent(
     onAutoProcessToggle: (Boolean) -> Unit,
     onComplaintsUpdate: (List<Complaint>) -> Unit,
     isSupporterUnlocked: Boolean = false, // 是否解锁支持者功能
-    onShowFeatureLockedDialog: () -> Unit = {} // 显示功能解锁对话框的回调
+    onShowFeatureLockedDialog: () -> Unit = {}, // 显示功能解锁对话框的回调
+    onShowAutoProcessInfoDialog: () -> Unit = {} // 显示自动处理提示对话框的回调
 ) {
     var selectedComplaint by remember { mutableStateOf<Complaint?>(null) }
     var showAssignDialog by remember { mutableStateOf(false) }
@@ -133,7 +134,8 @@ fun CustomerServiceContent(
                     if (!isSupporterUnlocked) {
                         onShowFeatureLockedDialog()
                     } else {
-                        onAutoProcessToggle(!autoProcessEnabled)
+                        // 显示提示对话框（点击整个区域都显示）
+                        onShowAutoProcessInfoDialog()
                     }
                 }
                 .padding(12.dp),
@@ -172,10 +174,11 @@ fun CustomerServiceContent(
             Switch(
                 checked = autoProcessEnabled,
                 onCheckedChange = { 
+                    // 开关点击时也显示提示对话框
                     if (!isSupporterUnlocked) {
                         onShowFeatureLockedDialog()
                     } else {
-                        onAutoProcessToggle(it)
+                        onShowAutoProcessInfoDialog()
                     }
                 },
                 enabled = isSupporterUnlocked,

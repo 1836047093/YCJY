@@ -59,7 +59,8 @@ fun EnhancedGameProjectCard(
     onPauseGame: (() -> Unit)? = null,  // 暂停游戏的回调
     onResumeGame: (() -> Unit)? = null, // 恢复游戏的回调
     isSupporterUnlocked: Boolean = false, // 是否解锁支持者功能
-    onShowFeatureLockedDialog: () -> Unit = {} // 显示功能解锁对话框的回调
+    onShowFeatureLockedDialog: () -> Unit = {}, // 显示功能解锁对话框的回调
+    onShowAutoUpdateInfoDialog: (Game) -> Unit = {} // 显示自动更新提示对话框的回调
 ) {
     var showRevenueDialog by remember { mutableStateOf(false) }
     
@@ -1244,7 +1245,8 @@ fun EnhancedGameProjectCard(
                 money = money,
                 onMoneyUpdate = onMoneyUpdate,
                 isSupporterUnlocked = isSupporterUnlocked,
-                onShowFeatureLockedDialog = onShowFeatureLockedDialog
+                onShowFeatureLockedDialog = onShowFeatureLockedDialog,
+                onShowAutoUpdateInfoDialog = { onShowAutoUpdateInfoDialog(game) }
             )
         }
     }

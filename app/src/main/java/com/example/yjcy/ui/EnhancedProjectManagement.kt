@@ -160,7 +160,9 @@ fun EnhancedProjectManagementContent(
     onResumeGame: (() -> Unit)? = null, // 恢复游戏的回调
     isPaused: Boolean = false,  // 新增：当前暂停状态，用于判断是否应该恢复游戏
     isSupporterUnlocked: Boolean = false, // 是否解锁支持者功能
-    onShowFeatureLockedDialog: () -> Unit = {} // 显示功能解锁对话框的回调
+    onShowFeatureLockedDialog: () -> Unit = {}, // 显示功能解锁对话框的回调
+    onShowAutoProcessInfoDialog: () -> Unit = {}, // 显示自动处理提示对话框的回调
+    onShowAutoUpdateInfoDialog: (Game) -> Unit = {} // 显示自动更新提示对话框的回调
 ) {
     var showGameDevelopmentDialog by remember { mutableStateOf(false) }
     var showPromotionCenterDialog by remember { mutableStateOf(false) }
@@ -463,7 +465,8 @@ fun EnhancedProjectManagementContent(
                         onPauseGame = onPauseGame,
                         onResumeGame = onResumeGame,
                         isSupporterUnlocked = isSupporterUnlocked,
-                        onShowFeatureLockedDialog = onShowFeatureLockedDialog
+                        onShowFeatureLockedDialog = onShowFeatureLockedDialog,
+                        onShowAutoUpdateInfoDialog = onShowAutoUpdateInfoDialog
                     )
                 }
             }
@@ -549,10 +552,11 @@ fun EnhancedProjectManagementContent(
             autoProcessEnabled = autoProcessComplaints,
             onAutoProcessToggle = onAutoProcessToggle,
             onDismiss = { showCustomerServiceDialog = false },
-            onComplaintsUpdate = onComplaintsUpdate,
-            isSupporterUnlocked = isSupporterUnlocked,
-            onShowFeatureLockedDialog = onShowFeatureLockedDialog
-        )
+                onComplaintsUpdate = onComplaintsUpdate,
+                isSupporterUnlocked = isSupporterUnlocked,
+                onShowFeatureLockedDialog = onShowFeatureLockedDialog,
+                onShowAutoProcessInfoDialog = onShowAutoProcessInfoDialog
+            )
     }
 }
 
@@ -572,7 +576,8 @@ fun CustomerServiceDialog(
     onDismiss: () -> Unit,
     onComplaintsUpdate: (List<Complaint>) -> Unit,
     isSupporterUnlocked: Boolean = false, // 是否解锁支持者功能
-    onShowFeatureLockedDialog: () -> Unit = {} // 显示功能解锁对话框的回调
+    onShowFeatureLockedDialog: () -> Unit = {}, // 显示功能解锁对话框的回调
+    onShowAutoProcessInfoDialog: () -> Unit = {} // 显示自动处理提示对话框的回调
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -603,7 +608,8 @@ fun CustomerServiceDialog(
                 onAutoProcessToggle = onAutoProcessToggle,
                 onComplaintsUpdate = onComplaintsUpdate,
                 isSupporterUnlocked = isSupporterUnlocked,
-                onShowFeatureLockedDialog = onShowFeatureLockedDialog
+                onShowFeatureLockedDialog = onShowFeatureLockedDialog,
+                onShowAutoProcessInfoDialog = onShowAutoProcessInfoDialog
             )
         },
         confirmButton = {
