@@ -156,16 +156,46 @@ object RedeemCodeManager {
     }
     
     /**
+     * 检查用户是否已使用过任何支持者兑换码（SUPPORTER 开头）
+     * @param userId 用户ID
+     * @return true表示已使用过，false表示未使用
+     */
+    fun hasUsedSupporterCode(userId: String?): Boolean {
+        if (userId.isNullOrBlank()) {
+            return false
+        }
+        
+        val usedCodes = getUserUsedCodes(userId)
+        return usedCodes.any { it.startsWith("SUPPORTER", ignoreCase = true) }
+    }
+    
+    /**
+     * 检查存档中是否包含任何支持者兑换码（SUPPORTER 开头）
+     * @param usedRedeemCodes 存档中已使用的兑换码集合
+     * @return true表示包含，false表示不包含
+     */
+    fun hasSupporterCodeInSave(usedRedeemCodes: Set<String>): Boolean {
+        return usedRedeemCodes.any { it.startsWith("SUPPORTER", ignoreCase = true) }
+    }
+    
+    /**
      * 检查用户是否已解锁支持者功能
      * 支持者功能需要通过兑换码解锁
+     * 支持以下格式的兑换码：
+     * - SUPPORTER
+     * - SUPPORTER001 到 SUPPORTER150
      * @param userId 用户ID
      * @param usedRedeemCodes 存档中已使用的兑换码集合（用于存档级别的解锁检查）
      * @return true表示已解锁，false表示未解锁
      */
     fun isSupporterFeatureUnlocked(userId: String?, usedRedeemCodes: Set<String>): Boolean {
-        // 检查是否使用了支持者兑换码（需要定义具体的兑换码，例如"SUPPORTER"）
-        val supporterCode = "SUPPORTER"
-        return isCodeUsedByUser(userId, supporterCode) || usedRedeemCodes.contains(supporterCode.uppercase())
+        // 检查账号级别是否已使用过支持者兑换码
+        if (hasUsedSupporterCode(userId)) {
+            return true
+        }
+        
+        // 检查存档级别是否包含支持者兑换码
+        return hasSupporterCodeInSave(usedRedeemCodes)
     }
     
     /**

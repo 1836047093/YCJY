@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -873,7 +874,14 @@ fun ActionButtonsCard(
                             border = BorderStroke(
                                 1.dp, 
                                 if (game.autoUpdate) Color(0xFF10B981) else Color(0xFFEF4444)
-                            )
+                            ),
+                            modifier = Modifier.clickable {
+                                if (!isSupporterUnlocked) {
+                                    onShowFeatureLockedDialog()
+                                } else {
+                                    onShowAutoUpdateInfoDialog()
+                                }
+                            }
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -886,6 +894,12 @@ fun ActionButtonsCard(
                                     fontWeight = FontWeight.Medium,
                                     color = if (game.autoUpdate) Color(0xFF10B981) else Color(0xFFEF4444)
                                 )
+                                if (!isSupporterUnlocked) {
+                                    Text(
+                                        text = "🔒",
+                                        fontSize = 10.sp
+                                    )
+                                }
                                 Switch(
                                     checked = game.autoUpdate,
                                     onCheckedChange = { enabled ->

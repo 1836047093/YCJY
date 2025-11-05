@@ -7,7 +7,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
@@ -192,42 +191,6 @@ fun CustomerServiceContent(
         }
         
         Spacer(modifier = Modifier.height(12.dp))
-        
-        // 一键分配按钮（只在手动模式显示）
-        val pendingCount = remember(activeComplaints) {
-            activeComplaints.count { it.status == ComplaintStatus.PENDING && it.assignedEmployeeId == null }
-        }
-        
-        if (!autoProcessEnabled && pendingCount > 0 && customerServiceEmployees.isNotEmpty()) {
-            Button(
-                onClick = {
-                    val (updatedComplaints, assignedCount) = CustomerServiceManager.autoAssignComplaints(
-                        complaints,
-                        employees
-                    )
-                    onComplaintsUpdate(updatedComplaints)
-                },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF10B981)
-                ),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.CheckCircle,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "一键分配 ($pendingCount 个待处理)",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(12.dp))
-        }
         
         // 客诉列表（固定高度）
         Box(

@@ -7767,7 +7767,15 @@ fun InGameSettingsContent(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            if (!isSupporterUnlocked) {
+                                onShowFeatureLockedDialog()
+                            } else {
+                                onShowAutoSaveInfoDialog()
+                            }
+                        },
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -7789,6 +7797,13 @@ fun InGameSettingsContent(
                             Text(
                                 text = "开启后每隔${autoSaveInterval}天自动保存到存档位1",
                                 color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 12.sp
+                            )
+                        }
+                        if (!isSupporterUnlocked) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "🔒",
                                 fontSize = 12.sp
                             )
                         }
@@ -7876,6 +7891,13 @@ fun InGameSettingsContent(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .clickable {
+                        if (!isSupporterUnlocked) {
+                            onShowFeatureLockedDialog()
+                        } else {
+                            onShowAutoApproveInfoDialog()
+                        }
+                    }
                     .padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -7898,6 +7920,13 @@ fun InGameSettingsContent(
                         Text(
                             text = if (autoApproveSalaryIncrease) "已开启：自动同意员工涨薪请求" else "已关闭：需手动审批",
                             color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 12.sp
+                        )
+                    }
+                    if (!isSupporterUnlocked) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "🔒",
                             fontSize = 12.sp
                         )
                     }
@@ -8032,6 +8061,44 @@ fun InGameSettingsContent(
                         // 先检查用户是否已使用过（全局检查）
                         val isUsedByUser = RedeemCodeManager.isCodeUsedByUser(userId, codeUpper)
                         
+                        // 检查是否为支持者兑换码（SUPPORTER 或 SUPPORTER001-SUPPORTER150）
+                        val isSupporterCode = codeUpper.startsWith("SUPPORTER", ignoreCase = true)
+                        if (isSupporterCode) {
+                            // 验证格式：SUPPORTER 或 SUPPORTER001-SUPPORTER150
+                            val isValidFormat = when {
+                                codeUpper == "SUPPORTER" -> true
+                                codeUpper.matches(Regex("^SUPPORTER\\d{3}$")) -> {
+                                    // 提取数字部分，检查是否在 001-150 范围内
+                                    val numberStr = codeUpper.substring(9)
+                                    val number = numberStr.toIntOrNull()
+                                    number != null && number in 1..150
+                                }
+                                else -> false
+                            }
+                            
+                            if (!isValidFormat) {
+                                showRedeemError = true
+                                return@Button
+                            }
+                            
+                            // 检查用户是否已使用过任何支持者兑换码
+                            val hasUsedSupporterCode = RedeemCodeManager.hasUsedSupporterCode(userId)
+                            val hasSupporterCodeInSave = RedeemCodeManager.hasSupporterCodeInSave(usedRedeemCodes)
+                            
+                            if (hasUsedSupporterCode || hasSupporterCodeInSave) {
+                                showRedeemError = true
+                            } else {
+                                // 标记为已使用（全局）
+                                RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
+                                // 标记兑换码为已使用（存档本地）
+                                onUsedRedeemCodesUpdate(usedRedeemCodes + codeUpper)
+                                redeemCode = ""
+                                redeemSuccessMessage = "兑换成功！已解锁所有支持者功能"
+                                showRedeemSuccessDialog = true
+                            }
+                            return@Button
+                        }
+                        
                         when (codeUpper) {
                             "PROGM" -> {
                                 // 检查是否已使用过
@@ -8068,22 +8135,6 @@ fun InGameSettingsContent(
                                     onUsedRedeemCodesUpdate(usedRedeemCodes + codeUpper)
                                     redeemCode = ""
                                     redeemSuccessMessage = "兑换成功！获得 ${formatMoney(rewardAmount)}"
-                                    showRedeemSuccessDialog = true
-                                }
-                            }
-                            "SUPPORTER" -> {
-                                // 检查是否已使用过（全局 + 存档本地）
-                                val isUsedInSave = usedRedeemCodes.contains(codeUpper)
-                                
-                                if (isUsedByUser || isUsedInSave) {
-                                    showRedeemError = true
-                                } else {
-                                    // 标记为已使用（全局）
-                                    RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
-                                    // 标记兑换码为已使用（存档本地）
-                                    onUsedRedeemCodesUpdate(usedRedeemCodes + codeUpper)
-                                    redeemCode = ""
-                                    redeemSuccessMessage = "兑换成功！已解锁所有支持者功能"
                                     showRedeemSuccessDialog = true
                                 }
                             }
@@ -8511,7 +8562,7 @@ fun InGameSettingsContent(
                             CircularProgressIndicator(color = Color.White)
                         }
                     } else {
-                        repeat(5) { index ->
+                        repeat(3) { index ->
                             val slotNumber = index + 1
                             val existingSave = saveSlots[slotNumber]
                             // 检查是否需要解锁（第2、3个槽位需要解锁）
