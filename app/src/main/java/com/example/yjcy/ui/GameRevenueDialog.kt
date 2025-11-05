@@ -879,7 +879,8 @@ fun ActionButtonsCard(
                                 if (!isSupporterUnlocked) {
                                     onShowFeatureLockedDialog()
                                 } else {
-                                    onShowAutoUpdateInfoDialog()
+                                    // 直接切换开关状态
+                                    onAutoUpdateToggle(!game.autoUpdate)
                                 }
                             }
                         ) {
@@ -903,10 +904,11 @@ fun ActionButtonsCard(
                                 Switch(
                                     checked = game.autoUpdate,
                                     onCheckedChange = { enabled ->
+                                        // 直接切换开关状态
                                         if (!isSupporterUnlocked) {
                                             onShowFeatureLockedDialog()
                                         } else {
-                                            onShowAutoUpdateInfoDialog()
+                                            onAutoUpdateToggle(enabled)
                                         }
                                     },
                                     enabled = isSupporterUnlocked,

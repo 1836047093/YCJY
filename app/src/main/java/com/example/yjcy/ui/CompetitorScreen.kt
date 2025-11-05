@@ -787,10 +787,36 @@ fun calculatePlayerMarketValue(saveData: SaveData): Long {
         it.releaseStatus == GameReleaseStatus.RELEASED || 
         it.releaseStatus == GameReleaseStatus.RATED 
     }
-    return saveData.money + // 基础市值：当前资金
-        (saveData.fans * 10L) + // 粉丝价值：每个粉丝值10元
-        (releasedGamesCount * 100000L) + // 游戏价值：每个已发售游戏增加10万市值
-        (saveData.allEmployees.size * 50000L) // 员工价值：每个员工增加5万市值
+    
+    // 修复：如果资金为负数（溢出或过度负债），使用0计算基础市值
+    val baseMoney = if (saveData.money < 0) {
+        android.util.Log.w("CompetitorScreen", "⚠️ 计算市值时检测到资金为负数(${saveData.money})，使用0计算基础市值")
+        0L
+    } else {
+        saveData.money
+    }
+    
+    // 修复：确保各项计算不会溢出
+    val fansValue = try {
+        saveData.fans * 10L
+    } catch (e: Exception) {
+        android.util.Log.w("CompetitorScreen", "⚠️ 粉丝价值计算溢出，使用0")
+        0L
+    }
+    
+    val gamesValue = releasedGamesCount * 100000L
+    val employeesValue = saveData.allEmployees.size * 50000L
+    
+    // 累加所有值，并确保结果不为负数
+    val result = baseMoney + fansValue + gamesValue + employeesValue
+    
+    // 如果结果为负数（溢出），返回0
+    return if (result < 0) {
+        android.util.Log.w("CompetitorScreen", "⚠️ 市值计算结果为负数($result)，返回0")
+        0L
+    } else {
+        result
+    }
 }
 
 /**

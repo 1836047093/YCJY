@@ -130,6 +130,11 @@ data class GameRevenue(
      * 获取当前活跃玩家数（仅网络游戏）
      */
     fun getActivePlayers(): Long {
+        // 修复：如果总注册人数为负数（溢出），返回0
+        if (totalRegisteredPlayers < 0) {
+            return 0L
+        }
+        
         // 基础活跃玩家 = 总注册人数 * 40%
         val baseActivePlayers = (totalRegisteredPlayers * 0.4).toLong()
         
@@ -141,7 +146,9 @@ data class GameRevenue(
             else -> 0.2                           // 严重下降
         }
         
-        return (baseActivePlayers * interestMultiplier).toLong()
+        val result = (baseActivePlayers * interestMultiplier).toLong()
+        // 确保结果不为负数
+        return result.coerceAtLeast(0L)
     }
 }
 
@@ -460,7 +467,14 @@ object RevenueManager {
                 val releaseDay = prefs.getInt("revenue_${i}_release_day", 1)
                 val releaseMinuteOfDay = prefs.getInt("revenue_${i}_release_minute", 0) // 新增：发售时的分钟数，默认0（00:00）
                 val playerInterest = prefs.getFloat("revenue_${i}_player_interest", 100.0f).toDouble()
-                val totalRegisteredPlayers = prefs.getLong("revenue_${i}_total_registered", 0L)
+                val totalRegisteredPlayersRaw = prefs.getLong("revenue_${i}_total_registered", 0L)
+                // 修复：如果读取到的值为负数（溢出），重置为0
+                val totalRegisteredPlayers = if (totalRegisteredPlayersRaw < 0) {
+                    android.util.Log.w("RevenueManager", "⚠️ 读取存档时发现totalRegisteredPlayers为负数($totalRegisteredPlayersRaw)，重置为0")
+                    0L
+                } else {
+                    totalRegisteredPlayersRaw
+                }
                 val lifecycleProgress = prefs.getFloat("revenue_${i}_lifecycle_progress", 0.0f).toDouble()
                 val daysSinceLaunch = prefs.getInt("revenue_${i}_days_since_launch", 0)
                 val lastInterestDecayDay = prefs.getInt("revenue_${i}_last_decay_day", 0)
@@ -692,7 +706,7 @@ object RevenueManager {
             // 更新带来新玩家：增加1-3%的总注册人数（随机）
             val newPlayersRatio = Random.nextDouble(0.01, 0.03)
             val newPlayers = (current.totalRegisteredPlayers * newPlayersRatio).toLong()
-            newTotalRegisteredPlayers = current.totalRegisteredPlayers + newPlayers
+            newTotalRegisteredPlayers = safeAddRegisteredPlayers(current.totalRegisteredPlayers, newPlayers)
         }
 
         gameRevenueMap[gameId] = current.copy(
@@ -1588,7 +1602,7 @@ object RevenueManager {
         
         // 网游：更新总注册人数（累加每日新增）
         val newTotalRegisteredPlayers = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
-            currentGameRevenue.totalRegisteredPlayers + newSales
+            safeAddRegisteredPlayers(currentGameRevenue.totalRegisteredPlayers, newSales.toLong())
         } else {
             currentGameRevenue.totalRegisteredPlayers
         }
@@ -1968,7 +1982,8 @@ object RevenueManager {
         // 注意：对于网游，销量增量实际是注册数增量
         val actualSalesIncrementForUpdate = (shouldUpdate - baseTodaySales.sales).toDouble()
         val newTotalRegisteredPlayers: Long = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
-            (currentGameRevenue.totalRegisteredPlayers + actualSalesIncrementForUpdate.toLong()).toLong()
+            val increment = actualSalesIncrementForUpdate.toLong()
+            safeAddRegisteredPlayers(currentGameRevenue.totalRegisteredPlayers, increment)
         } else {
             currentGameRevenue.totalRegisteredPlayers
         }
@@ -2419,6 +2434,42 @@ object RevenueManager {
     }
     
     /**
+     * 安全地累加总注册人数，防止溢出
+     * @param current 当前总注册人数
+     * @param increment 增量
+     * @return 累加后的值（已处理溢出和负数）
+     */
+    private fun safeAddRegisteredPlayers(current: Long, increment: Long): Long {
+        // 如果当前值为负数，说明已经溢出，重置为0
+        if (current < 0) {
+            android.util.Log.w("RevenueManager", "⚠️ 检测到totalRegisteredPlayers为负数($current)，重置为0")
+            return increment.coerceAtLeast(0L)
+        }
+        
+        // 如果增量为负数，说明计算错误，返回当前值
+        if (increment < 0) {
+            android.util.Log.w("RevenueManager", "⚠️ 检测到注册人数增量为负数($increment)，忽略此次更新")
+            return current
+        }
+        
+        // 检查是否会溢出（Long.MAX_VALUE = 9,223,372,036,854,775,807）
+        // 限制最大值为 Long.MAX_VALUE / 2，避免接近溢出
+        val maxValue = Long.MAX_VALUE / 2
+        
+        return when {
+            current >= maxValue -> {
+                android.util.Log.w("RevenueManager", "⚠️ 总注册人数已达到上限($current)，不再累加")
+                current
+            }
+            current + increment > maxValue -> {
+                android.util.Log.w("RevenueManager", "⚠️ 累加后会超过上限($current + $increment)，限制为上限")
+                maxValue
+            }
+            else -> current + increment
+        }
+    }
+    
+    /**
      * 计算游戏上线天数
      * @param releaseYear 上线年份
      * @param releaseMonth 上线月份
@@ -2651,13 +2702,21 @@ object RevenueManager {
         
         if (businessModel != com.example.yjcy.ui.BusinessModel.ONLINE_GAME) return 0L
         
+        // 修复：如果总注册人数为负数（溢出），返回0
+        if (gameRevenue.totalRegisteredPlayers < 0) {
+            android.util.Log.w("RevenueManager", "⚠️ getActivePlayers: totalRegisteredPlayers为负数(${gameRevenue.totalRegisteredPlayers})，返回0")
+            return 0L
+        }
+        
         // 基础活跃玩家 = 总注册人数 * 40%（注册玩家中40%保持活跃）
         val baseActivePlayers = (gameRevenue.totalRegisteredPlayers * 0.4).toLong()
         
         // 根据兴趣值调整活跃玩家数
         val interestMultiplier = calculateActivePlayerMultiplier(gameRevenue.playerInterest)
         
-        return (baseActivePlayers * interestMultiplier).toLong()
+        val result = (baseActivePlayers * interestMultiplier).toLong()
+        // 确保结果不为负数
+        return result.coerceAtLeast(0L)
     }
     
     /**

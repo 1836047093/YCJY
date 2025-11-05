@@ -184,6 +184,47 @@ private const val ENABLE_VERBOSE_GAME_LOGS = false
 // 全局变量存储当前加载的存档数据
 var currentLoadedSaveData: SaveData? = null
 
+/**
+ * 安全地增加资金，防止溢出
+ * @param current 当前资金
+ * @param amount 增加金额（可为负数，表示减少）
+ * @return 操作后的资金（已处理溢出）
+ */
+private fun safeAddMoney(current: Long, amount: Long): Long {
+    // 如果当前值为负数且金额也为负数，可能导致异常，重置为0
+    if (current < 0 && amount < 0) {
+        Log.w("MainActivity", "⚠️ 检测到资金为负数($current)且继续减少($amount)，重置为0")
+        return 0L
+    }
+    
+    // 检查累加是否会溢出
+    val maxValue = Long.MAX_VALUE / 2
+    
+    return when {
+        // 当前值已达到上限，不允许再增加
+        current >= maxValue && amount > 0 -> {
+            Log.w("MainActivity", "⚠️ 资金已达到上限($current)，不再增加")
+            current
+        }
+        // 累加后会超过上限
+        current > 0 && amount > 0 && current + amount > maxValue -> {
+            Log.w("MainActivity", "⚠️ 累加后会超过上限($current + $amount)，限制为上限")
+            maxValue
+        }
+        // 正常累加
+        else -> {
+            val result = current + amount
+            // 如果结果为负数且减少金额过大，限制为0（允许负债，但限制过度负债）
+            if (result < -10_000_000_000L) { // 负债超过100亿时限制
+                Log.w("MainActivity", "⚠️ 资金负债过大($result)，限制为-100亿")
+                -10_000_000_000L
+            } else {
+                result
+            }
+        }
+    }
+}
+
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -241,6 +282,40 @@ class MainActivity : ComponentActivity() {
                 // 初始为false，用户同意隐私政策后再检查真实状态
                 var isTapTapLoggedIn by remember { mutableStateOf(false) }
                 
+                // 检查登录状态：在隐私协议同意后且SDK初始化完成后
+                LaunchedEffect(showPrivacyDialog) {
+                    // 只有在隐私协议已同意时才执行
+                    if (!showPrivacyDialog) {
+                        // 等待SDK初始化完成
+                        var retryCount = 0
+                        while (retryCount < 20 && !YjcyApplication.isSdkInitialized()) {
+                            delay(200) // 每200ms检查一次
+                            retryCount++
+                        }
+                        
+                        if (YjcyApplication.isSdkInitialized()) {
+                            // SDK已初始化，再等待一小段时间确保完全就绪
+                            delay(500)
+                            
+                            // 检查是否已经登录
+                            try {
+                                val account = TapLoginManager.getCurrentAccount()
+                                if (account != null) {
+                                    Log.d("MainActivity", "✅ 检测到已登录的账号: ${account.name}, unionId=${account.unionId}")
+                                    isTapTapLoggedIn = true
+                                } else {
+                                    Log.d("MainActivity", "ℹ️ 未检测到已登录的账号，需要重新登录")
+                                }
+                            } catch (e: Exception) {
+                                Log.w("MainActivity", "检查登录状态失败: ${e.message}")
+                                // 如果检查失败，保持未登录状态，让用户重新登录
+                            }
+                        } else {
+                            Log.w("MainActivity", "⚠️ SDK初始化超时，可能需要重新登录")
+                        }
+                    }
+                }
+                
                 // Privacy Policy Dialog
                 if (showPrivacyDialog) {
                     PrivacyPolicyDialog(
@@ -257,7 +332,7 @@ class MainActivity : ComponentActivity() {
                             // 延迟更长时间，确保SDK完全初始化后再显示登录界面
                             // 避免合规认证时出现"当前应用还未初始化"的错误
                             Handler(Looper.getMainLooper()).postDelayed({
-                                Log.d("MainActivity", "✅ SDK初始化延迟完成（1秒），准备显示登录界面")
+                                Log.d("MainActivity", "✅ SDK初始化延迟完成（1秒），准备检查登录状态")
                             }, 1000)
                         },
                         onReject = {
@@ -2177,12 +2252,22 @@ fun GameScreen(
     val activity = LocalActivity.current!!
     
     // 游戏状态数据 - 如果有存档数据则使用存档数据，否则使用默认值
-    var money by remember { mutableLongStateOf(saveData?.money ?: 3000000L) }
+    // 修复：如果读取到的资金为负数（溢出），重置为默认值
+    var money by remember { 
+        mutableLongStateOf(
+            if (saveData?.money != null && saveData.money < 0) {
+                Log.w("MainActivity", "⚠️ 读取存档时发现资金为负数(${saveData.money})，重置为300万")
+                3000000L
+            } else {
+                saveData?.money ?: 3000000L
+            }
+        ) 
+    }
     var fans by remember { mutableLongStateOf(saveData?.fans ?: 0L) }
     var currentYear by remember { mutableIntStateOf(saveData?.currentYear ?: 1) }
     var currentMonth by remember { mutableIntStateOf(saveData?.currentMonth ?: 1) }
     var currentDay by remember { mutableIntStateOf(saveData?.currentDay ?: 1) }
-    var gameSpeed by rememberSaveable { mutableIntStateOf(3) }  // 默认3倍速，使用rememberSaveable确保状态持久化
+    var gameSpeed by rememberSaveable { mutableIntStateOf(1) }  // 默认1倍速，使用rememberSaveable确保状态持久化
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var isPaused by rememberSaveable { mutableStateOf(false) }  // 使用rememberSaveable确保暂停状态在切换标签时保持
     
@@ -2309,12 +2394,6 @@ fun GameScreen(
     // 功能解锁对话框状态
     var showFeatureLockedDialog by remember { mutableStateOf(false) }
     
-    // 自动功能提示对话框状态
-    var showAutoProcessInfoDialog by remember { mutableStateOf(false) }
-    var showAutoSaveInfoDialog by remember { mutableStateOf(false) }
-    var showAutoApproveInfoDialog by remember { mutableStateOf(false) }
-    var showAutoUpdateInfoDialog by remember { mutableStateOf(false) }
-    var pendingAutoUpdateGame by remember { mutableStateOf(null as Game?) }
     
     // GVA颁奖对话框状态
     var showGVAAwardDialog by remember { mutableStateOf(false) }
@@ -2678,7 +2757,7 @@ fun GameScreen(
             
             // 根据游戏速度延迟不同的时间后推进一天
             delay(when (gameSpeed) {
-                1 -> 5000L // 慢速：5秒推进1天（调整：从3秒改为5秒）
+                1 -> 8000L // 慢速：8秒推进1天
                 2 -> 2000L // 中速：2秒推进1天
                 3 -> 1000L // 快速：1秒推进1天
                 else -> 2000L
@@ -2754,7 +2833,7 @@ fun GameScreen(
                         reputationBonus = reputationLevel.salesBonus
                     )
                     
-                    money += dailyRevenue.toLong()
+                    money = safeAddMoney(money, dailyRevenue.toLong())
                     if (ENABLE_VERBOSE_GAME_LOGS) {
                         Log.d("MainActivity", "💰 每日收益: ${releasedGame.name} +¥${dailyRevenue.toLong()}, 总资金=¥$money")
                     }
@@ -2778,7 +2857,7 @@ fun GameScreen(
                 Log.d("MainActivity", "服务器扣费检查完成，返回金额: ¥$serverBillingCost")
             }
             if (serverBillingCost > 0) {
-                money -= serverBillingCost
+                money = safeAddMoney(money, -serverBillingCost)
                 if (ENABLE_VERBOSE_GAME_LOGS) {
                     Log.d("MainActivity", "💰 服务器计费: -¥$serverBillingCost (扣费前:¥$moneyBefore -> 扣费后:¥$money)")
                 }
@@ -2911,14 +2990,13 @@ fun GameScreen(
                         it.releaseStatus == GameReleaseStatus.RATED 
                     }
                     if (releasedGames.isNotEmpty()) {
-                        // 基于已发售游戏数量和平均评分计算粉丝增长
+                        // 基于平均评分计算粉丝增长（已移除游戏数量加成）
                         val avgRating = releasedGames.mapNotNull { it.gameRating?.finalScore }.average().toFloat()
-                        val gameCountMultiplier = 1.0 + (releasedGames.size * 0.1) // 每个游戏增加10%增长率
                         
                         val baseFansGrowth = when {
-                            avgRating >= 8.0f -> (fans * 0.025).toLong() // 2.5%增长（高评分）（原5%）
-                            avgRating >= 6.0f -> (fans * 0.015).toLong() // 1.5%增长（中等评分）（原3%）
-                            else -> (fans * 0.005).toLong() // 0.5%增长（低评分）（原1%）
+                            avgRating >= 8.0f -> (fans * 0.015).toLong() // 1.5%增长（高评分）（原2.5%）
+                            avgRating >= 6.0f -> (fans * 0.01).toLong() // 1.0%增长（中等评分）（原1.5%）
+                            else -> (fans * 0.003).toLong() // 0.3%增长（低评分）（原0.5%）
                         }
                         
                         // 应用声望加成
@@ -2926,10 +3004,10 @@ fun GameScreen(
                         val reputationBonus = reputationLevel.fansBonus
                         val reputationMultiplier = 1.0 + reputationBonus
                         
-                        val totalFansGrowth = (baseFansGrowth * gameCountMultiplier * reputationMultiplier).toLong().coerceAtLeast(100L)
+                        val totalFansGrowth = (baseFansGrowth * reputationMultiplier).toLong().coerceAtLeast(100L)
                         fans = (fans + totalFansGrowth).coerceAtLeast(0L)
                         
-                        Log.d("MainActivity", "月结算粉丝增长: +$totalFansGrowth (游戏数:${releasedGames.size}, 平均评分:$avgRating, 声望加成:+${(reputationBonus*100).toInt()}%, 当前粉丝:$fans)")
+                        Log.d("MainActivity", "月结算粉丝增长: +$totalFansGrowth (平均评分:$avgRating, 声望加成:+${(reputationBonus*100).toInt()}%, 当前粉丝:$fans)")
                     }
                     
                     // 月结算：宣传指数衰减
@@ -2996,7 +3074,7 @@ fun GameScreen(
                         
                         // 检查资金是否足够
                         if (money >= totalCost) {
-                            money -= totalCost
+                            money = safeAddMoney(money, -totalCost)
                             fans += selectedPromotionType.fansGain * gamesNeedingPromotion.size
                             
                             // 更新所有需要宣传的游戏的宣传指数
@@ -3038,9 +3116,9 @@ fun GameScreen(
                     lastSettlementMonth = currentMonth
                     
                     // 月结算：扣除员工工资
-                    val totalSalaryCost = allEmployees.sumOf { it.salary }
+                    val totalSalaryCost: Long = allEmployees.sumOf { it.salary.toLong() }
                     if (totalSalaryCost > 0) {
-                        money -= totalSalaryCost
+                        money = safeAddMoney(money.toLong(), -totalSalaryCost)
                         Log.d("MainActivity", "💰 月结算工资扣除: -¥$totalSalaryCost (员工数:${allEmployees.size}, 扣费后:¥$money)")
                     }
                     
@@ -3110,7 +3188,7 @@ fun GameScreen(
                         
                         // 检查资金是否足够
                         if (money >= totalCost) {
-                            money -= totalCost
+                            money = safeAddMoney(money, -totalCost)
                             fans += selectedPromotionType.fansGain * gamesNeedingPromotion.size
                             
                             // 更新所有需要宣传的游戏的宣传指数
@@ -3237,7 +3315,7 @@ fun GameScreen(
                 gvaHistory = (finalNominations + gvaHistory).take(10 * 21) // 每年最多21个奖项
                 
                 // 应用奖励
-                money += totalCashReward
+                money = safeAddMoney(money, totalCashReward.toLong())
                 fans += totalFansReward
                 companyReputation = companyReputation.addReputation(totalReputationGain)
                 
@@ -3813,7 +3891,7 @@ fun GameScreen(
                             val (eventDesc, _) = TournamentManager.generateRandomEvent()
                             
                             // 更新数据
-                            money += revenue.totalRevenue
+                            money = safeAddMoney(money, revenue.totalRevenue.toLong())
                             fans += fansGained
                             
                             // 更新收益数据的兴趣值（直接修改，RevenueManager会自动保存）
@@ -4029,11 +4107,8 @@ fun GameScreen(
                             isPaused = isPaused,
                             isSupporterUnlocked = isSupporterUnlocked,
                             onShowFeatureLockedDialog = { showFeatureLockedDialog = true },
-                            onShowAutoProcessInfoDialog = { showAutoProcessInfoDialog = true },
-                            onShowAutoUpdateInfoDialog = { game ->
-                                pendingAutoUpdateGame = game
-                                showAutoUpdateInfoDialog = true
-                            }
+                            onShowAutoProcessInfoDialog = { },
+                            onShowAutoUpdateInfoDialog = { }
                         )
                         3 -> CompetitorContent(
                             saveData = SaveData(
@@ -4057,7 +4132,7 @@ fun GameScreen(
                             gameSpeed = gameSpeed,
                             onAcquisitionSuccess = { acquiredCompany: CompetitorCompany, finalPrice: Long, _: Long, fansGain: Long, inheritedIPs: List<GameIP> ->
                                 // 扣除收购费用
-                                money -= finalPrice
+                                money = safeAddMoney(money, -finalPrice)
                                 
                                 // 增加粉丝
                                 fans += fansGain
@@ -4161,7 +4236,7 @@ fun GameScreen(
                                     )
                                     
                                     // 扣除资金
-                                    money -= tournament.investment
+                                    money = safeAddMoney(money, -tournament.investment)
                                     
                                     // 更新游戏
                                     games = games.map { g ->
@@ -4512,7 +4587,7 @@ fun GameScreen(
                         onClick = {
                             // 返还80%开发费用
                             val refund = (pendingAbandonGame!!.developmentCost * 0.8).toLong()
-                            money += refund
+                            money = safeAddMoney(money, refund)
                             
                             // 从游戏列表中移除
                             games = games.filter { it.id != pendingAbandonGame!!.id }
@@ -4772,8 +4847,8 @@ fun GameScreen(
                             onUsedRedeemCodesUpdate = { updatedCodes -> usedRedeemCodes = updatedCodes },
                             isSupporterUnlocked = isSupporterUnlocked,
                             onShowFeatureLockedDialog = { showFeatureLockedDialog = true },
-                            onShowAutoSaveInfoDialog = { showAutoSaveInfoDialog = true },
-                            onShowAutoApproveInfoDialog = { showAutoApproveInfoDialog = true },
+                            onShowAutoSaveInfoDialog = { },
+                            onShowAutoApproveInfoDialog = { },
                             onMaxEmployees = {
                                 // 一键将所有员工技能设置为5级
                                 val maxedEmployees = allEmployees.map { employee ->
@@ -4790,7 +4865,7 @@ fun GameScreen(
                             },
                             onAddMoney = {
                                 // 一键增加1000万
-                                money += 10000000L
+                                money = safeAddMoney(money, 10000000L)
                             },
                             onCreateTopEmployees = { skillLevel ->
                                 // 智能调整模式：优先修改现有员工等级，不足时才新增
@@ -5264,7 +5339,7 @@ fun GameScreen(
                 },
                 onDistributeBonus = { bonusAmount ->
                     // 分发年终奖：扣除资金，提升所有员工忠诚度
-                    money -= bonusAmount
+                    money = safeAddMoney(money, -bonusAmount)
                     
                     val updatedEmployees = allEmployees.map { emp ->
                         if (!emp.isFounder) {
@@ -5318,256 +5393,6 @@ fun GameScreen(
                     }
                     showFeatureLockedDialog = false
                 }
-            )
-        }
-        
-        // 自动处理功能提示对话框
-        if (showAutoProcessInfoDialog) {
-            AlertDialog(
-                onDismissRequest = { showAutoProcessInfoDialog = false },
-                title = {
-                    Text(
-                        text = "自动处理",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                text = {
-                    Column {
-                        Text(
-                            text = "开启后，客服中心将自动分配和处理客诉，无需手动操作。",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 14.sp
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = if (isSupporterUnlocked) "点击下方按钮切换开关状态。" else "此功能需要解锁支持者功能。",
-                            color = Color.White.copy(alpha = 0.6f),
-                            fontSize = 12.sp
-                        )
-                    }
-                },
-                confirmButton = {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        if (isSupporterUnlocked) {
-                            TextButton(
-                                onClick = {
-                                    autoProcessComplaints = !autoProcessComplaints
-                                    showAutoProcessInfoDialog = false
-                                }
-                            ) {
-                                Text(
-                                    text = if (autoProcessComplaints) "关闭" else "开启",
-                                    color = Color.White
-                                )
-                            }
-                        }
-                        TextButton(
-                            onClick = { showAutoProcessInfoDialog = false }
-                        ) {
-                            Text(
-                                text = "知道了",
-                                color = Color.White
-                            )
-                        }
-                    }
-                },
-                containerColor = Color(0xFF1F2937),
-                titleContentColor = Color.White,
-                textContentColor = Color.White
-            )
-        }
-        
-        // 自动存档功能提示对话框
-        if (showAutoSaveInfoDialog) {
-            AlertDialog(
-                onDismissRequest = { showAutoSaveInfoDialog = false },
-                title = {
-                    Text(
-                        text = "自动存档",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                text = {
-                    Column {
-                        Text(
-                            text = "开启后，游戏将每隔${autoSaveInterval}天自动保存到存档位1，防止进度丢失。",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 14.sp
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = if (isSupporterUnlocked) "点击下方按钮切换开关状态。" else "此功能需要解锁支持者功能。",
-                            color = Color.White.copy(alpha = 0.6f),
-                            fontSize = 12.sp
-                        )
-                    }
-                },
-                confirmButton = {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        if (isSupporterUnlocked) {
-                            TextButton(
-                                onClick = {
-                                    autoSaveEnabled = !autoSaveEnabled
-                                    showAutoSaveInfoDialog = false
-                                }
-                            ) {
-                                Text(
-                                    text = if (autoSaveEnabled) "关闭" else "开启",
-                                    color = Color.White
-                                )
-                            }
-                        }
-                        TextButton(
-                            onClick = { showAutoSaveInfoDialog = false }
-                        ) {
-                            Text(
-                                text = "知道了",
-                                color = Color.White
-                            )
-                        }
-                    }
-                },
-                containerColor = Color(0xFF1F2937),
-                titleContentColor = Color.White,
-                textContentColor = Color.White
-            )
-        }
-        
-        // 自动审批功能提示对话框
-        if (showAutoApproveInfoDialog) {
-            AlertDialog(
-                onDismissRequest = { showAutoApproveInfoDialog = false },
-                title = {
-                    Text(
-                        text = "自动审批",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                text = {
-                    Column {
-                        Text(
-                            text = "开启后，当员工请求涨薪时，系统将自动同意涨薪请求，无需手动审批。",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 14.sp
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = if (isSupporterUnlocked) "点击下方按钮切换开关状态。" else "此功能需要解锁支持者功能。",
-                            color = Color.White.copy(alpha = 0.6f),
-                            fontSize = 12.sp
-                        )
-                    }
-                },
-                confirmButton = {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        if (isSupporterUnlocked) {
-                            TextButton(
-                                onClick = {
-                                    autoApproveSalaryIncrease = !autoApproveSalaryIncrease
-                                    showAutoApproveInfoDialog = false
-                                }
-                            ) {
-                                Text(
-                                    text = if (autoApproveSalaryIncrease) "关闭" else "开启",
-                                    color = Color.White
-                                )
-                            }
-                        }
-                        TextButton(
-                            onClick = { showAutoApproveInfoDialog = false }
-                        ) {
-                            Text(
-                                text = "知道了",
-                                color = Color.White
-                            )
-                        }
-                    }
-                },
-                containerColor = Color(0xFF1F2937),
-                titleContentColor = Color.White,
-                textContentColor = Color.White
-            )
-        }
-        
-        // 自动更新功能提示对话框
-        if (showAutoUpdateInfoDialog && pendingAutoUpdateGame != null) {
-            AlertDialog(
-                onDismissRequest = { 
-                    showAutoUpdateInfoDialog = false
-                    pendingAutoUpdateGame = null
-                },
-                title = {
-                    Text(
-                        text = "自动更新",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                text = {
-                    Column {
-                        Text(
-                            text = "开启后，当游戏更新任务完成时，系统将自动发布更新，无需手动操作。",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 14.sp
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = if (isSupporterUnlocked) "点击下方按钮切换开关状态。" else "此功能需要解锁支持者功能。",
-                            color = Color.White.copy(alpha = 0.6f),
-                            fontSize = 12.sp
-                        )
-                    }
-                },
-                confirmButton = {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        if (isSupporterUnlocked) {
-                            TextButton(
-                                onClick = {
-                                    val game = pendingAutoUpdateGame!!
-                                    games = games.map { g ->
-                                        if (g.id == game.id) {
-                                            g.copy(autoUpdate = !game.autoUpdate)
-                                        } else {
-                                            g
-                                        }
-                                    }
-                                    showAutoUpdateInfoDialog = false
-                                    pendingAutoUpdateGame = null
-                                }
-                            ) {
-                                Text(
-                                    text = if (pendingAutoUpdateGame!!.autoUpdate) "关闭" else "开启",
-                                    color = Color.White
-                                )
-                            }
-                        }
-                        TextButton(
-                            onClick = { 
-                                showAutoUpdateInfoDialog = false
-                                pendingAutoUpdateGame = null
-                            }
-                        ) {
-                            Text(
-                                text = "知道了",
-                                color = Color.White
-                            )
-                        }
-                    }
-                },
-                containerColor = Color(0xFF1F2937),
-                titleContentColor = Color.White,
-                textContentColor = Color.White
             )
         }
         
@@ -7810,11 +7635,12 @@ fun InGameSettingsContent(
                     }
                     Switch(
                         checked = autoSaveEnabled,
-                        onCheckedChange = { 
+                        onCheckedChange = { enabled ->
+                            // 直接切换开关状态
                             if (!isSupporterUnlocked) {
                                 onShowFeatureLockedDialog()
                             } else {
-                                onShowAutoSaveInfoDialog()
+                                onAutoSaveEnabledToggle(enabled)
                             }
                         },
                         enabled = isSupporterUnlocked,
@@ -7933,11 +7759,12 @@ fun InGameSettingsContent(
                 }
                 Switch(
                     checked = autoApproveSalaryIncrease,
-                    onCheckedChange = { 
+                    onCheckedChange = { enabled ->
+                        // 直接切换开关状态
                         if (!isSupporterUnlocked) {
                             onShowFeatureLockedDialog()
                         } else {
-                            onShowAutoApproveInfoDialog()
+                            onAutoApproveSalaryToggle(enabled)
                         }
                     },
                     enabled = isSupporterUnlocked,

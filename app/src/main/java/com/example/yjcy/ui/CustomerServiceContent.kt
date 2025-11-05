@@ -133,8 +133,8 @@ fun CustomerServiceContent(
                     if (!isSupporterUnlocked) {
                         onShowFeatureLockedDialog()
                     } else {
-                        // 显示提示对话框（点击整个区域都显示）
-                        onShowAutoProcessInfoDialog()
+                        // 直接切换开关状态
+                        onAutoProcessToggle(!autoProcessEnabled)
                     }
                 }
                 .padding(12.dp),
@@ -172,12 +172,12 @@ fun CustomerServiceContent(
             }
             Switch(
                 checked = autoProcessEnabled,
-                onCheckedChange = { 
-                    // 开关点击时也显示提示对话框
+                onCheckedChange = { enabled ->
+                    // 直接切换开关状态
                     if (!isSupporterUnlocked) {
                         onShowFeatureLockedDialog()
                     } else {
-                        onShowAutoProcessInfoDialog()
+                        onAutoProcessToggle(enabled)
                     }
                 },
                 enabled = isSupporterUnlocked,
