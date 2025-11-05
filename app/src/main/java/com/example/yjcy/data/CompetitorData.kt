@@ -281,13 +281,16 @@ object CompetitorManager {
             val actualReleaseYear = if (releaseMonth <= 0) releaseYear - 1 else releaseYear
             val actualReleaseMonth = if (releaseMonth <= 0) releaseMonth + 12 else releaseMonth
             
-            // 游戏评分 (6.5-9.8，提高竞争对手实力，增加高评分比例)
-            // 使用加权随机，让高评分游戏更容易出现
+            // 游戏评分 (6.5-10.0，大幅提高竞争对手实力，增加10分游戏比例)
+            // 使用加权随机，让高评分游戏更容易出现，特别是10分游戏
             val rating = when (Random.nextInt(1, 101)) {
-                in 1..15 -> Random.nextInt(85, 99) / 10f  // 15%概率：8.5-9.9分（高评分）
-                in 16..40 -> Random.nextInt(75, 85) / 10f  // 25%概率：7.5-8.5分（中高评分）
-                in 41..70 -> Random.nextInt(70, 75) / 10f  // 30%概率：7.0-7.5分（中等评分）
-                else -> Random.nextInt(65, 70) / 10f       // 30%概率：6.5-7.0分（中低评分）
+                in 1..8 -> 10.0f                                // 8%概率：10.0分（满分神作）
+                in 9..20 -> Random.nextInt(95, 100) / 10f      // 12%概率：9.5-9.9分（接近满分）
+                in 21..35 -> Random.nextInt(90, 95) / 10f      // 15%概率：9.0-9.5分（高评分）
+                in 36..55 -> Random.nextInt(85, 90) / 10f     // 20%概率：8.5-9.0分（中高评分）
+                in 56..75 -> Random.nextInt(75, 85) / 10f     // 20%概率：7.5-8.5分（中等偏上）
+                in 76..90 -> Random.nextInt(70, 75) / 10f     // 15%概率：7.0-7.5分（中等评分）
+                else -> Random.nextInt(65, 70) / 10f          // 10%概率：6.5-7.0分（中低评分）
             }
             
             // 根据游戏年龄和评分生成合理的玩家数/销量
@@ -687,12 +690,15 @@ object CompetitorManager {
         val platformCount = Random.nextInt(1, 4)
         val platforms = Platform.entries.shuffled().take(platformCount)
         val businessModel = BusinessModel.entries.random()
-        // 新游戏评分：提高至7.0-9.5分，增加高评分比例
+        // 新游戏评分：提高至7.0-10.0分，大幅增加10分和接近满分游戏比例
         val rating = when (Random.nextInt(1, 101)) {
-            in 1..20 -> Random.nextInt(90, 96) / 10f  // 20%概率：9.0-9.6分（高评分）
-            in 21..50 -> Random.nextInt(80, 90) / 10f  // 30%概率：8.0-9.0分（中高评分）
-            in 51..80 -> Random.nextInt(75, 80) / 10f  // 30%概率：7.5-8.0分（中等评分）
-            else -> Random.nextInt(70, 75) / 10f       // 20%概率：7.0-7.5分（中低评分）
+            in 1..10 -> 10.0f                                // 10%概率：10.0分（满分神作）
+            in 11..25 -> Random.nextInt(95, 100) / 10f       // 15%概率：9.5-9.9分（接近满分）
+            in 26..45 -> Random.nextInt(90, 95) / 10f       // 20%概率：9.0-9.5分（高评分）
+            in 46..65 -> Random.nextInt(85, 90) / 10f      // 20%概率：8.5-9.0分（中高评分）
+            in 66..80 -> Random.nextInt(80, 85) / 10f      // 15%概率：8.0-8.5分（中等偏上）
+            in 81..92 -> Random.nextInt(75, 80) / 10f     // 12%概率：7.5-8.0分（中等评分）
+            else -> Random.nextInt(70, 75) / 10f           // 8%概率：7.0-7.5分（中低评分）
         }
         
         val (activePlayers, salesCount, initialRevenue, initialMonetizationRevenue) = when (businessModel) {
@@ -1098,7 +1104,7 @@ object CompetitorManager {
         currentMonth: Int,
         currentDay: Int
     ): Triple<String, EsportsTournament, CompetitorNews>? {
-        // 筛选可以举办赛事的游戏（竞技类网游，评分≥6.0，活跃玩家≥1万，且没有进行中的赛事）
+        // 筛选可以举办赛事的游戏（竞技类网游，评分≥8.0，活跃玩家≥10万，且没有进行中的赛事）
         val eligibleGames = games.filter { game ->
             // 必须是竞技类游戏
             val isCompetitive = game.theme in listOf(
@@ -1110,10 +1116,10 @@ object CompetitorManager {
             )
             // 必须是网络游戏
             val isOnline = game.businessModel == BusinessModel.ONLINE_GAME
-            // 评分≥6.0
-            val goodRating = game.rating >= 6.0f
-            // 活跃玩家≥1万
-            val enoughPlayers = game.activePlayers >= 10000L
+            // 评分≥8.0
+            val goodRating = game.rating >= 8.0f
+            // 活跃玩家≥10万
+            val enoughPlayers = game.activePlayers >= 100000L
             // 没有进行中的赛事
             val noOngoingTournament = game.currentTournament == null
             

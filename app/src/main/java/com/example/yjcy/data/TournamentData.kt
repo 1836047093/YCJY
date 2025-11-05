@@ -200,12 +200,12 @@ object TournamentManager {
         if (game.releaseStatus != GameReleaseStatus.RELEASED && 
             game.releaseStatus != GameReleaseStatus.RATED) return false
         
-        // 评分必须 >= 6.0
-        if (game.rating != null && game.rating < 6.0f) return false
+        // 评分必须 >= 8.0
+        if (game.rating != null && game.rating < 8.0f) return false
         
-        // 活跃玩家必须 >= 10,000
+        // 活跃玩家必须 >= 100,000
         val activePlayers = revenueData?.getActivePlayers() ?: 0
-        if (activePlayers < 10000L) return false
+        if (activePlayers < 100000L) return false
         
         return true
     }

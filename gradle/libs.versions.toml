@@ -19,7 +19,10 @@ hilt = "2.57.2"
 hiltNavigationCompose = "1.3.0"
 lifecycleViewmodelCompose = "2.9.4"
 tapSdk = "4.8.3"
-kotlinxSerialization = "1.4.1"
+# kotlinxSerialization = "1.4.1"  # 已移除Supabase
+# supabase = "3.2.1"  # 已移除
+kotlinxCoroutines = "1.9.0"
+# ktor = "3.0.3"  # 已移除Supabase
 
 
 [libraries]
@@ -54,12 +57,16 @@ tap-compliance = { group = "com.taptap.sdk", name = "tap-compliance", version.re
 tap-update = { group = "com.taptap.sdk", name = "tap-update", version.ref = "tapSdk" }
 # 根据Maven Central，tap-core已包含tap-db，但可能需要显式添加依赖
 tap-db = { group = "com.taptap.sdk", name = "tap-db", version.ref = "tapSdk" }
-kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+# kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }  # 已移除Supabase
+# supabase-postgrest = { group = "io.github.jan-tennert.supabase", name = "postgrest-kt", version.ref = "supabase" }  # 已移除
+kotlinx-coroutines = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }
+# ktor-client-android = { group = "io.ktor", name = "ktor-client-android", version.ref = "ktor" }  # 已移除Supabase
 
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+# kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }  # 已移除Supabase
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 

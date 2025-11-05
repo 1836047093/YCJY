@@ -7,6 +7,7 @@ import android.util.Log
 /**
  * 兑换码管理器
  * 基于用户ID管理兑换码的使用记录，确保每个用户只能使用一次兑换码
+ * 使用本地SharedPreferences存储
  */
 object RedeemCodeManager {
     
@@ -22,7 +23,7 @@ object RedeemCodeManager {
     fun initialize(context: Context) {
         if (sharedPreferences == null) {
             sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            Log.d(TAG, "RedeemCodeManager 初始化完成")
+            Log.d(TAG, "RedeemCodeManager 初始化完成（仅使用本地存储）")
         }
     }
     
@@ -59,16 +60,16 @@ object RedeemCodeManager {
             return false // 该用户还没有使用过任何兑换码
         }
         
-        try {
+        return try {
             // 解析JSON字符串为Set<String>
             val usedCodes = usedCodesJson.split(",").toSet()
             val isUsed = usedCodes.contains(code.uppercase())
             
             Log.d(TAG, "检查兑换码: userId=$userId, code=$code, isUsed=$isUsed")
-            return isUsed
+            isUsed
         } catch (e: Exception) {
             Log.e(TAG, "解析兑换码记录失败", e)
-            return false
+            false
         }
     }
     
@@ -212,4 +213,3 @@ object RedeemCodeManager {
         BATCH_TRAINING         // 员工一键培训功能
     }
 }
-

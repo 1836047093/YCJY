@@ -104,6 +104,30 @@ fun EnhancedGameProjectCard(
         ) {
             // 项目标题和基本信息
             Column(modifier = Modifier.fillMaxWidth()) {
+                // GVA获奖图标（如果有，显示在游戏名字上方）
+                if (game.awards.isNotEmpty()) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    ) {
+                        game.awards.take(3).forEach { award ->
+                            Text(
+                                text = award.icon,
+                                fontSize = 16.sp
+                            )
+                        }
+                        if (game.awards.size > 3) {
+                            Text(
+                                text = "+${game.awards.size - 3}",
+                                fontSize = 10.sp,
+                                color = Color(0xFFFFD700),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+                
                 // 游戏名字和状态标签在同一行
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -115,29 +139,6 @@ fun EnhancedGameProjectCard(
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    
-                    // 获奖图标（如果有）
-                    if (game.awards.isNotEmpty()) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            game.awards.take(3).forEach { award ->
-                                Text(
-                                    text = award.icon,
-                                    fontSize = 16.sp
-                                )
-                            }
-                            if (game.awards.size > 3) {
-                                Text(
-                                    text = "+${game.awards.size - 3}",
-                                    fontSize = 10.sp,
-                                    color = Color(0xFFFFD700),
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
                     
                     // 项目状态指示器
                     if (isDeveloping) {

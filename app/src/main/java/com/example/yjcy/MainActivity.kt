@@ -181,6 +181,9 @@ import com.example.yjcy.utils.RedeemCodeManager
 // 性能优化：调试日志开关（正式环境应设为false）
 private const val ENABLE_VERBOSE_GAME_LOGS = false
 
+// FPS日志开关（设置为true后会在Logcat中输出FPS信息）
+private const val ENABLE_FPS_LOG = true
+
 // 全局变量存储当前加载的存档数据
 var currentLoadedSaveData: SaveData? = null
 
@@ -563,16 +566,8 @@ fun ForcedTapLoginScreen(
     
     var showMessage by remember { mutableStateOf(null as String?) }
     
-    // 标题发光动画
-    val titleGlow by rememberInfiniteTransition(label = "title_glow").animateFloat(
-        initialValue = 0.5f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = EaseInOut),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "title_glow_animation"
-    )
+    // 性能优化：移除标题发光动画，使用静态值
+    val titleGlow = 0.8f  // 固定值，不再使用动画
     
     Box(
         modifier = Modifier
@@ -590,8 +585,8 @@ fun ForcedTapLoginScreen(
                 )
             )
     ) {
-        // 游戏风格背景动画
-        GameStyleBackground()
+        // 性能优化：移除背景动画
+        // GameStyleBackground()
         
         Column(
             modifier = Modifier
@@ -1535,127 +1530,17 @@ fun ModernMenuCard(
     }
 }
 
-// 现代化的游戏背景
+// 现代化的游戏背景 - 性能优化版本（完全禁用动画）
 @Composable
 fun ModernGameBackground() {
-    // 网格背景效果
-    val infiniteTransition = rememberInfiniteTransition(label = "background")
-    
-    val gridOffset by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 100f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(20000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "grid_offset"
-    )
-    
-    val density = LocalDensity.current
-    Canvas(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        // 绘制网格线
-        val gridSize = with(density) { 50.dp.toPx() }
-        val offsetX = gridOffset % gridSize
-        
-        // 垂直线
-        var x = offsetX
-        while (x < size.width) {
-            drawLine(
-                color = Color.White.copy(alpha = 0.03f),
-                start = Offset(x, 0f),
-                end = Offset(x, size.height),
-                strokeWidth = 1f
-            )
-            x += gridSize
-        }
-        
-        // 水平线
-        var y = 0f
-        while (y < size.height) {
-            drawLine(
-                color = Color.White.copy(alpha = 0.03f),
-                start = Offset(0f, y),
-                end = Offset(size.width, y),
-                strokeWidth = 1f
-            )
-            y += gridSize
-        }
-        
-        // 添加一些装饰性的圆形
-        val circles = listOf(
-            Offset(size.width * 0.1f, size.height * 0.2f) to 100f,
-            Offset(size.width * 0.9f, size.height * 0.3f) to 150f,
-            Offset(size.width * 0.15f, size.height * 0.8f) to 80f,
-            Offset(size.width * 0.85f, size.height * 0.7f) to 120f
-        )
-        
-        circles.forEach { (center, radius) ->
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        Color(0xFF3B82F6).copy(alpha = 0.1f),
-                        Color.Transparent
-                    ),
-                    center = center,
-                    radius = radius
-                ),
-                radius = radius,
-                center = center
-            )
-        }
-    }
-    
-    // 粒子效果（保留原有的粒子效果但优化）
-    ParticleBackground()
+    // 性能优化：完全移除所有Canvas绘制和动画，显著提升FPS
+    // 背景使用静态渐变即可，无需额外绘制
 }
-@Composable
-fun ParticleBackground() {
-    // 减少粒子数量，降低性能消耗
-    val particles = remember {
-        List(8) { // 从20个减少到8个
-            Particle(
-                x = Random.nextFloat(),
-                y = Random.nextFloat(),
-                size = Random.nextFloat() * 3f + 2f, // 稍微减小粒子大小
-                speed = Random.nextFloat() * 0.015f + 0.01f, // 稍微减慢速度
-                alpha = Random.nextFloat() * 0.4f + 0.15f // 降低透明度范围
-            )
-        }
-    }
-    
-    // 使用更长的动画时间，减少更新频率
-    val infiniteTransition = rememberInfiniteTransition(label = "particles")
-    val animationProgress by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(15000) // 从10秒增加到15秒，减少更新频率
-        ),
-        label = "particle_animation"
-    )
-    
-    Canvas(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        // 直接在Canvas中绘制，移除sin计算以提升性能
-        particles.forEach { particle ->
-            val currentY = (particle.y + animationProgress * particle.speed) % 1f
-            // 移除sin函数计算，使用简单的线性移动
-            val currentX = particle.x
-            
-            drawCircle(
-                color = Color.White.copy(alpha = particle.alpha),
-                radius = particle.size,
-                center = Offset(
-                    x = currentX * size.width,
-                    y = currentY * size.height
-                )
-            )
-        }
-    }
-}
+// 性能优化：完全移除粒子背景动画
+// @Composable
+// fun ParticleBackground() {
+//     // 已禁用以提升FPS性能
+// }
 
 data class Particle(
     val x: Float,
@@ -1667,231 +1552,53 @@ data class Particle(
 )
 
 /**
- * 游戏风格背景 - 超炫酷视觉动效
- * 包含：动态网格、光流效果、扫描线、波形、多色粒子等
+ * 游戏风格背景 - 性能优化版本
+ * 大幅简化动画，提升FPS性能
  */
 @Composable
 fun GameStyleBackground() {
-    val infiniteTransition = rememberInfiniteTransition(label = "game_background")
-    
-    // 网格扫描动画
-    val gridOffset by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(10000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "grid_offset"
-    )
-    
-    // 光晕脉冲
-    val glowPulse by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = EaseInOut),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "glow_pulse"
-    )
-    
-    // 扫描线位置
-    val scanLineOffset by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(3000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "scan_line"
-    )
-    
-    // 波形动画
-    val waveOffset by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(4000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "wave_offset"
-    )
-    
-    // 多色彩粒子 - 不同颜色
+    // 性能优化：仅保留少量粒子，减少绘制负担
     val particles = remember {
-        List(30) { index ->
+        List(5) { index ->  // 从30个减少到5个
             val colors = listOf(
-                Color(0xFFFF6B9D),  // 粉红
-                Color(0xFF9B51E0),  // 紫色
-                Color(0xFF667eea),  // 蓝色
-                Color(0xFF00D4FF),  // 青色
-                Color(0xFFFFF700)   // 黄色
+                Color(0xFF667eea).copy(alpha = 0.3f),  // 降低不透明度
+                Color(0xFF9B51E0).copy(alpha = 0.3f)
             )
             Particle(
                 x = Random.nextFloat(),
                 y = Random.nextFloat(),
-                size = Random.nextFloat() * 3f + 1.5f,
-                speed = Random.nextFloat() * 0.015f + 0.008f,
-                alpha = Random.nextFloat() * 0.6f + 0.3f,
+                size = Random.nextFloat() * 2f + 1f,
+                speed = Random.nextFloat() * 0.01f + 0.005f,
+                alpha = 0.3f,  // 固定较低的透明度
                 color = colors[index % colors.size]
             )
         }
     }
     
-    // 粒子动画进度
+    // 性能优化：使用更长的动画时间，减少更新频率
+    val infiniteTransition = rememberInfiniteTransition(label = "game_background")
     val particleProgress by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(15000, easing = LinearEasing),
+            animation = tween(30000, easing = LinearEasing),  // 从15秒增加到30秒
             repeatMode = RepeatMode.Restart
         ),
         label = "particle_progress"
     )
     
+    // 性能优化：大幅简化Canvas绘制，仅保留简单的粒子效果
     Canvas(
         modifier = Modifier.fillMaxSize()
     ) {
-        // 1. 绘制动态扫描网格
-        val gridSpacing = 60.dp.toPx()
-        val gridColor = Color(0xFF667eea).copy(alpha = 0.15f * glowPulse)
-        
-        // 垂直线
-        var x = 0f
-        while (x < size.width) {
-            drawLine(
-                color = gridColor,
-                start = Offset(x, 0f),
-                end = Offset(x, size.height),
-                strokeWidth = 1.5f
-            )
-            x += gridSpacing
-        }
-        
-        // 水平线
-        var y = (gridOffset * gridSpacing) % gridSpacing
-        while (y < size.height) {
-            drawLine(
-                color = gridColor,
-                start = Offset(0f, y),
-                end = Offset(size.width, y),
-                strokeWidth = 1.5f
-            )
-            y += gridSpacing
-        }
-        
-        // 2. 绘制扫描线（水平移动的光带）
-        val scanY = scanLineOffset * size.height
-        drawLine(
-            brush = Brush.verticalGradient(
-                colors = listOf(
-                    Color.Transparent,
-                    Color(0xFF00D4FF).copy(alpha = 0.5f * glowPulse),
-                    Color.Transparent
-                )
-            ),
-            start = Offset(0f, scanY - 20.dp.toPx()),
-            end = Offset(size.width, scanY - 20.dp.toPx()),
-            strokeWidth = 40.dp.toPx()
-        )
-        
-        // 3. 绘制波形效果（底部）
-        val waveY = size.height * 0.8f
-        val waveHeight = 30.dp.toPx()
-        val waveCount = 3
-        val points = mutableListOf<Offset>()
-        
-        for (i in 0..100) {
-            val xPos = i / 100f * size.width
-            var yPos = waveY
-            for (j in 0 until waveCount) {
-                yPos += kotlin.math.sin((xPos * 0.02f + waveOffset * 5f + j * 2f) * kotlin.math.PI.toFloat()).toFloat() * waveHeight / waveCount
-            }
-            points.add(Offset(xPos, yPos))
-        }
-        
-        drawPath(
-            path = Path().apply {
-                moveTo(points[0].x, points[0].y)
-                points.drop(1).forEach { point ->
-                    lineTo(point.x, point.y)
-                }
-            },
-            color = Color(0xFF9B51E0).copy(alpha = 0.4f * glowPulse),
-            style = Stroke(width = 3f)
-        )
-        
-        // 4. 绘制多个光晕中心（不同位置）
-        val glowCenters = listOf(
-            Offset(size.width * 0.3f, size.height * 0.3f),
-            Offset(size.width * 0.7f, size.height * 0.7f),
-            Offset(size.width * 0.5f, size.height * 0.5f)
-        )
-        val glowColors = listOf(
-            Color(0xFF00D4FF),
-            Color(0xFF9B51E0),
-            Color(0xFFFF6B9D)
-        )
-        
-        glowCenters.forEachIndexed { index, center ->
-            val radius = size.width * 0.5f
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        glowColors[index].copy(alpha = 0.15f * glowPulse),
-                        Color.Transparent
-                    ),
-                    radius = radius
-                ),
-                radius = radius,
-                center = center
-            )
-        }
-        
-        // 5. 绘制光流线条（对角线光流）
-        for (i in 0..4) {
-            val progress = (gridOffset + i * 0.2f) % 1f
-            val startX = progress * size.width
-            val startY = -progress * size.height
-            val endX = startX + size.width * 0.5f
-            val endY = startY + size.height * 0.5f
-            
-            drawLine(
-                brush = Brush.linearGradient(
-                    colors = listOf(
-                        Color.Transparent,
-                        Color(0xFF667eea).copy(alpha = 0.3f * glowPulse),
-                        Color.Transparent
-                    )
-                ),
-                start = Offset(startX.coerceIn(0f, size.width), startY.coerceIn(0f, size.height)),
-                end = Offset(endX.coerceIn(0f, size.width), endY.coerceIn(0f, size.height)),
-                strokeWidth = 2f
-            )
-        }
-        
-        // 6. 绘制多色彩粒子
+        // 仅绘制少量粒子
         particles.forEach { particle ->
             val currentY = (particle.y + particleProgress * particle.speed) % 1f
             val currentX = particle.x
             
-            // 粒子拖尾效果
-            for (i in 1..3) {
-                val trailY = (currentY - i * 0.02f).let { if (it < 0) it + 1f else it }
-                drawCircle(
-                    color = particle.color.copy(alpha = particle.alpha / i / 2),
-                    radius = particle.size / i,
-                    center = Offset(
-                        x = currentX * size.width,
-                        y = trailY * size.height
-                    )
-                )
-            }
-            
-            // 主粒子
+            // 主粒子（移除拖尾效果以提升性能）
             drawCircle(
-                color = particle.color.copy(alpha = particle.alpha),
+                color = particle.color,
                 radius = particle.size,
                 center = Offset(
                     x = currentX * size.width,
@@ -1899,27 +1606,6 @@ fun GameStyleBackground() {
                 )
             )
         }
-        
-        // 7. 绘制霓虹边框（四角装饰）
-        val neonWidth = 3f
-        val neonColor1 = Color(0xFF00D4FF).copy(alpha = 0.6f * glowPulse)
-        val neonColor2 = Color(0xFFFF6B9D).copy(alpha = 0.6f * glowPulse)
-        
-        // 左上角
-        drawLine(neonColor1, Offset(0f, 0f), Offset(size.width * 0.2f, 0f), strokeWidth = neonWidth)
-        drawLine(neonColor1, Offset(0f, 0f), Offset(0f, size.height * 0.2f), strokeWidth = neonWidth)
-        
-        // 右上角
-        drawLine(neonColor2, Offset(size.width, 0f), Offset(size.width * 0.8f, 0f), strokeWidth = neonWidth)
-        drawLine(neonColor2, Offset(size.width, 0f), Offset(size.width, size.height * 0.2f), strokeWidth = neonWidth)
-        
-        // 左下角
-        drawLine(neonColor2, Offset(0f, size.height), Offset(size.width * 0.2f, size.height), strokeWidth = neonWidth)
-        drawLine(neonColor2, Offset(0f, size.height), Offset(0f, size.height * 0.8f), strokeWidth = neonWidth)
-        
-        // 右下角
-        drawLine(neonColor1, Offset(size.width, size.height), Offset(size.width * 0.8f, size.height), strokeWidth = neonWidth)
-        drawLine(neonColor1, Offset(size.width, size.height), Offset(size.width, size.height * 0.8f), strokeWidth = neonWidth)
     }
 }
 
@@ -2358,7 +2044,10 @@ fun GameScreen(
     // 获取当前登录的TapTap用户ID并检查账号是否已解锁GM模式
     val tapTapAccount = TapLoginManager.getCurrentAccount()
     val userId = tapTapAccount?.unionId ?: tapTapAccount?.openId
-    val isGMModeUnlockedByAccount = RedeemCodeManager.isGMModeUnlocked(userId)
+    // 性能优化：使用remember缓存，避免每次重组都查询
+    val isGMModeUnlockedByAccount = remember(userId) {
+        RedeemCodeManager.isGMModeUnlocked(userId)
+    }
     
     // GM模式状态（优先使用账号级别解锁状态，否则使用存档状态）
     var gmModeEnabled by remember { 
@@ -2384,11 +2073,13 @@ fun GameScreen(
     var usedRedeemCodes by remember { mutableStateOf(saveData?.usedRedeemCodes ?: emptySet()) }
     
     // 支持者功能解锁状态
-    // 优先使用存档中的状态，如果没有则通过兑换码检查（向后兼容）
-    val isSupporterUnlocked = if (saveData != null) {
-        saveData.isSupporterUnlocked || RedeemCodeManager.isSupporterFeatureUnlocked(userId, usedRedeemCodes)
-    } else {
-        RedeemCodeManager.isSupporterFeatureUnlocked(userId, usedRedeemCodes)
+    // 性能优化：使用remember缓存，避免每次重组都查询
+    val isSupporterUnlocked = remember(userId, usedRedeemCodes, saveData?.isSupporterUnlocked) {
+        if (saveData != null) {
+            saveData.isSupporterUnlocked || RedeemCodeManager.isSupporterFeatureUnlocked(userId, usedRedeemCodes)
+        } else {
+            RedeemCodeManager.isSupporterFeatureUnlocked(userId, usedRedeemCodes)
+        }
     }
     
     // 功能解锁对话框状态
@@ -2811,33 +2502,40 @@ fun GameScreen(
                 Log.d("MainActivity", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             }
             
-            if (!isPaused) {
-                releasedGames.forEach { releasedGame ->
-                    // 更新游戏信息（商业模式和付费内容）
-                    RevenueManager.updateGameInfo(
-                        releasedGame.id,
-                        releasedGame.businessModel,
-                        releasedGame.monetizationItems
-                    )
-                    
-                    // 按天计算收益
-                    val gameRating = releasedGame.gameRating?.finalScore
-                    val reputationLevel = companyReputation.getLevel()
-                    val dailyRevenue = RevenueManager.addDailyRevenueForGame(
-                        gameId = releasedGame.id,
-                        gameRating = gameRating,
-                        fanCount = fans,
-                        currentYear = currentYear,
-                        currentMonth = currentMonth,
-                        currentDay = currentDay,
-                        reputationBonus = reputationLevel.salesBonus
-                    )
-                    
-                    money = safeAddMoney(money, dailyRevenue.toLong())
-                    if (ENABLE_VERBOSE_GAME_LOGS) {
-                        Log.d("MainActivity", "💰 每日收益: ${releasedGame.name} +¥${dailyRevenue.toLong()}, 总资金=¥$money")
+            if (!isPaused && releasedGames.isNotEmpty()) {
+                // 性能优化：在后台线程批量计算收益，减少主线程阻塞
+                val totalRevenue = withContext(Dispatchers.Default) {
+                    var total = 0.0
+                    releasedGames.forEach { releasedGame ->
+                        // 更新游戏信息（商业模式和付费内容）
+                        RevenueManager.updateGameInfo(
+                            releasedGame.id,
+                            releasedGame.businessModel,
+                            releasedGame.monetizationItems
+                        )
+                        
+                        // 按天计算收益
+                        val gameRating = releasedGame.gameRating?.finalScore
+                        val reputationLevel = companyReputation.getLevel()
+                        val dailyRevenue = RevenueManager.addDailyRevenueForGame(
+                            gameId = releasedGame.id,
+                            gameRating = gameRating,
+                            fanCount = fans,
+                            currentYear = currentYear,
+                            currentMonth = currentMonth,
+                            currentDay = currentDay,
+                            reputationBonus = reputationLevel.salesBonus
+                        )
+                        
+                        total += dailyRevenue
+                        if (ENABLE_VERBOSE_GAME_LOGS) {
+                            Log.d("MainActivity", "💰 每日收益: ${releasedGame.name} +¥${dailyRevenue.toLong()}")
+                        }
                     }
+                    total
                 }
+                // 在主线程一次性更新资金（减少状态更新次数）
+                money = safeAddMoney(money, totalRevenue.toLong())
             }
             
             // 触发收益数据刷新
@@ -2864,28 +2562,31 @@ fun GameScreen(
             }
             
             // 每日检查：员工忠诚度变化（如果薪资低于期望薪资，忠诚度会逐渐降低）
-            try {
-                val updatedEmployees2 = allEmployees.map { employee ->
-                    if (!employee.isFounder && employee.requestedSalary == null) {
-                        // 计算员工期望的薪资
-                        val expectedSalary = employee.calculateExpectedSalary(employee.salary)
-                        if (employee.salary < expectedSalary) {
-                            // 薪资低于期望，每月降低1点忠诚度（每天约0.033点）
-                            val loyaltyLoss = if (currentDay == 1) 1 else 0 // 每月1日降低1点
-                            employee.copy(loyalty = (employee.loyalty - loyaltyLoss).coerceAtLeast(0))
-                        } else {
-                            // 薪资满足期望，每月恢复1点忠诚度（每天约0.033点）
-                            val loyaltyGain = if (currentDay == 1) 1 else 0 // 每月1日恢复1点
-                            employee.copy(loyalty = (employee.loyalty + loyaltyGain).coerceAtMost(100))
+            // 性能优化：在后台线程计算，减少主线程阻塞
+            if (currentDay == 1) { // 只在每月1日更新，减少计算频率
+                try {
+                    val updatedEmployees2 = withContext(Dispatchers.Default) {
+                        allEmployees.map { employee ->
+                            if (!employee.isFounder && employee.requestedSalary == null) {
+                                // 计算员工期望的薪资
+                                val expectedSalary = employee.calculateExpectedSalary(employee.salary)
+                                if (employee.salary < expectedSalary) {
+                                    // 薪资低于期望，每月降低1点忠诚度
+                                    employee.copy(loyalty = (employee.loyalty - 1).coerceAtLeast(0))
+                                } else {
+                                    // 薪资满足期望，每月恢复1点忠诚度
+                                    employee.copy(loyalty = (employee.loyalty + 1).coerceAtMost(100))
+                                }
+                            } else {
+                                employee
+                            }
                         }
-                    } else {
-                        employee
                     }
+                    allEmployees.clear()
+                    allEmployees.addAll(updatedEmployees2)
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "更新员工忠诚度失败", e)
                 }
-                allEmployees.clear()
-                allEmployees.addAll(updatedEmployees2)
-            } catch (e: Exception) {
-                Log.e("MainActivity", "更新员工忠诚度失败", e)
             }
             
             // 自动存档检查（按天计算）
@@ -3010,40 +2711,42 @@ fun GameScreen(
                         Log.d("MainActivity", "月结算粉丝增长: +$totalFansGrowth (平均评分:$avgRating, 声望加成:+${(reputationBonus*100).toInt()}%, 当前粉丝:$fans)")
                     }
                     
-                    // 月结算：宣传指数衰减
-                    games = games.map { game ->
-                        if (game.promotionIndex > 0f) {
-                            // 根据游戏状态确定衰减速度
-                            val decayRate = when (game.releaseStatus) {
-                                GameReleaseStatus.DEVELOPMENT,
-                                GameReleaseStatus.READY_FOR_RELEASE,
-                                GameReleaseStatus.PRICE_SETTING -> 0.04f  // 开发中游戏：每月衰减4%
-                                GameReleaseStatus.RELEASED,
-                                GameReleaseStatus.RATED -> 0.10f  // 已发售游戏：每月衰减10%
-                                else -> 0f  // 已下架游戏不衰减
-                            }
-                            
-                            val newPromotionIndex = (game.promotionIndex - decayRate).coerceAtLeast(0f)
-                            
-                            // 日志输出衰减信息
-                            if (game.promotionIndex != newPromotionIndex) {
-                                val statusText = when (game.releaseStatus) {
-                                    GameReleaseStatus.DEVELOPMENT -> "开发中"
-                                    GameReleaseStatus.READY_FOR_RELEASE -> "准备发售"
-                                    GameReleaseStatus.PRICE_SETTING -> "价格设置中"
-                                    GameReleaseStatus.RELEASED -> "已发售"
-                                    GameReleaseStatus.RATED -> "已评分"
-                                    else -> "其他"
+                    // 月结算：宣传指数衰减 - 性能优化：在后台线程计算
+                    games = withContext(Dispatchers.Default) {
+                        games.map { game ->
+                            if (game.promotionIndex > 0f) {
+                                // 根据游戏状态确定衰减速度
+                                val decayRate = when (game.releaseStatus) {
+                                    GameReleaseStatus.DEVELOPMENT,
+                                    GameReleaseStatus.READY_FOR_RELEASE,
+                                    GameReleaseStatus.PRICE_SETTING -> 0.04f  // 开发中游戏：每月衰减4%
+                                    GameReleaseStatus.RELEASED,
+                                    GameReleaseStatus.RATED -> 0.10f  // 已发售游戏：每月衰减10%
+                                    else -> 0f  // 已下架游戏不衰减
                                 }
-                                Log.d("MainActivity", "宣传指数衰减: ${game.name} ($statusText) ${(game.promotionIndex * 100).toInt()}% -> ${(newPromotionIndex * 100).toInt()}% (衰减${(decayRate * 100).toInt()}%)")
+                                
+                                val newPromotionIndex = (game.promotionIndex - decayRate).coerceAtLeast(0f)
+                                
+                                // 日志输出衰减信息（仅在详细模式）
+                                if (ENABLE_VERBOSE_GAME_LOGS && game.promotionIndex != newPromotionIndex) {
+                                    val statusText = when (game.releaseStatus) {
+                                        GameReleaseStatus.DEVELOPMENT -> "开发中"
+                                        GameReleaseStatus.READY_FOR_RELEASE -> "准备发售"
+                                        GameReleaseStatus.PRICE_SETTING -> "价格设置中"
+                                        GameReleaseStatus.RELEASED -> "已发售"
+                                        GameReleaseStatus.RATED -> "已评分"
+                                        else -> "其他"
+                                    }
+                                    Log.d("MainActivity", "宣传指数衰减: ${game.name} ($statusText) ${(game.promotionIndex * 100).toInt()}% -> ${(newPromotionIndex * 100).toInt()}% (衰减${(decayRate * 100).toInt()}%)")
+                                }
+                                
+                                game.copy(
+                                    promotionIndex = newPromotionIndex,
+                                    allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                                )
+                            } else {
+                                game
                             }
-                            
-                            game.copy(
-                                promotionIndex = newPromotionIndex,
-                                allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
-                            )
-                        } else {
-                            game
                         }
                     }
                     
@@ -3077,16 +2780,19 @@ fun GameScreen(
                             money = safeAddMoney(money, -totalCost)
                             fans += selectedPromotionType.fansGain * gamesNeedingPromotion.size
                             
-                            // 更新所有需要宣传的游戏的宣传指数
-                            games = games.map { game ->
-                                if (gamesNeedingPromotion.any { it.id == game.id }) {
-                                    val newPromotionIndex = (game.promotionIndex + selectedPromotionType.promotionIndexGain).coerceAtMost(1.0f)
-                                    game.copy(
-                                promotionIndex = newPromotionIndex,
-                                allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
-                            )
-                                } else {
-                                    game
+                            // 更新所有需要宣传的游戏的宣传指数 - 性能优化：使用Set提升查找效率
+                            val promotionGameIds = gamesNeedingPromotion.map { it.id }.toSet()
+                            games = withContext(Dispatchers.Default) {
+                                games.map { game ->
+                                    if (game.id in promotionGameIds) {
+                                        val newPromotionIndex = (game.promotionIndex + selectedPromotionType.promotionIndexGain).coerceAtMost(1.0f)
+                                        game.copy(
+                                            promotionIndex = newPromotionIndex,
+                                            allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                                        )
+                                    } else {
+                                        game
+                                    }
                                 }
                             }
                             
@@ -3191,16 +2897,19 @@ fun GameScreen(
                             money = safeAddMoney(money, -totalCost)
                             fans += selectedPromotionType.fansGain * gamesNeedingPromotion.size
                             
-                            // 更新所有需要宣传的游戏的宣传指数
-                            games = games.map { game ->
-                                if (gamesNeedingPromotion.any { it.id == game.id }) {
-                                    val newPromotionIndex = (game.promotionIndex + selectedPromotionType.promotionIndexGain).coerceAtMost(1.0f)
-                                    game.copy(
-                                promotionIndex = newPromotionIndex,
-                                allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
-                            )
-                                } else {
-                                    game
+                            // 更新所有需要宣传的游戏的宣传指数 - 性能优化：使用Set提升查找效率
+                            val promotionGameIds = gamesNeedingPromotion.map { it.id }.toSet()
+                            games = withContext(Dispatchers.Default) {
+                                games.map { game ->
+                                    if (game.id in promotionGameIds) {
+                                        val newPromotionIndex = (game.promotionIndex + selectedPromotionType.promotionIndexGain).coerceAtMost(1.0f)
+                                        game.copy(
+                                            promotionIndex = newPromotionIndex,
+                                            allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                                        )
+                                    } else {
+                                        game
+                                    }
                                 }
                             }
                             
@@ -3319,18 +3028,20 @@ fun GameScreen(
                 fans += totalFansReward
                 companyReputation = companyReputation.addReputation(totalReputationGain)
                 
-                // 更新获奖游戏的awards字段
-                games = games.map { game ->
-                    if (game.id in winnerGameIds) {
-                        val wonAwards = finalNominations
-                            .filter { it.winner?.gameId == game.id }
-                            .map { it.award }
-                        game.copy(
-                            awards = (game.awards + wonAwards).distinct(),
-                            allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
-                        )
-                    } else {
-                        game
+                // 更新获奖游戏的awards字段 - 性能优化：在后台线程计算
+                games = withContext(Dispatchers.Default) {
+                    games.map { game ->
+                        if (game.id in winnerGameIds) {
+                            val wonAwards = finalNominations
+                                .filter { it.winner?.gameId == game.id }
+                                .map { it.award }
+                            game.copy(
+                                awards = (game.awards + wonAwards).distinct(),
+                                allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                            )
+                        } else {
+                            game
+                        }
                     }
                 }
                 
@@ -3561,149 +3272,158 @@ fun GameScreen(
                 }
             }
             
-            // 更新游戏开发进度（分阶段系统）
-            games = games.map { game ->
-                if (!game.isCompleted && game.assignedEmployees.isNotEmpty()) {
-                    val currentPhase = game.currentPhase
-                    
-                    // 检查当前阶段是否有足够的员工
-                    if (!currentPhase.checkRequirements(game.assignedEmployees)) {
-                        // 没有满足要求的员工，进度不增长
-                        if (ENABLE_VERBOSE_GAME_LOGS) {
-                            Log.w("MainActivity", "⚠️ 游戏${game.name}阶段${currentPhase.displayName}员工不足")
+            // 更新游戏开发进度（分阶段系统）- 性能优化：在后台线程计算，减少主线程阻塞
+            val updatedGames = withContext(Dispatchers.Default) {
+                // 创建员工Map以提升查找效率（只需创建一次）
+                val employeeMap = allEmployees.associateBy { it.id }
+                
+                games.map { game ->
+                    if (!game.isCompleted && game.assignedEmployees.isNotEmpty()) {
+                        val currentPhase = game.currentPhase
+                        
+                        // 检查当前阶段是否有足够的员工
+                        if (!currentPhase.checkRequirements(game.assignedEmployees)) {
+                            // 没有满足要求的员工，进度不增长
+                            if (ENABLE_VERBOSE_GAME_LOGS) {
+                                Log.w("MainActivity", "⚠️ 游戏${game.name}阶段${currentPhase.displayName}员工不足")
+                            }
+                            return@map game
                         }
-                        return@map game
-                    }
-                    
-                    // 计算当前阶段的进度增长
-                    val phaseProgressIncrease = currentPhase.calculateProgressSpeed(game.assignedEmployees)
-                    val newPhaseProgress = (game.phaseProgress + phaseProgressIncrease).coerceAtMost(1.0f)
-                    
-                    // 优化：仅在详细日志模式或阶段完成时输出
-                    if (ENABLE_VERBOSE_GAME_LOGS || newPhaseProgress >= 1.0f) {
-                        Log.d("MainActivity", "📈 ${game.name}开发：阶段=${currentPhase.displayName}, 进度=${(newPhaseProgress * 100).toInt()}%, 员工=${game.assignedEmployees.size}人")
-                    }
-                    
-                    // 检查当前阶段是否完成
-                    if (newPhaseProgress >= 1.0f) {
-                        // 当前阶段完成，进入下一阶段
-                        val nextPhase = currentPhase.getNextPhase()
                         
-                        // 累积当前阶段的员工到allDevelopmentEmployees（去重）
-                        val updatedAllEmployees = (game.allDevelopmentEmployees + game.assignedEmployees)
-                            .distinctBy { it.id } // 按ID去重，避免同一员工多次计入
+                        // 计算当前阶段的进度增长
+                        val phaseProgressIncrease = currentPhase.calculateProgressSpeed(game.assignedEmployees)
+                        val newPhaseProgress = (game.phaseProgress + phaseProgressIncrease).coerceAtMost(1.0f)
                         
-                        if (nextPhase != null) {
-                            // 进入下一阶段
-                            val updatedGame = game.copy(
-                                currentPhase = nextPhase,
-                                phaseProgress = 0f,
-                                developmentProgress = when (nextPhase) {
-                                    DevelopmentPhase.DESIGN -> 0f // 不应该发生
-                                    DevelopmentPhase.ART_SOUND -> 0.33f // 需求文档完成
-                                    DevelopmentPhase.PROGRAMMING -> 0.66f // 美术音效完成
-                                },
-                                assignedEmployees = emptyList(), // 清空当前阶段员工，让玩家重新分配
-                                allDevelopmentEmployees = updatedAllEmployees // 保存所有参与开发的员工
-                            )
-                            updatedGame
+                        // 优化：仅在详细日志模式或阶段完成时输出
+                        if (ENABLE_VERBOSE_GAME_LOGS || newPhaseProgress >= 1.0f) {
+                            Log.d("MainActivity", "📈 ${game.name}开发：阶段=${currentPhase.displayName}, 进度=${(newPhaseProgress * 100).toInt()}%, 员工=${game.assignedEmployees.size}人")
+                        }
+                        
+                        // 检查当前阶段是否完成
+                        if (newPhaseProgress >= 1.0f) {
+                            // 当前阶段完成，进入下一阶段
+                            val nextPhase = currentPhase.getNextPhase()
+                            
+                            // 累积当前阶段的员工到allDevelopmentEmployees（去重）
+                            val updatedAllEmployees = (game.allDevelopmentEmployees + game.assignedEmployees)
+                                .distinctBy { it.id } // 按ID去重，避免同一员工多次计入
+                            
+                            if (nextPhase != null) {
+                                // 进入下一阶段
+                                game.copy(
+                                    currentPhase = nextPhase,
+                                    phaseProgress = 0f,
+                                    developmentProgress = when (nextPhase) {
+                                        DevelopmentPhase.DESIGN -> 0f // 不应该发生
+                                        DevelopmentPhase.ART_SOUND -> 0.33f // 需求文档完成
+                                        DevelopmentPhase.PROGRAMMING -> 0.66f // 美术音效完成
+                                    },
+                                    assignedEmployees = emptyList(), // 清空当前阶段员工，让玩家重新分配
+                                    allDevelopmentEmployees = updatedAllEmployees // 保存所有参与开发的员工
+                                )
+                            } else {
+                                // 所有阶段完成，游戏开发完成
+                                // 使用allDevelopmentEmployees计算评分
+                                val gameWithAllEmployees = game.copy(
+                                    assignedEmployees = updatedAllEmployees,
+                                    allDevelopmentEmployees = updatedAllEmployees
+                                )
+                                val gameRating = GameRatingCalculator.calculateRating(gameWithAllEmployees)
+                                game.copy(
+                                    developmentProgress = 1.0f,
+                                    phaseProgress = 1.0f,
+                                    isCompleted = true,
+                                    rating = gameRating.finalScore,
+                                    gameRating = gameRating,
+                                    releaseStatus = GameReleaseStatus.READY_FOR_RELEASE,
+                                    assignedEmployees = emptyList(),
+                                    allDevelopmentEmployees = updatedAllEmployees // 保存所有参与开发的员工
+                                )
+                            }
                         } else {
-                            // 所有阶段完成，游戏开发完成
-                            // 使用allDevelopmentEmployees计算评分
-                            val gameWithAllEmployees = game.copy(
-                                assignedEmployees = updatedAllEmployees,
-                                allDevelopmentEmployees = updatedAllEmployees
-                            )
-                            val gameRating = GameRatingCalculator.calculateRating(gameWithAllEmployees)
-                            val completedGame = game.copy(
-                                developmentProgress = 1.0f,
-                                phaseProgress = 1.0f,
-                                isCompleted = true,
-                                rating = gameRating.finalScore,
-                                gameRating = gameRating,
-                                releaseStatus = GameReleaseStatus.READY_FOR_RELEASE,
-                                assignedEmployees = emptyList(),
-                                allDevelopmentEmployees = updatedAllEmployees // 保存所有参与开发的员工
-                            )
+                            // 阶段未完成，更新阶段进度和总进度
+                            val phaseWeight = 0.33f // 每个阶段占总进度的33%
+                            val phaseBaseProgress = when (currentPhase) {
+                                DevelopmentPhase.DESIGN -> 0f
+                                DevelopmentPhase.ART_SOUND -> 0.33f
+                                DevelopmentPhase.PROGRAMMING -> 0.66f
+                            }
+                            val newTotalProgress = phaseBaseProgress + (newPhaseProgress * phaseWeight)
                             
-                            // 先显示评分对话框
-                            pendingRatingGame = completedGame
-                            showRatingDialog = true
+                            // 优化：使用已创建的Map提升查找效率
+                            val updatedAssignedEmployees = game.assignedEmployees.map { assignedEmployee ->
+                                employeeMap[assignedEmployee.id] ?: assignedEmployee
+                            }
                             
-                            completedGame
+                            game.copy(
+                                phaseProgress = newPhaseProgress,
+                                developmentProgress = newTotalProgress,
+                                isCompleted = false,
+                                assignedEmployees = updatedAssignedEmployees,
+                                allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList() ?: emptyList() // 兼容旧存档
+                            )
                         }
                     } else {
-                        // 阶段未完成，更新阶段进度和总进度
-                        val phaseWeight = 0.33f // 每个阶段占总进度的33%
-                        val phaseBaseProgress = when (currentPhase) {
-                            DevelopmentPhase.DESIGN -> 0f
-                            DevelopmentPhase.ART_SOUND -> 0.33f
-                            DevelopmentPhase.PROGRAMMING -> 0.66f
-                        }
-                        val newTotalProgress = phaseBaseProgress + (newPhaseProgress * phaseWeight)
-                        
-                        // 优化：使用Map提升查找效率
-                        val employeeMap = allEmployees.associateBy { it.id }
-                        val updatedAssignedEmployees = game.assignedEmployees.map { assignedEmployee ->
-                            employeeMap[assignedEmployee.id] ?: assignedEmployee
-                        }
-                        
-                        game.copy(
-                            phaseProgress = newPhaseProgress,
-                            developmentProgress = newTotalProgress,
-                            isCompleted = false,
-                            assignedEmployees = updatedAssignedEmployees,
-                            allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList() ?: emptyList() // 兼容旧存档
-                        )
+                        game
                     }
-                } else {
-                    game
                 }
             }
             
+            // 检查是否有游戏完成（需要在主线程更新状态）
+            val completedGame = updatedGames.firstOrNull { it.isCompleted && !games.any { g -> g.id == it.id && g.isCompleted } }
+            if (completedGame != null) {
+                pendingRatingGame = completedGame
+                showRatingDialog = true
+            }
+            
+            // 一次性更新所有游戏（减少重组次数）
+            games = updatedGames
+            
             // 注意：已发售游戏的收益现在在每分钟更新中实时计算，这里不再重复计算
-            // 每天结束时只推进更新任务进度（只有RELEASED状态）
-            games.filter { it.releaseStatus == GameReleaseStatus.RELEASED }
-                .forEach { releasedGame ->
-                    // 更新游戏信息（商业模式和付费内容）
-                    RevenueManager.updateGameInfo(
-                        releasedGame.id,
-                        releasedGame.businessModel,
-                        releasedGame.monetizationItems
-                    )
+            // 每天结束时只推进更新任务进度（只有RELEASED状态）- 性能优化：批量处理，减少状态更新
+            val releasedGamesForUpdate = games.filter { it.releaseStatus == GameReleaseStatus.RELEASED }
+            if (releasedGamesForUpdate.isNotEmpty()) {
+                // 性能优化：在后台线程批量处理所有更新任务
+                val updatedGamesForTasks = withContext(Dispatchers.Default) {
+                    // 创建员工Map以提升查找效率（只需创建一次）
+                    val employeeMap = allEmployees.associateBy { it.id }
                     
-                    // 收益已经在每分钟更新中实时计算，这里不再重复计算
-
-                    // 在推进进度前先获取更新任务信息（因为完成后会被清除）
-                    val completedTask = RevenueManager.getGameRevenue(releasedGame.id)?.updateTask
-                    
-                    // 若存在更新任务，根据已分配员工数量和技能等级推进进度
-                    var employeesForUpdate = releasedGame.assignedEmployees
-                    if (employeesForUpdate.isNotEmpty()) {
-                        // 优化：使用Map提升查找效率
-                        val employeeMap = allEmployees.associateBy { it.id }
-                        val updatedAssignedEmployees = employeesForUpdate.map { assignedEmployee ->
-                            employeeMap[assignedEmployee.id] ?: assignedEmployee
-                        }
+                    releasedGamesForUpdate.map { releasedGame ->
+                        // 更新游戏信息（商业模式和付费内容）
+                        RevenueManager.updateGameInfo(
+                            releasedGame.id,
+                            releasedGame.businessModel,
+                            releasedGame.monetizationItems
+                        )
                         
-                        // 更新游戏中的assignedEmployees
-                        games = games.map { game ->
-                            if (game.id == releasedGame.id) {
-                                game.copy(
-                                    assignedEmployees = updatedAssignedEmployees,
-                                    allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
-                                )
-                            } else {
-                                game
+                        // 在推进进度前先获取更新任务信息（因为完成后会被清除）
+                        val completedTask = RevenueManager.getGameRevenue(releasedGame.id)?.updateTask
+                        
+                        // 若存在更新任务，根据已分配员工数量和技能等级推进进度
+                        var employeesForUpdate = releasedGame.assignedEmployees
+                        if (employeesForUpdate.isNotEmpty()) {
+                            // 优化：使用已创建的Map提升查找效率
+                            val updatedAssignedEmployees = employeesForUpdate.map { assignedEmployee ->
+                                employeeMap[assignedEmployee.id] ?: assignedEmployee
                             }
+                            
+                            // 使用更新后的员工列表计算进度
+                            employeesForUpdate = updatedAssignedEmployees
                         }
                         
-                        // 使用更新后的员工列表计算进度
-                        employeesForUpdate = updatedAssignedEmployees
+                        val employeePoints = RevenueManager.calculateUpdateProgressPoints(employeesForUpdate)
+                        val updateJustCompleted = RevenueManager.progressUpdateTask(releasedGame.id, employeePoints)
+                        
+                        // 返回需要更新的游戏数据
+                        Triple(releasedGame, updateJustCompleted, completedTask)
                     }
-                    
-                    val employeePoints = RevenueManager.calculateUpdateProgressPoints(employeesForUpdate)
-                    val updateJustCompleted = RevenueManager.progressUpdateTask(releasedGame.id, employeePoints)
+                }
+                
+                // 在主线程批量更新游戏（减少重组次数）
+                val updatedGamesMap = mutableMapOf<String, Game>()
+                updatedGamesMap.putAll(games.associateBy { it.id })
+                
+                updatedGamesForTasks.forEach { (releasedGame, updateJustCompleted, completedTask) ->
                     
                     // 如果更新刚刚完成，版本号+0.1
                     if (updateJustCompleted) {
@@ -3762,7 +3482,7 @@ fun GameScreen(
                             assignedEmployees = if (willCreateNewTask) releasedGame.assignedEmployees else emptyList(),
                             updateHistory = newUpdateHistory // 添加更新记录
                         )
-                        games = games.map { if (it.id == updatedGame.id) updatedGame else it }
+                        updatedGamesMap[updatedGame.id] = updatedGame
                         
                         // 如果开启了自动更新，自动创建下一次更新任务
                         if (releasedGame.autoUpdate && willCreateNewTask) {
@@ -3788,6 +3508,10 @@ fun GameScreen(
                         }
                     }
                 }
+                
+                // 一次性更新所有游戏（减少重组次数）
+                games = games.map { updatedGamesMap[it.id] ?: it }
+            }
             
             // ===== 客诉处理流程 =====
             // 1. 先生成新客诉（实时生成）
@@ -3857,47 +3581,87 @@ fun GameScreen(
                 }
             }
             
-            // 每日更新赛事
-            games = games.map { game ->
-                val tournament = game.currentTournament
-                if (tournament != null && tournament.status != TournamentStatus.COMPLETED) {
-                    val updatedTournament = TournamentManager.updateTournament(
-                        tournament,
-                        GameDate(currentYear, currentMonth, currentDay)
-                    )
-                    
-                    // 检查是否刚完成
-                    if (updatedTournament.status == TournamentStatus.COMPLETED && 
-                        tournament.status != TournamentStatus.COMPLETED) {
-                        // 结算赛事
-                        val revenueData = RevenueManager.getGameRevenue(game.id)
+            // 每日更新赛事 - 性能优化：在后台线程计算比赛进度，在主线程结算
+            val tournamentUpdateResults = withContext(Dispatchers.Default) {
+                games.map { game ->
+                    val tournament = game.currentTournament
+                    if (tournament != null && tournament.status != TournamentStatus.COMPLETED) {
+                        val updatedTournament = TournamentManager.updateTournament(
+                            tournament,
+                            GameDate(currentYear, currentMonth, currentDay)
+                        )
+                        
+                        // 检查是否刚完成
+                        val isCompleted = updatedTournament.status == TournamentStatus.COMPLETED && 
+                            tournament.status != TournamentStatus.COMPLETED
+                        
+                        // 返回更新结果：Pair(Triple(游戏, 更新后的赛事, 原赛事), 是否完成)
+                        Pair(Triple(game, updatedTournament, tournament), isCompleted)
+                    } else {
+                        null
+                    }
+                }.filterNotNull()
+            }
+            
+            // 在主线程批量结算完成的赛事
+            val tournamentUpdatedGames = games.map { game ->
+                val updateResult = tournamentUpdateResults.find { it.first.first.id == game.id }
+                if (updateResult != null) {
+                    val (triple, isCompleted) = updateResult
+                    val (updatedGame, updatedTournament, oldTournament) = triple
+                    if (isCompleted) {
+                        // 结算完成的赛事
+                        val revenueData = RevenueManager.getGameRevenue(updatedGame.id)
                         if (revenueData != null) {
-                            // 确定成功等级
                             val successLevel = TournamentManager.determineTournamentSuccess(
-                                updatedTournament, game, 50f // TODO: 使用公司声誉
+                                updatedTournament, updatedGame, 50f
                             )
-                            
-                            // 计算收益
                             val revenue = TournamentManager.calculateTournamentRevenue(
-                                updatedTournament, game, revenueData, successLevel
+                                updatedTournament, updatedGame, revenueData, successLevel
                             )
-                            
-                            // 应用效果
                             val (fansGained, playersGained, interestBonus) = TournamentManager.applyTournamentEffects(
-                                updatedTournament, game, revenueData, fans, successLevel
+                                updatedTournament, updatedGame, revenueData, fans, successLevel
                             )
-                            
-                            // 生成随机事件
                             val (eventDesc, _) = TournamentManager.generateRandomEvent()
                             
-                            // 更新数据
                             money = safeAddMoney(money, revenue.totalRevenue.toLong())
                             fans += fansGained
                             
-                            // 更新收益数据的兴趣值（直接修改，RevenueManager会自动保存）
-                            // Note: 这里简化处理，实际兴趣值会在月结算时自动衰减
+                            if (updatedGame.businessModel == BusinessModel.ONLINE_GAME) {
+                                val currentRevenue = RevenueManager.getGameRevenue(updatedGame.id)
+                                if (currentRevenue != null) {
+                                    val newInterest = (currentRevenue.playerInterest + interestBonus).coerceIn(0.0, 100.0)
+                                    val currentInterestMultiplier = when {
+                                        currentRevenue.playerInterest >= 70.0 -> 1.0
+                                        currentRevenue.playerInterest >= 50.0 -> 0.7
+                                        currentRevenue.playerInterest >= 30.0 -> 0.4
+                                        else -> 0.2
+                                    }
+                                    val newInterestMultiplier = when {
+                                        newInterest >= 70.0 -> 1.0
+                                        newInterest >= 50.0 -> 0.7
+                                        newInterest >= 30.0 -> 0.4
+                                        else -> 0.2
+                                    }
+                                    val currentActivePlayers = currentRevenue.totalRegisteredPlayers * 0.4 * currentInterestMultiplier
+                                    val targetActivePlayers = currentActivePlayers + playersGained
+                                    val registeredPlayersGained = if (newInterestMultiplier > 0) {
+                                        ((targetActivePlayers / (0.4 * newInterestMultiplier)) - currentRevenue.totalRegisteredPlayers).toLong().coerceAtLeast(0L)
+                                    } else {
+                                        (playersGained * 2.5).toLong()
+                                    }
+                                    val newTotalRegistered = RevenueManager.safeAddRegisteredPlayers(
+                                        currentRevenue.totalRegisteredPlayers,
+                                        registeredPlayersGained
+                                    )
+                                    RevenueManager.updateGameRevenueAfterTournament(
+                                        updatedGame.id,
+                                        newInterest,
+                                        newTotalRegistered
+                                    )
+                                }
+                            }
                             
-                            // 保存历史
                             val completedTournament = updatedTournament.copy(
                                 sponsorRevenue = revenue.sponsorRevenue,
                                 broadcastRevenue = revenue.broadcastRevenue,
@@ -3911,9 +3675,6 @@ fun GameScreen(
                             
                             val history = ((game.tournamentHistory ?: emptyList()) + completedTournament).takeLast(5)
                             
-                            Log.d("MainActivity", "🏆 赛事完成: ${game.name} - ${updatedTournament.type.displayName}, 收益: ${formatMoney(revenue.totalRevenue)}, 粉丝+$fansGained")
-                            
-                            // 显示赛事完成弹窗
                             tournamentResult = completedTournament
                             showTournamentResultDialog = true
                             
@@ -3929,6 +3690,7 @@ fun GameScreen(
                             )
                         }
                     } else {
+                        // 更新进行中的赛事
                         game.copy(
                             currentTournament = updatedTournament,
                             allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
@@ -3938,6 +3700,8 @@ fun GameScreen(
                     game
                 }
             }
+            
+            games = tournamentUpdatedGames
             
             // 为活跃岗位生成应聘者（传入现有员工名字，确保应聘者名字唯一）
             val existingEmployeeNames = allEmployees.map { it.name }.toSet()
@@ -7534,7 +7298,10 @@ fun InGameSettingsContent(
     val userId = tapTapAccount?.unionId ?: tapTapAccount?.openId
     
     // 检查账号是否已解锁GM模式（账号级别）
-    val isGMModeUnlockedByAccount = RedeemCodeManager.isGMModeUnlocked(userId)
+    // 性能优化：使用remember缓存，避免每次重组都查询
+    val isGMModeUnlockedByAccount = remember(userId) {
+        RedeemCodeManager.isGMModeUnlocked(userId)
+    }
     
     Column(
         modifier = Modifier
@@ -9137,8 +8904,28 @@ fun FeatureLockedDialog(
 }
 
 /**
- * FPS监测组件
- * 显示当前帧率，用于性能监控
+ * 分析FPS下降的可能原因
+ */
+private fun getPossibleCause(currentFps: Int, lastFps: Int, memoryPercent: Int, stutterPercent: Int): String {
+    return buildString {
+        if (currentFps < lastFps) {
+            // FPS下降
+            when {
+                memoryPercent > 80 -> append("内存占用过高($memoryPercent%)，可能触发GC；")
+                stutterPercent > 30 -> append("大量卡顿帧($stutterPercent%)，主线程可能被阻塞；")
+                currentFps < 30 -> append("严重性能问题，可能是复杂的UI绘制或计算；")
+                else -> append("性能下降，可能是后台任务增加；")
+            }
+        } else {
+            // FPS提升
+            append("性能恢复，卡顿原因已消除")
+        }
+    }
+}
+
+/**
+ * FPS监测组件 - 增强版
+ * 显示当前帧率，并记录详细的性能分析日志
  */
 @Composable
 fun FpsMonitor(
@@ -9151,17 +8938,26 @@ fun FpsMonitor(
     DisposableEffect(Unit) {
         var frameCount = 0
         var lastTime = System.currentTimeMillis()
+        var lastFps = 60
+        var frameTimings = mutableListOf<Long>()
+        var lastFrameTime = System.nanoTime()
         
         val frameCallback = object : Choreographer.FrameCallback {
             override fun doFrame(frameTimeNanos: Long) {
                 frameCount++
+                
+                // 记录帧间隔时间
+                val frameInterval = (frameTimeNanos - lastFrameTime) / 1_000_000 // 转换为毫秒
+                frameTimings.add(frameInterval)
+                lastFrameTime = frameTimeNanos
+                
                 Choreographer.getInstance().postFrameCallback(this)
             }
         }
         
         Choreographer.getInstance().postFrameCallback(frameCallback)
         
-        // 每秒计算一次FPS
+        // 每秒计算一次FPS并输出详细日志
         val updateJob = coroutineScope.launch {
             while (true) {
                 delay(1000)
@@ -9169,8 +8965,81 @@ fun FpsMonitor(
                 val elapsed = currentTime - lastTime
                 if (elapsed > 0) {
                     val calculatedFps = ((frameCount * 1000L) / elapsed).toInt().coerceIn(0, 144)
+                    
+                    // 输出详细的FPS日志
+                    if (ENABLE_FPS_LOG) {
+                        // 计算帧间隔统计数据
+                        val avgFrameTime = if (frameTimings.isNotEmpty()) {
+                            frameTimings.average()
+                        } else {
+                            0.0
+                        }
+                        val maxFrameTime = frameTimings.maxOrNull() ?: 0L
+                        val minFrameTime = frameTimings.minOrNull() ?: 0L
+                        
+                        // 统计卡顿帧（超过33ms，即低于30fps）
+                        val stutterFrames = frameTimings.count { it > 33 }
+                        val stutterPercent = if (frameTimings.isNotEmpty()) {
+                            (stutterFrames * 100.0 / frameTimings.size).toInt()
+                        } else {
+                            0
+                        }
+                        
+                        // FPS变化检测
+                        val fpsChange = calculatedFps - lastFps
+                        val changeIndicator = when {
+                            fpsChange > 10 -> "📈 大幅提升"
+                            fpsChange > 5 -> "↗️ 提升"
+                            fpsChange < -10 -> "📉 大幅下降"
+                            fpsChange < -5 -> "↘️ 下降"
+                            else -> "➡️ 稳定"
+                        }
+                        
+                        // 获取内存信息
+                        val runtime = Runtime.getRuntime()
+                        val usedMemory = (runtime.totalMemory() - runtime.freeMemory()) / 1024 / 1024
+                        val maxMemory = runtime.maxMemory() / 1024 / 1024
+                        val memoryPercent = (usedMemory * 100 / maxMemory).toInt()
+                        
+                        // 基础日志
+                        Log.d("FPSMonitor", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                        Log.d("FPSMonitor", "⏱️ 当前FPS: $calculatedFps ($changeIndicator, 变化: ${if (fpsChange >= 0) "+" else ""}$fpsChange)")
+                        Log.d("FPSMonitor", "📊 帧统计: 平均=${String.format("%.1f", avgFrameTime)}ms, 最大=${maxFrameTime}ms, 最小=${minFrameTime}ms")
+                        Log.d("FPSMonitor", "⚠️ 卡顿帧: $stutterFrames/${frameTimings.size} ($stutterPercent%)")
+                        Log.d("FPSMonitor", "💾 内存: ${usedMemory}MB/${maxMemory}MB ($memoryPercent%)")
+                        
+                        // FPS下降严重时，输出额外的诊断信息
+                        if (calculatedFps < 40) {
+                            Log.w("FPSMonitor", "🔴 性能警告: FPS低于40帧！")
+                            
+                            // 检查线程状态
+                            val threadCount = Thread.activeCount()
+                            Log.w("FPSMonitor", "🧵 活跃线程数: $threadCount")
+                            
+                            // 检查GC状态
+                            if (memoryPercent > 80) {
+                                Log.w("FPSMonitor", "⚠️ 内存占用过高 (${memoryPercent}%)，可能触发GC")
+                            }
+                            
+                            // 帧时间分析
+                            if (maxFrameTime > 100) {
+                                Log.w("FPSMonitor", "⚠️ 检测到严重卡顿帧: ${maxFrameTime}ms (应小于16.7ms)")
+                            }
+                        }
+                        
+                        // FPS剧烈变化时输出警告
+                        if (kotlin.math.abs(fpsChange) > 15) {
+                            Log.w("FPSMonitor", "⚡ FPS剧烈变化: $lastFps → $calculatedFps (${if (fpsChange > 0) "+" else ""}$fpsChange)")
+                            Log.w("FPSMonitor", "可能原因: ${getPossibleCause(calculatedFps, lastFps, memoryPercent, stutterPercent)}")
+                        }
+                        
+                        Log.d("FPSMonitor", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                    }
+                    
+                    lastFps = calculatedFps
                     fps = calculatedFps
                     frameCount = 0
+                    frameTimings.clear()
                     lastTime = currentTime
                 }
             }

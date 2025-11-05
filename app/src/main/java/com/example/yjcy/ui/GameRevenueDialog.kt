@@ -1044,6 +1044,25 @@ fun ChangePriceDialog(
 ) {
     var priceText by remember { mutableStateOf(currentPrice.toString()) }
     var priceError by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
+    
+    // 验证价格输入（与发售价格逻辑一致）
+    LaunchedEffect(priceText) {
+        val price = priceText.toDoubleOrNull()
+        if (price == null) {
+            priceError = false
+            errorMessage = ""
+        } else if (price < 0) {
+            priceError = true
+            errorMessage = "价格不能为负数"
+        } else if (price > 1000.0) {
+            priceError = true
+            errorMessage = "价格不能超过1000元（与发售价格上限一致）"
+        } else {
+            priceError = false
+            errorMessage = ""
+        }
+    }
     
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1064,36 +1083,46 @@ fun ChangePriceDialog(
                     value = priceText,
                     onValueChange = { newValue ->
                         priceText = newValue
-                        priceError = false
                     },
                     label = { Text("新价格") },
-                    placeholder = { Text("请输入价格（例如：50.0）") },
+                    placeholder = { Text("请输入价格（0-1000元）") },
                     singleLine = true,
                     isError = priceError,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
-                    prefix = { Text("¥") }
+                    prefix = { Text("¥") },
+                    supportingText = {
+                        if (priceError && errorMessage.isNotEmpty()) {
+                            Text(
+                                text = errorMessage,
+                                color = MaterialTheme.colorScheme.error,
+                                fontSize = 12.sp
+                            )
+                        } else if (priceText.isNotEmpty() && !priceError) {
+                            Text(
+                                text = "价格范围：0-1000元（与发售价格上限一致）",
+                                color = Color.Gray,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
                 )
-                
-                if (priceError) {
-                    Text(
-                        text = "请输入有效的价格（大于0）",
-                        color = MaterialTheme.colorScheme.error,
-                        fontSize = 12.sp
-                    )
-                }
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
                     val newPrice = priceText.toDoubleOrNull()
-                    if (newPrice != null && newPrice > 0) {
+                    if (newPrice != null && newPrice >= 0.0 && newPrice <= 1000.0) {
                         onConfirm(newPrice)
                     } else {
                         priceError = true
+                        errorMessage = if (newPrice == null) "请输入有效的价格" 
+                                       else if (newPrice < 0) "价格不能为负数"
+                                       else "价格不能超过1000元"
                     }
                 },
+                enabled = !priceError && priceText.isNotEmpty(),
                 colors = ButtonDefaults.textButtonColors(
                     contentColor = MaterialTheme.colorScheme.primary
                 )

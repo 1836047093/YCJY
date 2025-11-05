@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    // alias(libs.plugins.kotlin.serialization)  // 已移除Supabase
     alias(libs.plugins.ksp)
     id("dagger.hilt.android.plugin")
 }
@@ -118,7 +119,12 @@ dependencies {
     implementation(libs.tap.db)
     
     // JSON序列化（TapSDK需要）
-    implementation(libs.kotlinx.serialization.json)
+    // implementation(libs.kotlinx.serialization.json)  // 已移除Supabase
+    
+    // Supabase（已移除）
+    // implementation(libs.supabase.postgrest)
+    implementation(libs.kotlinx.coroutines)
+    // implementation(libs.ktor.client.android)
 
 
     testImplementation(libs.junit)

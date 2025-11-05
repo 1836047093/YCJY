@@ -1227,13 +1227,15 @@ object RevenueManager {
             
             // 首日销量/注册：根据商业模式调整
             val baseSales = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
-                // 网游：首日注册数根据评分调整，高评分游戏更多初始玩家（已下调数值）
+                // 网游：首日注册数根据评分调整，10分游戏大幅提升初始玩家数
                 val baseRegistrations = when {
-                    gameRating != null && gameRating >= 9.0f -> Random.nextInt(1200, 2000)  // 9.0+分：1200-2000人（原3000-6000）
-                    gameRating != null && gameRating >= 8.5f -> Random.nextInt(1000, 1800) // 8.5-9.0分：1000-1800人（原2000-4000）
-                    gameRating != null && gameRating >= 8.0f -> Random.nextInt(800, 1500)  // 8.0-8.5分：800-1500人（原1500-3000）
-                    gameRating != null && gameRating >= 7.0f -> Random.nextInt(600, 1200)  // 7.0-8.0分：600-1200人（原1200-2500）
-                    else -> Random.nextInt(400, 1000)                                     // 7.0分以下：400-1000人（原1000-2000）
+                    gameRating != null && gameRating >= 10.0f -> Random.nextInt(3000, 5000)  // 10.0分：3000-5000人（满分神作）
+                    gameRating != null && gameRating >= 9.5f -> Random.nextInt(2500, 4000)   // 9.5-10.0分：2500-4000人（接近满分）
+                    gameRating != null && gameRating >= 9.0f -> Random.nextInt(2000, 3500)   // 9.0-9.5分：2000-3500人（神作）
+                    gameRating != null && gameRating >= 8.5f -> Random.nextInt(1500, 2500)  // 8.5-9.0分：1500-2500人
+                    gameRating != null && gameRating >= 8.0f -> Random.nextInt(1200, 2000)  // 8.0-8.5分：1200-2000人
+                    gameRating != null && gameRating >= 7.0f -> Random.nextInt(800, 1500)   // 7.0-8.0分：800-1500人
+                    else -> Random.nextInt(500, 1000)                                       // 7.0分以下：500-1000人
                 }
                 // 根据游戏评分添加加成
                 val withRatingBonus = applyRatingBonus(baseRegistrations, gameRating)
@@ -1437,13 +1439,15 @@ object RevenueManager {
         
         // 计算新增销量/注册
         val newSales = if (businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
-            // 网游：根据评分动态调整基础增长率，高评分游戏增长更快（已下调并添加上限）
+            // 网游：根据评分动态调整基础增长率，10分游戏增长更快
             val baseGrowthRate = when {
-                gameRating != null && gameRating >= 9.0f -> 0.04  // 9.0+分：4%增长（原12%）
-                gameRating != null && gameRating >= 8.5f -> 0.035 // 8.5-9.0分：3.5%增长（原10%）
-                gameRating != null && gameRating >= 8.0f -> 0.03  // 8.0-8.5分：3%增长（原8%）
-                gameRating != null && gameRating >= 7.0f -> 0.025 // 7.0-8.0分：2.5%增长（原6%）
-                else -> 0.02                                       // 7.0分以下：2%增长（原5%）
+                gameRating != null && gameRating >= 10.0f -> 0.08  // 10.0分：8%增长（满分神作，快速传播）
+                gameRating != null && gameRating >= 9.5f -> 0.07   // 9.5-10.0分：7%增长（接近满分）
+                gameRating != null && gameRating >= 9.0f -> 0.06  // 9.0-9.5分：6%增长（神作）
+                gameRating != null && gameRating >= 8.5f -> 0.05   // 8.5-9.0分：5%增长
+                gameRating != null && gameRating >= 8.0f -> 0.04   // 8.0-8.5分：4%增长
+                gameRating != null && gameRating >= 7.0f -> 0.03   // 7.0-8.0分：3%增长
+                else -> 0.02                                       // 7.0分以下：2%增长
             }
             
             // 基础新增注册：前一天注册数 × 增长率
@@ -1467,12 +1471,14 @@ object RevenueManager {
             // 仅根据粉丝数量添加加成（不再应用评分加成，避免重复加成）
             val withFansBonus = applyFansBonus(registrationsBeforeBonus, fanCount)
             
-            // 设置每日新增上限（防止数值爆炸）
+            // 设置每日新增上限（防止数值爆炸，10分游戏上限更高）
             val maxDailyNewRegistrations = when {
-                gameRating != null && gameRating >= 9.0f -> 5000   // 9.0+分：每天最多新增5000人
-                gameRating != null && gameRating >= 8.0f -> 3000   // 8.0-9.0分：每天最多新增3000人
-                gameRating != null && gameRating >= 7.0f -> 2000   // 7.0-8.0分：每天最多新增2000人
-                else -> 1500                                      // 其他：每天最多新增1500人
+                gameRating != null && gameRating >= 10.0f -> 10000  // 10.0分：每天最多新增10000人（满分神作）
+                gameRating != null && gameRating >= 9.5f -> 8000    // 9.5-10.0分：每天最多新增8000人
+                gameRating != null && gameRating >= 9.0f -> 6000    // 9.0-9.5分：每天最多新增6000人
+                gameRating != null && gameRating >= 8.0f -> 4000    // 8.0-9.0分：每天最多新增4000人
+                gameRating != null && gameRating >= 7.0f -> 2500    // 7.0-8.0分：每天最多新增2500人
+                else -> 1500                                        // 其他：每天最多新增1500人
             }
             
             minOf(withFansBonus, maxDailyNewRegistrations)
@@ -1727,13 +1733,15 @@ object RevenueManager {
                 ?: (com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER to emptyList())
             
             if (businessModelForCalc == com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
-                // 网游：首日注册数根据评分调整（已下调数值）
+                // 网游：首日注册数根据评分调整，10分游戏大幅提升
                 val baseRegistrations = when {
-                    gameRating != null && gameRating >= 9.0f -> Random.nextInt(1200, 2000)  // 9.0+分：1200-2000人（原3000-6000）
-                    gameRating != null && gameRating >= 8.5f -> Random.nextInt(1000, 1800) // 8.5-9.0分：1000-1800人（原2000-4000）
-                    gameRating != null && gameRating >= 8.0f -> Random.nextInt(800, 1500)   // 8.0-8.5分：800-1500人（原1500-3000）
-                    gameRating != null && gameRating >= 7.0f -> Random.nextInt(600, 1200)  // 7.0-8.0分：600-1200人（原1200-2500）
-                    else -> Random.nextInt(400, 1000)                                     // 7.0分以下：400-1000人（原1000-2000）
+                    gameRating != null && gameRating >= 10.0f -> Random.nextInt(3000, 5000)  // 10.0分：3000-5000人（满分神作）
+                    gameRating != null && gameRating >= 9.5f -> Random.nextInt(2500, 4000)   // 9.5-10.0分：2500-4000人（接近满分）
+                    gameRating != null && gameRating >= 9.0f -> Random.nextInt(2000, 3500)   // 9.0-9.5分：2000-3500人（神作）
+                    gameRating != null && gameRating >= 8.5f -> Random.nextInt(1500, 2500)  // 8.5-9.0分：1500-2500人
+                    gameRating != null && gameRating >= 8.0f -> Random.nextInt(1200, 2000)   // 8.0-8.5分：1200-2000人
+                    gameRating != null && gameRating >= 7.0f -> Random.nextInt(800, 1500)    // 7.0-8.0分：800-1500人
+                    else -> Random.nextInt(500, 1000)                                       // 7.0分以下：500-1000人
                 }
                 val withRatingBonus = applyRatingBonus(baseRegistrations, gameRating)
                 val withFansBonus = applyFansBonus(withRatingBonus, fanCount)
@@ -2439,7 +2447,7 @@ object RevenueManager {
      * @param increment 增量
      * @return 累加后的值（已处理溢出和负数）
      */
-    private fun safeAddRegisteredPlayers(current: Long, increment: Long): Long {
+    fun safeAddRegisteredPlayers(current: Long, increment: Long): Long {
         // 如果当前值为负数，说明已经溢出，重置为0
         if (current < 0) {
             android.util.Log.w("RevenueManager", "⚠️ 检测到totalRegisteredPlayers为负数($current)，重置为0")
@@ -2576,6 +2584,26 @@ object RevenueManager {
     }
     
     /**
+     * 更新游戏收益数据（赛事完成后调用）
+     * @param gameId 游戏ID
+     * @param newInterest 新的兴趣值
+     * @param newTotalRegistered 新的总注册人数
+     */
+    fun updateGameRevenueAfterTournament(
+        gameId: String,
+        newInterest: Double,
+        newTotalRegistered: Long
+    ) {
+        val current = gameRevenueMap[gameId] ?: return
+        
+        gameRevenueMap[gameId] = current.copy(
+            playerInterest = newInterest.coerceIn(0.0, 100.0),
+            totalRegisteredPlayers = newTotalRegistered
+        )
+        saveRevenueData()
+    }
+    
+    /**
      * 根据游戏评分计算注册数加成
      * @param baseRegistrations 基础注册数
      * @param gameRating 游戏评分（0-10）
@@ -2585,12 +2613,16 @@ object RevenueManager {
         if (gameRating == null) return baseRegistrations
         
         return when {
+            gameRating >= 10.0f -> {
+                // 评分 = 10.0（满分神作）：3.0倍（+200%）
+                (baseRegistrations * 3.0).toInt()
+            }
             gameRating >= 9.5f -> {
-                // 评分 >= 9.5（满分神作）：2.5倍（+150%）（原10倍）
+                // 评分 >= 9.5（接近满分）：2.5倍（+150%）
                 (baseRegistrations * 2.5).toInt()
             }
             gameRating >= 9.0f -> {
-                // 评分 9.0-9.5（神作）：2.0倍（+100%）（原6倍）
+                // 评分 9.0-9.5（神作）：2.0倍（+100%）
                 (baseRegistrations * 2.0).toInt()
             }
             gameRating >= 8.0f -> {
