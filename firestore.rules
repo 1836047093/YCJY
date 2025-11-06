@@ -1,0 +1,42 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================
+    // 开发测试模式 - 允许所有访问（不需要认证）
+    // ⚠️ 仅用于开发测试，生产环境请启用认证和严格规则
+    // ============================================
+    match /{document=**} {
+      allow read, write: if true;
+    }
+    
+    // ============================================
+    // 生产环境规则（启用认证后使用）
+    // ============================================
+    // match /user_redeem_codes/{userId} {
+    //   // 需要 Firebase Authentication
+    //   allow read: if request.auth != null && 
+    //                  (request.auth.uid == userId || 
+    //                   request.auth.token.tapUserId == userId);
+    //   allow write: if request.auth != null && 
+    //                   (request.auth.uid == userId || 
+    //                    request.auth.token.tapUserId == userId) &&
+    //                   validateRedeemCodeWrite(request.resource.data);
+    // }
+    
+    // match /redeem_codes/{code} {
+    //   allow read: if request.auth != null;
+    //   allow write: if false;
+    // }
+    
+    // function validateRedeemCodeWrite(data) {
+    //   return data.keys().hasAll(['userId', 'usedCodes', 'gmModeUnlocked', 'supporterUnlocked', 'lastUpdated']) &&
+    //          data.userId is string &&
+    //          data.usedCodes is list &&
+    //          data.gmModeUnlocked is bool &&
+    //          data.supporterUnlocked is bool &&
+    //          data.lastUpdated is timestamp;
+    // }
+  }
+}
+

@@ -174,6 +174,7 @@ import com.example.yjcy.taptap.TapLoginManager
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.yjcy.ui.taptap.TapLoginViewModel
 import com.example.yjcy.utils.RedeemCodeManager
+import com.example.yjcy.utils.FirebaseRedeemCodeManager
 
 
 
@@ -1986,23 +1987,39 @@ fun GameScreen(
     // 获取当前登录的TapTap用户ID并检查账号是否已解锁GM模式
     val tapTapAccount = TapLoginManager.getCurrentAccount()
     val userId = tapTapAccount?.unionId ?: tapTapAccount?.openId
-    // 性能优化：使用remember缓存，避免每次重组都查询
-    val isGMModeUnlockedByAccount = remember(userId) {
-        RedeemCodeManager.isGMModeUnlocked(userId)
-    }
+    
+    // GM模式解锁状态（使用State存储异步结果）
+    var isGMModeUnlockedByAccount by remember { mutableStateOf(false) }
     
     // GM模式状态（优先使用账号级别解锁状态，否则使用存档状态）
     var gmModeEnabled by remember { 
-        mutableStateOf(
-            // 如果账号已解锁GM模式，则自动启用；否则使用存档中的状态
-            isGMModeUnlockedByAccount || (saveData?.gmModeEnabled ?: false)
-        ) 
+        mutableStateOf(saveData?.gmModeEnabled ?: false) 
     }
     
-    // 当账号GM模式解锁状态变化时，自动更新GM模式状态
-    LaunchedEffect(isGMModeUnlockedByAccount) {
-        if (isGMModeUnlockedByAccount && !gmModeEnabled) {
-            gmModeEnabled = true
+    // 异步检查GM模式解锁状态并迁移本地数据
+    LaunchedEffect(userId) {
+        if (userId != null) {
+            try {
+                // 迁移本地数据到云端（首次登录时）
+                val localCodes = RedeemCodeManager.getUserUsedCodes(userId)
+                if (localCodes.isNotEmpty()) {
+                    val migrated = FirebaseRedeemCodeManager.migrateFromLocal(userId, localCodes)
+                    if (migrated) {
+                        Log.d("Firebase", "本地兑换码数据已迁移到云端")
+                    }
+                }
+                
+                // 检查云端GM模式状态
+                isGMModeUnlockedByAccount = FirebaseRedeemCodeManager.isGMModeUnlocked(userId)
+                
+                // 如果云端已解锁GM模式，自动启用
+                if (isGMModeUnlockedByAccount && !gmModeEnabled) {
+                    gmModeEnabled = true
+                    Log.d("Firebase", "从云端恢复GM模式")
+                }
+            } catch (e: Exception) {
+                Log.e("Firebase", "同步兑换码数据失败", e)
+            }
         }
     }
     
@@ -2014,13 +2031,21 @@ fun GameScreen(
     // 已使用的兑换码状态
     var usedRedeemCodes by remember { mutableStateOf(saveData?.usedRedeemCodes ?: emptySet()) }
     
-    // 支持者功能解锁状态
-    // 性能优化：使用remember缓存，避免每次重组都查询
-    val isSupporterUnlocked = remember(userId, usedRedeemCodes, saveData?.isSupporterUnlocked) {
-        if (saveData != null) {
-            saveData.isSupporterUnlocked || RedeemCodeManager.isSupporterFeatureUnlocked(userId, usedRedeemCodes)
-        } else {
-            RedeemCodeManager.isSupporterFeatureUnlocked(userId, usedRedeemCodes)
+    // 支持者功能解锁状态（使用State存储异步结果）
+    var isSupporterUnlocked by remember { mutableStateOf(saveData?.isSupporterUnlocked ?: false) }
+    
+    // 异步检查支持者功能解锁状态
+    LaunchedEffect(userId, usedRedeemCodes) {
+        if (userId != null) {
+            try {
+                val unlocked = FirebaseRedeemCodeManager.isSupporterFeatureUnlocked(userId, usedRedeemCodes)
+                if (unlocked) {
+                    isSupporterUnlocked = true
+                    Log.d("Firebase", "支持者功能已解锁（云端）")
+                }
+            } catch (e: Exception) {
+                Log.e("Firebase", "检查支持者功能失败", e)
+            }
         }
     }
     
@@ -2247,7 +2272,7 @@ fun GameScreen(
             jobPostingRefreshTrigger++
             
             // 检查游戏速度：如果加载旧存档且未解锁2x/3x速度，自动重置为1x速度
-            val isSupporterUnlockedForSpeedCheck = saveData.isSupporterUnlocked || RedeemCodeManager.isSupporterFeatureUnlocked(userId, saveData.usedRedeemCodes)
+            val isSupporterUnlockedForSpeedCheck = saveData.isSupporterUnlocked
             if (!isSupporterUnlockedForSpeedCheck && gameSpeed > 1) {
                 gameSpeed = 1
                 Log.d("GameScreen", "【实例 $instanceId】⚠ 旧存档未解锁2x/3x速度，已重置为1x速度")
@@ -7235,10 +7260,17 @@ fun InGameSettingsContent(
     val tapTapAccount = TapLoginManager.getCurrentAccount()
     val userId = tapTapAccount?.unionId ?: tapTapAccount?.openId
     
-    // 检查账号是否已解锁GM模式（账号级别）
-    // 性能优化：使用remember缓存，避免每次重组都查询
-    val isGMModeUnlockedByAccount = remember(userId) {
-        RedeemCodeManager.isGMModeUnlocked(userId)
+    // 检查账号是否已解锁GM模式（账号级别，使用Firebase）
+    var isGMModeUnlockedByAccount by remember { mutableStateOf(false) }
+    
+    LaunchedEffect(userId) {
+        if (userId != null) {
+            try {
+                isGMModeUnlockedByAccount = FirebaseRedeemCodeManager.isGMModeUnlocked(userId)
+            } catch (e: Exception) {
+                Log.e("Firebase", "检查GM模式失败", e)
+            }
+        }
     }
     
     Column(
@@ -7560,20 +7592,8 @@ fun InGameSettingsContent(
                 )
                 
                 if (showRedeemError) {
-                    @Suppress("SpellCheckingInspection")
-                    val codeUpper = redeemCode.uppercase()
-                    val isUsedByUser = RedeemCodeManager.isCodeUsedByUser(userId, codeUpper)
-                    val isUsedInSave = usedRedeemCodes.contains(codeUpper)
-                    
-                    val errorMessage = when {
-                        userId.isNullOrBlank() -> "❌ 请先登录TapTap账号后再使用兑换码"
-                        isUsedByUser -> "❌ 该兑换码已在本账号中使用过，每个账号仅限使用1次"
-                        isUsedInSave -> "❌ 该兑换码已在本存档中使用过，每个存档仅限使用1次"
-                        else -> "❌ 兑换码错误，请重新输入"
-                    }
-                    
                     Text(
-                        text = errorMessage,
+                        text = "❌ 兑换码错误，请重新输入",
                         color = Color(0xFFEF4444),
                         fontSize = 14.sp
                     )
@@ -7582,109 +7602,140 @@ fun InGameSettingsContent(
                 Button(
                     onClick = {
                         @Suppress("SpellCheckingInspection")
-                        val codeUpper = redeemCode.uppercase()
+                        // 去除空格并转换为大写
+                        val codeUpper = redeemCode.trim().uppercase()
                         
                         // 检查用户是否已登录
                         if (userId.isNullOrBlank()) {
+                            Log.w("RedeemCode", "用户未登录，无法使用兑换码")
                             showRedeemError = true
                             return@Button
                         }
                         
-                        // 先检查用户是否已使用过（全局检查）
-                        val isUsedByUser = RedeemCodeManager.isCodeUsedByUser(userId, codeUpper)
-                        
-                        // 检查是否为支持者兑换码（SUPPORTER 或 SUPPORTER001-SUPPORTER150）
-                        val isSupporterCode = codeUpper.startsWith("SUPPORTER", ignoreCase = true)
-                        if (isSupporterCode) {
-                            // 验证格式：SUPPORTER 或 SUPPORTER001-SUPPORTER150
-                            val isValidFormat = when {
-                                codeUpper == "SUPPORTER" -> true
-                                codeUpper.matches(Regex("^SUPPORTER\\d{3}$")) -> {
-                                    // 提取数字部分，检查是否在 001-150 范围内
-                                    val numberStr = codeUpper.substring(9)
-                                    val number = numberStr.toIntOrNull()
-                                    number != null && number in 1..150
-                                }
-                                else -> false
-                            }
-                            
-                            if (!isValidFormat) {
-                                showRedeemError = true
-                                return@Button
-                            }
-                            
-                            // 使用本地兑换码验证
-                            Log.d("MainActivity", "开始兑换支持者兑换码: $codeUpper")
-                            
-                            // 检查兑换码是否已使用
-                            if (RedeemCodeManager.isCodeUsedByUser(userId, codeUpper)) {
-                                Log.d("MainActivity", "✅ 兑换码已绑定到当前用户，允许重复使用")
-                                redeemSuccessMessage = "✅ 兑换成功！已解锁所有支持者功能"
-                                showRedeemSuccessDialog = true
-                                return@Button
-                            }
-                            
-                            // 验证兑换码是否有效
-                            if (RedeemCodeManager.isValidSupporterCode(codeUpper)) {
-                                // 兑换成功
-                                Log.d("MainActivity", "✅ 兑换成功")
-                                
-                                // 标记兑换码为已使用（存档本地备份）
-                                onUsedRedeemCodesUpdate(usedRedeemCodes + codeUpper)
-                                
-                                // 本地记录
-                                RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
-                                
-                                redeemCode = ""
-                                redeemSuccessMessage = "✅ 兑换成功！已解锁所有支持者功能"
-                                showRedeemSuccessDialog = true
-                            } else {
-                                Log.w("MainActivity", "❌ 兑换码无效")
-                                showRedeemError = true
-                            }
+                        // 检查兑换码是否为空
+                        if (codeUpper.isBlank()) {
+                            Log.w("RedeemCode", "兑换码为空")
+                            showRedeemError = true
                             return@Button
                         }
                         
-                        when (codeUpper) {
-                            "PROGM" -> {
-                                // 检查是否已使用过
-                                if (isUsedByUser) {
-                                    // 账号已使用过，自动启用GM模式（不再显示错误）
-                                    if (!gmModeEnabled) {
-                                        onGMToggle(true)
+                        // 使用协程处理异步操作
+                        coroutineScope.launch {
+                            try {
+                                Log.d("RedeemCode", "开始验证兑换码: $codeUpper")
+                                // 检查是否为支持者兑换码
+                                if (FirebaseRedeemCodeManager.isValidSupporterCode(codeUpper)) {
+                                    Log.d("Firebase", "开始兑换支持者兑换码: $codeUpper")
+                                    
+                                    // 1. 先检查全局是否已被其他用户使用（全局唯一验证）
+                                    val isUsedGlobally = FirebaseRedeemCodeManager.isCodeUsedGlobally(codeUpper)
+                                    if (isUsedGlobally) {
+                                        Log.w("Firebase", "❌ 兑换码已被其他用户使用: $codeUpper")
+                                        redeemSuccessMessage = "❌ 兑换失败：该兑换码已被其他用户使用"
+                                        showRedeemError = true
+                                        return@launch
                                     }
-                                    redeemCode = ""
-                                    redeemSuccessMessage = "GM工具箱已激活！（账号已解锁，自动启用）"
-                                    showRedeemSuccessDialog = true
-                                } else {
-                                    // 标记为已使用并启用GM模式
-                                    RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
-                                    onGMToggle(true)
-                                    redeemCode = ""
-                                    redeemSuccessMessage = "GM工具箱已激活！"
-                                    showRedeemSuccessDialog = true
+                                    
+                                    // 2. 检查当前用户是否已使用过
+                                    val isUsedByUser = FirebaseRedeemCodeManager.isCodeUsedByUser(userId, codeUpper)
+                                    
+                                    if (isUsedByUser) {
+                                        Log.d("Firebase", "✅ 兑换码已绑定到当前用户")
+                                        redeemSuccessMessage = "✅ 兑换成功！已解锁所有支持者功能\n💾 数据已同步到云端"
+                                        showRedeemSuccessDialog = true
+                                    } else {
+                                        // 3. 标记为已使用（云端，包含全局唯一验证）
+                                        val success = FirebaseRedeemCodeManager.markCodeAsUsed(
+                                            userId = userId,
+                                            code = codeUpper,
+                                            codeType = "supporter"
+                                        )
+                                        
+                                        if (success) {
+                                            Log.d("Firebase", "✅ 兑换成功（已保存到云端，全局唯一）")
+                                            
+                                            // 同时更新本地（向后兼容）
+                                            onUsedRedeemCodesUpdate(usedRedeemCodes + codeUpper)
+                                            RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
+                                            
+                                            // 注意：isSupporterUnlocked 会通过 LaunchedEffect(userId, usedRedeemCodes) 自动更新
+                                            
+                                            redeemCode = ""
+                                            redeemSuccessMessage = "✅ 兑换成功！已解锁所有支持者功能\n💾 数据已同步到云端"
+                                            showRedeemSuccessDialog = true
+                                        } else {
+                                            Log.e("Firebase", "❌ 云端保存失败（可能已被其他用户使用）")
+                                            redeemSuccessMessage = "❌ 兑换失败：该兑换码已被其他用户使用或网络错误"
+                                            showRedeemError = true
+                                        }
+                                    }
+                                    return@launch
                                 }
-                            }
-                            "YCJY2025" -> {
-                                // 检查是否已使用过（全局 + 存档本地）
-                                val isUsedInSave = usedRedeemCodes.contains(codeUpper)
                                 
-                                if (isUsedByUser || isUsedInSave) {
-                                    showRedeemError = true
-                                } else {
-                                    // 标记为已使用（全局）
-                                    RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
-                                    // 兑换码：YCJY2025，获得5M资金
-                                    val rewardAmount = 5000000L // 5M = 500万
-                                    onMoneyUpdate(money + rewardAmount)
-                                    // 标记兑换码为已使用（存档本地）
-                                    onUsedRedeemCodesUpdate(usedRedeemCodes + codeUpper)
-                                    redeemCode = ""
-                                    redeemSuccessMessage = "兑换成功！获得 ${formatMoney(rewardAmount)}"
-                                    showRedeemSuccessDialog = true
+                                // 处理其他兑换码
+                                when (codeUpper) {
+                                    "PROGM" -> {
+                                        // 检查是否已使用过（云端）
+                                        val isUsed = FirebaseRedeemCodeManager.isCodeUsedByUser(userId, codeUpper)
+                                        
+                                        if (isUsed) {
+                                            // 账号已使用过，自动启用GM模式
+                                            if (!gmModeEnabled) {
+                                                onGMToggle(true)
+                                            }
+                                            redeemCode = ""
+                                            redeemSuccessMessage = "GM工具箱已激活！（账号已解锁）\n💾 数据已同步到云端"
+                                            showRedeemSuccessDialog = true
+                                        } else {
+                                            // 标记为已使用（云端）
+                                            val success = FirebaseRedeemCodeManager.markCodeAsUsed(
+                                                userId = userId,
+                                                code = codeUpper,
+                                                codeType = "gm"
+                                            )
+                                            
+                                            if (success) {
+                                                // 同时更新本地
+                                                RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
+                                                onGMToggle(true)
+                                                
+                                                redeemCode = ""
+                                                redeemSuccessMessage = "GM工具箱已激活！\n💾 数据已同步到云端"
+                                                showRedeemSuccessDialog = true
+                                            } else {
+                                                showRedeemError = true
+                                            }
+                                        }
+                                    }
+                                    "YCJY2025" -> {
+                                        // 检查是否已使用过（云端 + 存档本地）
+                                        val isUsedInCloud = FirebaseRedeemCodeManager.isCodeUsedByUser(userId, codeUpper)
+                                        val isUsedInSave = usedRedeemCodes.contains(codeUpper)
+                                        
+                                        if (isUsedInCloud || isUsedInSave) {
+                                            showRedeemError = true
+                                        } else {
+                                            // 标记为已使用（云端）
+                                            FirebaseRedeemCodeManager.markCodeAsUsed(userId, codeUpper, "special")
+                                            // 同时标记本地
+                                            RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
+                                            
+                                            // 兑换码：YCJY2025，获得5M资金
+                                            val rewardAmount = 5000000L // 5M = 500万
+                                            onMoneyUpdate(money + rewardAmount)
+                                            // 标记兑换码为已使用（存档本地）
+                                            onUsedRedeemCodesUpdate(usedRedeemCodes + codeUpper)
+                                            redeemCode = ""
+                                            redeemSuccessMessage = "兑换成功！获得 ${formatMoney(rewardAmount)}\n💾 数据已同步到云端"
+                                            showRedeemSuccessDialog = true
+                                        }
+                                    }
+                                    else -> {
+                                        showRedeemError = true
+                                    }
                                 }
-                            }
-                            else -> {
+                            } catch (e: Exception) {
+                                Log.e("Firebase", "兑换码处理失败", e)
                                 showRedeemError = true
                             }
                         }

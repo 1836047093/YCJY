@@ -5,6 +5,7 @@ plugins {
     // alias(libs.plugins.kotlin.serialization)  // 已移除Supabase
     alias(libs.plugins.ksp)
     id("dagger.hilt.android.plugin")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -125,6 +126,12 @@ dependencies {
     // implementation(libs.supabase.postgrest)
     implementation(libs.kotlinx.coroutines)
     // implementation(libs.ktor.client.android)
+    
+    // Firebase
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-analytics-ktx")
+    implementation("com.google.firebase:firebase-auth-ktx")
+    implementation("com.google.firebase:firebase-firestore-ktx")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
