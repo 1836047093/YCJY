@@ -200,6 +200,28 @@ object RedeemCodeManager {
     }
     
     /**
+     * 验证兑换码是否是有效的支持者兑换码
+     * @param code 兑换码（大写）
+     * @return true表示是有效的支持者兑换码，false表示无效
+     */
+    fun isValidSupporterCode(code: String): Boolean {
+        val upperCode = code.uppercase()
+        
+        // 检查是否是 SUPPORTER001 到 SUPPORTER150 格式
+        if (upperCode.startsWith("SUPPORTER")) {
+            val numberPart = upperCode.removePrefix("SUPPORTER")
+            return try {
+                val number = numberPart.toInt()
+                number in 1..150
+            } catch (e: NumberFormatException) {
+                false
+            }
+        }
+        
+        return false
+    }
+    
+    /**
      * 支持者功能类型枚举
      */
     enum class SupporterFeature {

@@ -9,7 +9,7 @@ import android.view.WindowManager
 import android.os.Handler
 import android.os.Looper
 import android.os.Bundle
-import Log
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -6108,8 +6108,7 @@ fun EnhancedBottomNavigationBar(
                 label = "员工管理",
                 isSelected = selectedTab == 1,
                 onClick = { onTabSelected(1) },
-                showBadge = pendingApplicantsCount > 0,
-                badgeCount = pendingApplicantsCount
+                showBadge = pendingApplicantsCount > 0
             )
             
             EnhancedBottomNavItem(

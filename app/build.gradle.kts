@@ -126,7 +126,6 @@ dependencies {
     implementation(libs.kotlinx.coroutines)
     // implementation(libs.ktor.client.android)
 
-
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
