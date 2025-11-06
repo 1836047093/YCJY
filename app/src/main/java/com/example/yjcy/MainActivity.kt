@@ -9,7 +9,7 @@ import android.view.WindowManager
 import android.os.Handler
 import android.os.Looper
 import android.os.Bundle
-import android.util.Log
+import Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -1551,64 +1551,6 @@ data class Particle(
     val color: Color = Color.White
 )
 
-/**
- * 游戏风格背景 - 性能优化版本
- * 大幅简化动画，提升FPS性能
- */
-@Composable
-fun GameStyleBackground() {
-    // 性能优化：仅保留少量粒子，减少绘制负担
-    val particles = remember {
-        List(5) { index ->  // 从30个减少到5个
-            val colors = listOf(
-                Color(0xFF667eea).copy(alpha = 0.3f),  // 降低不透明度
-                Color(0xFF9B51E0).copy(alpha = 0.3f)
-            )
-            Particle(
-                x = Random.nextFloat(),
-                y = Random.nextFloat(),
-                size = Random.nextFloat() * 2f + 1f,
-                speed = Random.nextFloat() * 0.01f + 0.005f,
-                alpha = 0.3f,  // 固定较低的透明度
-                color = colors[index % colors.size]
-            )
-        }
-    }
-    
-    // 性能优化：使用更长的动画时间，减少更新频率
-    val infiniteTransition = rememberInfiniteTransition(label = "game_background")
-    val particleProgress by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(30000, easing = LinearEasing),  // 从15秒增加到30秒
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "particle_progress"
-    )
-    
-    // 性能优化：大幅简化Canvas绘制，仅保留简单的粒子效果
-    Canvas(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        // 仅绘制少量粒子
-        particles.forEach { particle ->
-            val currentY = (particle.y + particleProgress * particle.speed) % 1f
-            val currentX = particle.x
-            
-            // 主粒子（移除拖尾效果以提升性能）
-            drawCircle(
-                color = particle.color,
-                radius = particle.size,
-                center = Offset(
-                    x = currentX * size.width,
-                    y = currentY * size.height
-                )
-            )
-        }
-    }
-}
-
 @Composable
 fun GameMenuButton(
     text: String,
@@ -2280,7 +2222,7 @@ fun GameScreen(
                     Log.d("GameScreen", "【实例 $instanceId】✓ 为旧存档子公司网游 ${game.name} 生成付费内容（${monetizationItems.size}个）")
                     game.copy(
                         monetizationItems = monetizationItems,
-                        allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                        allDevelopmentEmployees = game.allDevelopmentEmployees
                     )
                 } else {
                     game
@@ -2742,7 +2684,7 @@ fun GameScreen(
                                 
                                 game.copy(
                                     promotionIndex = newPromotionIndex,
-                                    allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                                    allDevelopmentEmployees = game.allDevelopmentEmployees
                                 )
                             } else {
                                 game
@@ -2788,7 +2730,7 @@ fun GameScreen(
                                         val newPromotionIndex = (game.promotionIndex + selectedPromotionType.promotionIndexGain).coerceAtMost(1.0f)
                                         game.copy(
                                             promotionIndex = newPromotionIndex,
-                                            allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                                            allDevelopmentEmployees = game.allDevelopmentEmployees
                                         )
                                     } else {
                                         game
@@ -2905,7 +2847,7 @@ fun GameScreen(
                                         val newPromotionIndex = (game.promotionIndex + selectedPromotionType.promotionIndexGain).coerceAtMost(1.0f)
                                         game.copy(
                                             promotionIndex = newPromotionIndex,
-                                            allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                                            allDevelopmentEmployees = game.allDevelopmentEmployees
                                         )
                                     } else {
                                         game
@@ -3037,7 +2979,7 @@ fun GameScreen(
                                 .map { it.award }
                             game.copy(
                                 awards = (game.awards + wonAwards).distinct(),
-                                allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                                allDevelopmentEmployees = game.allDevelopmentEmployees
                             )
                         } else {
                             game
@@ -3252,7 +3194,7 @@ fun GameScreen(
                             assignedEmployees = game.assignedEmployees.filter { emp ->
                                 emp.id !in employeeIdsToRemove
                             },
-                            allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                            allDevelopmentEmployees = game.allDevelopmentEmployees
                         )
                     }
                     
@@ -3360,7 +3302,7 @@ fun GameScreen(
                                 developmentProgress = newTotalProgress,
                                 isCompleted = false,
                                 assignedEmployees = updatedAssignedEmployees,
-                                allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList() ?: emptyList() // 兼容旧存档
+                                allDevelopmentEmployees = game.allDevelopmentEmployees // 兼容旧存档
                             )
                         }
                     } else {
@@ -3608,7 +3550,7 @@ fun GameScreen(
                 val updateResult = tournamentUpdateResults.find { it.first.first.id == game.id }
                 if (updateResult != null) {
                     val (triple, isCompleted) = updateResult
-                    val (updatedGame, updatedTournament, oldTournament) = triple
+                    val (updatedGame, updatedTournament, _) = triple
                     if (isCompleted) {
                         // 结算完成的赛事
                         val revenueData = RevenueManager.getGameRevenue(updatedGame.id)
@@ -3681,19 +3623,19 @@ fun GameScreen(
                             game.copy(
                                 currentTournament = null,
                                 tournamentHistory = history,
-                                allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                                allDevelopmentEmployees = game.allDevelopmentEmployees
                             )
                         } else {
                             game.copy(
                                 currentTournament = updatedTournament,
-                                allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                                allDevelopmentEmployees = game.allDevelopmentEmployees
                             )
                         }
                     } else {
                         // 更新进行中的赛事
                         game.copy(
                             currentTournament = updatedTournament,
-                            allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                            allDevelopmentEmployees = game.allDevelopmentEmployees
                         )
                     }
                 } else {
@@ -6208,8 +6150,7 @@ fun EnhancedBottomNavItem(
     label: String,
     isSelected: Boolean,
     onClick: () -> Unit,
-    showBadge: Boolean = false,
-    badgeCount: Int = 0
+    showBadge: Boolean = false
 ) {
     val scale by animateFloatAsState(
         targetValue = if (isSelected) 1.1f else 1.0f,
@@ -6760,8 +6701,7 @@ fun AchievementScreen(
                 items(categoryAchievements) { achievement ->
                     AchievementCard(
                         achievement = achievement,
-                        isUnlocked = achievement.id in unlockedIds,
-                        progress = AchievementManager.getAchievementProgress(achievement, saveData, revenueData)
+                        isUnlocked = achievement.id in unlockedIds
                     )
                 }
             }
@@ -6785,8 +6725,7 @@ fun AchievementScreen(
 @Composable
 fun AchievementCard(
     achievement: Achievement,
-    isUnlocked: Boolean,
-    progress: Float = 0f
+    isUnlocked: Boolean
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -7675,20 +7614,34 @@ fun InGameSettingsContent(
                                 return@Button
                             }
                             
-                            // 检查用户是否已使用过任何支持者兑换码
-                            val hasUsedSupporterCode = RedeemCodeManager.hasUsedSupporterCode(userId)
-                            val hasSupporterCodeInSave = RedeemCodeManager.hasSupporterCodeInSave(usedRedeemCodes)
+                            // 使用本地兑换码验证
+                            Log.d("MainActivity", "开始兑换支持者兑换码: $codeUpper")
                             
-                            if (hasUsedSupporterCode || hasSupporterCodeInSave) {
-                                showRedeemError = true
-                            } else {
-                                // 标记为已使用（全局）
-                                RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
-                                // 标记兑换码为已使用（存档本地）
-                                onUsedRedeemCodesUpdate(usedRedeemCodes + codeUpper)
-                                redeemCode = ""
-                                redeemSuccessMessage = "兑换成功！已解锁所有支持者功能"
+                            // 检查兑换码是否已使用
+                            if (RedeemCodeManager.isCodeUsedByUser(userId, codeUpper)) {
+                                Log.d("MainActivity", "✅ 兑换码已绑定到当前用户，允许重复使用")
+                                redeemSuccessMessage = "✅ 兑换成功！已解锁所有支持者功能"
                                 showRedeemSuccessDialog = true
+                                return@Button
+                            }
+                            
+                            // 验证兑换码是否有效
+                            if (RedeemCodeManager.isValidSupporterCode(codeUpper)) {
+                                // 兑换成功
+                                Log.d("MainActivity", "✅ 兑换成功")
+                                
+                                // 标记兑换码为已使用（存档本地备份）
+                                onUsedRedeemCodesUpdate(usedRedeemCodes + codeUpper)
+                                
+                                // 本地记录
+                                RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
+                                
+                                redeemCode = ""
+                                redeemSuccessMessage = "✅ 兑换成功！已解锁所有支持者功能"
+                                showRedeemSuccessDialog = true
+                            } else {
+                                Log.w("MainActivity", "❌ 兑换码无效")
+                                showRedeemError = true
                             }
                             return@Button
                         }
@@ -9028,7 +8981,7 @@ fun FpsMonitor(
                         }
                         
                         // FPS剧烈变化时输出警告
-                        if (kotlin.math.abs(fpsChange) > 15) {
+                        if (abs(fpsChange) > 15) {
                             Log.w("FPSMonitor", "⚡ FPS剧烈变化: $lastFps → $calculatedFps (${if (fpsChange > 0) "+" else ""}$fpsChange)")
                             Log.w("FPSMonitor", "可能原因: ${getPossibleCause(calculatedFps, lastFps, memoryPercent, stutterPercent)}")
                         }
