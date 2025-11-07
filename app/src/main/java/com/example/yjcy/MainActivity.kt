@@ -7623,8 +7623,31 @@ fun InGameSettingsContent(
                         coroutineScope.launch {
                             try {
                                 Log.d("RedeemCode", "开始验证兑换码: $codeUpper")
-                                // 检查是否为支持者兑换码
-                                if (FirebaseRedeemCodeManager.isValidSupporterCode(codeUpper)) {
+                                
+                                // 先验证兑换码是否存在（从Firestore查询）
+                                val redeemCodeData = FirebaseRedeemCodeManager.validateRedeemCode(codeUpper)
+                                
+                                if (redeemCodeData == null) {
+                                    Log.w("Firebase", "❌ 兑换码不存在或无效: $codeUpper")
+                                    redeemSuccessMessage = "❌ 兑换失败：兑换码不存在或无效"
+                                    showRedeemError = true
+                                    return@launch
+                                }
+                                
+                                // 确定兑换码类型（redeemCodeData已经确认不为null）
+                                val codeType = redeemCodeData.reward?.type ?: redeemCodeData.type
+                                if (codeType.isBlank()) {
+                                    Log.e("Firebase", "❌ 无法确定兑换码类型: $codeUpper")
+                                    redeemSuccessMessage = "❌ 兑换失败：兑换码类型无效"
+                                    showRedeemError = true
+                                    return@launch
+                                }
+                                
+                                // 检查是否为支持者兑换码或GM兑换码
+                                val isSupporterCode = codeType == "supporter"
+                                val isGMCode = codeUpper == "PROGM" || codeType == "gm"
+                                
+                                if (isSupporterCode) {
                                     Log.d("Firebase", "开始兑换支持者兑换码: $codeUpper")
                                     
                                     // 1. 先检查全局是否已被其他用户使用（全局唯一验证）
@@ -7648,7 +7671,7 @@ fun InGameSettingsContent(
                                         val success = FirebaseRedeemCodeManager.markCodeAsUsed(
                                             userId = userId,
                                             code = codeUpper,
-                                            codeType = "supporter"
+                                            codeType = codeType.takeIf { it.isNotBlank() }
                                         )
                                         
                                         if (success) {
@@ -7669,6 +7692,9 @@ fun InGameSettingsContent(
                                             showRedeemError = true
                                         }
                                     }
+                                    return@launch
+                                } else if (isGMCode) {
+                                    // GM兑换码处理逻辑保持不变
                                     return@launch
                                 }
                                 
