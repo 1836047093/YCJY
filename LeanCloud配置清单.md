@@ -81,17 +81,26 @@ leancloud-storage = { group = "cn.leancloud", name = "storage-android", version.
 2. 点击 **创建 Class**
 3. 创建以下两个表：
 
-**表 1: RedeemCodes**
-- Class 名称：`RedeemCodes`
+**表 1: RedeemCode**
+- Class 名称：`RedeemCode`（不带s）
 - 权限：限制性（下一步设置）
+- **必需字段**：
+  - `code`（String）：兑换码，必填，唯一
+  - `type`（String）：类型，必填，可选值：`gm`、`supporter`、`special`
+  - `batchId`（String）：批次ID，可选
 
 **表 2: UserRedeemRecords**
 - Class 名称：`UserRedeemRecords`
 - 权限：限制性（下一步设置）
+- **必需字段**：
+  - `userId`（String）：用户ID（TapTap unionId），必填
+  - `code`（String）：兑换码，必填
+  - `type`（String）：类型，必填
+  - `redeemedAt`（Date）：兑换时间，自动生成
 
 #### 3.2 设置表权限（重要！）
 
-**RedeemCodes 表权限：**
+**RedeemCode 表权限：**
 
 | 操作 | 权限 |
 |------|------|
@@ -113,13 +122,47 @@ leancloud-storage = { group = "cn.leancloud", name = "storage-android", version.
 
 #### 3.3 添加索引（可选，提升性能）
 
-**RedeemCodes 表索引：**
+**RedeemCode 表索引：**
 - 字段：`code`，类型：升序
 
 **UserRedeemRecords 表索引：**
 - 字段：`userId`，类型：升序
 - 字段：`code`，类型：升序
 - 复合索引：`userId + code`
+
+#### 3.4 添加测试兑换码数据 ⭐
+
+在 LeanCloud 控制台中手动添加测试兑换码：
+
+1. 进入 **数据存储 → 结构化数据 → RedeemCode 表**
+2. 点击 **添加行**
+3. 填写以下字段：
+
+**示例 1：GM 兑换码**
+```
+code: D9KV-SZJ6-F9ZD
+type: gm
+batchId: (可选，留空或填 test_batch_001)
+```
+
+**示例 2：支持者兑换码**
+```
+code: SUPPORTER-2025-001
+type: supporter
+batchId: (可选)
+```
+
+**示例 3：特殊兑换码**
+```
+code: WELCOME2025
+type: special
+batchId: (可选)
+```
+
+⚠️ **重要提醒**：
+- `code` 字段必须填写（兑换码）
+- `type` 字段必须填写（`gm`、`supporter` 或 `special`）
+- **如果 `type` 字段为空，兑换会失败！**
 
 ### 4. 集成到 MainActivity
 

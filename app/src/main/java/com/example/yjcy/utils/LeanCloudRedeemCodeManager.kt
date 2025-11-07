@@ -16,7 +16,7 @@ import java.util.Date
  * 
  * 数据结构（与管理后台保持一致）：
  * 
- * RedeemCodes表（兑换码信息）：
+ * RedeemCode表（兑换码信息，注意：不带s）：
  * - code: String（兑换码，唯一）
  * - type: String（类型：gm/supporter）
  * - batchId: String（批次ID，可选）
@@ -77,9 +77,18 @@ object LeanCloudRedeemCodeManager {
                 }
                 
                 val redeemCodeObj = results[0]
+                val typeValue = redeemCodeObj.getString("type")
+                
+                // 检查 type 字段是否存在且不为空
+                if (typeValue.isNullOrBlank()) {
+                    Log.e(TAG, "❌ 兑换码缺少 type 字段: $code")
+                    Log.e(TAG, "请在 LeanCloud 控制台中为该兑换码添加 type 字段（gm/supporter/special）")
+                    return@withTimeoutOrNull null
+                }
+                
                 val codeData = RedeemCodeData(
                     code = redeemCodeObj.getString("code") ?: code,
-                    type = redeemCodeObj.getString("type") ?: "",
+                    type = typeValue,
                     batchId = redeemCodeObj.getString("batchId"),
                     createdAt = redeemCodeObj.createdAt
                 )

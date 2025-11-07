@@ -24,7 +24,7 @@ object LeanCloudConfig {
     private const val USE_CN_NODE = true
     
     // LeanCloud数据表名（与管理后台保持一致）
-    const val TABLE_REDEEM_CODES = "RedeemCodes"  // 兑换码表
+    const val TABLE_REDEEM_CODES = "RedeemCode"  // 兑换码表（注意：不带s）
     const val TABLE_USER_REDEEM = "UserRedeemRecords"  // 用户兑换记录表
     
     /**
