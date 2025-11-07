@@ -2,21 +2,30 @@ package com.example.yjcy.config
 
 import android.content.Context
 import android.util.Log
-import cn.leancloud.AVOSCloud
-import cn.leancloud.AVObject
+import cn.leancloud.LCCloud
+import cn.leancloud.LCObject
+import cn.leancloud.LeanCloud
+import cn.leancloud.core.AppConfiguration
 
 /**
- * LeanCloud配置类
- * 用于初始化LeanCloud SDK
+ * LeanCloud配置类（SDK 9.0.0）
+ * 用于初始化LeanCloud SDK和管理兑换码数据
  */
 object LeanCloudConfig {
     private const val TAG = "LeanCloudConfig"
     
-    // TODO: 请在LeanCloud控制台获取以下信息并替换
-    // 访问 https://console.leancloud.cn/ 创建应用后获取
-    private const val APP_ID = "YOUR_APP_ID"  // 替换为你的App ID
-    private const val APP_KEY = "YOUR_APP_KEY"  // 替换为你的App Key
-    private const val SERVER_URL = "https://YOUR_SERVER_URL.cn.leancloud.cn"  // 替换为你的服务器地址（可选）
+    // LeanCloud应用凭证
+    private const val APP_ID = "iYTyrfx7JvXpsxyHySexdbCO-gzGzoHsz"
+    private const val APP_KEY = "ZPSfzxh6H6PxrkSQ1Vr8xlBK"
+    private const val SERVER_URL = "https://iytyrfx7.lc-cn-n1-shared.com"  // 华北节点
+    // 注意：MasterKey 仅用于服务器端，客户端不使用
+    
+    // 是否使用国内节点（华北、华东节点）
+    private const val USE_CN_NODE = true
+    
+    // LeanCloud数据表名（与管理后台保持一致）
+    const val TABLE_REDEEM_CODES = "RedeemCodes"  // 兑换码表
+    const val TABLE_USER_REDEEM = "UserRedeemRecords"  // 用户兑换记录表
     
     /**
      * 初始化LeanCloud SDK
@@ -24,7 +33,7 @@ object LeanCloudConfig {
      */
     fun initialize(context: Context) {
         try {
-            Log.d(TAG, "========== 开始初始化 LeanCloud ==========")
+            Log.d(TAG, "========== 开始初始化 LeanCloud SDK 9.0.0 ==========")
             
             // 检查配置是否已设置
             if (APP_ID == "YOUR_APP_ID" || APP_KEY == "YOUR_APP_KEY") {
@@ -34,20 +43,31 @@ object LeanCloudConfig {
                 return
             }
             
-            // 初始化LeanCloud
-            AVOSCloud.initialize(
-                context,
-                APP_ID,
-                APP_KEY,
-                SERVER_URL.takeIf { it != "https://YOUR_SERVER_URL.cn.leancloud.cn" }
-            )
+            // 构建配置
+            val builder = LeanCloud.Builder(context)
+                .appId(APP_ID)
+                .appKey(APP_KEY)
             
-            // 设置日志级别（开发时开启，发布时关闭）
-            AVOSCloud.setLogLevel(AVOSCloud.LOG_LEVEL_VERBOSE)
+            // 如果使用自定义服务器地址（国际版）
+            if (!USE_CN_NODE && SERVER_URL != "https://YOUR_SERVER_URL.api.lncldglobal.com") {
+                builder.serverUrl(SERVER_URL)
+                Log.d(TAG, "使用自定义服务器: $SERVER_URL")
+            } else if (USE_CN_NODE) {
+                Log.d(TAG, "使用中国节点（华北/华东）")
+            }
+            
+            // 开启日志（生产环境建议关闭）
+            AppConfiguration.setLogLevel(AppConfiguration.LogLevel.DEBUG)
+            
+            // 初始化SDK
+            LeanCloud.initialize(builder.build())
             
             Log.d(TAG, "✅ LeanCloud初始化成功")
             Log.d(TAG, "App ID: $APP_ID")
-            Log.d(TAG, "Server URL: ${SERVER_URL.takeIf { it != "https://YOUR_SERVER_URL.cn.leancloud.cn" } ?: "默认"}")
+            Log.d(TAG, "节点类型: ${if (USE_CN_NODE) "中国节点" else "国际节点/自定义"}")
+            Log.d(TAG, "数据表配置:")
+            Log.d(TAG, "  - 兑换码表: $TABLE_REDEEM_CODES")
+            Log.d(TAG, "  - 用户记录表: $TABLE_USER_REDEEM")
             Log.d(TAG, "========== LeanCloud初始化完成 ==========")
         } catch (e: Exception) {
             Log.e(TAG, "❌ LeanCloud初始化失败", e)
@@ -61,9 +81,10 @@ object LeanCloudConfig {
     fun isInitialized(): Boolean {
         return try {
             // 尝试创建一个测试对象来验证SDK是否已初始化
-            AVObject("Test")
+            LCObject("Test")
             true
         } catch (e: Exception) {
+            Log.w(TAG, "LeanCloud未初始化或初始化失败", e)
             false
         }
     }
