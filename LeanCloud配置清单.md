@@ -89,14 +89,16 @@ leancloud-storage = { group = "cn.leancloud", name = "storage-android", version.
   - `type`（String）：类型，必填，可选值：`gm`、`supporter`、`special`
   - `batchId`（String）：批次ID，可选
 
-**表 2: UserRedeemRecords**
-- Class 名称：`UserRedeemRecords`
+**表 2: UserRedeemRecords** ⚠️ **必须创建此表，否则兑换功能无法使用！**
+- Class 名称：`UserRedeemRecords`（注意大小写）
 - 权限：限制性（下一步设置）
 - **必需字段**：
   - `userId`（String）：用户ID（TapTap unionId），必填
   - `code`（String）：兑换码，必填
   - `type`（String）：类型，必填
   - `redeemedAt`（Date）：兑换时间，自动生成
+  
+⚠️ **常见错误**：如果不创建此表，会出现 `Class or object doesn't exists` 错误，导致兑换码验证成功但无法保存使用记录！
 
 #### 3.2 设置表权限（重要！）
 

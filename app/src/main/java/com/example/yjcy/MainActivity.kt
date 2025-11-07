@@ -7644,28 +7644,37 @@ fun InGameSettingsContent(
                                     // 检查当前用户是否已使用过
                                     val isUsedByUser = LeanCloudRedeemCodeManager.hasUserUsedCode(userId, codeUpper)
                                     
-                                    if (isUsedByUser) {
-                                        Log.d("LeanCloud", "✅ 兑换码已绑定到当前用户")
-                                        redeemSuccessMessage = "✅ 兑换成功！已解锁所有支持者功能\n💾 数据已同步到云端"
-                                        showRedeemSuccessDialog = true
-                                    } else {
-                                        // 记录使用（云端）
-                                        val success = LeanCloudRedeemCodeManager.recordUserRedeem(userId, codeUpper, codeType)
-                                        
-                                        if (success) {
-                                            Log.d("LeanCloud", "✅ 兑换成功（已保存到云端）")
-                                            
-                                            // 同时更新本地（向后兼容）
-                                            onUsedRedeemCodesUpdate(usedRedeemCodes + codeUpper)
-                                            RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
-                                            
-                                            redeemCode = ""
+                                    when (isUsedByUser) {
+                                        true -> {
+                                            // 已使用过
+                                            Log.d("LeanCloud", "✅ 兑换码已绑定到当前用户")
                                             redeemSuccessMessage = "✅ 兑换成功！已解锁所有支持者功能\n💾 数据已同步到云端"
                                             showRedeemSuccessDialog = true
-                                        } else {
-                                            Log.e("LeanCloud", "❌ 云端保存失败或网络错误")
-                                            redeemSuccessMessage = "❌ 兑换失败：网络错误或服务器繁忙"
-                                            showRedeemError = true
+                                        }
+                                        false, null -> {
+                                            // 未使用或查询失败，尝试记录
+                                            if (isUsedByUser == null) {
+                                                Log.w("LeanCloud", "⚠️ 无法查询使用状态，可能是UserRedeemRecords表不存在，尝试记录")
+                                            }
+                                            
+                                            // 记录使用（云端）
+                                            val success = LeanCloudRedeemCodeManager.recordUserRedeem(userId, codeUpper, codeType)
+                                            
+                                            if (success) {
+                                                Log.d("LeanCloud", "✅ 兑换成功（已保存到云端）")
+                                                
+                                                // 同时更新本地（向后兼容）
+                                                onUsedRedeemCodesUpdate(usedRedeemCodes + codeUpper)
+                                                RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
+                                                
+                                                redeemCode = ""
+                                                redeemSuccessMessage = "✅ 兑换成功！已解锁所有支持者功能\n💾 数据已同步到云端"
+                                                showRedeemSuccessDialog = true
+                                            } else {
+                                                Log.e("LeanCloud", "❌ 云端保存失败或网络错误")
+                                                redeemSuccessMessage = "❌ 兑换失败：请先在LeanCloud控制台创建UserRedeemRecords表"
+                                                showRedeemError = true
+                                            }
                                         }
                                     }
                                     return@launch

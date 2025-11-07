@@ -107,9 +107,9 @@ object LeanCloudRedeemCodeManager {
      * 检查用户是否已使用过该兑换码
      * @param userId 用户ID（TapTap unionId）
      * @param code 兑换码
-     * @return Boolean true-已使用，false-未使用
+     * @return Boolean? true-已使用，false-未使用，null-查询出错
      */
-    suspend fun hasUserUsedCode(userId: String, code: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun hasUserUsedCode(userId: String, code: String): Boolean? = withContext(Dispatchers.IO) {
         return@withContext withTimeoutOrNull(NETWORK_TIMEOUT_MS) {
             try {
                 Log.d(TAG, "检查用户是否已使用兑换码: userId=$userId, code=$code")
@@ -126,10 +126,10 @@ object LeanCloudRedeemCodeManager {
                 
             } catch (e: Exception) {
                 Log.e(TAG, "❌ 检查兑换码使用状态失败", e)
-                // 出错时保守返回true，防止重复使用
-                true
+                // 返回null表示查询出错（可能是表不存在）
+                null
             }
-        } ?: true // 超时时保守返回true
+        } // 超时时返回null
     }
     
     /**
@@ -278,9 +278,18 @@ object LeanCloudRedeemCodeManager {
             
             // 2. 检查用户是否已使用
             val hasUsed = hasUserUsedCode(userId, code)
-            if (hasUsed) {
-                Log.w(TAG, "❌ 用户已使用过该兑换码")
-                return@withContext RedeemResult.AlreadyUsed
+            when (hasUsed) {
+                true -> {
+                    Log.w(TAG, "❌ 用户已使用过该兑换码")
+                    return@withContext RedeemResult.AlreadyUsed
+                }
+                null -> {
+                    Log.e(TAG, "⚠️ 无法检查兑换码使用状态（可能是表不存在），尝试直接记录")
+                    // 继续执行记录步骤
+                }
+                false -> {
+                    // 未使用，继续执行
+                }
             }
             
             // 3. 记录使用记录
