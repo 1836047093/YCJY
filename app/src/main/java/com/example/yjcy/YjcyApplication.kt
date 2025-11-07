@@ -13,7 +13,7 @@ import com.taptap.sdk.core.TapTapSdkOptions
 import com.example.yjcy.taptap.TapDBManager
 import com.example.yjcy.taptap.TapLoginManager
 import com.example.yjcy.utils.RedeemCodeManager
-import com.example.yjcy.utils.FirebaseRedeemCodeManager
+import com.example.yjcy.utils.LeanCloudRedeemCodeManager
 import com.example.yjcy.config.LeanCloudConfig
 import dagger.hilt.android.HiltAndroidApp
 
@@ -40,9 +40,6 @@ class YjcyApplication : Application() {
         
         // 初始化兑换码管理器（不需要等待隐私政策）
         RedeemCodeManager.initialize(this)
-        
-        // 初始化Firebase兑换码缓存（优化国内网络延迟）
-        FirebaseRedeemCodeManager.initializeCache(this)
         
         // 初始化LeanCloud（用于管理后台生成的兑换码）
         LeanCloudConfig.initialize(this)

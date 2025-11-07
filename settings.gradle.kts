@@ -14,13 +14,18 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        // 阿里云镜像（国内加速）- 优先使用
+        // Maven Central和Google优先
+        mavenCentral()
+        google()
+        
+        // Sonatype仓库（LeanCloud官方推荐，解决Maven CDN缓存问题）⭐
+        maven { url = uri("https://oss.sonatype.org/content/groups/public/") }
+        
+        // 阿里云镜像作为备用
         maven { url = uri("https://maven.aliyun.com/repository/public") }
         maven { url = uri("https://maven.aliyun.com/repository/central") }
         maven { url = uri("https://maven.aliyun.com/repository/google") }
-        // Maven Central
-        mavenCentral()
-        google()
+        
         // TapSDK Maven仓库
         maven { url = uri("https://nexus.tapsvc.com/repository/releases/") }
         // JitPack作为备用仓库

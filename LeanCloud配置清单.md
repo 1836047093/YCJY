@@ -1,5 +1,33 @@
 # LeanCloud 兑换码配置清单
 
+## ⚡ 快速解决依赖下载慢的问题
+
+### Maven仓库配置（必须！）
+
+在 `settings.gradle.kts` 中添加 LeanCloud 官方 Maven 仓库：
+
+```kotlin
+dependencyResolutionManagement {
+    repositories {
+        // LeanCloud Maven仓库（国内服务器，速度快）⭐
+        maven { url = uri("https://mvn.leancloud.cn/nexus/content/repositories/public") }
+        
+        // 其他仓库...
+        maven { url = uri("https://maven.aliyun.com/repository/public") }
+        mavenCentral()
+        google()
+    }
+}
+```
+
+**为什么需要？**
+- LeanCloud 依赖默认从 Maven Central（国外）下载，国内很慢
+- 添加 LeanCloud 官方仓库后，从国内服务器下载，速度快得多
+
+✅ **此配置已添加，如果下载卡住请重新同步项目！**
+
+---
+
 ## ✅ 配置检查清单
 
 ### 1. LeanCloud 控制台配置

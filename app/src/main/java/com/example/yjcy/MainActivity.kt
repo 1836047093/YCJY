@@ -174,7 +174,7 @@ import com.example.yjcy.taptap.TapLoginManager
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.yjcy.ui.taptap.TapLoginViewModel
 import com.example.yjcy.utils.RedeemCodeManager
-import com.example.yjcy.utils.FirebaseRedeemCodeManager
+import com.example.yjcy.utils.LeanCloudRedeemCodeManager
 
 
 
@@ -2000,30 +2000,16 @@ fun GameScreen(
     LaunchedEffect(userId) {
         if (userId != null) {
             try {
-                // 刷新用户兑换码缓存（优化国内网络延迟）
-                FirebaseRedeemCodeManager.refreshUserCodesCache(userId)
-                
-                // 迁移本地数据到云端（首次登录时）
-                val localCodes = RedeemCodeManager.getUserUsedCodes(userId)
-                if (localCodes.isNotEmpty()) {
-                    val migrated = FirebaseRedeemCodeManager.migrateFromLocal(userId, localCodes)
-                    if (migrated) {
-                        Log.d("Firebase", "本地兑换码数据已迁移到云端")
-                        // 迁移后刷新缓存
-                        FirebaseRedeemCodeManager.refreshUserCodesCache(userId)
-                    }
-                }
-                
                 // 检查云端GM模式状态
-                isGMModeUnlockedByAccount = FirebaseRedeemCodeManager.isGMModeUnlocked(userId)
+                isGMModeUnlockedByAccount = LeanCloudRedeemCodeManager.isGMUnlocked(userId)
                 
                 // 如果云端已解锁GM模式，自动启用
                 if (isGMModeUnlockedByAccount && !gmModeEnabled) {
                     gmModeEnabled = true
-                    Log.d("Firebase", "从云端恢复GM模式")
+                    Log.d("LeanCloud", "从云端恢复GM模式")
                 }
             } catch (e: Exception) {
-                Log.e("Firebase", "同步兑换码数据失败", e)
+                Log.e("LeanCloud", "同步兑换码数据失败", e)
             }
         }
     }
@@ -2043,13 +2029,13 @@ fun GameScreen(
     LaunchedEffect(userId, usedRedeemCodes) {
         if (userId != null) {
             try {
-                val unlocked = FirebaseRedeemCodeManager.isSupporterFeatureUnlocked(userId, usedRedeemCodes)
+                val unlocked = LeanCloudRedeemCodeManager.isSupporterUnlocked(userId)
                 if (unlocked) {
                     isSupporterUnlocked = true
-                    Log.d("Firebase", "支持者功能已解锁（云端）")
+                    Log.d("LeanCloud", "支持者功能已解锁（云端）")
                 }
             } catch (e: Exception) {
-                Log.e("Firebase", "检查支持者功能失败", e)
+                Log.e("LeanCloud", "检查支持者功能失败", e)
             }
         }
     }
@@ -7265,15 +7251,15 @@ fun InGameSettingsContent(
     val tapTapAccount = TapLoginManager.getCurrentAccount()
     val userId = tapTapAccount?.unionId ?: tapTapAccount?.openId
     
-    // 检查账号是否已解锁GM模式（账号级别，使用Firebase）
+    // 检查账号是否已解锁GM模式（账号级别，使用LeanCloud）
     var isGMModeUnlockedByAccount by remember { mutableStateOf(false) }
     
     LaunchedEffect(userId) {
         if (userId != null) {
             try {
-                isGMModeUnlockedByAccount = FirebaseRedeemCodeManager.isGMModeUnlocked(userId)
+                isGMModeUnlockedByAccount = LeanCloudRedeemCodeManager.isGMUnlocked(userId)
             } catch (e: Exception) {
-                Log.e("Firebase", "检查GM模式失败", e)
+                Log.e("LeanCloud", "检查GM模式失败", e)
             }
         }
     }
@@ -7629,20 +7615,20 @@ fun InGameSettingsContent(
                             try {
                                 Log.d("RedeemCode", "开始验证兑换码: $codeUpper")
                                 
-                                // 先验证兑换码是否存在（从Firestore查询）
-                                val redeemCodeData = FirebaseRedeemCodeManager.validateRedeemCode(codeUpper)
+                                // 先验证兑换码是否存在（从LeanCloud查询）
+                                val redeemCodeData = LeanCloudRedeemCodeManager.validateRedeemCode(codeUpper)
                                 
                                 if (redeemCodeData == null) {
-                                    Log.w("Firebase", "❌ 兑换码不存在或无效: $codeUpper")
+                                    Log.w("LeanCloud", "❌ 兑换码不存在或无效: $codeUpper")
                                     redeemSuccessMessage = "❌ 兑换失败：兑换码不存在或无效"
                                     showRedeemError = true
                                     return@launch
                                 }
                                 
                                 // 确定兑换码类型（redeemCodeData已经确认不为null）
-                                val codeType = redeemCodeData.reward?.type ?: redeemCodeData.type
+                                val codeType = redeemCodeData.type
                                 if (codeType.isBlank()) {
-                                    Log.e("Firebase", "❌ 无法确定兑换码类型: $codeUpper")
+                                    Log.e("LeanCloud", "❌ 无法确定兑换码类型: $codeUpper")
                                     redeemSuccessMessage = "❌ 兑换失败：兑换码类型无效"
                                     showRedeemError = true
                                     return@launch
@@ -7653,47 +7639,32 @@ fun InGameSettingsContent(
                                 val isGMCode = codeUpper == "PROGM" || codeType == "gm"
                                 
                                 if (isSupporterCode) {
-                                    Log.d("Firebase", "开始兑换支持者兑换码: $codeUpper")
+                                    Log.d("LeanCloud", "开始兑换支持者兑换码: $codeUpper")
                                     
-                                    // 1. 先检查全局是否已被其他用户使用（全局唯一验证）
-                                    val isUsedGlobally = FirebaseRedeemCodeManager.isCodeUsedGlobally(codeUpper)
-                                    if (isUsedGlobally) {
-                                        Log.w("Firebase", "❌ 兑换码已被其他用户使用: $codeUpper")
-                                        redeemSuccessMessage = "❌ 兑换失败：该兑换码已被其他用户使用"
-                                        showRedeemError = true
-                                        return@launch
-                                    }
-                                    
-                                    // 2. 检查当前用户是否已使用过
-                                    val isUsedByUser = FirebaseRedeemCodeManager.isCodeUsedByUser(userId, codeUpper)
+                                    // 检查当前用户是否已使用过
+                                    val isUsedByUser = LeanCloudRedeemCodeManager.hasUserUsedCode(userId, codeUpper)
                                     
                                     if (isUsedByUser) {
-                                        Log.d("Firebase", "✅ 兑换码已绑定到当前用户")
+                                        Log.d("LeanCloud", "✅ 兑换码已绑定到当前用户")
                                         redeemSuccessMessage = "✅ 兑换成功！已解锁所有支持者功能\n💾 数据已同步到云端"
                                         showRedeemSuccessDialog = true
                                     } else {
-                                        // 3. 标记为已使用（云端，包含全局唯一验证）
-                                        val success = FirebaseRedeemCodeManager.markCodeAsUsed(
-                                            userId = userId,
-                                            code = codeUpper,
-                                            codeType = codeType.takeIf { it.isNotBlank() }
-                                        )
+                                        // 记录使用（云端）
+                                        val success = LeanCloudRedeemCodeManager.recordUserRedeem(userId, codeUpper, codeType)
                                         
                                         if (success) {
-                                            Log.d("Firebase", "✅ 兑换成功（已保存到云端，全局唯一）")
+                                            Log.d("LeanCloud", "✅ 兑换成功（已保存到云端）")
                                             
                                             // 同时更新本地（向后兼容）
                                             onUsedRedeemCodesUpdate(usedRedeemCodes + codeUpper)
                                             RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
                                             
-                                            // 注意：isSupporterUnlocked 会通过 LaunchedEffect(userId, usedRedeemCodes) 自动更新
-                                            
                                             redeemCode = ""
                                             redeemSuccessMessage = "✅ 兑换成功！已解锁所有支持者功能\n💾 数据已同步到云端"
                                             showRedeemSuccessDialog = true
                                         } else {
-                                            Log.e("Firebase", "❌ 云端保存失败（可能已被其他用户使用）")
-                                            redeemSuccessMessage = "❌ 兑换失败：该兑换码已被其他用户使用或网络错误"
+                                            Log.e("LeanCloud", "❌ 云端保存失败或网络错误")
+                                            redeemSuccessMessage = "❌ 兑换失败：网络错误或服务器繁忙"
                                             showRedeemError = true
                                         }
                                     }
@@ -7707,7 +7678,7 @@ fun InGameSettingsContent(
                                 when (codeUpper) {
                                     "PROGM" -> {
                                         // 检查是否已使用过（云端）
-                                        val isUsed = FirebaseRedeemCodeManager.isCodeUsedByUser(userId, codeUpper)
+                                        val isUsed = LeanCloudRedeemCodeManager.hasUserUsedCode(userId, codeUpper)
                                         
                                         if (isUsed) {
                                             // 账号已使用过，自动启用GM模式
@@ -7718,12 +7689,8 @@ fun InGameSettingsContent(
                                             redeemSuccessMessage = "GM工具箱已激活！（账号已解锁）\n💾 数据已同步到云端"
                                             showRedeemSuccessDialog = true
                                         } else {
-                                            // 标记为已使用（云端）
-                                            val success = FirebaseRedeemCodeManager.markCodeAsUsed(
-                                                userId = userId,
-                                                code = codeUpper,
-                                                codeType = "gm"
-                                            )
+                                            // 记录使用（云端）
+                                            val success = LeanCloudRedeemCodeManager.recordUserRedeem(userId, codeUpper, "gm")
                                             
                                             if (success) {
                                                 // 同时更新本地
@@ -7740,14 +7707,14 @@ fun InGameSettingsContent(
                                     }
                                     "YCJY2025" -> {
                                         // 检查是否已使用过（云端 + 存档本地）
-                                        val isUsedInCloud = FirebaseRedeemCodeManager.isCodeUsedByUser(userId, codeUpper)
+                                        val isUsedInCloud = LeanCloudRedeemCodeManager.hasUserUsedCode(userId, codeUpper)
                                         val isUsedInSave = usedRedeemCodes.contains(codeUpper)
                                         
                                         if (isUsedInCloud || isUsedInSave) {
                                             showRedeemError = true
                                         } else {
-                                            // 标记为已使用（云端）
-                                            FirebaseRedeemCodeManager.markCodeAsUsed(userId, codeUpper, "special")
+                                            // 记录使用（云端）
+                                            LeanCloudRedeemCodeManager.recordUserRedeem(userId, codeUpper, "special")
                                             // 同时标记本地
                                             RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
                                             
@@ -7766,7 +7733,7 @@ fun InGameSettingsContent(
                                     }
                                 }
                             } catch (e: Exception) {
-                                Log.e("Firebase", "兑换码处理失败", e)
+                                Log.e("LeanCloud", "兑换码处理失败", e)
                                 showRedeemError = true
                             }
                         }

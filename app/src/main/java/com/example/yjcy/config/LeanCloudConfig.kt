@@ -5,10 +5,10 @@ import android.util.Log
 import cn.leancloud.LCCloud
 import cn.leancloud.LCObject
 import cn.leancloud.LeanCloud
-import cn.leancloud.core.AppConfiguration
+import cn.leancloud.LCLogger
 
 /**
- * LeanCloud配置类（SDK 9.0.0）
+ * LeanCloud配置类（SDK 8.2.28）
  * 用于初始化LeanCloud SDK和管理兑换码数据
  */
 object LeanCloudConfig {
@@ -33,7 +33,7 @@ object LeanCloudConfig {
      */
     fun initialize(context: Context) {
         try {
-            Log.d(TAG, "========== 开始初始化 LeanCloud SDK 9.0.0 ==========")
+            Log.d(TAG, "========== 开始初始化 LeanCloud SDK 8.2.28 ==========")
             
             // 检查配置是否已设置
             if (APP_ID == "YOUR_APP_ID" || APP_KEY == "YOUR_APP_KEY") {
@@ -43,24 +43,24 @@ object LeanCloudConfig {
                 return
             }
             
-            // 构建配置
-            val builder = LeanCloud.Builder(context)
-                .appId(APP_ID)
-                .appKey(APP_KEY)
-            
-            // 如果使用自定义服务器地址（国际版）
-            if (!USE_CN_NODE && SERVER_URL != "https://YOUR_SERVER_URL.api.lncldglobal.com") {
-                builder.serverUrl(SERVER_URL)
-                Log.d(TAG, "使用自定义服务器: $SERVER_URL")
-            } else if (USE_CN_NODE) {
-                Log.d(TAG, "使用中国节点（华北/华东）")
-            }
-            
             // 开启日志（生产环境建议关闭）
-            AppConfiguration.setLogLevel(AppConfiguration.LogLevel.DEBUG)
+            LeanCloud.setLogLevel(LCLogger.Level.DEBUG)
             
-            // 初始化SDK
-            LeanCloud.initialize(builder.build())
+            // 初始化SDK（8.2.28版本）
+            if (USE_CN_NODE) {
+                // 使用中国节点（华北/华东）
+                LeanCloud.initialize(context, APP_ID, APP_KEY, SERVER_URL)
+                Log.d(TAG, "使用中国节点: $SERVER_URL")
+            } else {
+                // 国际版或自定义服务器
+                if (SERVER_URL != "https://YOUR_SERVER_URL.api.lncldglobal.com") {
+                    LeanCloud.initialize(context, APP_ID, APP_KEY, SERVER_URL)
+                    Log.d(TAG, "使用自定义服务器: $SERVER_URL")
+                } else {
+                    LeanCloud.initialize(context, APP_ID, APP_KEY)
+                    Log.d(TAG, "使用默认配置")
+                }
+            }
             
             Log.d(TAG, "✅ LeanCloud初始化成功")
             Log.d(TAG, "App ID: $APP_ID")
