@@ -132,6 +132,9 @@ dependencies {
     implementation("com.google.firebase:firebase-analytics-ktx")
     implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")
+    
+    // LeanCloud
+    implementation(libs.leancloud.storage)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

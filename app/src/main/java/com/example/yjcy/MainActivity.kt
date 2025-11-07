@@ -2000,12 +2000,17 @@ fun GameScreen(
     LaunchedEffect(userId) {
         if (userId != null) {
             try {
+                // 刷新用户兑换码缓存（优化国内网络延迟）
+                FirebaseRedeemCodeManager.refreshUserCodesCache(userId)
+                
                 // 迁移本地数据到云端（首次登录时）
                 val localCodes = RedeemCodeManager.getUserUsedCodes(userId)
                 if (localCodes.isNotEmpty()) {
                     val migrated = FirebaseRedeemCodeManager.migrateFromLocal(userId, localCodes)
                     if (migrated) {
                         Log.d("Firebase", "本地兑换码数据已迁移到云端")
+                        // 迁移后刷新缓存
+                        FirebaseRedeemCodeManager.refreshUserCodesCache(userId)
                     }
                 }
                 

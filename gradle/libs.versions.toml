@@ -23,6 +23,7 @@ tapSdk = "4.8.3"
 # supabase = "3.2.1"  # 已移除
 kotlinxCoroutines = "1.9.0"
 # ktor = "3.0.3"  # 已移除Supabase
+leancloud = "9.0.0"
 
 
 [libraries]
@@ -61,6 +62,7 @@ tap-db = { group = "com.taptap.sdk", name = "tap-db", version.ref = "tapSdk" }
 # supabase-postgrest = { group = "io.github.jan-tennert.supabase", name = "postgrest-kt", version.ref = "supabase" }  # 已移除
 kotlinx-coroutines = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }
 # ktor-client-android = { group = "io.ktor", name = "ktor-client-android", version.ref = "ktor" }  # 已移除Supabase
+leancloud-storage = { group = "cn.leancloud", name = "storage-android", version.ref = "leancloud" }
 
 
 [plugins]

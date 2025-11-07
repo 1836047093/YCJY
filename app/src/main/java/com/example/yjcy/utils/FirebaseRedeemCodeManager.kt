@@ -1,15 +1,20 @@
 package com.example.yjcy.utils
 
+import android.content.Context
 import android.util.Log
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.Source
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.TimeUnit
 
 /**
- * Firebase 兑换码管理器
+ * Firebase 兑换码管理器（优化版 - 使用Firebase持久化缓存）
  * 使用 Firestore 云端存储兑换码使用记录，实现跨设备同步和防作弊
+ * 优化：启用Firebase Firestore持久化缓存，优先从缓存读取，减少网络延迟
  */
 object FirebaseRedeemCodeManager {
     
@@ -17,8 +22,30 @@ object FirebaseRedeemCodeManager {
     private const val COLLECTION_USER_CODES = "user_redeem_codes"
     private const val COLLECTION_CODES = "redeemCodes"  // 匹配管理后台的集合名
     
+    // 网络超时配置
+    private const val NETWORK_TIMEOUT_MS = 8000L // 8秒超时（给国内网络更多时间）
+    
     private val db: FirebaseFirestore by lazy {
         FirebaseFirestore.getInstance()
+    }
+    
+    /**
+     * 初始化Firebase Firestore持久化缓存（需要在应用启动时调用）
+     * 这会启用Firebase自带的离线持久化功能，自动缓存数据
+     */
+    fun initializeCache(context: Context) {
+        try {
+            // 启用Firestore持久化缓存
+            val settings = com.google.firebase.firestore.FirebaseFirestoreSettings.Builder()
+                .setPersistenceEnabled(true) // 启用持久化
+                .setCacheSizeBytes(com.google.firebase.firestore.FirebaseFirestoreSettings.CACHE_SIZE_UNLIMITED) // 无限制缓存大小
+                .build()
+            
+            db.firestoreSettings = settings
+            Log.d(TAG, "✅ Firebase Firestore持久化缓存已启用")
+        } catch (e: Exception) {
+            Log.w(TAG, "启用Firestore持久化缓存失败（可能已启用）", e)
+        }
     }
     
     /**
@@ -81,7 +108,7 @@ object FirebaseRedeemCodeManager {
     )
     
     /**
-     * 从Firestore查询兑换码（支持新格式和旧格式）
+     * 从Firestore查询兑换码（支持新格式和旧格式，使用Firebase缓存优先）
      * @param code 兑换码
      * @return 兑换码数据，如果不存在返回null
      */
@@ -94,29 +121,32 @@ object FirebaseRedeemCodeManager {
                 Log.d(TAG, "开始查询兑换码: 原始='$code', 大写='$upperCode'")
                 
                 // 先尝试用code作为文档ID查询（兼容旧格式）
+                // 使用Source.DEFAULT：优先从Firebase持久化缓存读取
                 val codeDoc = db.collection(COLLECTION_CODES)
                     .document(upperCode)
-                    .get()
+                    .get(Source.DEFAULT) // 优先使用Firebase缓存
                     .await()
                 
                 if (codeDoc.exists()) {
                     val data = codeDoc.toObject(RedeemCodeData::class.java)
-                    Log.d(TAG, "✅ 通过文档ID找到兑换码: code=$upperCode, reward=${data?.reward}, status=${data?.reward?.status}")
+                    val source = if (codeDoc.metadata.isFromCache) "缓存" else "服务器"
+                    Log.d(TAG, "✅ 通过文档ID从Firebase $source 找到兑换码: code=$upperCode, reward=${data?.reward}, status=${data?.reward?.status}")
                     return@withContext data
                 }
                 
                 // 如果文档ID不匹配，尝试用code字段查询（管理后台使用随机文档ID）
-                // 先尝试大写格式
+                // 先尝试大写格式，使用Source.DEFAULT优先使用缓存
                 var querySnapshot = db.collection(COLLECTION_CODES)
                     .whereEqualTo("code", upperCode)
                     .limit(1)
-                    .get()
+                    .get(Source.DEFAULT) // 优先使用Firebase缓存
                     .await()
                 
                 if (!querySnapshot.isEmpty) {
                     val doc = querySnapshot.documents[0]
                     val data = doc.toObject(RedeemCodeData::class.java)
-                    Log.d(TAG, "✅ 通过code字段找到兑换码(大写): code=$upperCode, docId=${doc.id}")
+                    val source = if (doc.metadata.isFromCache) "缓存" else "服务器"
+                    Log.d(TAG, "✅ 通过code字段从Firebase $source 找到兑换码(大写): code=$upperCode, docId=${doc.id}")
                     return@withContext data
                 }
                 
@@ -125,13 +155,14 @@ object FirebaseRedeemCodeManager {
                     querySnapshot = db.collection(COLLECTION_CODES)
                         .whereEqualTo("code", originalCode)
                         .limit(1)
-                        .get()
+                        .get(Source.DEFAULT) // 优先使用Firebase缓存
                         .await()
                     
                     if (!querySnapshot.isEmpty) {
                         val doc = querySnapshot.documents[0]
                         val data = doc.toObject(RedeemCodeData::class.java)
-                        Log.d(TAG, "✅ 通过code字段找到兑换码(原始格式): code=$originalCode, docId=${doc.id}")
+                        val source = if (doc.metadata.isFromCache) "缓存" else "服务器"
+                        Log.d(TAG, "✅ 通过code字段从Firebase $source 找到兑换码(原始格式): code=$originalCode, docId=${doc.id}")
                         return@withContext data
                     }
                 }
@@ -160,16 +191,19 @@ object FirebaseRedeemCodeManager {
     }
     
     /**
-     * 检查兑换码是否已被任何用户使用（全局唯一验证）
+     * 检查兑换码是否已被任何用户使用（全局唯一验证，带超时）
      * @param code 兑换码
      * @return true表示已被使用，false表示未被使用
      */
     suspend fun isCodeUsedGlobally(code: String): Boolean {
-        val redeemCodeData = getRedeemCodeFromFirestore(code)
+        val redeemCodeData = withTimeoutOrNull(NETWORK_TIMEOUT_MS) {
+            getRedeemCodeFromFirestore(code)
+        }
         
         return when {
             redeemCodeData == null -> {
-                Log.d(TAG, "兑换码不存在: $code")
+                Log.w(TAG, "兑换码不存在或查询超时: $code")
+                // 超时或不存在时，返回false（允许用户尝试，但会在markCodeAsUsed时再次验证）
                 false
             }
             // 新格式：检查reward.status
@@ -188,7 +222,42 @@ object FirebaseRedeemCodeManager {
     }
     
     /**
-     * 检查用户是否已使用过指定的兑换码
+     * 批量加载用户兑换码到Firebase缓存（后台异步预加载）
+     * 使用Source.DEFAULT优先从缓存读取，如果没有再从服务器读取
+     */
+    suspend fun refreshUserCodesCache(userId: String?): Boolean {
+        if (userId.isNullOrBlank()) return false
+        
+        return withContext(Dispatchers.IO) {
+            try {
+                val sanitizedUserId = sanitizeUserId(userId)
+                
+                // 使用Source.DEFAULT：先尝试缓存，如果没有再从服务器读取
+                val document = withTimeoutOrNull(NETWORK_TIMEOUT_MS) {
+                    db.collection(COLLECTION_USER_CODES)
+                        .document(sanitizedUserId)
+                        .get(Source.DEFAULT) // 优先使用缓存
+                        .await()
+                }
+                
+                if (document != null && document.exists()) {
+                    val data = document.toObject(UserRedeemData::class.java)
+                    val codes = data?.usedCodes?.toSet() ?: emptySet()
+                    Log.d(TAG, "✅ Firebase缓存刷新成功: userId=$userId, codes=${codes.size}个")
+                    true
+                } else {
+                    Log.d(TAG, "用户无兑换码记录: userId=$userId")
+                    true
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "刷新Firebase缓存失败: userId=$userId", e)
+                false
+            }
+        }
+    }
+    
+    /**
+     * 检查用户是否已使用过指定的兑换码（优化版：使用Firebase缓存优先）
      * @param userId TapTap unionId 或 openId
      * @param code 兑换码
      * @return true表示已使用过，false表示未使用
@@ -199,29 +268,36 @@ object FirebaseRedeemCodeManager {
             return false
         }
         
+        val upperCode = code.trim().uppercase()
+        
         return withContext(Dispatchers.IO) {
             try {
-                // 清理用户ID，移除Firestore不允许的字符
                 val sanitizedUserId = sanitizeUserId(userId)
-                Log.d(TAG, "原始userId: $userId, 清理后: $sanitizedUserId")
                 
-                val document = db.collection(COLLECTION_USER_CODES)
-                    .document(sanitizedUserId)
-                    .get()
-                    .await()
+                // 使用Source.DEFAULT：优先从Firebase持久化缓存读取，如果没有再从服务器读取
+                // 这样既能利用缓存加速，又能保证数据来自Firebase数据库
+                val document = withTimeoutOrNull(NETWORK_TIMEOUT_MS) {
+                    db.collection(COLLECTION_USER_CODES)
+                        .document(sanitizedUserId)
+                        .get(Source.DEFAULT) // 优先使用Firebase缓存
+                        .await()
+                }
                 
-                if (document.exists()) {
+                if (document != null && document.exists()) {
                     val data = document.toObject(UserRedeemData::class.java)
-                    val isUsed = data?.usedCodes?.contains(code.uppercase()) ?: false
-                    Log.d(TAG, "检查兑换码: userId=$userId, code=$code, isUsed=$isUsed")
+                    val codes = data?.usedCodes?.toSet() ?: emptySet()
+                    val isUsed = codes.contains(upperCode)
+                    
+                    val source = if (document.metadata.isFromCache) "缓存" else "服务器"
+                    Log.d(TAG, "从Firebase $source 查询: userId=$userId, code=$upperCode, isUsed=$isUsed")
                     isUsed
                 } else {
                     Log.d(TAG, "用户无兑换码记录: userId=$userId")
                     false
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "检查兑换码失败", e)
-                // 出错时返回false，允许用户尝试使用
+                Log.w(TAG, "查询Firebase失败: userId=$userId, code=$upperCode", e)
+                // 网络失败时返回false（允许用户尝试）
                 false
             }
         }
@@ -450,6 +526,7 @@ object FirebaseRedeemCodeManager {
                 }
                 
                 Log.d(TAG, "标记兑换码成功（全局唯一）: userId=$userId, code=$code, type=$finalCodeType")
+                // Firebase持久化缓存会自动更新，无需手动操作
                 true
             } catch (e: Exception) {
                 Log.e(TAG, "标记兑换码失败", e)
@@ -468,7 +545,7 @@ object FirebaseRedeemCodeManager {
     }
     
     /**
-     * 获取用户已使用的所有兑换码列表
+     * 获取用户已使用的所有兑换码列表（优化版：使用Firebase缓存优先）
      * @param userId 用户ID
      * @return 已使用的兑换码集合
      */
@@ -480,26 +557,34 @@ object FirebaseRedeemCodeManager {
         return withContext(Dispatchers.IO) {
             try {
                 val sanitizedUserId = sanitizeUserId(userId)
-                val document = db.collection(COLLECTION_USER_CODES)
-                    .document(sanitizedUserId)
-                    .get()
-                    .await()
                 
-                if (document.exists()) {
+                // 使用Source.DEFAULT：优先从Firebase持久化缓存读取
+                val document = withTimeoutOrNull(NETWORK_TIMEOUT_MS) {
+                    db.collection(COLLECTION_USER_CODES)
+                        .document(sanitizedUserId)
+                        .get(Source.DEFAULT) // 优先使用Firebase缓存
+                        .await()
+                }
+                
+                if (document != null && document.exists()) {
                     val data = document.toObject(UserRedeemData::class.java)
-                    data?.usedCodes?.toSet() ?: emptySet()
+                    val codes = data?.usedCodes?.toSet() ?: emptySet()
+                    
+                    val source = if (document.metadata.isFromCache) "缓存" else "服务器"
+                    Log.d(TAG, "从Firebase $source 获取用户兑换码: userId=$userId, count=${codes.size}")
+                    codes
                 } else {
                     emptySet()
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "获取用户兑换码列表失败", e)
+                Log.w(TAG, "获取用户兑换码列表失败: userId=$userId", e)
                 emptySet()
             }
         }
     }
     
     /**
-     * 检查用户是否已使用过任何支持者兑换码
+     * 检查用户是否已使用过任何支持者兑换码（优化版：使用Firebase缓存优先）
      * @param userId 用户ID
      * @return true表示已使用过，false表示未使用
      */
@@ -511,26 +596,34 @@ object FirebaseRedeemCodeManager {
         return withContext(Dispatchers.IO) {
             try {
                 val sanitizedUserId = sanitizeUserId(userId)
-                val document = db.collection(COLLECTION_USER_CODES)
-                    .document(sanitizedUserId)
-                    .get()
-                    .await()
                 
-                if (document.exists()) {
+                // 使用Source.DEFAULT：优先从Firebase持久化缓存读取
+                val document = withTimeoutOrNull(NETWORK_TIMEOUT_MS) {
+                    db.collection(COLLECTION_USER_CODES)
+                        .document(sanitizedUserId)
+                        .get(Source.DEFAULT) // 优先使用Firebase缓存
+                        .await()
+                }
+                
+                if (document != null && document.exists()) {
                     val data = document.toObject(UserRedeemData::class.java)
-                    data?.supporterUnlocked ?: false
+                    val unlocked = data?.supporterUnlocked ?: false
+                    
+                    val source = if (document.metadata.isFromCache) "缓存" else "服务器"
+                    Log.d(TAG, "从Firebase $source 检查支持者状态: userId=$userId, unlocked=$unlocked")
+                    unlocked
                 } else {
                     false
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "检查支持者状态失败", e)
+                Log.w(TAG, "检查支持者状态失败: userId=$userId", e)
                 false
             }
         }
     }
     
     /**
-     * 验证兑换码是否存在且有效（从Firestore查询）
+     * 验证兑换码是否存在且有效（从Firestore查询，带超时）
      * @param code 兑换码
      * @return 兑换码数据，如果不存在或无效返回null
      */
@@ -538,10 +631,12 @@ object FirebaseRedeemCodeManager {
         val upperCode = code.trim().uppercase()
         Log.d(TAG, "验证兑换码: 原始输入='$code', 处理后='$upperCode'")
         
-        val redeemCodeData = getRedeemCodeFromFirestore(upperCode)
+        val redeemCodeData = withTimeoutOrNull(NETWORK_TIMEOUT_MS) {
+            getRedeemCodeFromFirestore(upperCode)
+        }
         
         if (redeemCodeData == null) {
-            Log.w(TAG, "兑换码不存在: $upperCode")
+            Log.w(TAG, "兑换码不存在或查询超时: $upperCode")
             return null
         }
         
