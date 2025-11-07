@@ -7641,40 +7641,44 @@ fun InGameSettingsContent(
                                 if (isSupporterCode) {
                                     Log.d("LeanCloud", "开始兑换支持者兑换码: $codeUpper")
                                     
-                                    // 检查当前用户是否已使用过
-                                    val isUsedByUser = LeanCloudRedeemCodeManager.hasUserUsedCode(userId, codeUpper)
-                                    
-                                    when (isUsedByUser) {
-                                        true -> {
-                                            // 已使用过
-                                            Log.d("LeanCloud", "✅ 兑换码已绑定到当前用户")
-                                            redeemSuccessMessage = "✅ 兑换成功！已解锁所有支持者功能\n💾 数据已同步到云端"
-                                            showRedeemSuccessDialog = true
-                                        }
-                                        false, null -> {
-                                            // 未使用或查询失败，尝试记录
-                                            if (isUsedByUser == null) {
-                                                Log.w("LeanCloud", "⚠️ 无法查询使用状态，可能是UserRedeemRecords表不存在，尝试记录")
-                                            }
-                                            
-                                            // 记录使用（云端）
-                                            val success = LeanCloudRedeemCodeManager.recordUserRedeem(userId, codeUpper, codeType)
-                                            
-                                            if (success) {
-                                                Log.d("LeanCloud", "✅ 兑换成功（已保存到云端）")
-                                                
+                                    // 使用新的首次绑定机制
+                                    val ownership = LeanCloudRedeemCodeManager.checkCodeOwnership(codeUpper, userId)
+                                    when (ownership) {
+                                        is LeanCloudRedeemCodeManager.CodeOwnership.Available -> {
+                                            // 首次使用，绑定到当前用户
+                                            val bound = LeanCloudRedeemCodeManager.bindCodeToUser(codeUpper, userId)
+                                            if (bound) {
+                                                // 绑定成功，记录使用历史
+                                                LeanCloudRedeemCodeManager.recordUserRedeem(userId, codeUpper, codeType)
                                                 // 同时更新本地（向后兼容）
                                                 onUsedRedeemCodesUpdate(usedRedeemCodes + codeUpper)
                                                 RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
                                                 
                                                 redeemCode = ""
-                                                redeemSuccessMessage = "✅ 兑换成功！已解锁所有支持者功能\n💾 数据已同步到云端"
+                                                redeemSuccessMessage = "✅ 兑换成功！已解锁所有支持者功能\n💾 兑换码已绑定到你的账号"
                                                 showRedeemSuccessDialog = true
                                             } else {
-                                                Log.e("LeanCloud", "❌ 云端保存失败或网络错误")
-                                                redeemSuccessMessage = "❌ 兑换失败：请先在LeanCloud控制台创建UserRedeemRecords表"
+                                                Log.e("LeanCloud", "❌ 绑定兑换码失败")
+                                                redeemSuccessMessage = "❌ 兑换失败：绑定失败"
                                                 showRedeemError = true
                                             }
+                                        }
+                                        is LeanCloudRedeemCodeManager.CodeOwnership.OwnedByCurrentUser -> {
+                                            // 已绑定到当前用户，可以继续使用
+                                            Log.d("LeanCloud", "✅ 兑换码已绑定到当前用户")
+                                            redeemSuccessMessage = "✅ 兑换成功！已解锁所有支持者功能\n💾 换设备也可使用"
+                                            showRedeemSuccessDialog = true
+                                        }
+                                        is LeanCloudRedeemCodeManager.CodeOwnership.OwnedByOthers -> {
+                                            // 已被其他用户绑定
+                                            Log.w("LeanCloud", "❌ 兑换码已被其他用户使用")
+                                            redeemSuccessMessage = "❌ 兑换失败：该兑换码已被其他用户使用"
+                                            showRedeemError = true
+                                        }
+                                        else -> {
+                                            Log.e("LeanCloud", "❌ 检查兑换码归属失败")
+                                            redeemSuccessMessage = "❌ 兑换失败：网络错误或表不存在"
+                                            showRedeemError = true
                                         }
                                     }
                                     return@launch

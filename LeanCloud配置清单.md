@@ -81,13 +81,15 @@ leancloud-storage = { group = "cn.leancloud", name = "storage-android", version.
 2. 点击 **创建 Class**
 3. 创建以下两个表：
 
-**表 1: RedeemCode**
+**表 1: RedeemCode** ⭐ **首次绑定机制**
 - Class 名称：`RedeemCode`（不带s）
 - 权限：限制性（下一步设置）
 - **必需字段**：
   - `code`（String）：兑换码，必填，唯一
   - `type`（String）：类型，必填，可选值：`gm`、`supporter`、`special`
   - `batchId`（String）：批次ID，可选
+  - **`usedBy`（String）**：绑定的用户ID，首次使用时自动设置
+  - **`isUsed`（Boolean）**：是否已被使用/绑定，默认值 `false`
 
 **表 2: UserRedeemRecords** ⚠️ **必须创建此表，否则兑换功能无法使用！**
 - Class 名称：`UserRedeemRecords`（注意大小写）
@@ -347,3 +349,40 @@ Button(
 - 生产环境建议关闭 LeanCloud 日志：`AppConfiguration.setLogLevel(AppConfiguration.LogLevel.OFF)`
 - 定期备份 LeanCloud 数据
 - 监控 LeanCloud 用量，避免超出免费额度
+
+## 🔐 首次绑定机制说明
+
+**什么是首次绑定？**
+
+兑换码在首次使用时会绑定到使用者的账号，只有该账号可以无限次使用。
+
+**工作流程：**
+
+1. **用户A首次使用兑换码** `5FYT-FHY8-MV8M`：
+   - 检查 `RedeemCode` 表，发现 `usedBy` 为空
+   - 绑定到用户A（更新 `usedBy = userId_A`, `isUsed = true`）
+   - 解锁功能 ✅
+
+2. **用户A换设备/重装游戏再次使用**：
+   - 检查 `RedeemCode` 表，发现 `usedBy = userId_A`（匹配）
+   - 直接解锁功能 ✅（换设备也能用）
+
+3. **用户B尝试使用同一兑换码**：
+   - 检查 `RedeemCode` 表，发现 `usedBy = userId_A`（不匹配）
+   - 提示"该兑换码已被其他用户使用" ❌
+
+**优势：**
+
+- ✅ 防止兑换码被多人共享
+- ✅ 用户换设备/重装游戏不影响使用
+- ✅ 数据存储在云端，永久有效
+- ✅ 每个兑换码只能绑定一个用户
+
+**数据库字段：**
+
+| 字段名 | 类型 | 说明 | 默认值 |
+|--------|------|------|--------|
+| code | String | 兑换码 | - |
+| type | String | 类型（gm/supporter） | - |
+| **usedBy** | **String** | **绑定的用户ID** | **空** |
+| **isUsed** | **Boolean** | **是否已绑定** | **false** |
