@@ -7689,28 +7689,31 @@ fun InGameSettingsContent(
                                         // 检查是否已使用过（云端）
                                         val isUsed = LeanCloudRedeemCodeManager.hasUserUsedCode(userId, codeUpper)
                                         
-                                        if (isUsed) {
-                                            // 账号已使用过，自动启用GM模式
-                                            if (!gmModeEnabled) {
-                                                onGMToggle(true)
-                                            }
-                                            redeemCode = ""
-                                            redeemSuccessMessage = "GM工具箱已激活！（账号已解锁）\n💾 数据已同步到云端"
-                                            showRedeemSuccessDialog = true
-                                        } else {
-                                            // 记录使用（云端）
-                                            val success = LeanCloudRedeemCodeManager.recordUserRedeem(userId, codeUpper, "gm")
-                                            
-                                            if (success) {
-                                                // 同时更新本地
-                                                RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
-                                                onGMToggle(true)
-                                                
+                                        when (isUsed) {
+                                            true -> {
+                                                // 账号已使用过，自动启用GM模式
+                                                if (!gmModeEnabled) {
+                                                    onGMToggle(true)
+                                                }
                                                 redeemCode = ""
-                                                redeemSuccessMessage = "GM工具箱已激活！\n💾 数据已同步到云端"
+                                                redeemSuccessMessage = "GM工具箱已激活！（账号已解锁）\n💾 数据已同步到云端"
                                                 showRedeemSuccessDialog = true
-                                            } else {
-                                                showRedeemError = true
+                                            }
+                                            false, null -> {
+                                                // 未使用或查询失败，尝试记录
+                                                val success = LeanCloudRedeemCodeManager.recordUserRedeem(userId, codeUpper, "gm")
+                                                
+                                                if (success) {
+                                                    // 同时更新本地
+                                                    RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
+                                                    onGMToggle(true)
+                                                    
+                                                    redeemCode = ""
+                                                    redeemSuccessMessage = "GM工具箱已激活！\n💾 数据已同步到云端"
+                                                    showRedeemSuccessDialog = true
+                                                } else {
+                                                    showRedeemError = true
+                                                }
                                             }
                                         }
                                     }
@@ -7719,7 +7722,7 @@ fun InGameSettingsContent(
                                         val isUsedInCloud = LeanCloudRedeemCodeManager.hasUserUsedCode(userId, codeUpper)
                                         val isUsedInSave = usedRedeemCodes.contains(codeUpper)
                                         
-                                        if (isUsedInCloud || isUsedInSave) {
+                                        if (isUsedInCloud == true || isUsedInSave) {
                                             showRedeemError = true
                                         } else {
                                             // 记录使用（云端）
