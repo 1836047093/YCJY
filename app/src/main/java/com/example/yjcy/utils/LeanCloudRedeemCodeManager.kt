@@ -165,7 +165,9 @@ object LeanCloudRedeemCodeManager {
     suspend fun bindCodeToUser(code: String, userId: String): Boolean = withContext(Dispatchers.IO) {
         return@withContext withTimeoutOrNull(NETWORK_TIMEOUT_MS) {
             try {
-                Log.d(TAG, "开始绑定兑换码: code=$code, userId=$userId")
+                Log.d(TAG, "========== 开始绑定兑换码 ==========")
+                Log.d(TAG, "兑换码: $code")
+                Log.d(TAG, "用户ID: $userId")
                 
                 // 获取兑换码对象
                 val query = LCQuery<LCObject>(LeanCloudConfig.TABLE_REDEEM_CODES)
@@ -179,19 +181,43 @@ object LeanCloudRedeemCodeManager {
                 
                 val redeemCodeObj = results[0]
                 
+                // 记录绑定前的状态
+                val beforeUsedBy = redeemCodeObj.getString("usedBy")
+                val beforeIsUsed = redeemCodeObj.getBoolean("isUsed")
+                Log.d(TAG, "绑定前状态: usedBy=$beforeUsedBy, isUsed=$beforeIsUsed")
+                
                 // 更新 usedBy 和 isUsed 字段
                 redeemCodeObj.put("usedBy", userId)
                 redeemCodeObj.put("isUsed", true)
+                
+                Log.d(TAG, "正在保存到云端...")
                 redeemCodeObj.save()
                 
-                Log.d(TAG, "✅ 兑换码绑定成功")
-                return@withTimeoutOrNull true
+                // 验证绑定后的状态
+                val afterUsedBy = redeemCodeObj.getString("usedBy")
+                val afterIsUsed = redeemCodeObj.getBoolean("isUsed")
+                Log.d(TAG, "绑定后状态: usedBy=$afterUsedBy, isUsed=$afterIsUsed")
+                
+                if (afterUsedBy == userId && afterIsUsed) {
+                    Log.d(TAG, "✅ 兑换码绑定成功！")
+                    Log.d(TAG, "========== 绑定流程完成 ==========")
+                    return@withTimeoutOrNull true
+                } else {
+                    Log.e(TAG, "❌ 绑定验证失败：字段未正确更新")
+                    return@withTimeoutOrNull false
+                }
                 
             } catch (e: Exception) {
-                Log.e(TAG, "❌ 绑定兑换码失败", e)
+                Log.e(TAG, "❌ 绑定兑换码失败")
+                Log.e(TAG, "错误类型: ${e.javaClass.simpleName}")
+                Log.e(TAG, "错误信息: ${e.message}")
+                e.printStackTrace()
                 false
             }
-        } ?: false
+        } ?: run {
+            Log.e(TAG, "❌ 绑定操作超时（${NETWORK_TIMEOUT_MS}ms）")
+            false
+        }
     }
     
     /**
