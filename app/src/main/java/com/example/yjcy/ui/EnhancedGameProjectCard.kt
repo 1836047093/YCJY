@@ -7,11 +7,14 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Schedule
@@ -1981,13 +1984,17 @@ private fun StrategyText(period: String, strategy: String, color: Color) {
             color = color,
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
-            modifier = Modifier.weight(1.2f)
+            lineHeight = 16.sp,
+            modifier = Modifier.weight(1.5f),
+            maxLines = 1
         )
         Text(
             text = strategy,
             color = Color.White.copy(alpha = 0.8f),
             fontSize = 12.sp,
-            modifier = Modifier.weight(1.8f)
+            lineHeight = 16.sp,
+            modifier = Modifier.weight(1.5f),
+            maxLines = 1
         )
     }
 }

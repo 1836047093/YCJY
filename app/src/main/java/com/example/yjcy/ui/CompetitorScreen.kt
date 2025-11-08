@@ -76,7 +76,7 @@ fun CompetitorContent(
             )
             .padding(horizontal = 6.dp, vertical = 6.dp)
     ) {
-        // 标题
+        // 标题栏
         Text(
             text = "🎯 竞争对手",
             style = MaterialTheme.typography.headlineMedium,

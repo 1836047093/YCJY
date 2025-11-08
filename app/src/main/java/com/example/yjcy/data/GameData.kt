@@ -781,6 +781,7 @@ data class SaveData(
     val currentYearNominations: List<com.example.yjcy.data.AwardNomination> = emptyList(), // GVA：当年提名（12月15日生成）
     val gvaAnnouncedDate: GameDate? = null, // GVA：最近一次颁奖日期
     val ownedIPs: List<GameIP> = emptyList(), // 拥有的游戏IP列表（收购竞争对手后获得）
+    val subsidiaries: List<Subsidiary> = emptyList(), // 子公司列表（收购竞争对手后转为子公司）
     val gmModeEnabled: Boolean = false, // GM模式开关（通过兑换码激活）
     val usedRedeemCodes: Set<String> = emptySet(), // 已使用的兑换码列表
     val isSupporterUnlocked: Boolean = false, // 支持者功能是否解锁（通过SUPPORTER兑换码解锁）

@@ -131,6 +131,8 @@ import com.example.yjcy.data.CompanyReputation
 import com.example.yjcy.data.CompetitorCompany
 import com.example.yjcy.data.CompetitorManager
 import com.example.yjcy.data.CompetitorNews
+import com.example.yjcy.data.Subsidiary
+import com.example.yjcy.data.SubsidiaryManager
 import com.example.yjcy.data.Complaint
 import com.example.yjcy.data.ComplaintStatus
 import com.example.yjcy.data.DevelopmentPhase
@@ -2005,6 +2007,7 @@ fun GameScreen(
     var competitors by remember { mutableStateOf(saveData?.competitors ?: emptyList()) }
     var competitorNews by remember { mutableStateOf(saveData?.competitorNews ?: emptyList()) }
     var ownedIPs by remember { mutableStateOf(saveData?.ownedIPs ?: emptyList()) } // 拥有的游戏IP列表
+    var subsidiaries by remember { mutableStateOf(saveData?.subsidiaries ?: emptyList()) } // 子公司列表（收购的竞争对手）
     
     // 客诉数据状态
     var complaints by remember { mutableStateOf(saveData?.complaints ?: emptyList()) }
@@ -2436,7 +2439,7 @@ fun GameScreen(
             
             // 根据游戏速度延迟不同的时间后推进一天
             delay(when (gameSpeed) {
-                1 -> 8000L // 慢速：8秒推进1天
+                1 -> 15000L // 慢速：15秒推进1天
                 2 -> 2000L // 中速：2秒推进1天
                 3 -> 1000L // 快速：1秒推进1天
                 else -> 2000L
@@ -2619,6 +2622,7 @@ fun GameScreen(
                                     currentYearNominations = currentYearNominations,
                                     gvaAnnouncedDate = gvaAnnouncedDate,
                                     ownedIPs = ownedIPs,
+                                    subsidiaries = subsidiaries,
                                     gmModeEnabled = gmModeEnabled,
                                     usedRedeemCodes = usedRedeemCodes,
                                     isSupporterUnlocked = isSupporterUnlocked,
@@ -2800,6 +2804,22 @@ fun GameScreen(
                     competitors = updatedCompetitors
                     // 添加新闻，保持最近30条
                     competitorNews = (newNews + competitorNews).take(30)
+                    
+                    // 月结算：更新子公司
+                    subsidiaries = subsidiaries.map { subsidiary ->
+                        val updatedSubsidiary = SubsidiaryManager.updateMonthlyData(subsidiary)
+                        
+                        // 如果盈利，上缴利润分成
+                        val profitShare = updatedSubsidiary.getProfitShare()
+                        if (profitShare > 0) {
+                            money = safeAddMoney(money, profitShare)
+                            Log.d("MainActivity", "🏭 子公司[${subsidiary.name}]上缴利润: +¥${profitShare} (分成${(subsidiary.profitSharingRate * 100).toInt()}%)")
+                        } else if (updatedSubsidiary.getMonthlyProfit() < 0) {
+                            Log.d("MainActivity", "⚠️ 子公司[${subsidiary.name}]本月亏损: ¥${updatedSubsidiary.getMonthlyProfit()}")
+                        }
+                        
+                        updatedSubsidiary
+                    }
                     
                     // 月结算：清理旧客诉（不再生成新客诉，只清理）
                     // 修复：传入当前年月，确保不会删除本月完成的客诉
@@ -3872,7 +3892,8 @@ fun GameScreen(
                                 competitorNews = competitorNews,
                                 serverData = RevenueManager.exportServerData(),
                                 revenueData = RevenueManager.exportRevenueData(),
-                                ownedIPs = ownedIPs // 传递拥有的IP列表
+                                ownedIPs = ownedIPs, // 传递拥有的IP列表
+                                subsidiaries = subsidiaries // 传递子公司列表
                             ),
                             gameSpeed = gameSpeed,
                             onAcquisitionSuccess = { acquiredCompany: CompetitorCompany, finalPrice: Long, _: Long, fansGain: Long, inheritedIPs: List<GameIP> ->
@@ -3881,6 +3902,14 @@ fun GameScreen(
                                 
                                 // 增加粉丝
                                 fans += fansGain
+                                
+                                // ✅ 将被收购公司转换为子公司
+                                val newSubsidiary = SubsidiaryManager.createSubsidiary(
+                                    company = acquiredCompany,
+                                    acquisitionPrice = finalPrice,
+                                    acquisitionDate = GameDate(currentYear, currentMonth, currentDay)
+                                )
+                                subsidiaries = subsidiaries + newSubsidiary
                                 
                                 // 移除被收购的公司
                                 competitors = competitors.filter { it.id != acquiredCompany.id }
@@ -3891,7 +3920,10 @@ fun GameScreen(
                                 // 统计收购公司数量
                                 totalAcquiredCompanies++
                                 
-                                Log.d("MainActivity", "收购成功：获得${inheritedIPs.size}个IP")
+                                Log.d("MainActivity", "收购成功：${acquiredCompany.name}转为子公司")
+                                Log.d("MainActivity", "  - 继承${acquiredCompany.games.size}款游戏")
+                                Log.d("MainActivity", "  - 获得${inheritedIPs.size}个IP")
+                                Log.d("MainActivity", "  - 估算员工${newSubsidiary.estimatedEmployeeCount}人")
                                 inheritedIPs.forEach { ip: GameIP ->
                                     Log.d("MainActivity", "  - IP: ${ip.name} (${ip.getIPLevel()}, 评分${ip.originalRating}, 加成${(ip.calculateIPBonus() * 100).toInt()}%)")
                                 }
@@ -3909,7 +3941,8 @@ fun GameScreen(
                                         id = "news_${System.currentTimeMillis()}_${Random.nextInt()}",
                                         title = "${companyName}成功收购${acquiredCompany.name}！",
                                         content = "${companyName}以${formatMoney(finalPrice)}的价格成功收购了${acquiredCompany.name}，" +
-                                                "获得了${inheritedIPs.size}个游戏IP，市值大幅增长。这是游戏行业的重大并购事件。",
+                                                "该公司已转为子公司继续运营，拥有${acquiredCompany.games.size}款游戏。" +
+                                                "同时获得了${inheritedIPs.size}个游戏IP。这是游戏行业的重大并购事件。",
                                         type = NewsType.COMPANY_MILESTONE,
                                         companyId = -1,
                                         companyName = companyName,
