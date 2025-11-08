@@ -47,6 +47,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -1943,6 +1945,10 @@ fun GameScreen(
     var showCompetitorMenu by remember { mutableStateOf(false) } // 竞争对手菜单（包含竞争对手和子公司）
     var showSubsidiaryManagement by remember { mutableStateOf(false) } // 子公司管理界面
     
+    // 子公司资金不足对话框状态
+    var showSubsidiaryBankruptDialog by remember { mutableStateOf(false) }
+    var bankruptSubsidiary by remember { mutableStateOf<Subsidiary?>(null) }
+    
     // 上次月结算的年月（防止重复结算）
     var lastSettlementYear by remember { mutableIntStateOf(saveData?.currentYear ?: 1) }
     var lastSettlementMonth by remember { mutableIntStateOf(saveData?.currentMonth ?: 1) }
@@ -2597,6 +2603,12 @@ fun GameScreen(
                         // 异步执行存档
                         launch {
                             try {
+                                // 调试：保存前的子公司数据
+                                Log.d("MainActivity", "🔍 准备保存：子公司数量=${subsidiaries.size}")
+                                subsidiaries.forEachIndexed { index, sub ->
+                                    Log.d("MainActivity", "  子公司[$index]: ${sub.name}, ID=${sub.id}, 游戏数=${sub.games.size}")
+                                }
+                                
                                 val saveData = SaveData(
                                     companyName = companyName,
                                     companyLogo = selectedLogo,
@@ -2636,6 +2648,9 @@ fun GameScreen(
                                     saveTime = System.currentTimeMillis(),
                                     version = BuildConfig.VERSION_NAME
                                 )
+                                
+                                // 调试：SaveData对象中的子公司数据
+                                Log.d("MainActivity", "🔍 SaveData对象：子公司数量=${saveData.subsidiaries.size}")
                                 
                                 val result = saveManager.saveGameAsync(1, saveData)
                                 if (result.success) {
@@ -2820,6 +2835,15 @@ fun GameScreen(
                             Log.d("MainActivity", "🏭 子公司[${subsidiary.name}]上缴利润: +¥${profitShare} (分成${(subsidiary.profitSharingRate * 100).toInt()}%)")
                         } else if (updatedSubsidiary.getMonthlyProfit() < 0) {
                             Log.d("MainActivity", "⚠️ 子公司[${subsidiary.name}]本月亏损: ¥${updatedSubsidiary.getMonthlyProfit()}")
+                        }
+                        
+                        // 检查资金是否为0，如果是则弹出对话框
+                        if (updatedSubsidiary.cashBalance <= 0 && !showSubsidiaryBankruptDialog) {
+                            Log.d("MainActivity", "💸 子公司[${subsidiary.name}]资金不足！当前资金: ¥${updatedSubsidiary.cashBalance}")
+                            bankruptSubsidiary = updatedSubsidiary
+                            showSubsidiaryBankruptDialog = true
+                            // 暂停游戏，让玩家做出选择
+                            isPaused = true
                         }
                         
                         updatedSubsidiary
@@ -4591,6 +4615,145 @@ fun GameScreen(
                 dismissButton = null
             )
         }
+        
+        // 子公司资金不足对话框
+        if (showSubsidiaryBankruptDialog && bankruptSubsidiary != null) {
+            AlertDialog(
+                onDismissRequest = { /* 不允许关闭，必须选择一个选项 */ },
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "💸",
+                            fontSize = 24.sp,
+                            modifier = Modifier.padding(end = 8.dp)
+                        )
+                        Text(
+                            text = "子公司资金不足",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                },
+                text = {
+                    Column {
+                        Text(
+                            text = "子公司「${bankruptSubsidiary!!.name}」资金已归零！",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFEF4444)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "当前资金：¥${formatMoney(bankruptSubsidiary!!.cashBalance)}",
+                            fontSize = 14.sp,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                        Text(
+                            text = "月度支出：¥${formatMoney(bankruptSubsidiary!!.monthlyExpense)}",
+                            fontSize = 14.sp,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                        Text(
+                            text = "月度收入：¥${formatMoney(bankruptSubsidiary!!.monthlyRevenue)}",
+                            fontSize = 14.sp,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "您可以选择注入资金维持运营，或解散公司止损。",
+                            fontSize = 14.sp,
+                            color = Color.White.copy(alpha = 0.9f)
+                        )
+                    }
+                },
+                confirmButton = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // 注入资金按钮
+                        Button(
+                            onClick = {
+                                // 计算注入金额（3个月的支出作为缓冲）
+                                val injectionAmount = bankruptSubsidiary!!.monthlyExpense * 3
+                                if (money >= injectionAmount) {
+                                    // 扣除玩家资金
+                                    money = safeAddMoney(money, -injectionAmount)
+                                    // 更新子公司资金
+                                    subsidiaries = subsidiaries.map { sub ->
+                                        if (sub.id == bankruptSubsidiary!!.id) {
+                                            sub.copy(cashBalance = injectionAmount)
+                                        } else {
+                                            sub
+                                        }
+                                    }
+                                    messageText = "已向${bankruptSubsidiary!!.name}注入¥${formatMoney(injectionAmount)}"
+                                    showMessage = true
+                                    Log.d("MainActivity", "💰 注入资金: ${bankruptSubsidiary!!.name} +¥${injectionAmount}")
+                                } else {
+                                    messageText = "资金不足！需要¥${formatMoney(injectionAmount)}，当前仅有¥${formatMoney(money)}"
+                                    showMessage = true
+                                }
+                                showSubsidiaryBankruptDialog = false
+                                bankruptSubsidiary = null
+                                isPaused = false
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF10B981),
+                                contentColor = Color.White
+                            ),
+                            enabled = money >= (bankruptSubsidiary!!.monthlyExpense * 3)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "注入资金 (¥${formatMoney(bankruptSubsidiary!!.monthlyExpense * 3)})",
+                                fontSize = 16.sp
+                            )
+                        }
+                        
+                        // 解散公司按钮
+                        OutlinedButton(
+                            onClick = {
+                                // 移除子公司
+                                subsidiaries = subsidiaries.filter { it.id != bankruptSubsidiary!!.id }
+                                messageText = "${bankruptSubsidiary!!.name}已解散"
+                                showMessage = true
+                                Log.d("MainActivity", "🏭 解散子公司: ${bankruptSubsidiary!!.name}")
+                                showSubsidiaryBankruptDialog = false
+                                bankruptSubsidiary = null
+                                isPaused = false
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color(0xFFEF4444)
+                            ),
+                            border = BorderStroke(1.dp, Color(0xFFEF4444))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("解散公司", fontSize = 16.sp)
+                        }
+                    }
+                },
+                dismissButton = null,
+                containerColor = Color(0xFF1E293B),
+                titleContentColor = Color.White,
+                textContentColor = Color.White
+            )
+        }
+        
         // 设置界面覆盖层
         if (showSettings) {
             Box(
@@ -4667,6 +4830,7 @@ fun GameScreen(
                             currentYearNominations = currentYearNominations,
                             gvaAnnouncedDate = gvaAnnouncedDate,
                             ownedIPs = ownedIPs, // 传递拥有的IP列表
+                            subsidiaries = subsidiaries, // 传递子公司列表
                             gmModeEnabled = gmModeEnabled,
                             onGMToggle = { enabled -> gmModeEnabled = enabled },
                             autoSaveEnabled = autoSaveEnabled,
@@ -7032,6 +7196,12 @@ class SaveManager(context: Context) {
                 )
             }
             
+            // 调试：修复前的子公司数据
+            Log.d("SaveManager", "🔍 修复前：子公司数量=${saveData.subsidiaries.size}")
+            saveData.subsidiaries.forEachIndexed { index, sub ->
+                Log.d("SaveManager", "  修复前子公司[$index]: ${sub.name}, ID=${sub.id}")
+            }
+            
             // 修复SaveData级别的字段
             val fixedSaveData = saveData.copy(
                 games = fixedGames,
@@ -7058,6 +7228,10 @@ class SaveManager(context: Context) {
                 competitors = saveData.competitors,
                 competitorNews = saveData.competitorNews,
                 
+                // 收购系统（子公司和IP）
+                ownedIPs = saveData.ownedIPs,
+                subsidiaries = saveData.subsidiaries,
+                
                 // 招聘系统
                 jobPostings = saveData.jobPostings,
                 
@@ -7079,7 +7253,13 @@ class SaveManager(context: Context) {
                 lastAutoSaveDay = saveData.lastAutoSaveDay
             )
             
-            Log.d("SaveManager", "修复完成：游戏${fixedGames.size}个，员工${fixedSaveData.allEmployees.size}人")
+            // 调试：修复后的子公司数据
+            Log.d("SaveManager", "🔍 修复后：子公司数量=${fixedSaveData.subsidiaries.size}")
+            fixedSaveData.subsidiaries.forEachIndexed { index, sub ->
+                Log.d("SaveManager", "  修复后子公司[$index]: ${sub.name}, ID=${sub.id}")
+            }
+            
+            Log.d("SaveManager", "修复完成：游戏${fixedGames.size}个，员工${fixedSaveData.allEmployees.size}人，子公司${fixedSaveData.subsidiaries.size}个")
             return fixedSaveData
             
         } catch (e: Exception) {
@@ -7093,9 +7273,16 @@ class SaveManager(context: Context) {
      * 清理存档数据，移除过旧的历史数据以减小体积
      */
     private fun cleanSaveData(saveData: SaveData): SaveData {
+        Log.d("SaveManager", "===== 开始清理存档数据 =====")
+        
         // 1. 清理收益数据：每个游戏只保留最近365天的每日销售数据
-        val cleanedRevenueData = saveData.revenueData.mapValues { (_, revenue) ->
-            if (revenue.dailySalesList.size > MAX_DAILY_SALES_DAYS) {
+        val cleanedRevenueData = saveData.revenueData.mapValues { (gameId, revenue) ->
+            // 记录清理前的数据
+            if (revenue.totalRegisteredPlayers > 0) {
+                Log.d("SaveManager", "清理前 - 游戏 ${revenue.gameName}: 总注册=${revenue.totalRegisteredPlayers}")
+            }
+            
+            val cleaned = if (revenue.dailySalesList.size > MAX_DAILY_SALES_DAYS) {
                 val recentDailySales = revenue.dailySalesList.takeLast(MAX_DAILY_SALES_DAYS)
                 val totalSales = revenue.dailySalesList.sumOf { it.sales }
                 val totalRevenue = revenue.dailySalesList.sumOf { it.revenue }
@@ -7113,6 +7300,15 @@ class SaveManager(context: Context) {
             } else {
                 revenue
             }
+            
+            // 记录清理后的数据
+            if (cleaned.totalRegisteredPlayers > 0) {
+                Log.d("SaveManager", "清理后 - 游戏 ${cleaned.gameName}: 总注册=${cleaned.totalRegisteredPlayers}")
+            } else if (revenue.totalRegisteredPlayers > 0) {
+                Log.e("SaveManager", "⚠️⚠️⚠️ 清理数据时丢失了 totalRegisteredPlayers！游戏=${revenue.gameName}")
+            }
+            
+            cleaned
         }
         
         // 2. 清理竞争对手新闻：只保留最近50条
@@ -7330,6 +7526,7 @@ fun InGameSettingsContent(
     currentYearNominations: List<AwardNomination> = emptyList(), // GVA：当年提名
     gvaAnnouncedDate: GameDate? = null, // GVA：颁奖日期
     ownedIPs: List<GameIP> = emptyList(), // 拥有的游戏IP列表（收购竞争对手后获得）
+    subsidiaries: List<Subsidiary> = emptyList(), // 子公司列表（收购竞争对手后转为子公司）
     gmModeEnabled: Boolean = false, // GM模式是否开启
     onGMToggle: (Boolean) -> Unit = {}, // GM模式切换回调
     autoSaveEnabled: Boolean = false, // 自动存档开关
@@ -8192,6 +8389,7 @@ fun InGameSettingsContent(
                                 currentYearNominations = currentYearNominations, // 保存当年提名
                                 gvaAnnouncedDate = gvaAnnouncedDate, // 保存颁奖日期
                                 ownedIPs = ownedIPs, // 保存拥有的IP列表（收购竞争对手后获得）
+                                subsidiaries = subsidiaries, // 🔧 保存子公司列表（收购竞争对手后转为子公司）
                                 gmModeEnabled = gmModeEnabled, // 保存GM模式状态
                                 usedRedeemCodes = usedRedeemCodes, // 保存已使用的兑换码列表
                                 isSupporterUnlocked = isSupporterUnlocked, // 保存支持者功能解锁状态
@@ -8330,8 +8528,10 @@ fun InGameSettingsContent(
                                             currentYearNominations = currentYearNominations, // 保存当年提名
                                             gvaAnnouncedDate = gvaAnnouncedDate, // 保存颁奖日期
                                             ownedIPs = ownedIPs, // 保存拥有的IP列表（收购竞争对手后获得）
+                                            subsidiaries = subsidiaries, // 🔧 保存子公司列表（收购竞争对手后转为子公司）
                                             gmModeEnabled = gmModeEnabled, // 保存GM模式状态
                                             usedRedeemCodes = usedRedeemCodes, // 保存已使用的兑换码列表
+                                            isSupporterUnlocked = isSupporterUnlocked, // 保存支持者功能解锁状态
                                             autoSaveEnabled = autoSaveEnabled, // 保存自动存档开关
                                             autoSaveInterval = autoSaveInterval, // 保存自动存档间隔
                                             lastAutoSaveDay = lastAutoSaveDay, // 保存上次自动存档时间

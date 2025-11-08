@@ -2858,6 +2858,14 @@ object RevenueManager {
      * 导出所有收益数据（用于存档）
      */
     fun exportRevenueData(): Map<String, GameRevenue> {
+        android.util.Log.d("RevenueManager", "===== 导出收益数据（用于存档） =====")
+        android.util.Log.d("RevenueManager", "导出游戏数量: ${gameRevenueMap.size}")
+        gameRevenueMap.forEach { (gameId, revenue) ->
+            android.util.Log.d("RevenueManager", "  - 游戏 $gameId (${revenue.gameName})")
+            if (revenue.totalRegisteredPlayers > 0) {
+                android.util.Log.d("RevenueManager", "    总注册: ${revenue.totalRegisteredPlayers}")
+            }
+        }
         return gameRevenueMap.toMap()
     }
     
@@ -2884,9 +2892,10 @@ object RevenueManager {
             }
         }
         
-        // 立即同步到SharedPreferences，确保数据持久化
-        saveRevenueData()
-        android.util.Log.d("RevenueManager", "===== 收益数据已同步到SharedPreferences =====")
+        // 🔧 使用 forceSave() 而不是 saveRevenueData()，确保数据立即写入 SharedPreferences
+        // 否则延迟保存可能导致数据丢失（玩家在数据写入前退出游戏）
+        forceSave()
+        android.util.Log.d("RevenueManager", "===== 收益数据已立即同步到SharedPreferences =====")
     }
     
     /**

@@ -258,6 +258,9 @@ private fun SubsidiaryListTab(
  */
 @Composable
 private fun FinancialOverviewTab(subsidiaries: List<Subsidiary>) {
+    var selectedSubsidiaryForView by remember { mutableStateOf<Subsidiary?>(null) }
+    var showSubsidiarySelector by remember { mutableStateOf(false) }
+    
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -299,18 +302,50 @@ private fun FinancialOverviewTab(subsidiaries: List<Subsidiary>) {
                         .fillMaxWidth()
                         .padding(16.dp)
                 ) {
-                    SingleLineText(
-                        text = "📊 收入详情",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
+                    // 标题行（带下拉选择器）
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        SingleLineText(
+                            text = "📊 收入详情",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        
+                        // 下拉选择按钮
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF0F172A))
+                                .clickable { showSubsidiarySelector = true }
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            SingleLineText(
+                                text = selectedSubsidiaryForView?.name ?: "全部",
+                                fontSize = 13.sp,
+                                color = Color(0xFF60A5FA)
+                            )
+                            SingleLineText(
+                                text = "▼",
+                                fontSize = 10.sp,
+                                color = Color(0xFF60A5FA)
+                            )
+                        }
+                    }
                     
-                    val totalRevenue = subsidiaries.sumOf { it.monthlyRevenue }
-                    val totalExpense = subsidiaries.sumOf { it.monthlyExpense }
-                    val totalProfit = subsidiaries.sumOf { it.getMonthlyProfit() }
-                    val totalProfitShare = subsidiaries.sumOf { it.getProfitShare() }
+                    // 根据选择显示数据
+                    val displaySubsidiaries = selectedSubsidiaryForView?.let { listOf(it) } ?: subsidiaries
+                    val totalRevenue = displaySubsidiaries.sumOf { it.monthlyRevenue }
+                    val totalExpense = displaySubsidiaries.sumOf { it.monthlyExpense }
+                    val totalProfit = displaySubsidiaries.sumOf { it.getMonthlyProfit() }
+                    val totalProfitShare = displaySubsidiaries.sumOf { it.getProfitShare() }
                     
                     InfoRow("总月度收入", formatMoney(totalRevenue))
                     InfoRow("总月度支出", formatMoney(totalExpense))
@@ -386,6 +421,68 @@ private fun FinancialOverviewTab(subsidiaries: List<Subsidiary>) {
                             color = if (totalAppreciation >= 0) Color(0xFF4CAF50) else Color(0xFFE57373),
                             fontSize = 14.sp
                         )
+                    }
+                }
+            }
+        }
+    }
+    
+    // 子公司选择对话框
+    if (showSubsidiarySelector) {
+        Dialog(onDismissRequest = { showSubsidiarySelector = false }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 500.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF1a1a2e)
+                ),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    // 标题
+                    SingleLineText(
+                        text = "选择查看子公司",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    
+                    // 子公司列表
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // "全部"选项
+                        item {
+                            SubsidiarySelectorItem(
+                                name = "全部子公司",
+                                isSelected = selectedSubsidiaryForView == null,
+                                onClick = {
+                                    selectedSubsidiaryForView = null
+                                    showSubsidiarySelector = false
+                                }
+                            )
+                        }
+                        
+                        // 各个子公司选项
+                        items(subsidiaries) { subsidiary ->
+                            SubsidiarySelectorItem(
+                                name = subsidiary.name,
+                                isSelected = selectedSubsidiaryForView?.id == subsidiary.id,
+                                onClick = {
+                                    selectedSubsidiaryForView = subsidiary
+                                    showSubsidiarySelector = false
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -497,22 +594,18 @@ private fun SubsidiaryCard(
             
             Spacer(modifier = Modifier.height(12.dp))
             
-            // 财务信息
+            // 财务信息（并列显示）
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
+                InfoItem(label = "资金", value = formatMoney(subsidiary.cashBalance), valueColor = Color(0xFF64B5F6))
                 InfoItem(label = "市值", value = formatMoney(subsidiary.marketValue))
-                InfoItem(label = "游戏", value = "${subsidiary.games.size}款")
-                val profit = subsidiary.getMonthlyProfit()
-                InfoItem(
-                    label = "月利润", 
-                    value = formatMoney(profit),
-                    valueColor = if (profit >= 0) Color(0xFF4CAF50) else Color(0xFFE57373)
-                )
+                InfoItem(label = "月收入", value = formatMoney(subsidiary.monthlyRevenue))
+                InfoItem(label = "月支出", value = formatMoney(subsidiary.monthlyExpense))
             }
             
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             
             // 利润分成
             Row(
@@ -1707,4 +1800,47 @@ private fun MultiLineText(
         maxLines = maxLines,
         modifier = modifier
     )
+}
+
+/**
+ * 子公司选择器列表项
+ */
+@Composable
+private fun SubsidiarySelectorItem(
+    name: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                if (isSelected) Color(0xFF3B82F6).copy(alpha = 0.3f)
+                else Color(0xFF16213e)
+            )
+            .clickable(
+                onClick = onClick,
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() }
+            )
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        SingleLineText(
+            text = name,
+            fontSize = 15.sp,
+            color = if (isSelected) Color(0xFF60A5FA) else Color.White
+        )
+        
+        if (isSelected) {
+            SingleLineText(
+                text = "✓",
+                fontSize = 16.sp,
+                color = Color(0xFF60A5FA),
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
 }

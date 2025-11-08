@@ -60,6 +60,7 @@ data class Subsidiary(
     
     // 财务数据
     val marketValue: Long,                    // 当前市值
+    val cashBalance: Long = 0L,               // 当前资金（现金余额）
     val monthlyRevenue: Long = 0L,            // 月度收入
     val monthlyExpense: Long = 0L,            // 月度支出
     val totalRevenue: Long = 0L,              // 累计总收入（收购后）
@@ -169,6 +170,9 @@ object SubsidiaryManager {
         acquisitionPrice: Long,
         acquisitionDate: GameDate
     ): Subsidiary {
+        // 初始资金：市值的10%作为启动资金
+        val initialCash = (company.marketValue * 0.1).toLong().coerceAtLeast(500000L) // 最低50万
+        
         return Subsidiary(
             id = company.id,
             name = company.name,
@@ -176,6 +180,7 @@ object SubsidiaryManager {
             acquisitionPrice = acquisitionPrice,
             acquisitionDate = acquisitionDate,
             marketValue = company.marketValue,
+            cashBalance = initialCash, // 设置初始资金
             monthlyRevenue = 0L,
             monthlyExpense = 0L,
             totalRevenue = 0L,
@@ -270,9 +275,14 @@ object SubsidiaryManager {
             }
         }
         
+        // 更新资金余额：本月利润 = 收入 - 支出
+        val monthlyProfit = monthlyIncome - monthlyExpense
+        val newCashBalance = (subsidiary.cashBalance + monthlyProfit).coerceAtLeast(0L) // 资金不能为负数
+        
         return subsidiary.copy(
             monthlyRevenue = monthlyIncome,
             monthlyExpense = monthlyExpense,
+            cashBalance = newCashBalance, // 更新资金余额
             totalRevenue = subsidiary.totalRevenue + monthlyIncome,
             games = updatedGames
         )
