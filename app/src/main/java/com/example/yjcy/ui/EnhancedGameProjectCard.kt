@@ -63,6 +63,7 @@ fun EnhancedGameProjectCard(
     onShowAutoUpdateInfoDialog: (Game) -> Unit = {} // 显示自动更新提示对话框的回调
 ) {
     var showRevenueDialog by remember { mutableStateOf(false) }
+    var showPlayerInterestInfoDialog by remember { mutableStateOf(false) }
     
     // 检查游戏是否已发售（只有RELEASED状态才算真正发售）
     val isReleased = game.releaseStatus == GameReleaseStatus.RELEASED
@@ -752,11 +753,28 @@ fun EnhancedGameProjectCard(
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
-                                    Text(
-                                        text = "玩家兴趣",
-                                        color = Color.White.copy(alpha = 0.7f),
-                                        fontSize = 12.sp
-                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Text(
+                                            text = "玩家兴趣",
+                                            color = Color.White.copy(alpha = 0.7f),
+                                            fontSize = 12.sp
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        IconButton(
+                                            onClick = { showPlayerInterestInfoDialog = true },
+                                            modifier = Modifier.size(16.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = androidx.compose.material.icons.Icons.Default.HelpOutline,
+                                                contentDescription = "玩家兴趣说明",
+                                                tint = Color.White.copy(alpha = 0.6f),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
                                     
                                     val interestPercentage = String.format("%.0f%%", revenue.playerInterest)
                                     val interestColor = when {
@@ -1251,6 +1269,13 @@ fun EnhancedGameProjectCard(
             )
         }
     }
+    
+    // 显示玩家兴趣说明对话框
+    if (showPlayerInterestInfoDialog) {
+        PlayerInterestInfoDialog(
+            onDismiss = { showPlayerInterestInfoDialog = false }
+        )
+    }
 }
 
 /**
@@ -1671,3 +1696,298 @@ data class PromotionOption(
     val indexIncrease: Float, // 增加的宣传指数（0-1）
     val description: String
 )
+
+/**
+ * 玩家兴趣说明对话框
+ */
+@Composable
+fun PlayerInterestInfoDialog(
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1E293B),
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = androidx.compose.material.icons.Icons.Default.Info,
+                    contentDescription = null,
+                    tint = Color(0xFF3B82F6),
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "玩家兴趣值系统说明",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                // 1. 初始状态
+                SectionTitle("📊 初始状态")
+                InfoText("• 游戏刚上线时：兴趣值 = 100%")
+                InfoText("• 生命周期进度 = 0%（基于上线天数/365天）")
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // 2. 自然衰减机制
+                SectionTitle("⏱️ 自然衰减机制（每90天）")
+                InfoText("每隔 90天（3个月）自动衰减一次，衰减率根据生命周期进度决定：")
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                DecayStageCard("🌱 成长期", "0-30% (0-109天)", "-8%", "轻微衰减", Color(0xFF10B981))
+                Spacer(modifier = Modifier.height(4.dp))
+                DecayStageCard("🌿 成熟期", "30-70% (110-255天)", "-15%", "正常衰减", Color(0xFF3B82F6))
+                Spacer(modifier = Modifier.height(4.dp))
+                DecayStageCard("🍂 衰退期", "70-90% (256-328天)", "-25%", "加速衰减", Color(0xFFFFA500))
+                Spacer(modifier = Modifier.height(4.dp))
+                DecayStageCard("⚰️ 末期", "90%+ (329天+)", "-35%", "快速衰减", Color(0xFFEF4444))
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // 3. 更新游戏恢复机制
+                SectionTitle("🔄 更新游戏恢复机制")
+                WarningText("⚠️ 到了末期，无论做什么都无法恢复兴趣值！")
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                RecoveryStageCard("🌱 成长期", "0-30%", "+25%", "恢复效果最好", Color(0xFF10B981))
+                Spacer(modifier = Modifier.height(4.dp))
+                RecoveryStageCard("🌿 成熟期", "30-70%", "+15%", "恢复效果一般", Color(0xFF3B82F6))
+                Spacer(modifier = Modifier.height(4.dp))
+                RecoveryStageCard("🍂 衰退期", "70-90%", "+8%", "恢复效果较差", Color(0xFFFFA500))
+                Spacer(modifier = Modifier.height(4.dp))
+                RecoveryStageCard("⚰️ 末期", "90%+", "0%", "无法恢复", Color(0xFFEF4444))
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // 4. 兴趣值影响
+                SectionTitle("📉 兴趣值对游戏的影响")
+                InfoText("兴趣值会影响活跃玩家数和新玩家增长率：")
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                ImpactCard("≥ 70%", "活跃玩家 100%", "新玩家增长 +15%", Color(0xFF10B981))
+                Spacer(modifier = Modifier.height(4.dp))
+                ImpactCard("50-70%", "活跃玩家 70%", "新玩家增长 -15%", Color(0xFF3B82F6))
+                Spacer(modifier = Modifier.height(4.dp))
+                ImpactCard("30-50%", "活跃玩家 40%", "新玩家增长 -30%", Color(0xFFFFA500))
+                Spacer(modifier = Modifier.height(4.dp))
+                ImpactCard("< 30%", "活跃玩家 20%", "新玩家增长 -50%", Color(0xFFEF4444))
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // 5. 策略建议
+                SectionTitle("💡 策略建议")
+                StrategyText("0-109天（成长期）", "积极更新，恢复+25%", Color(0xFF10B981))
+                StrategyText("110-255天（成熟期）", "定期更新，恢复+15%", Color(0xFF3B82F6))
+                StrategyText("256-328天（衰退期）", "最后冲刺，恢复+8%", Color(0xFFFFA500))
+                StrategyText("329天后（末期）", "💀 放弃挣扎，准备新游戏", Color(0xFFEF4444))
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                WarningText("⚠️ 关键节点：第329天后（约11个月），游戏进入末期，兴趣值持续衰减至0%，无法挽回！")
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF3B82F6)
+                )
+            ) {
+                Text("我知道了", color = Color.White)
+            }
+        }
+    )
+}
+
+// 辅助组件
+@Composable
+private fun SectionTitle(text: String) {
+    Text(
+        text = text,
+        color = Color.White,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.Bold
+    )
+}
+
+@Composable
+private fun InfoText(text: String) {
+    Text(
+        text = text,
+        color = Color.White.copy(alpha = 0.9f),
+        fontSize = 12.sp,
+        lineHeight = 18.sp
+    )
+}
+
+@Composable
+private fun WarningText(text: String) {
+    Text(
+        text = text,
+        color = Color(0xFFFFA500),
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Medium,
+        lineHeight = 18.sp
+    )
+}
+
+@Composable
+private fun DecayStageCard(
+    stage: String,
+    progress: String,
+    decay: String,
+    description: String,
+    color: Color
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(6.dp))
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = stage,
+            color = color,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f)
+        )
+        Column(
+            modifier = Modifier.weight(2f)
+        ) {
+            Text(
+                text = progress,
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 11.sp
+            )
+            Text(
+                text = description,
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = 10.sp
+            )
+        }
+        Text(
+            text = decay,
+            color = color,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun RecoveryStageCard(
+    stage: String,
+    progress: String,
+    recovery: String,
+    description: String,
+    color: Color
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(6.dp))
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = stage,
+            color = color,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f)
+        )
+        Column(
+            modifier = Modifier.weight(2f)
+        ) {
+            Text(
+                text = progress,
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 11.sp
+            )
+            Text(
+                text = description,
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = 10.sp
+            )
+        }
+        Text(
+            text = recovery,
+            color = color,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun ImpactCard(
+    range: String,
+    activeEffect: String,
+    growthEffect: String,
+    color: Color
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(6.dp))
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = range,
+            color = color,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f)
+        )
+        Column(
+            modifier = Modifier.weight(3f)
+        ) {
+            Text(
+                text = activeEffect,
+                color = Color.White.copy(alpha = 0.8f),
+                fontSize = 11.sp
+            )
+            Text(
+                text = growthEffect,
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 11.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun StrategyText(period: String, strategy: String, color: Color) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "• $period：",
+            color = color,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1.2f)
+        )
+        Text(
+            text = strategy,
+            color = Color.White.copy(alpha = 0.8f),
+            fontSize = 12.sp,
+            modifier = Modifier.weight(1.8f)
+        )
+    }
+}

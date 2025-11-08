@@ -322,68 +322,68 @@ fun LeaderboardCard(
     items: List<LeaderboardItem>,
     leaderboardType: LeaderboardType
 ) {
-    Card(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(8.dp, RoundedCornerShape(16.dp)),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White.copy(alpha = 0.12f)
-        )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 28.dp, vertical = 24.dp)
-        ) {
-            // 标题
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(bottom = 12.dp)
-            ) {
-                Text(
-                    text = icon,
-                    fontSize = 24.sp,
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            
-            HorizontalDivider(
-                color = Color.White.copy(alpha = 0.3f),
-                modifier = Modifier.padding(bottom = 12.dp)
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.05f),
+                        Color.White.copy(alpha = 0.02f)
+                    )
+                ),
+                shape = RoundedCornerShape(16.dp)
             )
-            
-            // 排行榜列表
-            items.forEachIndexed { index, item ->
-                LeaderboardItemRow(
-                    rank = index + 1,
-                    item = item,
-                    topColor = topColor,
-                    isTop = index < 3,
-                    isPlayer = item.isPlayer,
-                    leaderboardType = leaderboardType
+            .padding(horizontal = 16.dp, vertical = 20.dp)
+    ) {
+        // 标题
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(bottom = 20.dp)
+        ) {
+            Text(
+                text = icon,
+                fontSize = 28.sp,
+                modifier = Modifier.padding(end = 10.dp)
+            )
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp
+            )
+        }
+        
+        // 排行榜列表
+        items.forEachIndexed { index, item ->
+            LeaderboardItemRow(
+                rank = index + 1,
+                item = item,
+                topColor = topColor,
+                isTop = index < 3,
+                isPlayer = item.isPlayer,
+                leaderboardType = leaderboardType
+            )
+            if (index < items.size - 1) {
+                HorizontalDivider(
+                    color = Color.White.copy(alpha = 0.15f),
+                    thickness = 1.dp,
+                    modifier = Modifier.padding(vertical = 16.dp)
                 )
-                if (index < items.size - 1) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
             }
-            
-            if (items.isEmpty()) {
-                Text(
-                    text = "暂无数据",
-                    color = Color.White.copy(alpha = 0.6f),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    textAlign = TextAlign.Center
-                )
-            }
+        }
+        
+        if (items.isEmpty()) {
+            Text(
+                text = "暂无数据",
+                color = Color.White.copy(alpha = 0.6f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                textAlign = TextAlign.Center,
+                fontSize = 16.sp
+            )
         }
     }
 }
@@ -547,151 +547,85 @@ fun LeaderboardItemRow(
             .fillMaxWidth()
             .background(
                 color = when {
-                    isPlayer -> Color(0xFF4CAF50).copy(alpha = 0.3f)
-                    isTop -> primaryColor.copy(alpha = 0.15f * innerGlowAlpha) // 使用主色作为背景，内发光效果
+                    isPlayer -> Color(0xFF4CAF50).copy(alpha = 0.2f)
+                    isTop -> primaryColor.copy(alpha = 0.12f * innerGlowAlpha)
                     else -> Color.Transparent
                 },
-                shape = RoundedCornerShape(8.dp)
+                shape = RoundedCornerShape(12.dp)
             )
             .then(
                 if (isPlayer) {
-                    Modifier.border(
-                        width = 2.dp,
-                        color = Color(0xFF4CAF50),
-                        shape = RoundedCornerShape(8.dp)
-                    )
-                } else if (isTop) {
-                    // LED光效边框 - 光线围绕边框旋转
                     Modifier
                         .drawBehind {
+                            // 左侧彩色条
+                            drawRect(
+                                color = Color(0xFF4CAF50),
+                                size = androidx.compose.ui.geometry.Size(8f, size.height)
+                            )
+                        }
+                } else if (isTop) {
+                    Modifier
+                        .drawBehind {
+                            // 左侧彩色条（前3名）
+                            drawRect(
+                                brush = Brush.verticalGradient(
+                                    colors = gradientColors.map { it.copy(alpha = innerGlowAlpha) }
+                                ),
+                                size = androidx.compose.ui.geometry.Size(8f, size.height)
+                            )
+                            
+                            // 绘制流光效果（简化版）
                             val centerX = size.width / 2f
                             val centerY = size.height / 2f
                             
-                            // 绘制多个LED光点，形成流光效果
-                            for (i in 0 until 4) {
-                                val angle = Math.toRadians((ledLightAngle + i * 90f).toDouble())
-                                val lightAlpha = ledLightIntensity * (1f - i * 0.2f).coerceIn(0.3f, 1f)
+                            for (i in 0 until 2) {
+                                val angle = Math.toRadians((ledLightAngle + i * 180f).toDouble())
+                                val lightAlpha = ledLightIntensity * 0.6f
                                 
-                                // 计算光点在边框上的位置
-                                // 从中心向外延伸到边框边缘
-                                var x: Float
-                                var y: Float
-                                
-                                // 根据角度判断光点在哪条边上
                                 val cosValue = kotlin.math.cos(angle).toFloat()
                                 val sinValue = kotlin.math.sin(angle).toFloat()
                                 
-                                // 计算光线与边框的交点
-                                val slope = if (kotlin.math.abs(cosValue) > 0.001f) sinValue / cosValue else Float.MAX_VALUE
+                                val x = centerX + cosValue * size.width * 0.4f
+                                val y = centerY + sinValue * size.height * 0.3f
                                 
-                                when {
-                                    // 右边（0-45度或315-360度，或135-225度）
-                                    kotlin.math.abs(cosValue) > kotlin.math.abs(sinValue) && cosValue > 0 -> {
-                                        x = size.width - borderWidth.toPx() / 2f
-                                        y = centerY + (x - centerX) * slope
-                                    }
-                                    // 左边
-                                    kotlin.math.abs(cosValue) > kotlin.math.abs(sinValue) && cosValue < 0 -> {
-                                        x = borderWidth.toPx() / 2f
-                                        y = centerY + (x - centerX) * slope
-                                    }
-                                    // 下边
-                                    kotlin.math.abs(sinValue) > kotlin.math.abs(cosValue) && sinValue > 0 -> {
-                                        y = size.height - borderWidth.toPx() / 2f
-                                        x = centerX + (y - centerY) / slope
-                                    }
-                                    // 上边
-                                    else -> {
-                                        y = borderWidth.toPx() / 2f
-                                        x = centerX + (y - centerY) / slope
-                                    }
-                                }
-                                
-                                // 确保坐标在有效范围内
-                                x = x.coerceIn(borderWidth.toPx(), size.width - borderWidth.toPx())
-                                y = y.coerceIn(borderWidth.toPx(), size.height - borderWidth.toPx())
-                                
-                                // 绘制LED光点
                                 drawCircle(
                                     brush = Brush.radialGradient(
                                         colors = listOf(
-                                            primaryColor.copy(alpha = lightAlpha),
-                                            primaryColor.copy(alpha = lightAlpha * 0.5f),
+                                            primaryColor.copy(alpha = lightAlpha * 0.3f),
                                             Color.Transparent
                                         )
                                     ),
-                                    radius = borderWidth.toPx() * 4f,
+                                    radius = 60f,
                                     center = androidx.compose.ui.geometry.Offset(x, y)
                                 )
                             }
                         }
-                        // 主边框 - 渐变色
-                        // 第3名市值排行榜使用更高的不透明度，确保边框清晰可见
-                        .border(
-                            width = borderWidth,
-                            brush = Brush.linearGradient(
-                                colors = if (rank == 3 && leaderboardType == LeaderboardType.MARKET_VALUE) {
-                                    // 第3名市值排行榜：使用至少0.85的alpha值，确保边框清晰
-                                    gradientColors.map { it.copy(alpha = innerGlowAlpha.coerceAtLeast(0.85f)) }
-                                } else {
-                                    gradientColors.map { it.copy(alpha = innerGlowAlpha) }
-                                }
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        )
                         .graphicsLayer {
-                            // 阴影发光效果
-                            shadowElevation = outerGlowAlpha * 16f
+                            shadowElevation = outerGlowAlpha * 8f
                         }
                 } else {
                     Modifier
                 }
             )
-            .padding(horizontal = 18.dp, vertical = 16.dp),
+            .padding(horizontal = 20.dp, vertical = 18.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 图标区域（前3名显示数字，其他显示数字）
+        // 排名数字
         Box(
-            modifier = Modifier.size(56.dp),
+            modifier = Modifier.width(64.dp),
             contentAlignment = Alignment.Center
         ) {
             if (isTop) {
-                // 前3名 - 带特效的数字
-                // 背景光晕
+                // 前3名 - 大号数字带光晕
                 Box(
                     modifier = Modifier
-                        .size(50.dp)
+                        .size(56.dp)
                         .background(
                             brush = Brush.radialGradient(
                                 colors = listOf(
-                                    primaryColor.copy(alpha = 0.3f),
+                                    primaryColor.copy(alpha = 0.4f),
+                                    primaryColor.copy(alpha = 0.1f),
                                     Color.Transparent
-                                )
-                            ),
-                            shape = CircleShape
-                        )
-                )
-                
-                // 数字显示 - 使用渐变色
-                Text(
-                    text = rank.toString(),
-                    fontSize = 36.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = primaryColor,
-                    modifier = Modifier.graphicsLayer {
-                        shadowElevation = 8f
-                    }
-                )
-            } else {
-                // 第4-5名显示普通数字
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .background(
-                            brush = Brush.radialGradient(
-                                colors = listOf(
-                                    Color.Gray,
-                                    Color.Gray.copy(alpha = 0.6f)
                                 )
                             ),
                             shape = CircleShape
@@ -700,9 +634,30 @@ fun LeaderboardItemRow(
                 ) {
                     Text(
                         text = rank.toString(),
+                        fontSize = 40.sp,
+                        fontWeight = FontWeight.Black,
+                        color = primaryColor,
+                        modifier = Modifier.graphicsLayer {
+                            shadowElevation = 12f
+                        }
+                    )
+                }
+            } else {
+                // 第4-5名
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(
+                            color = Color.White.copy(alpha = 0.2f),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = rank.toString(),
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
+                        fontSize = 18.sp
                     )
                 }
             }
@@ -710,58 +665,57 @@ fun LeaderboardItemRow(
         
         Spacer(modifier = Modifier.width(12.dp))
         
-        // 公司/游戏信息
+        // 内容区域（完全垂直布局）
         Column(
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
+            // 第一行：游戏名字
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isPlayer) {
                     Text(
                         text = "👤 ",
-                        fontSize = 14.sp
+                        fontSize = 16.sp
                     )
                 }
                 Text(
                     text = item.mainText,
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            
+            // 第二行：公司名字
+            if (item.subText.isNotEmpty()) {
+                Text(
+                    text = item.subText,
+                    color = Color.White.copy(alpha = 0.7f),
                     fontSize = 14.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            if (item.subText.isNotEmpty()) {
-                Text(
-                    text = item.subText,
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 12.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-        
-        Spacer(modifier = Modifier.width(8.dp))
-        
-        // 数值（右侧显示区域）
-        Column(
-            horizontalAlignment = Alignment.End
-        ) {
+            
+            // 第三行：活跃玩家/销量
             Text(
                 text = item.value,
-                color = if (isTop) primaryColor else Color.White,
-                fontWeight = FontWeight.Bold,
+                color = if (isTop) primaryColor else Color(0xFFFFD700),
+                fontWeight = FontWeight.SemiBold,
                 fontSize = 14.sp
             )
+            
+            // 第四行：总收入
             if (item.extraInfo.isNotEmpty()) {
                 Text(
                     text = item.extraInfo,
-                    color = if (isTop) primaryColor.copy(alpha = 0.9f) else Color(0xFFFFD700),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(top = 2.dp)
+                    color = if (isTop) primaryColor.copy(alpha = 0.9f) else Color(0xFFFF6B6B),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp
                 )
             }
         }

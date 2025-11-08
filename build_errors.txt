@@ -1,0 +1,414 @@
+﻿> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:processDebugNavigationResources UP-TO-DATE
+> Task :app:compileDebugNavigationResources UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:processDebugGoogleServices UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:kspDebugKotlin UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:mergeDebugShaders UP-TO-DATE
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets UP-TO-DATE
+> Task :app:compressDebugAssets UP-TO-DATE
+> Task :app:checkDebugDuplicateClasses UP-TO-DATE
+> Task :app:desugarDebugFileDependencies UP-TO-DATE
+> Task :app:mergeExtDexDebug UP-TO-DATE
+> Task :app:mergeLibDexDebug UP-TO-DATE
+> Task :app:mergeDebugJniLibFolders UP-TO-DATE
+> Task :app:mergeDebugNativeLibs UP-TO-DATE
+> Task :app:stripDebugDebugSymbols UP-TO-DATE
+> Task :app:validateSigningDebug UP-TO-DATE
+> Task :app:writeDebugAppMetadata UP-TO-DATE
+> Task :app:writeDebugSigningConfigVersions UP-TO-DATE
+
+> Task :app:compileDebugKotlin FAILED
+.\gradlew.bat : e: file:///D:/AI/YCJY/app/src/main/java/c
+om/example/yjcy/MainActivity.kt:323:29 Unresolved referen
+ce 'Handler'.
+所在位置 行:1 字符: 1
++ .\gradlew.bat assembleDebug 2>&1 | Out-File -FilePath "
+build_errors.t ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (e: file:/// 
+   D:/A...ence 'Handler'.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:323:37 Unresolved reference 'Looper'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:465:69 Unresolved reference 'WindowManage
+r'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:468:41 Unresolved reference 'defaultDispl
+ay'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:473:58 Unresolved reference 'isNotEmpty'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:475:31 Unresolved reference 'Display'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:479:30 For-loop range must have an 'itera
+tor()' method.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:496:30 'operator' modifier is required on
+ 'fun <T> Comparable<T>.compareTo(other: T): Int'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:507:68 Unresolved reference 'modeId'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:509:65 Unresolved reference 'refreshRate'
+.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:509:98 Unresolved reference 'modeId'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:510:72 Unresolved reference 'map'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:510:78 Unresolved reference 'it'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:524:9 Inapplicable candidate(s): fun <K> 
+TRY_CALL(vararg branches: K): K
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:526:13 Unresolved reference 'WindowCompat
+'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:528:42 Unresolved reference 'WindowCompat
+'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:529:36 Cannot infer type for type paramet
+er 'T'. Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:529:36 Cannot infer type for type paramet
+er 'R'. Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:529:42 Cannot infer type for type paramet
+er 'T'. Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:531:28 Unresolved reference 'hide'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:531:33 Unresolved reference 'WindowInsets
+Compat'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:533:28 Unresolved reference 'systemBarsBe
+havior'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:533:49 Unresolved reference 'WindowInsets
+ControllerCompat'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:551:32 Unresolved reference 'Activity'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:592:30 Unresolved reference 'Shadow'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:594:34 Unresolved reference 'Offset'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:609:30 Unresolved reference 'Shadow'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:611:34 Unresolved reference 'Offset'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:623:22 Unresolved reference 'shadow'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:656:29 Inapplicable candidate(s): fun <K>
+ ELVIS_CALL(x: K?, y: K): K
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:656:39 Cannot infer type for type paramet
+er 'T'. Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:656:39 Cannot infer type for type paramet
+er 'R'. Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:656:39 Unresolved reference. None of the 
+following candidates is applicable because of a receiver 
+type mismatch:
+fun <T, R> T.let(block: (T) -> R): R
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:656:45 Cannot infer type for type paramet
+er 'T'. Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:830:32 Unresolved reference 'Activity'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:880:30 Unresolved reference 'rememberInfi
+niteTransition'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:885:25 Unresolved reference 'infiniteRepe
+atable'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:886:25 Unresolved reference 'tween'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:886:46 Unresolved reference 'EaseInOut'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:887:26 Unresolved reference 'RepeatMode'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:895:25 Unresolved reference 'infiniteRepe
+atable'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:896:25 Unresolved reference 'tween'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:896:46 Unresolved reference 'EaseInOut'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:897:26 Unresolved reference 'RepeatMode'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:917:30 Unresolved reference 'Offset'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:972:26 Unresolved reference 'shadow'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:974:37 Unresolved reference 'CircleShape'
+.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:984:37 Unresolved reference 'CircleShape'
+.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:991:45 Unresolved reference 'scale'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1006:38 Unresolved reference 'Offset'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1107:26 Unresolved reference 'BorderStrok
+e'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1149:39 Unresolved reference 'finish'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1227:17 Unresolved reference 'Toast'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1227:80 Unresolved reference 'Toast'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1235:132 Unresolved reference 'toUri'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1252:33 Unresolved reference 'toUri'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1258:21 Unresolved reference 'Toast'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1258:71 Unresolved reference 'Toast'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1271:21 Unresolved reference 'Toast'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1271:71 Unresolved reference 'Toast'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1279:13 Unresolved reference 'Toast'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1279:72 Unresolved reference 'Toast'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1281:13 Unresolved reference 'Toast'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1281:67 Unresolved reference 'Toast'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1314:30 Unresolved reference 'BorderStrok
+e'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1414:18 Unresolved reference 'animateFloa
+tAsState'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1416:25 Unresolved reference 'spring'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1417:28 Unresolved reference 'Spring'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1418:25 Unresolved reference 'Spring'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1423:22 Unresolved reference 'animateFloa
+tAsState'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1425:25 Unresolved reference 'tween'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1432:14 Unresolved reference 'scale'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1455:18 Unresolved reference 'border'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1547:18 Unresolved reference 'animateFloa
+tAsState'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1549:25 Unresolved reference 'tween'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1576:14 Unresolved reference 'scale'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1727:34 Unresolved reference 'border'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1788:34 Unresolved reference 'border'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1866:20 Unresolved reference 'LocalActivi
+ty'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:1953:26 Unresolved reference 'rememberCor
+outineScope'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:4352:38 Unresolved reference 'finish'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:4437:47 Unresolved reference 'Icons'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:4458:47 Unresolved reference 'Icons'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:5096:65 Unresolved reference 'Uri'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:5099:25 Unresolved reference 'Toast'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:5099:59 Unresolved reference 'Toast'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:5137:14 Unresolved reference 'shadow'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:5154:14 Unresolved reference 'border'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:5183:41 Cannot infer type for type parame
+ter 'T'. Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:5183:52 Unresolved reference 'Animatable'
+.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:5185:39 Unresolved reference 'animateTo'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:5187:45 Unresolved reference 'tween'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:5187:82 Unresolved reference 'FastOutSlow
+InEasing'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:5191:74 Unresolved reference 'value'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:5273:41 Unresolved reference 'CircleShape
+'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:5374:29 Unresolved reference 'Canvas'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:5382:44 Function invocation 'size(...)' e
+xpected.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:5382:49 Function invocation 'width(...)' 
+expected.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:5382:56 Function invocation 'size(...)' e
+xpected.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:5382:61 Function invocation 'height(...)'
+ expected.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:5383:48 Function invocation 'size(...)' e
+xpected.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:5383:53 Function invocation 'height(...)'
+ expected.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:5386:33 Unresolved reference 'drawPath'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:5403:45 Unresolved reference 'CircleShape
+'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:5405:34 Unresolved reference 'border'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:5405:66 Unresolved reference 'CircleShape
+'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:5869:34 Unresolved reference 'BorderStrok
+e'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:6023:25 Unresolved reference 'Icons'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:6025:25 Unresolved reference 'Icons'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:6155:18 Unresolved reference 'animateFloa
+tAsState'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:6157:25 Unresolved reference 'tween'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:6159:22 Unresolved reference 'FastOutSlow
+InEasing'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:6169:14 Unresolved reference 'scale'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:6218:26 Unresolved reference 'rememberCor
+outineScope'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:6306:29 Unresolved reference 'Toast'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:6306:72 Unresolved reference 'Toast'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:6346:29 Unresolved reference 'Toast'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:6346:75 Unresolved reference 'Toast'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:6764:41 Unresolved reference 'alpha'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:6866:24 Unresolved reference 'GsonBuilder
+'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:7233:26 Unresolved reference 'rememberCor
+outineScope'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:7974:42 Unresolved reference 'BorderStrok
+e'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:8097:41 Unresolved reference 'Toast'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:8097:74 Unresolved reference 'Toast'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:8103:41 Unresolved reference 'Toast'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:8103:100 Unresolved reference 'Toast'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:8233:53 Unresolved reference 'Toast'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:8233:86 Unresolved reference 'Toast'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:8238:53 Unresolved reference 'Toast'.
+33 actionable tasks: 1 executed, 32 up-to-date
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:8238:112 Unresolved reference 'Toast'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:8466:116 Unresolved reference 'toUri'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:8614:18 Unresolved reference 'shadow'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:8652:18 Unresolved reference 'border'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:8685:22 Unresolved reference 'animateCont
+entSize'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:8735:26 Unresolved reference 'animateCont
+entSize'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:8769:52 Unresolved reference 'MutableInte
+ractionSource'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:8937:26 Unresolved reference 'rememberCor
+outineScope'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:8947:38 Unresolved reference 'Choreograph
+er'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:8948:13 'doFrame' overrides nothing.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:8956:17 Unresolved reference 'Choreograph
+er'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:8960:9 Unresolved reference 'Choreographe
+r'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:9051:13 Unresolved reference 'Choreograph
+er'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/
+MainActivity.kt:9083:2 Unresolved reference 'Preview'.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileDebugKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin
+.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKot
+linCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log outpu
+t.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 4s

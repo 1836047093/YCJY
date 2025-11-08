@@ -167,6 +167,13 @@ object RevenueManager {
     // SharedPreferences用于持久化
     private var sharedPreferences: android.content.SharedPreferences? = null
     
+    // 性能优化：延迟批量保存机制
+    private var isDirty = false  // 数据是否有变更
+    private var lastSaveTime = 0L  // 上次保存时间戳
+    private const val SAVE_INTERVAL_MS = 3000L  // 最小保存间隔：3秒
+    private val saveHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var pendingSaveRunnable: Runnable? = null
+    
     /**
      * 初始化RevenueManager，传入Context以支持持久化
      */
@@ -380,9 +387,51 @@ object RevenueManager {
     }
     
     /**
-     * 保存收益数据到SharedPreferences
+     * 标记数据已变更，延迟保存（性能优化）
+     * 使用延迟批量保存机制，避免频繁写入SharedPreferences导致UI卡顿
      */
     private fun saveRevenueData() {
+        isDirty = true
+        
+        // 取消之前pending的保存任务
+        pendingSaveRunnable?.let { saveHandler.removeCallbacks(it) }
+        
+        // 计算距离上次保存的时间
+        val now = System.currentTimeMillis()
+        val timeSinceLastSave = now - lastSaveTime
+        
+        // 如果距离上次保存不足SAVE_INTERVAL_MS，延迟保存
+        val delay = if (timeSinceLastSave < SAVE_INTERVAL_MS) {
+            SAVE_INTERVAL_MS - timeSinceLastSave
+        } else {
+            0L  // 立即保存
+        }
+        
+        // 创建延迟保存任务
+        pendingSaveRunnable = Runnable {
+            if (isDirty) {
+                performSave()
+            }
+        }
+        saveHandler.postDelayed(pendingSaveRunnable!!, delay)
+    }
+    
+    /**
+     * 强制立即保存（用于应用退出等关键时刻）
+     */
+    fun forceSave() {
+        // 取消pending的保存任务
+        pendingSaveRunnable?.let { saveHandler.removeCallbacks(it) }
+        
+        if (isDirty) {
+            performSave()
+        }
+    }
+    
+    /**
+     * 实际执行保存到SharedPreferences的函数
+     */
+    private fun performSave() {
         val prefs = sharedPreferences ?: return
         val editor = prefs.edit()
         
@@ -439,6 +488,10 @@ object RevenueManager {
         }
         
         editor.apply()
+        
+        // 更新保存时间和状态
+        lastSaveTime = System.currentTimeMillis()
+        isDirty = false
     }
     
     /**

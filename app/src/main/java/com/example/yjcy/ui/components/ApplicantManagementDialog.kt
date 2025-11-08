@@ -50,8 +50,17 @@ fun ApplicantManagementDialog(
     
     // 员工人数上限（使用 RecruitmentService 的统一方法）
     val maxEmployees = recruitmentService.getMaxEmployeeCount()
-    // 直接使用 saveData，不缓存状态，确保始终是最新的
-    val isEmployeeFull = saveData.allEmployees.size >= maxEmployees
+    
+    // 响应式计算当前员工数量，确保雇佣后实时更新
+    val currentEmployeeCount by remember {
+        derivedStateOf { saveData.allEmployees.size }
+    }
+    
+    // 响应式计算是否员工已满
+    val isEmployeeFull by remember {
+        derivedStateOf { saveData.allEmployees.size >= maxEmployees }
+    }
+    
     var currentJobPosting by remember(jobPosting.id) { mutableStateOf(jobPosting) }
     var showHireSuccessDialog by remember { mutableStateOf(false) }
     var hiredEmployeeName by remember { mutableStateOf("") }
@@ -196,14 +205,16 @@ fun ApplicantManagementDialog(
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     // 各职位当前人数 - 横向排列（类似统计卡片）
-                    val positionCounts = remember(saveData.allEmployees) {
-                        mapOf(
-                            "程序员" to saveData.allEmployees.count { it.position == "程序员" },
-                            "策划师" to saveData.allEmployees.count { it.position == "策划师" },
-                            "美术师" to saveData.allEmployees.count { it.position == "美术师" },
-                            "音效师" to saveData.allEmployees.count { it.position == "音效师" },
-                            "客服" to saveData.allEmployees.count { it.position == "客服" }
-                        )
+                    val positionCounts by remember {
+                        derivedStateOf {
+                            mapOf(
+                                "程序员" to saveData.allEmployees.count { it.position == "程序员" },
+                                "策划师" to saveData.allEmployees.count { it.position == "策划师" },
+                                "美术师" to saveData.allEmployees.count { it.position == "美术师" },
+                                "音效师" to saveData.allEmployees.count { it.position == "音效师" },
+                                "客服" to saveData.allEmployees.count { it.position == "客服" }
+                            )
+                        }
                     }
                     var selectedPositionDialog by remember { mutableStateOf<String?>(null) }
                     
@@ -277,7 +288,7 @@ fun ApplicantManagementDialog(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Text(
-                                text = "${saveData.allEmployees.size}",
+                                text = "$currentEmployeeCount",
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (isEmployeeFull) {

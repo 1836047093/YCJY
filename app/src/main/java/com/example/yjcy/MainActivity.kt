@@ -4,12 +4,13 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.view.Display
-import android.view.WindowManager
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.os.Bundle
 import android.util.Log
+import android.view.Display
+import android.view.WindowManager
+import android.view.Choreographer
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -20,19 +21,17 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.EaseInOut
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.EaseInOut
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -42,37 +41,68 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Tab
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.launch
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import android.view.Choreographer
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -85,98 +115,98 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.edit
 import androidx.core.net.toUri
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import java.util.Calendar
-import java.text.SimpleDateFormat
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.yjcy.data.Achievement
+import com.example.yjcy.data.AchievementCategory
+import com.example.yjcy.data.Achievements
+import com.example.yjcy.data.AwardNomination
+import com.example.yjcy.data.AwardRecord
+import com.example.yjcy.data.AwardReward
+import com.example.yjcy.data.ChatMessage
+import com.example.yjcy.data.CompanyReputation
+import com.example.yjcy.data.CompetitorCompany
+import com.example.yjcy.data.CompetitorManager
+import com.example.yjcy.data.CompetitorNews
+import com.example.yjcy.data.Complaint
+import com.example.yjcy.data.ComplaintStatus
+import com.example.yjcy.data.DevelopmentPhase
 import com.example.yjcy.data.Employee
+import com.example.yjcy.data.EsportsTournament
 import com.example.yjcy.data.Founder
 import com.example.yjcy.data.FounderProfession
+import com.example.yjcy.data.GVAManager
 import com.example.yjcy.data.Game
+import com.example.yjcy.data.GameDate
+import com.example.yjcy.data.GameIP
 import com.example.yjcy.data.GameRatingCalculator
 import com.example.yjcy.data.GameReleaseStatus
 import com.example.yjcy.data.GameRevenue
-import com.example.yjcy.data.RevenueManager
-import com.example.yjcy.data.SaveData
-import com.example.yjcy.data.DevelopmentPhase
-import com.example.yjcy.data.GameDate
-import com.example.yjcy.ui.BadgeBox
-import com.example.yjcy.ui.EmployeeManagementContent
-import com.example.yjcy.ui.GameRatingDialog
-import com.example.yjcy.ui.GameReleaseDialog
-import com.example.yjcy.ui.ProjectManagementWrapper
-import com.example.yjcy.ui.ProjectDisplayType
-import com.example.yjcy.ui.ServerManagementContent
-import com.example.yjcy.ui.TournamentScreen
-import com.example.yjcy.ui.TournamentResultDialog
-import com.example.yjcy.ui.theme.YjcyTheme
-import com.example.yjcy.utils.formatMoney
-import com.example.yjcy.utils.formatMoneyWithDecimals
-import com.example.yjcy.service.JobPostingService
-import com.example.yjcy.service.CustomerServiceManager
-import com.example.yjcy.data.getUpdateContentName
-import com.example.yjcy.data.getRecommendedPrice
-import com.example.yjcy.ui.BusinessModel
-import com.example.yjcy.data.CompetitorCompany
-import com.example.yjcy.data.CompetitorNews
-import com.example.yjcy.data.CompetitorManager
-import com.example.yjcy.data.GameIP
-import com.example.yjcy.data.Complaint
-import com.example.yjcy.data.ComplaintStatus
-import com.example.yjcy.data.Achievement
-import com.example.yjcy.data.Achievements
-import com.example.yjcy.data.AchievementCategory
-import com.example.yjcy.data.UnlockedAchievement
-import com.example.yjcy.managers.AchievementManager
-import com.example.yjcy.ui.AchievementPopupQueue
-import com.example.yjcy.ui.CompetitorContent
-import com.example.yjcy.ui.calculatePlayerMarketValue
-import com.example.yjcy.ui.SecretaryChatScreen
-import com.example.yjcy.ui.SecretaryChatDialog
-import com.example.yjcy.data.ChatMessage
+import com.example.yjcy.data.GameUpdate
 import com.example.yjcy.data.MessageSender
-import com.example.yjcy.ui.GVAScreen
-import com.example.yjcy.ui.GVAAwardDialog
-import com.example.yjcy.ui.ChallengeCompleteDialog
-import com.example.yjcy.ui.SalaryRequestDialog
-import com.example.yjcy.ui.YearEndBonusDialog
-import com.example.yjcy.ui.YearEndStatistics
-import com.example.yjcy.data.GVAManager
-import com.example.yjcy.data.CompanyReputation
-import com.example.yjcy.data.AwardRecord
-import com.example.yjcy.data.AwardReward
-import com.example.yjcy.data.AwardNomination
-import com.example.yjcy.data.SecretaryReplyManager
-import com.example.yjcy.ui.rememberTutorialState
-import com.example.yjcy.ui.TutorialDialog
-import com.example.yjcy.ui.TutorialTrigger
-import com.example.yjcy.data.TutorialId
-import com.example.yjcy.data.EsportsTournament
-import com.example.yjcy.data.TournamentStatus
-import com.example.yjcy.data.TournamentManager
 import com.example.yjcy.data.MonetizationConfig
 import com.example.yjcy.data.MonetizationItem
-import com.example.yjcy.data.GameUpdate
+import com.example.yjcy.data.NewsType
+import com.example.yjcy.data.RevenueManager
+import com.example.yjcy.data.SaveData
+import com.example.yjcy.data.SecretaryReplyManager
+import com.example.yjcy.data.TournamentManager
+import com.example.yjcy.data.TournamentStatus
+import com.example.yjcy.data.TutorialId
+import com.example.yjcy.data.UnlockedAchievement
+import com.example.yjcy.data.getRecommendedPrice
+import com.example.yjcy.data.getUpdateContentName
+import com.example.yjcy.managers.AchievementManager
+import com.example.yjcy.service.CustomerServiceManager
+import com.example.yjcy.service.JobPostingService
+import com.example.yjcy.taptap.TapLoginManager
+import com.example.yjcy.ui.AchievementPopupQueue
+import com.example.yjcy.ui.BadgeBox
+import com.example.yjcy.ui.BusinessModel
+import com.example.yjcy.ui.ChallengeCompleteDialog
+import com.example.yjcy.ui.CompetitorContent
+import com.example.yjcy.ui.EmployeeManagementContent
+import com.example.yjcy.ui.GVAAwardDialog
+import com.example.yjcy.ui.GVAScreen
+import com.example.yjcy.ui.GameRatingDialog
+import com.example.yjcy.ui.GameReleaseDialog
+import com.example.yjcy.ui.ProjectDisplayType
+import com.example.yjcy.ui.ProjectManagementWrapper
+import com.example.yjcy.ui.SalaryRequestDialog
+import com.example.yjcy.ui.SecretaryChatDialog
+import com.example.yjcy.ui.SecretaryChatScreen
+import com.example.yjcy.ui.ServerManagementContent
+import com.example.yjcy.ui.TournamentResultDialog
+import com.example.yjcy.ui.TournamentScreen
+import com.example.yjcy.ui.TutorialDialog
+import com.example.yjcy.ui.TutorialTrigger
+import com.example.yjcy.ui.YearEndBonusDialog
+import com.example.yjcy.ui.YearEndStatistics
+import com.example.yjcy.ui.calculatePlayerMarketValue
+import com.example.yjcy.ui.rememberTutorialState
+import com.example.yjcy.ui.taptap.TapLoginViewModel
+import com.example.yjcy.ui.theme.YjcyTheme
 import com.example.yjcy.utils.CommentGenerator
+import com.example.yjcy.utils.LeanCloudRedeemCodeManager
+import com.example.yjcy.utils.RedeemCodeManager
 import com.example.yjcy.utils.SensitiveWordFilter
 import com.example.yjcy.utils.SignatureHelper
-import com.example.yjcy.data.NewsType
-import com.example.yjcy.taptap.TapUpdateManager
+import com.example.yjcy.utils.formatMoney
+import com.example.yjcy.utils.formatMoneyWithDecimals
 import com.google.gson.GsonBuilder
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.random.Random
-import kotlinx.coroutines.delay
-import com.example.yjcy.taptap.TapLoginManager
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.yjcy.ui.taptap.TapLoginViewModel
-import com.example.yjcy.utils.RedeemCodeManager
-import com.example.yjcy.utils.LeanCloudRedeemCodeManager
-
-
 
 
 // 性能优化：调试日志开关（正式环境应设为false）
@@ -3087,11 +3117,8 @@ fun GameScreen(
                         }
                     }
                 
-                val totalDevelopmentCost = games
-                    .filter { it.releaseYear == currentYear }
-                    .sumOf { it.developmentCost }
-                
-                val totalExpenses = totalSalary + totalServerCost + totalDevelopmentCost
+                // 注意：开发费用已在创建游戏时扣除，不应在年度支出中重复计算
+                val totalExpenses = totalSalary + totalServerCost
                 val netProfit = totalRevenue - totalExpenses
                 
                 // 触发年终奖对话框（统计会在对话框内重新计算）
@@ -3571,14 +3598,11 @@ fun GameScreen(
                         // 结算完成的赛事
                         val revenueData = RevenueManager.getGameRevenue(updatedGame.id)
                         if (revenueData != null) {
-                            val successLevel = TournamentManager.determineTournamentSuccess(
-                                updatedTournament, updatedGame, 50f
-                            )
                             val revenue = TournamentManager.calculateTournamentRevenue(
-                                updatedTournament, updatedGame, revenueData, successLevel
+                                updatedTournament, updatedGame, revenueData
                             )
                             val (fansGained, playersGained, interestBonus) = TournamentManager.applyTournamentEffects(
-                                updatedTournament, updatedGame, revenueData, fans, successLevel
+                                updatedTournament, updatedGame, revenueData, fans
                             )
                             val (eventDesc, _) = TournamentManager.generateRandomEvent()
                             
@@ -3624,7 +3648,6 @@ fun GameScreen(
                                 sponsorRevenue = revenue.sponsorRevenue,
                                 broadcastRevenue = revenue.broadcastRevenue,
                                 ticketRevenue = revenue.ticketRevenue,
-                                successLevel = successLevel,
                                 fansGained = fansGained,
                                 playersGained = playersGained,
                                 interestBonus = interestBonus,
@@ -5033,11 +5056,8 @@ fun GameScreen(
                     }
                 }
             
-            val totalDevelopmentCost = games
-                .filter { it.releaseYear == currentYear }
-                .sumOf { it.developmentCost }
-            
-            val totalExpenses = totalSalary + totalServerCost + totalDevelopmentCost
+            // 注意：开发费用已在创建游戏时扣除，不应在年度支出中重复计算
+            val totalExpenses = totalSalary + totalServerCost
             val netProfit = totalRevenue - totalExpenses
             
             val yearEndStatistics = YearEndStatistics(
@@ -7045,6 +7065,9 @@ class SaveManager(context: Context) {
         try {
             val startTime = System.currentTimeMillis()
             
+            // 0. 强制保存RevenueManager的pending数据（性能优化：避免丢失数据）
+            RevenueManager.forceSave()
+            
             // 1. 清理数据
             val cleanedData = cleanSaveData(saveData)
             
@@ -7615,7 +7638,34 @@ fun InGameSettingsContent(
                             try {
                                 Log.d("RedeemCode", "开始验证兑换码: $codeUpper")
                                 
-                                // 先验证兑换码是否存在（从LeanCloud查询）
+                                // 特殊处理：PROGM兑换码直接使用本地验证，不走LeanCloud
+                                if (codeUpper == "PROGM") {
+                                    Log.d("RedeemCode", "检测到PROGM兑换码，使用本地验证")
+                                    
+                                    // 检查是否已使用过（本地）
+                                    val isUsedLocally = RedeemCodeManager.isCodeUsedByUser(userId, codeUpper)
+                                    
+                                    if (isUsedLocally) {
+                                        // 已使用过，自动启用GM模式
+                                        if (!gmModeEnabled) {
+                                            onGMToggle(true)
+                                        }
+                                        redeemCode = ""
+                                        redeemSuccessMessage = "✅ GM工具箱已激活！"
+                                        showRedeemSuccessDialog = true
+                                    } else {
+                                        // 首次使用，标记为已使用并启用GM模式
+                                        RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
+                                        onGMToggle(true)
+                                        
+                                        redeemCode = ""
+                                        redeemSuccessMessage = "✅ GM工具箱已激活！"
+                                        showRedeemSuccessDialog = true
+                                    }
+                                    return@launch
+                                }
+                                
+                                // 其他兑换码：验证是否存在（从LeanCloud查询）
                                 val redeemCodeData = LeanCloudRedeemCodeManager.validateRedeemCode(codeUpper)
                                 
                                 if (redeemCodeData == null) {
@@ -7636,7 +7686,7 @@ fun InGameSettingsContent(
                                 
                                 // 检查是否为支持者兑换码或GM兑换码
                                 val isSupporterCode = codeType == "supporter"
-                                val isGMCode = codeUpper == "PROGM" || codeType == "gm"
+                                val isGMCode = codeType == "gm"
                                 
                                 if (isSupporterCode) {
                                     Log.d("LeanCloud", "开始兑换支持者兑换码: $codeUpper")
@@ -7689,38 +7739,6 @@ fun InGameSettingsContent(
                                 
                                 // 处理其他兑换码
                                 when (codeUpper) {
-                                    "PROGM" -> {
-                                        // 检查是否已使用过（云端）
-                                        val isUsed = LeanCloudRedeemCodeManager.hasUserUsedCode(userId, codeUpper)
-                                        
-                                        when (isUsed) {
-                                            true -> {
-                                                // 账号已使用过，自动启用GM模式
-                                                if (!gmModeEnabled) {
-                                                    onGMToggle(true)
-                                                }
-                                                redeemCode = ""
-                                                redeemSuccessMessage = "GM工具箱已激活！（账号已解锁）\n💾 数据已同步到云端"
-                                                showRedeemSuccessDialog = true
-                                            }
-                                            false, null -> {
-                                                // 未使用或查询失败，尝试记录
-                                                val success = LeanCloudRedeemCodeManager.recordUserRedeem(userId, codeUpper, "gm")
-                                                
-                                                if (success) {
-                                                    // 同时更新本地
-                                                    RedeemCodeManager.markCodeAsUsed(userId, codeUpper)
-                                                    onGMToggle(true)
-                                                    
-                                                    redeemCode = ""
-                                                    redeemSuccessMessage = "GM工具箱已激活！\n💾 数据已同步到云端"
-                                                    showRedeemSuccessDialog = true
-                                                } else {
-                                                    showRedeemError = true
-                                                }
-                                            }
-                                        }
-                                    }
                                     "YCJY2025" -> {
                                         // 检查是否已使用过（云端 + 存档本地）
                                         val isUsedInCloud = LeanCloudRedeemCodeManager.hasUserUsedCode(userId, codeUpper)

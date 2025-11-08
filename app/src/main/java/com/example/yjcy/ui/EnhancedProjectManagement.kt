@@ -423,7 +423,10 @@ fun EnhancedProjectManagementContent(
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(filteredGames) { game ->
+                items(
+                    items = filteredGames,
+                    key = { game -> game.id }  // 性能优化：添加key以支持列表项复用
+                ) { game ->
                     EnhancedGameProjectCard(
                         game = game,
                         availableEmployees = availableEmployees,
@@ -939,10 +942,15 @@ fun SuperEnhancedGameDevelopmentDialog(
                                     monetizationItems = monetizationItems,
                                     fromIP = selectedIP
                                 ).let { game ->
-                                    // 计算平台开发费用
+                                    // 计算开发费用：平台费用 + 商业模式费用
                                     val totalPlatformCost = selectedPlatforms.sumOf { it.developmentCost.toLong() }
+                                    val businessModelCost = when (selectedBusinessModel!!) {
+                                        BusinessModel.SINGLE_PLAYER -> 1000000L  // 100万
+                                        BusinessModel.ONLINE_GAME -> 5000000L    // 500万
+                                    }
+                                    val totalDevelopmentCost = totalPlatformCost + businessModelCost
                                     game.copy(
-                                        developmentCost = totalPlatformCost,
+                                        developmentCost = totalDevelopmentCost,
                                         allDevelopmentEmployees = emptyList()
                                     )
                                 }
@@ -959,12 +967,24 @@ fun SuperEnhancedGameDevelopmentDialog(
                         currentStep == monetizationStepIndex -> true  // 付费内容是可选的
                         else -> {
                             // 最后一步（确认）：检查资金是否足够
-                            val totalCost = selectedPlatforms.sumOf { it.developmentCost.toLong() }
+                            val platformCost = selectedPlatforms.sumOf { it.developmentCost.toLong() }
+                            val businessModelCost = when (selectedBusinessModel) {
+                                BusinessModel.SINGLE_PLAYER -> 1000000L  // 100万
+                                BusinessModel.ONLINE_GAME -> 5000000L    // 500万
+                                null -> 0L
+                            }
+                            val totalCost = platformCost + businessModelCost
                             money >= totalCost
                         }
                     }
                 ) {
-                    val totalCost = selectedPlatforms.sumOf { it.developmentCost.toLong() }
+                    val platformCost = selectedPlatforms.sumOf { it.developmentCost.toLong() }
+                    val businessModelCost = when (selectedBusinessModel) {
+                        BusinessModel.SINGLE_PLAYER -> 1000000L  // 100万
+                        BusinessModel.ONLINE_GAME -> 5000000L    // 500万
+                        null -> 0L
+                    }
+                    val totalCost = platformCost + businessModelCost
                     val canAfford = money >= totalCost
                     val buttonText = if (isLastStep) {
                         if (canAfford) "创建游戏" else "资金不足"
@@ -1221,10 +1241,15 @@ fun EnhancedGameDevelopmentDialog(
                                             revenue = 0L,
                                             assignedEmployees = emptyList()
                                         ).let { game ->
-                                            // 计算平台开发费用
+                                            // 计算开发费用：平台费用 + 商业模式费用
                                             val totalPlatformCost = selectedPlatforms.sumOf { it.developmentCost.toLong() }
+                                            val businessModelCost = when (selectedBusinessModel!!) {
+                                                BusinessModel.SINGLE_PLAYER -> 1000000L  // 100万
+                                                BusinessModel.ONLINE_GAME -> 5000000L    // 500万
+                                            }
+                                            val totalDevelopmentCost = totalPlatformCost + businessModelCost
                                             game.copy(
-                                        developmentCost = totalPlatformCost,
+                                        developmentCost = totalDevelopmentCost,
                                         allDevelopmentEmployees = emptyList()
                                     )
                                         }
@@ -1994,17 +2019,30 @@ fun PlatformAndBusinessModelStep(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = model.icon,
+                            fontSize = 20.sp,
+                            modifier = Modifier.padding(end = 8.dp)
+                        )
+                        Text(
+                            text = model.displayName,
+                            color = Color.White,
+                            fontSize = 14.sp
+                        )
+                    }
                     Text(
-                        text = model.icon,
-                        fontSize = 20.sp,
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-                    Text(
-                        text = model.displayName,
-                        color = Color.White,
-                        fontSize = 14.sp
+                        text = when(model) {
+                            BusinessModel.SINGLE_PLAYER -> "1.00M"
+                            BusinessModel.ONLINE_GAME -> "5.00M"
+                            else -> ""
+                        },
+                        color = Color(0xFFFFD700),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
@@ -2062,7 +2100,14 @@ fun GameConfirmationStep(
                     fontSize = 14.sp
                 )
                 
-                val developmentCost = platforms.sumOf { it.developmentCost }
+                // 计算开发费用：平台费用 + 商业模式费用
+                val platformCost = platforms.sumOf { it.developmentCost }
+                val businessModelCost = when (businessModel) {
+                    BusinessModel.SINGLE_PLAYER -> 1000000  // 100万
+                    BusinessModel.ONLINE_GAME -> 5000000    // 500万
+                    null -> 0
+                }
+                val developmentCost = platformCost + businessModelCost
                 Text(
                     text = "开发费用: ${formatMoneyWithDecimals(developmentCost.toDouble())}",
                     color = Color(0xFFF59E0B),
@@ -2331,7 +2376,14 @@ fun GameConfirmationStepWithIP(
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
                 
-                val developmentCost = platforms.sumOf { it.developmentCost }
+                // 计算开发费用：平台费用 + 商业模式费用
+                val platformCost = platforms.sumOf { it.developmentCost }
+                val businessModelCost = when (businessModel) {
+                    BusinessModel.SINGLE_PLAYER -> 1000000  // 100万
+                    BusinessModel.ONLINE_GAME -> 5000000    // 500万
+                    null -> 0
+                }
+                val developmentCost = platformCost + businessModelCost
                 Text(
                     text = "开发费用: ${formatMoneyWithDecimals(developmentCost.toDouble())}",
                     color = Color(0xFFF59E0B),

@@ -66,49 +66,6 @@ fun TournamentResultDialog(
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // 成功等级
-                val successColor = when (tournament.successLevel) {
-                    TournamentSuccessLevel.GREAT_SUCCESS -> Color(0xFF4CAF50)
-                    TournamentSuccessLevel.SUCCESS -> Color(0xFF2196F3)
-                    TournamentSuccessLevel.AVERAGE -> Color(0xFFFFC107)
-                    TournamentSuccessLevel.FAILURE -> Color.Red
-                }
-                
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = successColor.copy(alpha = 0.1f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = when (tournament.successLevel) {
-                                TournamentSuccessLevel.GREAT_SUCCESS -> "🌟 大成功！"
-                                TournamentSuccessLevel.SUCCESS -> "✅ 成功"
-                                TournamentSuccessLevel.AVERAGE -> "🆗 一般"
-                                TournamentSuccessLevel.FAILURE -> "❌ 失败"
-                            },
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = successColor
-                        )
-                        
-                        if (tournament.successLevel == TournamentSuccessLevel.GREAT_SUCCESS) {
-                            Text(
-                                text = "观众反响热烈，成为业界佳话！",
-                                fontSize = 12.sp,
-                                color = Color(0xFF666666),
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
                 // 随机事件
                 if (tournament.randomEvent.isNotEmpty()) {
                     Card(

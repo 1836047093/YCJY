@@ -364,8 +364,7 @@ object TournamentManager {
     fun calculateTournamentRevenue(
         tournament: EsportsTournament,
         game: Game,
-        revenueData: GameRevenue,
-        successLevel: TournamentSuccessLevel
+        revenueData: GameRevenue
     ): TournamentRevenue {
         val type = tournament.type
         val activePlayers = revenueData.getActivePlayers()
@@ -375,12 +374,11 @@ object TournamentManager {
         val ratingMultiplier = (game.rating ?: 6.0f) / 10.0
         val playerMultiplier = 1.0 + kotlin.math.log10(activePlayers.toDouble() / 10000.0) * 0.1
         val sponsorRevenue = (tournament.investment * baseSponsorRate * ratingMultiplier * 
-                             playerMultiplier * successLevel.revenueMultiplier).toLong()
+                             playerMultiplier).toLong()
         
         // 转播权收入
         val broadcastRevenue = (type.broadcastRevenue * 
-                               (1.0 + activePlayers / 1000000.0 * 0.2) * 
-                               successLevel.revenueMultiplier).toLong()
+                               (1.0 + activePlayers / 1000000.0 * 0.2)).toLong()
         
         // 门票收入（仅国际赛和全球赛）
         val ticketRevenue = if (type == TournamentType.INTERNATIONAL || type == TournamentType.WORLD_FINALS) {
@@ -388,7 +386,7 @@ object TournamentManager {
             val vipTickets = (activePlayers * 0.00001).toLong()
             val normalPrice = Random.nextInt(200, 500)
             val vipPrice = Random.nextInt(1000, 3000)
-            (normalTickets * normalPrice + vipTickets * vipPrice) * successLevel.revenueMultiplier.toLong()
+            (normalTickets * normalPrice + vipTickets * vipPrice).toLong()
         } else {
             0L
         }
@@ -406,29 +404,58 @@ object TournamentManager {
     }
     
     /**
+     * 计算粉丝增长递减系数
+     * 粉丝越多，增长比例越低（符合真实传播规律）
+     */
+    private fun calculateFansDecayFactor(currentFans: Long): Double {
+        return when {
+            currentFans < 1_000_000L -> 1.0      // 0-100万：完整比例
+            currentFans < 10_000_000L -> 0.6     // 100万-1000万：60%
+            currentFans < 100_000_000L -> 0.4    // 1000万-1亿：40%
+            currentFans < 1_000_000_000L -> 0.2  // 1亿-10亿：20%
+            currentFans < 10_000_000_000L -> 0.08 // 10亿-100亿：8%
+            else -> 0.02                          // 100亿以上：2%
+        }
+    }
+    
+    /**
+     * 获取赛事类型的粉丝增长上限
+     */
+    private fun getTournamentFansCapByType(type: TournamentType): Long {
+        return when (type) {
+            TournamentType.REGIONAL -> 300_000L        // 城市杯：30万
+            TournamentType.NATIONAL -> 1_000_000L      // 全国锦标赛：100万
+            TournamentType.INTERNATIONAL -> 5_000_000L // 世界冠军赛：500万
+            TournamentType.WORLD_FINALS -> 20_000_000L  // 全球总决赛：2000万
+        }
+    }
+    
+    /**
      * 应用赛事效果到游戏
      */
     fun applyTournamentEffects(
         tournament: EsportsTournament,
         game: Game,
         revenueData: GameRevenue,
-        currentFans: Long,
-        successLevel: TournamentSuccessLevel
+        currentFans: Long
     ): Triple<Long, Long, Double> {
         val type = tournament.type
         
-        // 粉丝增长
+        // 粉丝增长（应用递减系数和上限）
         val fansGrowthRate = (type.fansGrowthMin + type.fansGrowthMax) / 2.0
+        val decayFactor = calculateFansDecayFactor(currentFans)
         val randomFactor = 1.0 + Random.nextDouble(-0.1, 0.1)
-        val fansGained = (currentFans * fansGrowthRate * successLevel.effectMultiplier * randomFactor).toLong()
+        val calculatedFansGain = (currentFans * fansGrowthRate * decayFactor * randomFactor).toLong()
+        val fansCap = getTournamentFansCapByType(type)
+        val fansGained = calculatedFansGain.coerceAtMost(fansCap)
         
         // 活跃玩家增长
         val activePlayers = revenueData.getActivePlayers()
         val playersGrowthRate = (type.playersGrowthMin + type.playersGrowthMax) / 2.0
-        val playersGained = (activePlayers * playersGrowthRate * successLevel.effectMultiplier * randomFactor).toLong()
+        val playersGained = (activePlayers * playersGrowthRate * randomFactor).toLong()
         
         // 兴趣值恢复
-        val interestBonus = type.interestBonus * successLevel.effectMultiplier
+        val interestBonus = type.interestBonus
         
         return Triple(fansGained, playersGained, interestBonus)
     }
