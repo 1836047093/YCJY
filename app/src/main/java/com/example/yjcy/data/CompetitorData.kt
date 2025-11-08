@@ -81,7 +81,13 @@ data class CompetitorGame(
     val currentTournament: EsportsTournament? = null, // 当前进行中的赛事
     val lastTournamentDate: GameDate? = null, // 上次举办赛事的日期
     val tournamentHistory: List<EsportsTournament>? = emptyList(), // 赛事历史记录
-    val allDevelopmentEmployees: List<Employee> = emptyList() // 所有参与开发的员工（兼容性字段，竞争对手不使用）
+    val allDevelopmentEmployees: List<Employee> = emptyList(), // 所有参与开发的员工（兼容性字段，竞争对手不使用）
+    // 🆕 网游兴趣值系统（与玩家系统对齐）
+    val totalRegisteredPlayers: Long = 0, // 总注册人数（仅网游）
+    val playerInterest: Double = 100.0, // 玩家兴趣值 0-100（仅网游）
+    val lifecycleProgress: Double = 0.0, // 生命周期进度 0-100%（仅网游）
+    val daysSinceLaunch: Int = 0, // 上线天数（仅网游）
+    val lastInterestDecayDay: Int = 0 // 上次兴趣值衰减的天数（仅网游）
 )
 
 /**
@@ -111,7 +117,8 @@ enum class NewsType {
     SALES_MILESTONE,       // 销量里程碑
     RATING_ACHIEVEMENT,    // 评分成就
     COMPANY_MILESTONE,     // 公司里程碑
-    MARKET_VALUE_CHANGE    // 市值变化
+    MARKET_VALUE_CHANGE,   // 市值变化
+    GAME_UPDATE            // 🆕 游戏更新
 }
 
 /**
@@ -296,8 +303,38 @@ object CompetitorManager {
             // 根据游戏年龄和评分生成合理的玩家数/销量
             val monthsSinceRelease = (currentYear - actualReleaseYear) * 12 + (currentMonth - actualReleaseMonth)
             
+            // 🆕 网游兴趣值系统初始化（用于历史游戏）
+            var initialDaysSinceLaunch = 0
+            var initialLifecycleProgress = 0.0
+            var initialPlayerInterest = 100.0
+            var initialTotalRegistered = 0L
+            var initialLastDecayDay = 0
+            
             val (activePlayers, salesCount, initialRevenue, initialMonetizationRevenue) = when (businessModel) {
                 BusinessModel.ONLINE_GAME -> {
+                    // 🆕 计算上线天数（简化：每月30天）
+                    initialDaysSinceLaunch = monthsSinceRelease * 30
+                    
+                    // 🆕 计算生命周期进度
+                    val totalLifecycleDays = 365
+                    initialLifecycleProgress = ((initialDaysSinceLaunch.toDouble() / totalLifecycleDays) * 100.0).coerceIn(0.0, 100.0)
+                    
+                    // 🆕 模拟历史兴趣值衰减（每90天衰减一次）
+                    initialPlayerInterest = 100.0
+                    val decayCount = initialDaysSinceLaunch / 90
+                    for (i in 0 until decayCount) {
+                        val dayAtInterval = (i + 1) * 90
+                        val progressAtInterval = ((dayAtInterval.toDouble() / totalLifecycleDays) * 100.0).coerceIn(0.0, 100.0)
+                        val decayRate = when {
+                            progressAtInterval < 30.0 -> 8.0   // 成长期：衰减8%
+                            progressAtInterval < 70.0 -> 15.0  // 成熟期：衰减15%
+                            progressAtInterval < 90.0 -> 25.0  // 衰退期：衰减25%
+                            else -> 35.0                       // 末期：衰减35%
+                        }
+                        initialPlayerInterest = (initialPlayerInterest - decayRate).coerceIn(0.0, 100.0)
+                    }
+                    initialLastDecayDay = decayCount * 90
+                    
                     // 网游活跃玩家：大幅提高基础活跃玩家数，增强竞争力（给玩家更大压力）
                     val baseActivePlayers = when {
                         rating >= 9.0f -> Random.nextLong(200000L, 500000L)  // 9.0+分：20万-50万（大幅提高）
@@ -316,6 +353,20 @@ object CompetitorManager {
                         else -> Random.nextDouble(2.0, 3.5)                      // 2年以上：200%-350%
                     }
                     val activePlayers = ((baseActivePlayers * timeMultiplier).toLong()).coerceIn(500L, 2000000L)
+                    
+                    // 🆕 根据活跃玩家数和兴趣值反推总注册数
+                    // 活跃玩家 = 总注册数 × 40% × 兴趣倍率
+                    val interestMultiplier = when {
+                        initialPlayerInterest >= 70.0 -> 1.0
+                        initialPlayerInterest >= 50.0 -> 0.7
+                        initialPlayerInterest >= 30.0 -> 0.4
+                        else -> 0.2
+                    }
+                    initialTotalRegistered = if (interestMultiplier > 0) {
+                        (activePlayers / (0.4 * interestMultiplier)).toLong()
+                    } else {
+                        (activePlayers * 5).toLong() // 兜底
+                    }
                     
                     // 使用付费内容系统计算累计收入
                     val monthlyMonetizationRevenue = calculateCompetitorMonetizationRevenue(activePlayers, theme)
@@ -372,7 +423,13 @@ object CompetitorManager {
                     releaseYear = actualReleaseYear,
                     releaseMonth = actualReleaseMonth,
                     totalRevenue = initialRevenue,
-                    monetizationRevenue = initialMonetizationRevenue
+                    monetizationRevenue = initialMonetizationRevenue,
+                    // 🆕 兴趣值系统初始化（仅网游有效）
+                    totalRegisteredPlayers = initialTotalRegistered,
+                    playerInterest = initialPlayerInterest,
+                    lifecycleProgress = initialLifecycleProgress,
+                    daysSinceLaunch = initialDaysSinceLaunch,
+                    lastInterestDecayDay = initialLastDecayDay
                 )
             )
         }
@@ -423,55 +480,116 @@ object CompetitorManager {
             for (game in company.games) {
                 when (game.businessModel) {
                     BusinessModel.ONLINE_GAME -> {
-                        // 网游活跃玩家数增长：大幅提高增长率，增强竞争力（给玩家更大压力）
-                        val baseGrowthRate = when {
-                            game.rating >= 9.0f -> Random.nextDouble(0.12, 0.20)   // 9.0+分：12%-20%增长/月（提高）
-                            game.rating >= 8.5f -> Random.nextDouble(0.10, 0.18)  // 8.5-9.0分：10%-18%增长/月（提高）
-                            game.rating >= 8.0f -> Random.nextDouble(0.08, 0.15) // 8.0-8.5分：8%-15%增长/月（提高）
-                            game.rating >= 7.0f -> Random.nextDouble(0.05, 0.12)  // 7.0-8.0分：5%-12%增长/月（提高）
-                            else -> Random.nextDouble(-0.03, 0.08)                // 7.0分以下：-3%-8%（可能下降，但上限提高）
+                        // 🆕 使用与玩家相同的兴趣值系统
+                        
+                        // 1. 更新上线天数（每月30天）
+                        val newDaysSinceLaunch = game.daysSinceLaunch + 30
+                        
+                        // 2. 计算生命周期进度
+                        val totalLifecycleDays = 365
+                        val newLifecycleProgress = ((newDaysSinceLaunch.toDouble() / totalLifecycleDays) * 100.0).coerceIn(0.0, 100.0)
+                        
+                        // 3. 检查是否需要衰减兴趣值（每90天衰减一次）
+                        val currentDecayInterval = newDaysSinceLaunch / 90
+                        val lastDecayInterval = game.lastInterestDecayDay / 90
+                        val shouldDecay = currentDecayInterval > lastDecayInterval
+                        
+                        var newPlayerInterest = game.playerInterest
+                        var newLastDecayDay = game.lastInterestDecayDay
+                        
+                        if (shouldDecay) {
+                            // 根据生命周期阶段确定衰减率
+                            val decayRate = when {
+                                newLifecycleProgress < 30.0 -> 8.0   // 成长期：衰减8%
+                                newLifecycleProgress < 70.0 -> 15.0  // 成熟期：衰减15%
+                                newLifecycleProgress < 90.0 -> 25.0  // 衰退期：衰减25%
+                                else -> 35.0                         // 末期：衰减35%
+                            }
+                            newPlayerInterest = (game.playerInterest - decayRate).coerceIn(0.0, 100.0)
+                            newLastDecayDay = newDaysSinceLaunch
                         }
                         
-                        // 计算增长：当前活跃玩家数 × 增长率
-                        val proportionalGrowth = (game.activePlayers * baseGrowthRate).toLong()
-                        
-                        // 保底增长（大幅提高保底增长，增强竞争力）
-                        val minGrowth = when {
-                            game.rating >= 9.0f -> Random.nextInt(5000, 12000).toLong()   // 高评分：5000-12000/月（大幅提高）
-                            game.rating >= 8.0f -> Random.nextInt(3000, 8000).toLong()   // 中高评分：3000-8000/月（大幅提高）
-                            game.rating >= 7.0f -> Random.nextInt(1500, 4000).toLong()    // 中等评分：1500-4000/月（大幅提高）
-                            else -> Random.nextInt(-500, 1500).toLong()                   // 低评分：-500-1500/月（可能下降）
+                        // 4. 计算注册数增长（每日）× 30天
+                        var newTotalRegistered = game.totalRegisteredPlayers
+                        for (day in 1..30) {
+                            // 基础增长率（根据评分）
+                            val baseGrowthRate = when {
+                                game.rating >= 8.5f -> 0.05   // 8.5分以上：5%增长
+                                game.rating >= 8.0f -> 0.04   // 8.0-8.5分：4%增长
+                                game.rating >= 7.0f -> 0.03   // 7.0-8.0分：3%增长
+                                else -> 0.02                  // 7.0分以下：2%增长
+                            }
+                            
+                            // 兴趣值影响
+                            val interestMultiplier = when {
+                                newPlayerInterest >= 80.0 -> 1.15
+                                newPlayerInterest >= 70.0 -> 1.0
+                                newPlayerInterest >= 50.0 -> 0.85
+                                newPlayerInterest >= 30.0 -> 0.7
+                                else -> 0.5
+                            }
+                            
+                            // 计算当日新增注册
+                            val dailyRegistrations = (newTotalRegistered * baseGrowthRate * interestMultiplier * 0.01).toLong().coerceAtLeast(10L)
+                            newTotalRegistered += dailyRegistrations
                         }
                         
-                        // 取两者中的较大值，但不超过当前活跃玩家数的25%（提高上限，增强竞争力）
-                        val maxGrowth = (game.activePlayers * 0.25).toLong()
-                        var playerGrowth = maxOf(proportionalGrowth, minGrowth).coerceAtMost(maxGrowth)
-                        
-                        // 追赶机制：如果当前活跃玩家数低于新标准，一次性提升（旧存档兼容）
-                        // 这样旧存档也能感受到增强的竞争力
-                        val expectedMinPlayers = when {
-                            game.rating >= 9.0f -> 200000L   // 9.0+分：至少20万
-                            game.rating >= 8.5f -> 120000L   // 8.5-9.0分：至少12万
-                            game.rating >= 8.0f -> 80000L    // 8.0-8.5分：至少8万
-                            game.rating >= 7.0f -> 40000L     // 7.0-8.0分：至少4万
-                            else -> game.activePlayers        // 低评分：保持原值
+                        // 5. 计算活跃玩家数（总注册数 × 40% × 兴趣倍率）
+                        val interestMultiplier = when {
+                            newPlayerInterest >= 70.0 -> 1.0
+                            newPlayerInterest >= 50.0 -> 0.7
+                            newPlayerInterest >= 30.0 -> 0.4
+                            else -> 0.2
                         }
+                        val newActivePlayers = (newTotalRegistered * 0.4 * interestMultiplier).toLong().coerceAtLeast(100L)
                         
-                        // 如果当前玩家数低于预期最低值，且评分≥7.0，则一次性提升（仅首次追赶）
-                        if (game.activePlayers < expectedMinPlayers && game.rating >= 7.0f) {
-                            val catchUpGrowth = expectedMinPlayers - game.activePlayers
-                            // 追赶增长不超过原有玩家数的50%（避免过于激进）
-                            val maxCatchUp = (game.activePlayers * 0.5).toLong()
-                            val actualCatchUp = catchUpGrowth.coerceAtMost(maxCatchUp)
-                            playerGrowth = maxOf(playerGrowth, actualCatchUp)
-                        }
-                        
-                        val newActivePlayers = (game.activePlayers + playerGrowth).coerceAtLeast(100L)
-                        
-                        // 使用付费内容系统计算本月收入
+                        // 6. 计算本月收入
                         val monthlyMonetizationRevenue = calculateCompetitorMonetizationRevenue(newActivePlayers, game.theme)
                         val newMonetizationRevenue = game.monetizationRevenue + monthlyMonetizationRevenue
-                        val newTotalRevenue = newMonetizationRevenue // 网游总收入=付费内容收入
+                        val newTotalRevenue = newMonetizationRevenue
+                        
+                        // 🆕 7. 检查是否需要更新游戏来恢复兴趣值
+                        var finalPlayerInterest = newPlayerInterest
+                        var updatedGame = false
+                        
+                        // 当兴趣值低于50%时，有概率更新游戏
+                        if (newPlayerInterest < 50.0 && newLifecycleProgress < 90.0) {
+                            // 更新概率：兴趣值越低，概率越高
+                            val updateProbability = when {
+                                newPlayerInterest < 30.0 -> 0.30  // 30%概率
+                                newPlayerInterest < 40.0 -> 0.20  // 20%概率
+                                else -> 0.10                      // 10%概率
+                            }
+                            
+                            if (Random.nextDouble() < updateProbability) {
+                                // 恢复兴趣值（与玩家系统相同）
+                                val recoveryAmount = when {
+                                    newLifecycleProgress < 30.0 -> 25.0  // 成长期：恢复25%
+                                    newLifecycleProgress < 70.0 -> 15.0  // 成熟期：恢复15%
+                                    else -> 8.0                          // 衰退期：恢复8%
+                                }
+                                finalPlayerInterest = (newPlayerInterest + recoveryAmount).coerceIn(0.0, 100.0)
+                                updatedGame = true
+                                
+                                // 生成更新游戏新闻
+                                newsList.add(
+                                    CompetitorNews(
+                                        id = "news_update_${System.currentTimeMillis()}_${Random.nextInt()}",
+                                        title = "${company.name}更新《${game.name}》，玩家好评！",
+                                        content = "${company.name}为旗下网游《${game.name}》推出重大更新，" +
+                                                "新增内容受到玩家好评，兴趣值提升${recoveryAmount.toInt()}%！",
+                                        type = NewsType.GAME_UPDATE,
+                                        companyId = company.id,
+                                        companyName = company.name,
+                                        gameId = game.id,
+                                        gameName = game.name,
+                                        year = currentYear,
+                                        month = currentMonth,
+                                        day = currentDay
+                                    )
+                                )
+                            }
+                        }
                         
                         // 检查是否达到里程碑
                         if (shouldGenerateMilestoneNews(game.activePlayers, newActivePlayers)) {
@@ -487,7 +605,13 @@ object CompetitorManager {
                             activePlayers = newActivePlayers,
                             totalRevenue = newTotalRevenue,
                             monetizationRevenue = newMonetizationRevenue,
-                            allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList()
+                            allDevelopmentEmployees = game.allDevelopmentEmployees ?: emptyList(),
+                            // 🆕 更新兴趣值系统字段
+                            totalRegisteredPlayers = newTotalRegistered,
+                            playerInterest = finalPlayerInterest,  // 使用可能已恢复的兴趣值
+                            lifecycleProgress = newLifecycleProgress,
+                            daysSinceLaunch = newDaysSinceLaunch,
+                            lastInterestDecayDay = newLastDecayDay
                         ))
                     }
                     BusinessModel.SINGLE_PLAYER -> {
@@ -701,6 +825,12 @@ object CompetitorManager {
             else -> Random.nextInt(70, 75) / 10f           // 8%概率：7.0-7.5分（中低评分）
         }
         
+        // 🆕 网游兴趣值系统初始化
+        var initialTotalRegistered = 0L
+        var initialPlayerInterest = 100.0
+        var initialLifecycleProgress = 0.0
+        var initialDaysSinceLaunch = 0
+        
         val (activePlayers, salesCount, initialRevenue, initialMonetizationRevenue) = when (businessModel) {
             BusinessModel.ONLINE_GAME -> {
                 // 新发售游戏的初始活跃玩家数：大幅提高首发活跃玩家数（增强竞争力）
@@ -711,6 +841,15 @@ object CompetitorManager {
                     rating >= 7.0f -> Random.nextInt(20000, 50000).toLong()      // 7.0-8.0分：2万-5万首发（提高）
                     else -> Random.nextInt(10000, 30000).toLong()                 // 7.0分以下：1万-3万首发（提高）
                 }
+                
+                // 🆕 根据活跃玩家数反推总注册数
+                // 活跃玩家 = 总注册数 × 40% × 兴趣倍率
+                // 初始兴趣值100%，兴趣倍率1.0
+                initialTotalRegistered = (players / 0.4).toLong()
+                initialPlayerInterest = 100.0
+                initialLifecycleProgress = 0.0
+                initialDaysSinceLaunch = 0
+                
                 // 使用付费内容系统计算首月收入
                 val monetizationRevenue = calculateCompetitorMonetizationRevenue(players, theme)
                 Quadruple(players, 0L, monetizationRevenue, monetizationRevenue)
@@ -746,7 +885,13 @@ object CompetitorManager {
             releaseYear = year,
             releaseMonth = month,
             totalRevenue = initialRevenue,
-            monetizationRevenue = initialMonetizationRevenue
+            monetizationRevenue = initialMonetizationRevenue,
+            // 🆕 兴趣值系统初始化（仅网游有效）
+            totalRegisteredPlayers = initialTotalRegistered,
+            playerInterest = initialPlayerInterest,
+            lifecycleProgress = initialLifecycleProgress,
+            daysSinceLaunch = initialDaysSinceLaunch,
+            lastInterestDecayDay = 0
         )
     }
     
@@ -779,8 +924,10 @@ object CompetitorManager {
     /**
      * 计算竞争对手网游的付费内容月收入
      * 根据游戏主题配置5个付费内容，使用更激进的付费率和价格
+     * 
+     * 公开此函数供SubsidiaryManager使用
      */
-    private fun calculateCompetitorMonetizationRevenue(activePlayers: Long, theme: GameTheme): Double {
+    fun calculateCompetitorMonetizationRevenue(activePlayers: Long, theme: GameTheme): Double {
         var totalRevenue = 0.0
         
         // 根据游戏主题获取推荐的5个付费内容类型
@@ -1209,6 +1356,77 @@ object CompetitorManager {
             cost >= 1000000L -> "${cost / 1000000}百万元"
             cost >= 10000L -> "${cost / 10000}万元"
             else -> "${cost}元"
+        }
+    }
+    
+    /**
+     * 修复旧存档中的竞争对手/子公司游戏数据（向后兼容）
+     * 为缺失兴趣值系统字段的网游设置合理的初始值
+     */
+    fun fixLegacyCompetitorGames(
+        companies: List<CompetitorCompany>,
+        currentYear: Int,
+        currentMonth: Int
+    ): List<CompetitorCompany> {
+        return companies.map { company ->
+            val fixedGames = company.games.map { game ->
+                // 只处理网游，且totalRegisteredPlayers为0（表示旧存档）
+                if (game.businessModel == BusinessModel.ONLINE_GAME && game.totalRegisteredPlayers == 0L) {
+                    // 计算上线天数
+                    val monthsSinceRelease = (currentYear - game.releaseYear) * 12 + (currentMonth - game.releaseMonth)
+                    val daysSinceLaunch = monthsSinceRelease * 30
+                    
+                    // 计算生命周期进度
+                    val totalLifecycleDays = 365
+                    val lifecycleProgress = ((daysSinceLaunch.toDouble() / totalLifecycleDays) * 100.0).coerceIn(0.0, 100.0)
+                    
+                    // 模拟历史兴趣值衰减
+                    var playerInterest = 100.0
+                    val decayCount = daysSinceLaunch / 90
+                    for (i in 0 until decayCount) {
+                        val dayAtInterval = (i + 1) * 90
+                        val progressAtInterval = ((dayAtInterval.toDouble() / totalLifecycleDays) * 100.0).coerceIn(0.0, 100.0)
+                        val decayRate = when {
+                            progressAtInterval < 30.0 -> 8.0
+                            progressAtInterval < 70.0 -> 15.0
+                            progressAtInterval < 90.0 -> 25.0
+                            else -> 35.0
+                        }
+                        playerInterest = (playerInterest - decayRate).coerceIn(0.0, 100.0)
+                    }
+                    
+                    // 根据当前活跃玩家数和兴趣值反推总注册数
+                    val interestMultiplier = when {
+                        playerInterest >= 70.0 -> 1.0
+                        playerInterest >= 50.0 -> 0.7
+                        playerInterest >= 30.0 -> 0.4
+                        else -> 0.2
+                    }
+                    val totalRegistered = if (interestMultiplier > 0) {
+                        (game.activePlayers / (0.4 * interestMultiplier)).toLong()
+                    } else {
+                        (game.activePlayers * 5).toLong()
+                    }
+                    
+                    android.util.Log.d("CompetitorManager", 
+                        "修复旧存档游戏 ${game.name}：" +
+                        "天数=$daysSinceLaunch, 生命周期=${lifecycleProgress.toInt()}%, " +
+                        "兴趣值=${playerInterest.toInt()}%, 注册数=$totalRegistered, 活跃=${game.activePlayers}"
+                    )
+                    
+                    game.copy(
+                        totalRegisteredPlayers = totalRegistered,
+                        playerInterest = playerInterest,
+                        lifecycleProgress = lifecycleProgress,
+                        daysSinceLaunch = daysSinceLaunch,
+                        lastInterestDecayDay = decayCount * 90
+                    )
+                } else {
+                    game
+                }
+            }
+            
+            company.copy(games = fixedGames)
         }
     }
 }

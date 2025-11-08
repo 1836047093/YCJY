@@ -1014,8 +1014,87 @@ private fun GameManagementCard(
             
             Spacer(modifier = Modifier.height(8.dp))
             
-            // 管理按钮
+            // 游戏数据展示
             val isOnlineGame = game.businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(6.dp))
+                    .padding(8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                if (isOnlineGame) {
+                    // 网游：显示活跃人数和总收入
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        SingleLineText(
+                            text = "活跃玩家",
+                            fontSize = 10.sp,
+                            color = Color.White.copy(alpha = 0.6f)
+                        )
+                        val activePlayersText = when {
+                            game.activePlayers >= 100000000 -> "%.1f亿".format(game.activePlayers / 100000000.0)
+                            game.activePlayers >= 10000 -> "%.1f万".format(game.activePlayers / 10000.0)
+                            else -> "${game.activePlayers}"
+                        }
+                        SingleLineText(
+                            text = activePlayersText,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF64B5F6)
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        SingleLineText(
+                            text = "总收入",
+                            fontSize = 10.sp,
+                            color = Color.White.copy(alpha = 0.6f)
+                        )
+                        SingleLineText(
+                            text = formatMoney(game.totalRevenue.toLong()),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF4CAF50)
+                        )
+                    }
+                } else {
+                    // 单机：显示总销量
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        SingleLineText(
+                            text = "总销量",
+                            fontSize = 10.sp,
+                            color = Color.White.copy(alpha = 0.6f)
+                        )
+                        val salesText = when {
+                            game.salesCount >= 100000000 -> "%.1f亿份".format(game.salesCount / 100000000.0)
+                            game.salesCount >= 10000 -> "%.1f万份".format(game.salesCount / 10000.0)
+                            else -> "${game.salesCount}份"
+                        }
+                        SingleLineText(
+                            text = salesText,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF4CAF50)
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        SingleLineText(
+                            text = "总收入",
+                            fontSize = 10.sp,
+                            color = Color.White.copy(alpha = 0.6f)
+                        )
+                        SingleLineText(
+                            text = formatMoney(game.totalRevenue.toLong()),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF4CAF50)
+                        )
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // 管理按钮
             
             if (isOnlineGame) {
                 // 网游：显示价格设置和更新策略按钮

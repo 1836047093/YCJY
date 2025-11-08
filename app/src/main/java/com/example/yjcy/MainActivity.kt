@@ -1948,6 +1948,7 @@ fun GameScreen(
     // 子公司资金不足对话框状态
     var showSubsidiaryBankruptDialog by remember { mutableStateOf(false) }
     var bankruptSubsidiary by remember { mutableStateOf<Subsidiary?>(null) }
+    var injectionAmountInput by remember { mutableStateOf("") } // 注入金额输入
     
     // 上次月结算的年月（防止重复结算）
     var lastSettlementYear by remember { mutableIntStateOf(saveData?.currentYear ?: 1) }
@@ -2290,6 +2291,18 @@ fun GameScreen(
             if (needUpdateGames) {
                 games = updatedGames
                 Log.d("GameScreen", "【实例 $instanceId】✓ 已更新子公司网游的付费内容")
+                
+                // 🔧 修复：同步更新RevenueManager中的付费内容信息
+                updatedGames
+                    .filter { it.id.startsWith("inherited_") && it.businessModel == BusinessModel.ONLINE_GAME }
+                    .forEach { game ->
+                        RevenueManager.updateGameInfo(
+                            game.id,
+                            game.businessModel,
+                            game.monetizationItems
+                        )
+                        Log.d("GameScreen", "【实例 $instanceId】✓ 同步 ${game.name} 的付费内容到RevenueManager（${game.monetizationItems.size}个）")
+                    }
             }
             
             // 恢复招聘岗位数据
@@ -2376,6 +2389,73 @@ fun GameScreen(
             // 注意：即使存档中competitors为空（所有对手都被收购），也不应该重新生成
             competitors = saveData.competitors
             Log.d("MainActivity", "从存档恢复竞争对手：${competitors.size}家竞争公司")
+            
+            // 🆕 修复旧存档中的竞争对手数据（向后兼容）
+            if (competitors.isNotEmpty()) {
+                val fixedCompetitors = CompetitorManager.fixLegacyCompetitorGames(
+                    competitors, currentYear, currentMonth
+                )
+                if (fixedCompetitors != competitors) {
+                    competitors = fixedCompetitors
+                    Log.d("MainActivity", "✅ 已修复旧存档的竞争对手游戏数据")
+                }
+            }
+            
+            // 🆕 修复旧存档中的子公司数据（向后兼容）
+            if (subsidiaries.isNotEmpty()) {
+                val fixedSubsidiaries = subsidiaries.map { subsidiary ->
+                    val fixedGames = subsidiary.games.map { game ->
+                        if (game.businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME && 
+                            game.totalRegisteredPlayers == 0L) {
+                            val monthsSinceRelease = (currentYear - game.releaseYear) * 12 + (currentMonth - game.releaseMonth)
+                            val daysSinceLaunch = monthsSinceRelease * 30
+                            val totalLifecycleDays = 365
+                            val lifecycleProgress = ((daysSinceLaunch.toDouble() / totalLifecycleDays) * 100.0).coerceIn(0.0, 100.0)
+                            
+                            var playerInterest = 100.0
+                            val decayCount = daysSinceLaunch / 90
+                            for (i in 0 until decayCount) {
+                                val dayAtInterval = (i + 1) * 90
+                                val progressAtInterval = ((dayAtInterval.toDouble() / totalLifecycleDays) * 100.0).coerceIn(0.0, 100.0)
+                                val decayRate = when {
+                                    progressAtInterval < 30.0 -> 8.0
+                                    progressAtInterval < 70.0 -> 15.0
+                                    progressAtInterval < 90.0 -> 25.0
+                                    else -> 35.0
+                                }
+                                playerInterest = (playerInterest - decayRate).coerceIn(0.0, 100.0)
+                            }
+                            
+                            val interestMultiplier = when {
+                                playerInterest >= 70.0 -> 1.0
+                                playerInterest >= 50.0 -> 0.7
+                                playerInterest >= 30.0 -> 0.4
+                                else -> 0.2
+                            }
+                            val totalRegistered = if (interestMultiplier > 0) {
+                                (game.activePlayers / (0.4 * interestMultiplier)).toLong()
+                            } else {
+                                (game.activePlayers * 5).toLong()
+                            }
+                            
+                            game.copy(
+                                totalRegisteredPlayers = totalRegistered,
+                                playerInterest = playerInterest,
+                                lifecycleProgress = lifecycleProgress,
+                                daysSinceLaunch = daysSinceLaunch,
+                                lastInterestDecayDay = decayCount * 90
+                            )
+                        } else {
+                            game
+                        }
+                    }
+                    subsidiary.copy(games = fixedGames)
+                }
+                if (fixedSubsidiaries != subsidiaries) {
+                    subsidiaries = fixedSubsidiaries
+                    Log.d("MainActivity", "✅ 已修复旧存档的子公司游戏数据")
+                }
+            }
         }
     }
     
@@ -2841,6 +2921,7 @@ fun GameScreen(
                         if (updatedSubsidiary.cashBalance <= 0 && !showSubsidiaryBankruptDialog) {
                             Log.d("MainActivity", "💸 子公司[${subsidiary.name}]资金不足！当前资金: ¥${updatedSubsidiary.cashBalance}")
                             bankruptSubsidiary = updatedSubsidiary
+                            injectionAmountInput = "" // 清空输入框
                             showSubsidiaryBankruptDialog = true
                             // 暂停游戏，让玩家做出选择
                             isPaused = true
@@ -4666,6 +4747,48 @@ fun GameScreen(
                             fontSize = 14.sp,
                             color = Color.White.copy(alpha = 0.9f)
                         )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        // 注入金额输入框
+                        Text(
+                            text = "注入金额（元）",
+                            fontSize = 14.sp,
+                            color = Color.White.copy(alpha = 0.7f),
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        OutlinedTextField(
+                            value = injectionAmountInput,
+                            onValueChange = { input ->
+                                // 只允许输入数字
+                                if (input.isEmpty() || input.all { it.isDigit() }) {
+                                    injectionAmountInput = input
+                                }
+                            },
+                            placeholder = {
+                                Text(
+                                    text = "请输入注入金额",
+                                    color = Color.White.copy(alpha = 0.3f)
+                                )
+                            },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = Color(0xFF10B981),
+                                unfocusedBorderColor = Color.White.copy(alpha = 0.3f),
+                                cursorColor = Color(0xFF10B981)
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        // 显示玩家当前资金
+                        Text(
+                            text = "💰 您的可用资金：¥${formatMoney(money)}",
+                            fontSize = 13.sp,
+                            color = Color(0xFF10B981),
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 },
                 confirmButton = {
@@ -4676,36 +4799,43 @@ fun GameScreen(
                         // 注入资金按钮
                         Button(
                             onClick = {
-                                // 计算注入金额（3个月的支出作为缓冲）
-                                val injectionAmount = bankruptSubsidiary!!.monthlyExpense * 3
-                                if (money >= injectionAmount) {
+                                // 获取玩家输入的金额
+                                val inputAmount = injectionAmountInput.toLongOrNull()
+                                
+                                if (inputAmount == null || inputAmount <= 0) {
+                                    messageText = "请输入有效的注入金额"
+                                    showMessage = true
+                                } else if (money < inputAmount) {
+                                    messageText = "资金不足！需要¥${formatMoney(inputAmount)}，当前仅有¥${formatMoney(money)}"
+                                    showMessage = true
+                                } else {
                                     // 扣除玩家资金
-                                    money = safeAddMoney(money, -injectionAmount)
+                                    money = safeAddMoney(money, -inputAmount)
                                     // 更新子公司资金
                                     subsidiaries = subsidiaries.map { sub ->
                                         if (sub.id == bankruptSubsidiary!!.id) {
-                                            sub.copy(cashBalance = injectionAmount)
+                                            sub.copy(cashBalance = inputAmount)
                                         } else {
                                             sub
                                         }
                                     }
-                                    messageText = "已向${bankruptSubsidiary!!.name}注入¥${formatMoney(injectionAmount)}"
+                                    messageText = "已向${bankruptSubsidiary!!.name}注入¥${formatMoney(inputAmount)}"
                                     showMessage = true
-                                    Log.d("MainActivity", "💰 注入资金: ${bankruptSubsidiary!!.name} +¥${injectionAmount}")
-                                } else {
-                                    messageText = "资金不足！需要¥${formatMoney(injectionAmount)}，当前仅有¥${formatMoney(money)}"
-                                    showMessage = true
+                                    Log.d("MainActivity", "💰 注入资金: ${bankruptSubsidiary!!.name} +¥${inputAmount}")
+                                    
+                                    // 清空输入框
+                                    injectionAmountInput = ""
+                                    showSubsidiaryBankruptDialog = false
+                                    bankruptSubsidiary = null
+                                    isPaused = false
                                 }
-                                showSubsidiaryBankruptDialog = false
-                                bankruptSubsidiary = null
-                                isPaused = false
                             },
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color(0xFF10B981),
                                 contentColor = Color.White
                             ),
-                            enabled = money >= (bankruptSubsidiary!!.monthlyExpense * 3)
+                            enabled = injectionAmountInput.isNotEmpty()
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Add,
@@ -4714,7 +4844,7 @@ fun GameScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "注入资金 (¥${formatMoney(bankruptSubsidiary!!.monthlyExpense * 3)})",
+                                text = "注入资金",
                                 fontSize = 16.sp
                             )
                         }
@@ -4727,6 +4857,9 @@ fun GameScreen(
                                 messageText = "${bankruptSubsidiary!!.name}已解散"
                                 showMessage = true
                                 Log.d("MainActivity", "🏭 解散子公司: ${bankruptSubsidiary!!.name}")
+                                
+                                // 清空输入框
+                                injectionAmountInput = ""
                                 showSubsidiaryBankruptDialog = false
                                 bankruptSubsidiary = null
                                 isPaused = false

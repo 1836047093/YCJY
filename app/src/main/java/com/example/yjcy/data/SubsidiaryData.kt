@@ -202,9 +202,12 @@ object SubsidiaryManager {
         subsidiary.games.forEach { game ->
             when (game.businessModel) {
                 com.example.yjcy.ui.BusinessModel.ONLINE_GAME -> {
-                    // 网游：基于活跃玩家和付费内容收入
-                    // 付费率0.5%，ARPU 100元/月
-                    val monthlyRevenue = (game.activePlayers * 0.005 * 100).toLong()
+                    // 🔧 修复：使用完整的付费内容系统计算收入（5个付费内容，总付费率约3.5%）
+                    // 而不是简化公式（0.5%付费率）
+                    val monthlyRevenue = CompetitorManager.calculateCompetitorMonetizationRevenue(
+                        game.activePlayers, 
+                        game.theme
+                    ).toLong()
                     totalIncome += monthlyRevenue
                 }
                 com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER -> {
@@ -220,20 +223,47 @@ object SubsidiaryManager {
     }
     
     /**
-     * 计算服务器成本（网游）
+     * 计算服务器成本（网游）- 使用与玩家相同的服务器租用逻辑
      */
     fun calculateServerCost(games: List<CompetitorGame>): Long {
         val onlineGames = games.filter { it.businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME }
-        var serverCost = 0L
+        var totalServerCost = 0L
         
         onlineGames.forEach { game ->
-            // 基于活跃玩家估算服务器数量
-            val requiredServers = (game.activePlayers / 10000).toInt().coerceAtLeast(1)
-            // S型服务器月租5000元/台
-            serverCost += requiredServers * 5000L
+            val activePlayers = game.activePlayers.coerceAtLeast(10000L) // 最少按1万玩家计算
+            
+            // 估算需要的服务器（优先使用性价比高的服务器）
+            // ADVANCED: 200万容量, 500万/月, 性价比最高 (0.25万/万人)
+            // INTERMEDIATE: 50万容量, 300万/月
+            // BASIC: 10万容量, 100万/月
+            
+            var remainingPlayers = activePlayers
+            var serverCost = 0L
+            
+            // 1. 优先使用ADVANCED服务器（200万容量）
+            val advancedCount = (remainingPlayers / 2000000L).toInt()
+            if (advancedCount > 0) {
+                serverCost += advancedCount * 5000000L
+                remainingPlayers -= advancedCount * 2000000L
+            }
+            
+            // 2. 剩余使用INTERMEDIATE服务器（50万容量）
+            val intermediateCount = (remainingPlayers / 500000L).toInt()
+            if (intermediateCount > 0) {
+                serverCost += intermediateCount * 3000000L
+                remainingPlayers -= intermediateCount * 500000L
+            }
+            
+            // 3. 最后使用BASIC服务器（10万容量）补足
+            if (remainingPlayers > 0) {
+                val basicCount = ((remainingPlayers + 99999L) / 100000L).toInt() // 向上取整
+                serverCost += basicCount * 1000000L
+            }
+            
+            totalServerCost += serverCost
         }
         
-        return serverCost
+        return totalServerCost
     }
     
     /**
@@ -260,17 +290,146 @@ object SubsidiaryManager {
                             calculateServerCost(subsidiary.games) +
                             calculateOtherCosts(subsidiary)
         
-        // 更新游戏数据（网游玩家数衰减2%，单机销量增长）
+        // 🆕 更新游戏数据，使用与玩家相同的系统
         val updatedGames = subsidiary.games.map { game ->
             when (game.businessModel) {
                 com.example.yjcy.ui.BusinessModel.ONLINE_GAME -> {
-                    // 网游活跃玩家缓慢衰减
-                    game.copy(activePlayers = (game.activePlayers * 0.98).toLong())
+                    // 🆕 使用与玩家相同的兴趣值系统（与竞争对手逻辑完全一致）
+                    
+                    // 1. 更新上线天数（每月30天）
+                    val newDaysSinceLaunch = game.daysSinceLaunch + 30
+                    
+                    // 2. 计算生命周期进度
+                    val totalLifecycleDays = 365
+                    val newLifecycleProgress = ((newDaysSinceLaunch.toDouble() / totalLifecycleDays) * 100.0).coerceIn(0.0, 100.0)
+                    
+                    // 3. 检查是否需要衰减兴趣值（每90天衰减一次）
+                    val currentDecayInterval = newDaysSinceLaunch / 90
+                    val lastDecayInterval = game.lastInterestDecayDay / 90
+                    val shouldDecay = currentDecayInterval > lastDecayInterval
+                    
+                    var newPlayerInterest = game.playerInterest
+                    var newLastDecayDay = game.lastInterestDecayDay
+                    
+                    if (shouldDecay) {
+                        val decayRate = when {
+                            newLifecycleProgress < 30.0 -> 8.0
+                            newLifecycleProgress < 70.0 -> 15.0
+                            newLifecycleProgress < 90.0 -> 25.0
+                            else -> 35.0
+                        }
+                        newPlayerInterest = (game.playerInterest - decayRate).coerceIn(0.0, 100.0)
+                        newLastDecayDay = newDaysSinceLaunch
+                    }
+                    
+                    // 4. 计算注册数增长（每日）× 30天
+                    var newTotalRegistered = game.totalRegisteredPlayers
+                    for (day in 1..30) {
+                        val baseGrowthRate = when {
+                            game.rating >= 8.5f -> 0.05
+                            game.rating >= 8.0f -> 0.04
+                            game.rating >= 7.0f -> 0.03
+                            else -> 0.02
+                        }
+                        
+                        val interestMultiplier = when {
+                            newPlayerInterest >= 80.0 -> 1.15
+                            newPlayerInterest >= 70.0 -> 1.0
+                            newPlayerInterest >= 50.0 -> 0.85
+                            newPlayerInterest >= 30.0 -> 0.7
+                            else -> 0.5
+                        }
+                        
+                        val dailyRegistrations = (newTotalRegistered * baseGrowthRate * interestMultiplier * 0.01).toLong().coerceAtLeast(10L)
+                        newTotalRegistered += dailyRegistrations
+                    }
+                    
+                    // 5. 计算活跃玩家数
+                    val activeMultiplier = when {
+                        newPlayerInterest >= 70.0 -> 1.0
+                        newPlayerInterest >= 50.0 -> 0.7
+                        newPlayerInterest >= 30.0 -> 0.4
+                        else -> 0.2
+                    }
+                    val newActivePlayers = (newTotalRegistered * 0.4 * activeMultiplier).toLong().coerceAtLeast(100L)
+                    
+                    // 6. 计算本月收入
+                    val monthlyMonetizationRevenue = CompetitorManager.calculateCompetitorMonetizationRevenue(
+                        newActivePlayers, 
+                        game.theme
+                    )
+                    
+                    // 🆕 7. 检查是否需要更新游戏来恢复兴趣值
+                    var finalPlayerInterest = newPlayerInterest
+                    
+                    // 当兴趣值低于50%时，有概率更新游戏
+                    if (newPlayerInterest < 50.0 && newLifecycleProgress < 90.0) {
+                        // 更新概率：兴趣值越低，概率越高
+                        val updateProbability = when {
+                            newPlayerInterest < 30.0 -> 0.30  // 30%概率
+                            newPlayerInterest < 40.0 -> 0.20  // 20%概率
+                            else -> 0.10                      // 10%概率
+                        }
+                        
+                        if (kotlin.random.Random.nextDouble() < updateProbability) {
+                            // 恢复兴趣值（与玩家系统相同）
+                            val recoveryAmount = when {
+                                newLifecycleProgress < 30.0 -> 25.0  // 成长期：恢复25%
+                                newLifecycleProgress < 70.0 -> 15.0  // 成熟期：恢复15%
+                                else -> 8.0                          // 衰退期：恢复8%
+                            }
+                            finalPlayerInterest = (newPlayerInterest + recoveryAmount).coerceIn(0.0, 100.0)
+                            
+                            android.util.Log.d("SubsidiaryManager", 
+                                "子公司${subsidiary.name}更新游戏《${game.name}》，" +
+                                "兴趣值从${newPlayerInterest.toInt()}%恢复到${finalPlayerInterest.toInt()}%"
+                            )
+                        }
+                    }
+                    
+                    game.copy(
+                        activePlayers = newActivePlayers,
+                        totalRevenue = game.totalRevenue + monthlyMonetizationRevenue,
+                        monetizationRevenue = game.monetizationRevenue + monthlyMonetizationRevenue,
+                        // 🆕 更新兴趣值系统字段
+                        totalRegisteredPlayers = newTotalRegistered,
+                        playerInterest = finalPlayerInterest,  // 使用可能已恢复的兴趣值
+                        lifecycleProgress = newLifecycleProgress,
+                        daysSinceLaunch = newDaysSinceLaunch,
+                        lastInterestDecayDay = newLastDecayDay
+                    )
                 }
                 com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER -> {
-                    // 单机游戏持续小量销售
-                    val newSales = (game.salesCount * 0.01).toLong().coerceAtLeast(10L)
-                    game.copy(salesCount = game.salesCount + newSales)
+                    // 🆕 使用与竞争对手相同的复杂销量增长逻辑
+                    val baseGrowthRate = when {
+                        game.rating >= 9.0f -> kotlin.random.Random.nextDouble(1.2, 2.5)
+                        game.rating >= 8.5f -> kotlin.random.Random.nextDouble(0.9, 1.8)
+                        game.rating >= 8.0f -> kotlin.random.Random.nextDouble(0.6, 1.2)
+                        game.rating >= 7.5f -> kotlin.random.Random.nextDouble(0.4, 0.9)
+                        game.rating >= 7.0f -> kotlin.random.Random.nextDouble(0.3, 0.6)
+                        else -> kotlin.random.Random.nextDouble(0.15, 0.4)
+                    }
+                    
+                    val proportionalGrowth = (game.salesCount * baseGrowthRate / 100.0).toLong()
+                    
+                    val minGrowth = when {
+                        game.rating >= 9.0f -> kotlin.random.Random.nextInt(5000, 12000)
+                        game.rating >= 8.5f -> kotlin.random.Random.nextInt(3000, 8000)
+                        game.rating >= 8.0f -> kotlin.random.Random.nextInt(2000, 5000)
+                        game.rating >= 7.0f -> kotlin.random.Random.nextInt(1000, 3000)
+                        else -> kotlin.random.Random.nextInt(300, 1200)
+                    }.toLong()
+                    
+                    val maxGrowth = (game.salesCount * 0.08).toLong()
+                    val salesGrowth = maxOf(proportionalGrowth, minGrowth).coerceAtMost(maxGrowth)
+                    
+                    val newSales = game.salesCount + salesGrowth
+                    val monthlySalesRevenue = (salesGrowth * 50).toDouble()
+                    
+                    game.copy(
+                        salesCount = newSales,
+                        totalRevenue = game.totalRevenue + monthlySalesRevenue
+                    )
                 }
             }
         }
