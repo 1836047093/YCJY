@@ -183,52 +183,151 @@ fun LeaderboardContent(saveData: SaveData) {
         getTopSinglePlayerGames(saveData)
     }
     
-    Column(
+    // 显示选中的排行榜
+    LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
     ) {
-        // 下拉选择器
-        Card(
+        item(key = "leaderboard_${selectedLeaderboard}_${competitorsCount}") {
+            when (selectedLeaderboard) {
+                LeaderboardType.MARKET_VALUE -> {
+                    LeaderboardCard(
+                        title = "市值排行榜",
+                        icon = "💰",
+                        topColor = Color(0xFFFFD700),
+                        items = marketValueItems,
+                        leaderboardType = LeaderboardType.MARKET_VALUE,
+                        selectedLeaderboard = selectedLeaderboard,
+                        expanded = expanded,
+                        onExpandedChange = { expanded = it },
+                        onLeaderboardSelected = { selectedLeaderboard = it }
+                    )
+                }
+                LeaderboardType.FANS -> {
+                    LeaderboardCard(
+                        title = "粉丝排行榜",
+                        icon = "❤️",
+                        topColor = Color(0xFFFF6B6B),
+                        items = fansItems,
+                        leaderboardType = LeaderboardType.FANS,
+                        selectedLeaderboard = selectedLeaderboard,
+                        expanded = expanded,
+                        onExpandedChange = { expanded = it },
+                        onLeaderboardSelected = { selectedLeaderboard = it }
+                    )
+                }
+                LeaderboardType.ONLINE_GAME -> {
+                    LeaderboardCard(
+                        title = "热门网游排行",
+                        icon = "🎮",
+                        topColor = Color(0xFF4ECDC4),
+                        items = liveLeaderboardItems.ifEmpty { onlineGameItems },
+                        leaderboardType = LeaderboardType.ONLINE_GAME,
+                        selectedLeaderboard = selectedLeaderboard,
+                        expanded = expanded,
+                        onExpandedChange = { expanded = it },
+                        onLeaderboardSelected = { selectedLeaderboard = it }
+                    )
+                }
+                LeaderboardType.SINGLE_PLAYER -> {
+                    LeaderboardCard(
+                        title = "畅销单机排行",
+                        icon = "📦",
+                        topColor = Color(0xFF95E1D3),
+                        items = singlePlayerItems,
+                        leaderboardType = LeaderboardType.SINGLE_PLAYER,
+                        selectedLeaderboard = selectedLeaderboard,
+                        expanded = expanded,
+                        onExpandedChange = { expanded = it },
+                        onLeaderboardSelected = { selectedLeaderboard = it }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 排行榜卡片
+ */
+@Composable
+fun LeaderboardCard(
+    title: String,
+    icon: String,
+    topColor: Color,
+    items: List<LeaderboardItem>,
+    leaderboardType: LeaderboardType,
+    selectedLeaderboard: LeaderboardType,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onLeaderboardSelected: (LeaderboardType) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 12.dp)
+    ) {
+        // 标题和下拉选择器
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(4.dp, RoundedCornerShape(12.dp)),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = Color.White.copy(alpha = 0.12f)
-            )
+                .padding(bottom = 20.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { expanded = true }
-                    .padding(20.dp)
+            // 左侧：图标和标题
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
             ) {
+                Text(
+                    text = icon,
+                    fontSize = 28.sp,
+                    modifier = Modifier.padding(end = 10.dp)
+                )
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp
+                )
+            }
+            
+            // 右侧：下拉选择器
+            Box {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.White.copy(alpha = 0.12f))
+                        .clickable { onExpandedChange(true) }
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
                 ) {
                     Text(
                         text = selectedLeaderboard.icon,
-                        fontSize = 20.sp,
-                        modifier = Modifier.padding(end = 8.dp)
+                        fontSize = 16.sp,
+                        modifier = Modifier.padding(end = 6.dp)
                     )
                     Text(
                         text = selectedLeaderboard.displayName,
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        modifier = Modifier.weight(1f)
+                        fontSize = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = if (expanded) "▲" else "▼",
                         color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 16.sp
+                        fontSize = 14.sp
                     )
                 }
                 
                 DropdownMenu(
                     expanded = expanded,
-                    onDismissRequest = { expanded = false },
+                    onDismissRequest = { onExpandedChange(false) },
                     modifier = Modifier
                         .background(Color(0xFF1E1E2E))
                         .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
@@ -249,8 +348,8 @@ fun LeaderboardContent(saveData: SaveData) {
                                 }
                             },
                             onClick = {
-                                selectedLeaderboard = type
-                                expanded = false
+                                onLeaderboardSelected(type)
+                                onExpandedChange(false)
                             },
                             modifier = Modifier.background(
                                 if (selectedLeaderboard == type) Color.White.copy(alpha = 0.1f) else Color.Transparent
@@ -259,100 +358,6 @@ fun LeaderboardContent(saveData: SaveData) {
                     }
                 }
             }
-        }
-        
-        // 显示选中的排行榜
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
-        ) {
-            item(key = "leaderboard_${selectedLeaderboard}_${competitorsCount}") {
-                when (selectedLeaderboard) {
-                    LeaderboardType.MARKET_VALUE -> {
-                        LeaderboardCard(
-                            title = "市值排行榜",
-                            icon = "💰",
-                            topColor = Color(0xFFFFD700),
-                            items = marketValueItems,
-                            leaderboardType = LeaderboardType.MARKET_VALUE
-                        )
-                    }
-                    LeaderboardType.FANS -> {
-                        LeaderboardCard(
-                            title = "粉丝排行榜",
-                            icon = "❤️",
-                            topColor = Color(0xFFFF6B6B),
-                            items = fansItems,
-                            leaderboardType = LeaderboardType.FANS
-                        )
-                    }
-                    LeaderboardType.ONLINE_GAME -> {
-                        LeaderboardCard(
-                            title = "热门网游排行",
-                            icon = "🎮",
-                            topColor = Color(0xFF4ECDC4),
-                            items = liveLeaderboardItems.ifEmpty { onlineGameItems },
-                            leaderboardType = LeaderboardType.ONLINE_GAME
-                        )
-                    }
-                    LeaderboardType.SINGLE_PLAYER -> {
-                        LeaderboardCard(
-                            title = "畅销单机排行",
-                            icon = "📦",
-                            topColor = Color(0xFF95E1D3),
-                            items = singlePlayerItems,
-                            leaderboardType = LeaderboardType.SINGLE_PLAYER
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * 排行榜卡片
- */
-@Composable
-fun LeaderboardCard(
-    title: String,
-    icon: String,
-    topColor: Color,
-    items: List<LeaderboardItem>,
-    leaderboardType: LeaderboardType
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color.White.copy(alpha = 0.05f),
-                        Color.White.copy(alpha = 0.02f)
-                    )
-                ),
-                shape = RoundedCornerShape(16.dp)
-            )
-            .padding(horizontal = 16.dp, vertical = 20.dp)
-    ) {
-        // 标题
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(bottom = 20.dp)
-        ) {
-            Text(
-                text = icon,
-                fontSize = 28.sp,
-                modifier = Modifier.padding(end = 10.dp)
-            )
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp
-            )
         }
         
         // 排行榜列表
@@ -367,9 +372,9 @@ fun LeaderboardCard(
             )
             if (index < items.size - 1) {
                 HorizontalDivider(
-                    color = Color.White.copy(alpha = 0.15f),
-                    thickness = 1.dp,
-                    modifier = Modifier.padding(vertical = 16.dp)
+                    color = Color.White.copy(alpha = 0.08f),
+                    thickness = 0.5.dp,
+                    modifier = Modifier.padding(vertical = 14.dp, horizontal = 8.dp)
                 )
             }
         }
@@ -428,227 +433,493 @@ fun LeaderboardItemRow(
     // 静态图标 - 使用第一个渐变色作为主色
     val primaryColor = if (gradientColors.isNotEmpty()) gradientColors[0] else Color.Gray
     
-    // 创建边框动画效果
-    val infiniteTransition = rememberInfiniteTransition(label = "rank_border_animation_$rank")
+    // ========== 环绕流光动画系统 ==========
+    val infiniteTransition = rememberInfiniteTransition(label = "rank_animation_$rank")
     
-    // LED光点位置（角度，0-360度）
-    val ledLightAngle = if (isTop) {
+    // 四边流光扫描动画
+    val borderLightAngle = if (isTop) {
         infiniteTransition.animateFloat(
             initialValue = 0f,
             targetValue = 360f,
             animationSpec = infiniteRepeatable(
                 animation = tween(
                     durationMillis = when (rank) {
-                        1 -> 2000  // 第1名转得快
-                        2 -> 2500  // 第2名
-                        3 -> 3000  // 第3名
-                        else -> 2000
+                        1 -> 2000  // 第1名最快
+                        2 -> 2500
+                        3 -> 3000
+                        else -> 3000
                     },
                     easing = LinearEasing
                 ),
                 repeatMode = RepeatMode.Restart
             ),
-            label = "led_light_angle"
+            label = "border_light"
         ).value
     } else 0f
     
-    // LED光点强度（呼吸效果）
-    val ledLightIntensity = if (isTop) {
+    // 粒子内核脉冲呼吸
+    val glowPulse = if (isTop) {
         infiniteTransition.animateFloat(
-            initialValue = 0.7f,
+            initialValue = 0.6f,
             targetValue = 1f,
             animationSpec = infiniteRepeatable(
                 animation = tween(
-                    durationMillis = 1500,
-                    easing = FastOutSlowInEasing
-                ),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "led_light_intensity"
-        ).value
-    } else 1f
-    
-    // 边框宽度动画 - 呼吸效果（增强）
-    val borderWidth = if (isTop) {
-        infiniteTransition.animateFloat(
-            initialValue = 3f,
-            targetValue = 5f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(
                     durationMillis = when (rank) {
-                        1 -> 1200
-                        2 -> 1400
-                        3 -> 1600
-                        else -> 1200
+                        1 -> 1500
+                        2 -> 1800
+                        3 -> 2100
+                        else -> 1500
                     },
                     easing = FastOutSlowInEasing
                 ),
                 repeatMode = RepeatMode.Reverse
             ),
-            label = "border_width_animation"
-        ).value.dp
-    } else 2.dp
-    
-    // 外发光强度动画 - 强烈闪烁
-    val outerGlowAlpha = if (isTop) {
-        infiniteTransition.animateFloat(
-            initialValue = 0.5f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = keyframes {
-                    durationMillis = when (rank) {
-                        1 -> 1500
-                        2 -> 1700
-                        3 -> 1900
-                        else -> 1500
-                    }
-                    0.5f at 0
-                    1f at 300 using FastOutSlowInEasing
-                    0.7f at 600
-                    1f at 900 using FastOutSlowInEasing
-                    0.5f at durationMillis
-                },
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "outer_glow_animation"
+            label = "glow_pulse"
         ).value
     } else 0.5f
     
-    // 内发光强度动画
-    val innerGlowAlpha = if (isTop) {
-        // 第3名使用更高的最小透明度，确保边框清晰可见
-        val minAlpha = if (rank == 3) 0.75f else 0.4f
-        val maxAlpha = 1f
+    // 环绕粒子旋转（反方向）
+    val particleAngle = if (isTop) {
         infiniteTransition.animateFloat(
-            initialValue = minAlpha,
-            targetValue = maxAlpha,
+            initialValue = 360f,
+            targetValue = 0f,
             animationSpec = infiniteRepeatable(
-                animation = keyframes {
+                animation = tween(
                     durationMillis = when (rank) {
-                        1 -> 1800
-                        2 -> 2000
-                        3 -> 2200
-                        else -> 1800
-                    }
-                    minAlpha at 0
-                    maxAlpha at 400 using FastOutSlowInEasing
-                    (minAlpha + 0.15f) at 800
-                    maxAlpha at 1200 using FastOutSlowInEasing
-                    minAlpha at durationMillis
-                },
+                        1 -> 3500
+                        2 -> 4000
+                        3 -> 4500
+                        else -> 4000
+                    },
+                    easing = LinearEasing
+                ),
                 repeatMode = RepeatMode.Restart
             ),
-            label = "inner_glow_animation"
+            label = "particle_rotate"
         ).value
-    } else 0.4f
+    } else 0f
     
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                color = when {
-                    isPlayer -> Color(0xFF4CAF50).copy(alpha = 0.2f)
-                    isTop -> primaryColor.copy(alpha = 0.12f * innerGlowAlpha)
-                    else -> Color.Transparent
-                },
-                shape = RoundedCornerShape(12.dp)
-            )
-            .then(
+            .drawBehind {
                 if (isPlayer) {
-                    Modifier
-                        .drawBehind {
-                            // 左侧彩色条
-                            drawRect(
-                                color = Color(0xFF4CAF50),
-                                size = androidx.compose.ui.geometry.Size(8f, size.height)
+                    // 玩家专属：简洁的绿色光带
+                    drawRect(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(
+                                Color(0xFF4CAF50).copy(alpha = 0.4f),
+                                Color(0xFF4CAF50).copy(alpha = 0.2f),
+                                Color.Transparent
                             )
-                        }
+                        )
+                    )
+                    drawRect(
+                        color = Color(0xFF4CAF50).copy(alpha = 0.8f),
+                        size = androidx.compose.ui.geometry.Size(4f, size.height)
+                    )
                 } else if (isTop) {
-                    Modifier
-                        .drawBehind {
-                            // 左侧彩色条（前3名）
-                            drawRect(
-                                brush = Brush.verticalGradient(
-                                    colors = gradientColors.map { it.copy(alpha = innerGlowAlpha) }
-                                ),
-                                size = androidx.compose.ui.geometry.Size(8f, size.height)
+                    // ========== 多彩流光扫描特效系统 ==========
+                    
+                    val centerX = size.width / 2f
+                    val centerY = size.height / 2f
+                    
+                    // 根据排名定义彩虹色系
+                    val rainbowColors = when (rank) {
+                        1 -> listOf(  // 🥇金色彩虹
+                            Color(0xFFFFD700),  // 金色
+                            Color(0xFFFF69B4),  // 粉色
+                            Color(0xFF00CED1),  // 青色
+                            Color(0xFF7B68EE),  // 紫色
+                            Color(0xFFFF6347),  // 橙红
+                            Color(0xFFFFD700)   // 金色（循环）
+                        )
+                        2 -> listOf(  // 🥈银蓝彩虹
+                            Color(0xFFC0C0C0),  // 银色
+                            Color(0xFF4169E1),  // 皇家蓝
+                            Color(0xFF00BFFF),  // 深天蓝
+                            Color(0xFF9370DB),  // 紫罗兰
+                            Color(0xFF87CEEB),  // 天蓝
+                            Color(0xFFC0C0C0)   // 银色（循环）
+                        )
+                        3 -> listOf(  // 🥉铜橙彩虹
+                            Color(0xFFCD7F32),  // 铜色
+                            Color(0xFFFF4500),  // 橙红
+                            Color(0xFFFF8C00),  // 暗橙
+                            Color(0xFFFFD700),  // 金色
+                            Color(0xFFFF6347),  // 番茄红
+                            Color(0xFFCD7F32)   // 铜色（循环）
+                        )
+                        else -> gradientColors + gradientColors.first()
+                    }
+                    
+                    // ========== 1. 动态背景层 ==========
+                    
+                    // 背景脉冲呼吸光晕
+                    val bgColor1 = rainbowColors[0]
+                    val bgColor2 = rainbowColors[1]
+                    drawRect(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(
+                                bgColor1.copy(alpha = 0.15f * glowPulse),
+                                bgColor2.copy(alpha = 0.12f * glowPulse),
+                                bgColor1.copy(alpha = 0.08f * glowPulse),
+                                Color.Transparent
                             )
+                        )
+                    )
+                    
+                    // 背景流动波纹（从左到右）
+                    val waveProgress = (borderLightAngle / 360f)
+                    for (i in 0..2) {
+                        val xOffset = ((waveProgress + i * 0.33f) % 1f) * size.width
+                        val waveWidth = size.width * 0.4f
+                        drawRect(
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    rainbowColors[i % rainbowColors.size].copy(alpha = 0.08f),
+                                    rainbowColors[(i + 1) % rainbowColors.size].copy(alpha = 0.12f),
+                                    rainbowColors[i % rainbowColors.size].copy(alpha = 0.08f),
+                                    Color.Transparent
+                                ),
+                                startX = xOffset - waveWidth / 2,
+                                endX = xOffset + waveWidth / 2
+                            ),
+                            topLeft = androidx.compose.ui.geometry.Offset(xOffset - waveWidth / 2, 0f),
+                            size = androidx.compose.ui.geometry.Size(waveWidth, size.height)
+                        )
+                    }
+                    
+                    // 背景光点粒子（随机飘动）
+                    val sparkleCount = when (rank) {
+                        1 -> 12
+                        2 -> 8
+                        3 -> 6
+                        else -> 5
+                    }
+                    
+                    for (i in 0 until sparkleCount) {
+                        val angle = (particleAngle * 0.5f + i * (360f / sparkleCount)) % 360f
+                        val x = (kotlin.math.sin(Math.toRadians(angle.toDouble())).toFloat() + 1f) / 2f * size.width
+                        val y = (kotlin.math.cos(Math.toRadians((angle * 1.3f).toDouble())).toFloat() + 1f) / 2f * size.height
+                        
+                        val sparkleSize = when (rank) {
+                            1 -> 3f
+                            2 -> 2.5f
+                            else -> 2f
+                        }
+                        
+                        val colorIndex = i % rainbowColors.size
+                        drawCircle(
+                            color = rainbowColors[colorIndex].copy(alpha = 0.4f * glowPulse),
+                            radius = sparkleSize,
+                            center = androidx.compose.ui.geometry.Offset(x, y)
+                        )
+                    }
+                    
+                    // ========== 2. 四边流光扫描层 ==========
+                    
+                    // 流光条数随排名变化
+                    val streamCount = when (rank) {
+                        1 -> 3  // 第1名：3条流光同时扫描
+                        2 -> 2  // 第2名：2条流光
+                        3 -> 1  // 第3名：1条流光
+                        else -> 1
+                    }
+                    
+                    // 流光宽度随排名变化
+                    val streamWidth = when (rank) {
+                        1 -> 0.25f  // 第1名最宽
+                        2 -> 0.20f
+                        3 -> 0.15f
+                        else -> 0.15f
+                    }
+                    
+                    // 多彩流光扫描
+                    val borderProgress = borderLightAngle / 360f
+                    val perimeter = 2 * (size.width + size.height)
+                    
+                    // 绘制多条流光
+                    for (streamIndex in 0 until streamCount) {
+                        val offset = (streamIndex * (1f / streamCount))
+                        val currentPos = perimeter * ((borderProgress + offset) % 1f)
+                        val lightLength = perimeter * streamWidth
+                        
+                        // 当前流光使用的颜色索引（随位置变化）
+                        val colorPhase = ((borderProgress + offset) * rainbowColors.size).toInt() % rainbowColors.size
+                        val color1 = rainbowColors[colorPhase]
+                        val color2 = rainbowColors[(colorPhase + 1) % rainbowColors.size]
+                        val color3 = rainbowColors[(colorPhase + 2) % rainbowColors.size]
+                        
+                        fun drawBorderLight(startPos: Float, length: Float) {
+                            var remainingLength = length
+                            var currentPos = startPos % perimeter
                             
-                            // 绘制流光效果（简化版）
-                            val centerX = size.width / 2f
-                            val centerY = size.height / 2f
-                            
-                            for (i in 0 until 2) {
-                                val angle = Math.toRadians((ledLightAngle + i * 180f).toDouble())
-                                val lightAlpha = ledLightIntensity * 0.6f
+                            // 持续绘制直到长度用完
+                            while (remainingLength > 0.1f) {
+                                currentPos = currentPos % perimeter  // 循环处理
                                 
-                                val cosValue = kotlin.math.cos(angle).toFloat()
-                                val sinValue = kotlin.math.sin(angle).toFloat()
-                                
-                                val x = centerX + cosValue * size.width * 0.4f
-                                val y = centerY + sinValue * size.height * 0.3f
-                                
-                                drawCircle(
-                                    brush = Brush.radialGradient(
-                                        colors = listOf(
-                                            primaryColor.copy(alpha = lightAlpha * 0.3f),
-                                            Color.Transparent
+                                // 计算当前在哪条边以及该边的剩余长度
+                                when {
+                                    // 顶边（0 -> width）
+                                    currentPos < size.width -> {
+                                        val x = currentPos
+                                        val edgeRemaining = size.width - x
+                                        val drawLength = kotlin.math.min(remainingLength, edgeRemaining)
+                                        val progress = remainingLength / length
+                                        
+                                        drawRect(
+                                            brush = Brush.horizontalGradient(
+                                                colors = listOf(
+                                                    Color.Transparent,
+                                                    Color.White.copy(alpha = 0.9f * progress),
+                                                    color1.copy(alpha = 0.85f * progress),
+                                                    color2.copy(alpha = 0.7f * progress),
+                                                    color3.copy(alpha = 0.5f * progress),
+                                                    Color.Transparent
+                                                ),
+                                                startX = x,
+                                                endX = x + drawLength
+                                            ),
+                                            topLeft = androidx.compose.ui.geometry.Offset(x, 0f),
+                                            size = androidx.compose.ui.geometry.Size(drawLength, 6f)
                                         )
-                                    ),
-                                    radius = 60f,
-                                    center = androidx.compose.ui.geometry.Offset(x, y)
-                                )
+                                        currentPos += drawLength
+                                        remainingLength -= drawLength
+                                    }
+                                    
+                                    // 右边（width -> width+height）
+                                    currentPos < size.width + size.height -> {
+                                        val y = currentPos - size.width
+                                        val edgeRemaining = size.height - y
+                                        val drawLength = kotlin.math.min(remainingLength, edgeRemaining)
+                                        val progress = remainingLength / length
+                                        
+                                        drawRect(
+                                            brush = Brush.verticalGradient(
+                                                colors = listOf(
+                                                    Color.Transparent,
+                                                    Color.White.copy(alpha = 0.9f * progress),
+                                                    color1.copy(alpha = 0.85f * progress),
+                                                    color2.copy(alpha = 0.7f * progress),
+                                                    color3.copy(alpha = 0.5f * progress),
+                                                    Color.Transparent
+                                                ),
+                                                startY = y,
+                                                endY = y + drawLength
+                                            ),
+                                            topLeft = androidx.compose.ui.geometry.Offset(size.width - 6f, y),
+                                            size = androidx.compose.ui.geometry.Size(6f, drawLength)
+                                        )
+                                        currentPos += drawLength
+                                        remainingLength -= drawLength
+                                    }
+                                    
+                                    // 底边（width+height -> 2*width+height，从右到左）
+                                    currentPos < 2 * size.width + size.height -> {
+                                        val traveled = currentPos - size.width - size.height
+                                        val edgeRemaining = size.width - traveled
+                                        val drawLength = kotlin.math.min(remainingLength, edgeRemaining)
+                                        val x = size.width - traveled
+                                        val progress = remainingLength / length
+                                        
+                                        drawRect(
+                                            brush = Brush.horizontalGradient(
+                                                colors = listOf(
+                                                    Color.Transparent,
+                                                    color3.copy(alpha = 0.5f * progress),
+                                                    color2.copy(alpha = 0.7f * progress),
+                                                    color1.copy(alpha = 0.85f * progress),
+                                                    Color.White.copy(alpha = 0.9f * progress),
+                                                    Color.Transparent
+                                                ),
+                                                startX = x - drawLength,
+                                                endX = x
+                                            ),
+                                            topLeft = androidx.compose.ui.geometry.Offset(x - drawLength, size.height - 6f),
+                                            size = androidx.compose.ui.geometry.Size(drawLength, 6f)
+                                        )
+                                        currentPos += drawLength
+                                        remainingLength -= drawLength
+                                    }
+                                    
+                                    // 左边（2*width+height -> perimeter，从下到上）
+                                    else -> {
+                                        val traveled = currentPos - 2 * size.width - size.height
+                                        val edgeRemaining = size.height - traveled
+                                        val drawLength = kotlin.math.min(remainingLength, edgeRemaining)
+                                        val y = size.height - traveled
+                                        val progress = remainingLength / length
+                                        
+                                        drawRect(
+                                            brush = Brush.verticalGradient(
+                                                colors = listOf(
+                                                    Color.Transparent,
+                                                    color3.copy(alpha = 0.5f * progress),
+                                                    color2.copy(alpha = 0.7f * progress),
+                                                    color1.copy(alpha = 0.85f * progress),
+                                                    Color.White.copy(alpha = 0.9f * progress),
+                                                    Color.Transparent
+                                                ),
+                                                startY = y - drawLength,
+                                                endY = y
+                                            ),
+                                            topLeft = androidx.compose.ui.geometry.Offset(0f, y - drawLength),
+                                            size = androidx.compose.ui.geometry.Size(6f, drawLength)
+                                        )
+                                        currentPos += drawLength
+                                        remainingLength -= drawLength
+                                    }
+                                }
                             }
                         }
-                        .graphicsLayer {
-                            shadowElevation = outerGlowAlpha * 8f
-                        }
-                } else {
-                    Modifier
+                        
+                        drawBorderLight(currentPos, lightLength)
+                    }
+                    
+                    // ========== 3. 环绕彩色粒子层 ==========
+                    
+                    val particleCount = when (rank) {
+                        1 -> 6
+                        2 -> 5
+                        3 -> 4
+                        else -> 4
+                    }
+                    
+                    val particleSize = when (rank) {
+                        1 -> 35f
+                        2 -> 30f
+                        3 -> 25f
+                        else -> 25f
+                    }
+                    
+                    for (i in 0 until particleCount) {
+                        val angle = Math.toRadians((particleAngle + i * (360f / particleCount)).toDouble())
+                        val radiusX = size.width * 0.45f
+                        val radiusY = size.height * 0.42f
+                        
+                        val x = centerX + kotlin.math.cos(angle).toFloat() * radiusX
+                        val y = centerY + kotlin.math.sin(angle).toFloat() * radiusY
+                        
+                        val colorIndex = i % (rainbowColors.size - 1)
+                        val color = rainbowColors[colorIndex]
+                        
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.8f),
+                                    color.copy(alpha = 0.7f),
+                                    color.copy(alpha = 0.4f),
+                                    Color.Transparent
+                                ),
+                                radius = particleSize * 1.2f
+                            ),
+                            radius = particleSize,
+                            center = androidx.compose.ui.geometry.Offset(x, y)
+                        )
+                    }
                 }
-            )
-            .padding(horizontal = 20.dp, vertical = 18.dp),
+            }
+            .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 排名数字
+        // 排名数字和特效
         Box(
-            modifier = Modifier.width(64.dp),
+            modifier = Modifier.width(72.dp),
             contentAlignment = Alignment.Center
         ) {
             if (isTop) {
-                // 前3名 - 大号数字带光晕
+                // 前3名 - 强力发光徽章
                 Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .background(
-                            brush = Brush.radialGradient(
-                                colors = listOf(
-                                    primaryColor.copy(alpha = 0.4f),
-                                    primaryColor.copy(alpha = 0.1f),
-                                    Color.Transparent
-                                )
-                            ),
-                            shape = CircleShape
-                        ),
                     contentAlignment = Alignment.Center
                 ) {
+                    // 外层强光晕（大范围）
+                    Box(
+                        modifier = Modifier
+                            .size(70.dp)
+                            .background(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        primaryColor.copy(alpha = 0.5f * glowPulse),
+                                        primaryColor.copy(alpha = 0.3f * glowPulse),
+                                        primaryColor.copy(alpha = 0.1f * glowPulse),
+                                        Color.Transparent
+                                    )
+                                ),
+                                shape = CircleShape
+                            )
+                    )
+                    
+                    // 核心徽章
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .shadow(
+                                elevation = (6.dp.value + glowPulse * 6f).dp,
+                                shape = CircleShape,
+                                ambientColor = primaryColor,
+                                spotColor = primaryColor
+                            )
+                            .background(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        primaryColor.copy(alpha = 0.95f),
+                                        primaryColor.copy(alpha = 0.75f),
+                                        primaryColor.copy(alpha = 0.6f)
+                                    )
+                                ),
+                                shape = CircleShape
+                            )
+                            .border(
+                                width = (2.5f + glowPulse * 0.5f).dp,
+                                brush = Brush.sweepGradient(
+                                    colors = gradientColors.map { 
+                                        it.copy(alpha = 0.7f + glowPulse * 0.3f) 
+                                    } + Color.White.copy(alpha = glowPulse)
+                                ),
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = rank.toString(),
+                            fontSize = 36.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color.White
+                        )
+                    }
+                    
+                    // 顶部装饰图标
                     Text(
-                        text = rank.toString(),
-                        fontSize = 40.sp,
-                        fontWeight = FontWeight.Black,
-                        color = primaryColor,
-                        modifier = Modifier.graphicsLayer {
-                            shadowElevation = 12f
-                        }
+                        text = when (rank) {
+                            1 -> "👑"
+                            2 -> "⭐"
+                            3 -> "🏆"
+                            else -> ""
+                        },
+                        fontSize = 18.sp,
+                        modifier = Modifier.offset(y = (-30).dp)
                     )
                 }
             } else {
                 // 第4-5名
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(44.dp)
+                        .shadow(2.dp, CircleShape)
                         .background(
-                            color = Color.White.copy(alpha = 0.2f),
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.25f),
+                                    Color.White.copy(alpha = 0.15f)
+                                )
+                            ),
+                            shape = CircleShape
+                        )
+                        .border(
+                            width = 1.dp,
+                            color = Color.White.copy(alpha = 0.3f),
                             shape = CircleShape
                         ),
                     contentAlignment = Alignment.Center
@@ -657,7 +928,7 @@ fun LeaderboardItemRow(
                         text = rank.toString(),
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
+                        fontSize = 20.sp
                     )
                 }
             }
@@ -677,46 +948,78 @@ fun LeaderboardItemRow(
                 if (isPlayer) {
                     Text(
                         text = "👤 ",
-                        fontSize = 16.sp
+                        fontSize = 18.sp
                     )
                 }
                 Text(
                     text = item.mainText,
                     color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
+                    fontWeight = if (isTop) FontWeight.ExtraBold else FontWeight.Bold,
+                    fontSize = if (isTop) 19.sp else 17.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                
+                if (isTop && !isPlayer) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(text = "✨", fontSize = 14.sp)
+                }
             }
             
             // 第二行：公司名字
             if (item.subText.isNotEmpty()) {
                 Text(
                     text = item.subText,
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 14.sp,
+                    color = if (isTop) Color.White.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.7f),
+                    fontSize = if (isTop) 15.sp else 14.sp,
+                    fontWeight = if (isTop) FontWeight.Medium else FontWeight.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
             
             // 第三行：活跃玩家/销量
-            Text(
-                text = item.value,
-                color = if (isTop) primaryColor else Color(0xFFFFD700),
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 14.sp
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isTop) {
+                    Text(
+                        text = when (leaderboardType) {
+                            LeaderboardType.MARKET_VALUE, LeaderboardType.FANS -> "📈"
+                            LeaderboardType.ONLINE_GAME -> "🎮"
+                            LeaderboardType.SINGLE_PLAYER -> "📦"
+                        },
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(end = 4.dp)
+                    )
+                }
+                Text(
+                    text = item.value,
+                    color = if (isTop) primaryColor else Color(0xFFFFD700),
+                    fontWeight = if (isTop) FontWeight.Bold else FontWeight.SemiBold,
+                    fontSize = if (isTop) 15.sp else 14.sp
+                )
+            }
             
             // 第四行：总收入
             if (item.extraInfo.isNotEmpty()) {
-                Text(
-                    text = item.extraInfo,
-                    color = if (isTop) primaryColor.copy(alpha = 0.9f) else Color(0xFFFF6B6B),
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (isTop) {
+                        Text(
+                            text = "💰",
+                            fontSize = 14.sp,
+                            modifier = Modifier.padding(end = 4.dp)
+                        )
+                    }
+                    Text(
+                        text = item.extraInfo,
+                        color = if (isTop) primaryColor.copy(alpha = 0.9f) else Color(0xFFFF6B6B),
+                        fontWeight = if (isTop) FontWeight.Bold else FontWeight.SemiBold,
+                        fontSize = if (isTop) 15.sp else 14.sp
+                    )
+                }
             }
         }
     }
@@ -1060,6 +1363,7 @@ fun NewsCard(news: CompetitorNews) {
         NewsType.RATING_ACHIEVEMENT -> Color(0xFFFF6B6B)
         NewsType.COMPANY_MILESTONE -> Color(0xFF6BCB77)
         NewsType.MARKET_VALUE_CHANGE -> Color(0xFFFFA500)
+        NewsType.GAME_UPDATE -> Color(0xFF64B5F6)  // 蓝色（游戏更新）
     }
     
     val typeIcon = when (news.type) {
@@ -1069,6 +1373,7 @@ fun NewsCard(news: CompetitorNews) {
         NewsType.RATING_ACHIEVEMENT -> "⭐"
         NewsType.COMPANY_MILESTONE -> "🏆"
         NewsType.MARKET_VALUE_CHANGE -> "💰"
+        NewsType.GAME_UPDATE -> "🔄"  // 更新图标
     }
     
     Card(
@@ -1166,8 +1471,8 @@ fun CompetitorsListContent(
     } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
         ) {
             itemsIndexed(allCompanies) { index, company ->
                 val isPlayer = company.id == -1
@@ -1227,58 +1532,561 @@ fun CompetitorCard(
     isPlayer: Boolean = false,
     playerGameCount: Int = 0 // 玩家公司的游戏数量（仅当isPlayer为true时使用）
 ) {
-    Card(
+    val isTop3 = rank <= 3 && !isPlayer
+    
+    // 动态颜色：根据排名生成不同的渐变色
+    val rankColors = when {
+        rank == 1 -> listOf(Color(0xFFFFD700), Color(0xFFFFEB3B), Color(0xFFFFC107)) // 第1名金色
+        rank == 2 -> listOf(Color(0xFFC0C0C0), Color(0xFFE0E0E0), Color(0xFFBDBDBD)) // 第2名银色
+        rank == 3 -> listOf(Color(0xFFFFA726), Color(0xFFFFB74D), Color(0xFFFFCC80)) // 第3名橙金色
+        rank <= 6 -> listOf(Color(0xFF667eea), Color(0xFF764ba2)) // 4-6名紫色
+        else -> listOf(Color(0xFF4A5568), Color(0xFF2D3748)) // 其他灰色
+    }
+    
+    val primaryColor = rankColors[0]
+    
+    // 前3名的动画效果
+    val infiniteTransition = rememberInfiniteTransition(label = "competitor_card_$rank")
+    
+    // 主光环旋转
+    val mainLightAngle = if (isTop3) {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(
+                    durationMillis = when (rank) {
+                        1 -> 3000
+                        2 -> 3500
+                        3 -> 4000
+                        else -> 3000
+                    },
+                    easing = LinearEasing
+                ),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "main_light_angle"
+        ).value
+    } else 0f
+    
+    // 粒子强度
+    val particleIntensity = if (isTop3) {
+        infiniteTransition.animateFloat(
+            initialValue = 0.5f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(
+                    durationMillis = 1200,
+                    easing = FastOutSlowInEasing
+                ),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "particle_intensity"
+        ).value
+    } else 1f
+    
+    // 脉冲动画
+    val pulseScale = if (isTop3) {
+        infiniteTransition.animateFloat(
+            initialValue = 1f,
+            targetValue = 1.05f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(
+                    durationMillis = when (rank) {
+                        1 -> 2000
+                        2 -> 2300
+                        3 -> 2600
+                        else -> 2000
+                    },
+                    easing = FastOutSlowInEasing
+                ),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "pulse_scale"
+        ).value
+    } else 1f
+    
+    // 光晕强度
+    val glowAlpha = if (isTop3) {
+        infiniteTransition.animateFloat(
+            initialValue = 0.6f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(
+                    durationMillis = 1800,
+                    easing = FastOutSlowInEasing
+                ),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "glow_alpha"
+        ).value
+    } else 0.6f
+    
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .shadow(4.dp, RoundedCornerShape(12.dp))
-            .then(
-                if (isPlayer) {
-                    Modifier.border(
-                        width = 2.dp,
-                        color = Color(0xFF4CAF50),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                } else {
-                    Modifier
+            .graphicsLayer {
+                // 脉冲缩放和阴影
+                if (isTop3) {
+                    scaleX = pulseScale
+                    scaleY = pulseScale
+                    shadowElevation = glowAlpha * 10f
+                } else if (isPlayer) {
+                    shadowElevation = 8f
                 }
-            ),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isPlayer) {
-                Color(0xFF4CAF50).copy(alpha = 0.2f)
-            } else {
-                Color.White.copy(alpha = 0.12f)
             }
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 18.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // 排名
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .background(
-                        brush = Brush.radialGradient(
+            .drawBehind {
+                if (isPlayer) {
+                    // 玩家专属：简洁的绿色光带
+                    drawRect(
+                        brush = Brush.horizontalGradient(
                             colors = listOf(
-                                Color(0xFF667eea),
-                                Color(0xFF764ba2)
+                                Color(0xFF4CAF50).copy(alpha = 0.4f),
+                                Color(0xFF4CAF50).copy(alpha = 0.2f),
+                                Color.Transparent
                             )
-                        ),
-                        shape = CircleShape
-                    ),
+                        )
+                    )
+                    drawRect(
+                        color = Color(0xFF4CAF50).copy(alpha = 0.8f),
+                        size = androidx.compose.ui.geometry.Size(4f, size.height)
+                    )
+                } else if (isTop3) {
+                    // ========== 多彩流光扫描特效系统 ==========
+                    
+                    val centerX = size.width / 2f
+                    val centerY = size.height / 2f
+                    
+                    // 根据排名定义彩虹色系
+                    val rainbowColors = when (rank) {
+                        1 -> listOf(  // 🥇金色彩虹
+                            Color(0xFFFFD700), Color(0xFFFF69B4), Color(0xFF00CED1),
+                            Color(0xFF7B68EE), Color(0xFFFF6347), Color(0xFFFFD700)
+                        )
+                        2 -> listOf(  // 🥈银蓝彩虹
+                            Color(0xFFC0C0C0), Color(0xFF4169E1), Color(0xFF00BFFF),
+                            Color(0xFF9370DB), Color(0xFF87CEEB), Color(0xFFC0C0C0)
+                        )
+                        3 -> listOf(  // 🥉铜橙彩虹
+                            Color(0xFFCD7F32), Color(0xFFFF4500), Color(0xFFFF8C00),
+                            Color(0xFFFFD700), Color(0xFFFF6347), Color(0xFFCD7F32)
+                        )
+                        else -> rankColors + rankColors.first()
+                    }
+                    
+                    // ========== 1. 动态背景层 ==========
+                    
+                    // 背景脉冲呼吸光晕
+                    val bgColor1 = rainbowColors[0]
+                    val bgColor2 = rainbowColors[1]
+                    drawRect(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(
+                                bgColor1.copy(alpha = 0.15f * glowAlpha),
+                                bgColor2.copy(alpha = 0.12f * glowAlpha),
+                                bgColor1.copy(alpha = 0.08f * glowAlpha),
+                                Color.Transparent
+                            )
+                        )
+                    )
+                    
+                    // 背景流动波纹（从左到右）
+                    val waveProgress = (mainLightAngle / 360f)
+                    for (i in 0..2) {
+                        val xOffset = ((waveProgress + i * 0.33f) % 1f) * size.width
+                        val waveWidth = size.width * 0.4f
+                        drawRect(
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    rainbowColors[i % rainbowColors.size].copy(alpha = 0.08f),
+                                    rainbowColors[(i + 1) % rainbowColors.size].copy(alpha = 0.12f),
+                                    rainbowColors[i % rainbowColors.size].copy(alpha = 0.08f),
+                                    Color.Transparent
+                                ),
+                                startX = xOffset - waveWidth / 2,
+                                endX = xOffset + waveWidth / 2
+                            ),
+                            topLeft = androidx.compose.ui.geometry.Offset(xOffset - waveWidth / 2, 0f),
+                            size = androidx.compose.ui.geometry.Size(waveWidth, size.height)
+                        )
+                    }
+                    
+                    // 背景光点粒子（随机飘动）
+                    val sparkleCount = when (rank) {
+                        1 -> 12
+                        2 -> 8
+                        3 -> 6
+                        else -> 5
+                    }
+                    
+                    for (i in 0 until sparkleCount) {
+                        val angle = (mainLightAngle * 0.5f + i * (360f / sparkleCount)) % 360f
+                        val x = (kotlin.math.sin(Math.toRadians(angle.toDouble())).toFloat() + 1f) / 2f * size.width
+                        val y = (kotlin.math.cos(Math.toRadians((angle * 1.3f).toDouble())).toFloat() + 1f) / 2f * size.height
+                        
+                        val sparkleSize = when (rank) {
+                            1 -> 3f
+                            2 -> 2.5f
+                            else -> 2f
+                        }
+                        
+                        val colorIndex = i % rainbowColors.size
+                        drawCircle(
+                            color = rainbowColors[colorIndex].copy(alpha = 0.4f * glowAlpha),
+                            radius = sparkleSize,
+                            center = androidx.compose.ui.geometry.Offset(x, y)
+                        )
+                    }
+                    
+                    // ========== 2. 四边流光扫描层 ==========
+                    
+                    val streamCount = when (rank) {
+                        1 -> 3  // 第1名：3条流光
+                        2 -> 2  // 第2名：2条流光
+                        3 -> 1  // 第3名：1条流光
+                        else -> 1
+                    }
+                    
+                    val streamWidth = when (rank) {
+                        1 -> 0.25f
+                        2 -> 0.20f
+                        3 -> 0.15f
+                        else -> 0.15f
+                    }
+                    
+                    val borderProgress = mainLightAngle / 360f
+                    val perimeter = 2 * (size.width + size.height)
+                    
+                    for (streamIndex in 0 until streamCount) {
+                        val offset = (streamIndex * (1f / streamCount))
+                        val currentPos = perimeter * ((borderProgress + offset) % 1f)
+                        val lightLength = perimeter * streamWidth
+                        
+                        val colorPhase = ((borderProgress + offset) * rainbowColors.size).toInt() % rainbowColors.size
+                        val color1 = rainbowColors[colorPhase]
+                        val color2 = rainbowColors[(colorPhase + 1) % rainbowColors.size]
+                        val color3 = rainbowColors[(colorPhase + 2) % rainbowColors.size]
+                        
+                        fun drawBorderLight(startPos: Float, length: Float) {
+                            var remainingLength = length
+                            var currentPos = startPos % perimeter
+                            
+                            while (remainingLength > 0.1f) {
+                                currentPos = currentPos % perimeter
+                                
+                                when {
+                                    currentPos < size.width -> {
+                                        val x = currentPos
+                                        val edgeRemaining = size.width - x
+                                        val drawLength = kotlin.math.min(remainingLength, edgeRemaining)
+                                        val progress = remainingLength / length
+                                        
+                                        drawRect(
+                                            brush = Brush.horizontalGradient(
+                                                colors = listOf(
+                                                    Color.Transparent,
+                                                    Color.White.copy(alpha = 0.9f * progress),
+                                                    color1.copy(alpha = 0.85f * progress),
+                                                    color2.copy(alpha = 0.7f * progress),
+                                                    color3.copy(alpha = 0.5f * progress),
+                                                    Color.Transparent
+                                                ),
+                                                startX = x,
+                                                endX = x + drawLength
+                                            ),
+                                            topLeft = androidx.compose.ui.geometry.Offset(x, 0f),
+                                            size = androidx.compose.ui.geometry.Size(drawLength, 6f)
+                                        )
+                                        currentPos += drawLength
+                                        remainingLength -= drawLength
+                                    }
+                                    
+                                    currentPos < size.width + size.height -> {
+                                        val y = currentPos - size.width
+                                        val edgeRemaining = size.height - y
+                                        val drawLength = kotlin.math.min(remainingLength, edgeRemaining)
+                                        val progress = remainingLength / length
+                                        
+                                        drawRect(
+                                            brush = Brush.verticalGradient(
+                                                colors = listOf(
+                                                    Color.Transparent,
+                                                    Color.White.copy(alpha = 0.9f * progress),
+                                                    color1.copy(alpha = 0.85f * progress),
+                                                    color2.copy(alpha = 0.7f * progress),
+                                                    color3.copy(alpha = 0.5f * progress),
+                                                    Color.Transparent
+                                                ),
+                                                startY = y,
+                                                endY = y + drawLength
+                                            ),
+                                            topLeft = androidx.compose.ui.geometry.Offset(size.width - 6f, y),
+                                            size = androidx.compose.ui.geometry.Size(6f, drawLength)
+                                        )
+                                        currentPos += drawLength
+                                        remainingLength -= drawLength
+                                    }
+                                    
+                                    currentPos < 2 * size.width + size.height -> {
+                                        val traveled = currentPos - size.width - size.height
+                                        val edgeRemaining = size.width - traveled
+                                        val drawLength = kotlin.math.min(remainingLength, edgeRemaining)
+                                        val x = size.width - traveled
+                                        val progress = remainingLength / length
+                                        
+                                        drawRect(
+                                            brush = Brush.horizontalGradient(
+                                                colors = listOf(
+                                                    Color.Transparent,
+                                                    color3.copy(alpha = 0.5f * progress),
+                                                    color2.copy(alpha = 0.7f * progress),
+                                                    color1.copy(alpha = 0.85f * progress),
+                                                    Color.White.copy(alpha = 0.9f * progress),
+                                                    Color.Transparent
+                                                ),
+                                                startX = x - drawLength,
+                                                endX = x
+                                            ),
+                                            topLeft = androidx.compose.ui.geometry.Offset(x - drawLength, size.height - 6f),
+                                            size = androidx.compose.ui.geometry.Size(drawLength, 6f)
+                                        )
+                                        currentPos += drawLength
+                                        remainingLength -= drawLength
+                                    }
+                                    
+                                    else -> {
+                                        val traveled = currentPos - 2 * size.width - size.height
+                                        val edgeRemaining = size.height - traveled
+                                        val drawLength = kotlin.math.min(remainingLength, edgeRemaining)
+                                        val y = size.height - traveled
+                                        val progress = remainingLength / length
+                                        
+                                        drawRect(
+                                            brush = Brush.verticalGradient(
+                                                colors = listOf(
+                                                    Color.Transparent,
+                                                    color3.copy(alpha = 0.5f * progress),
+                                                    color2.copy(alpha = 0.7f * progress),
+                                                    color1.copy(alpha = 0.85f * progress),
+                                                    Color.White.copy(alpha = 0.9f * progress),
+                                                    Color.Transparent
+                                                ),
+                                                startY = y - drawLength,
+                                                endY = y
+                                            ),
+                                            topLeft = androidx.compose.ui.geometry.Offset(0f, y - drawLength),
+                                            size = androidx.compose.ui.geometry.Size(6f, drawLength)
+                                        )
+                                        currentPos += drawLength
+                                        remainingLength -= drawLength
+                                    }
+                                }
+                            }
+                        }
+                        
+                        drawBorderLight(currentPos, lightLength)
+                    }
+                    
+                    // ========== 3. 环绕彩色粒子层 ==========
+                    
+                    val particleCount = when (rank) {
+                        1 -> 6
+                        2 -> 5
+                        3 -> 4
+                        else -> 4
+                    }
+                    
+                    val particleSize = when (rank) {
+                        1 -> 35f
+                        2 -> 30f
+                        3 -> 25f
+                        else -> 25f
+                    }
+                    
+                    for (i in 0 until particleCount) {
+                        val angle = Math.toRadians((mainLightAngle + i * (360f / particleCount)).toDouble())
+                        val radiusX = size.width * 0.45f
+                        val radiusY = size.height * 0.42f
+                        
+                        val x = centerX + kotlin.math.cos(angle).toFloat() * radiusX
+                        val y = centerY + kotlin.math.sin(angle).toFloat() * radiusY
+                        
+                        val colorIndex = i % (rainbowColors.size - 1)
+                        val color = rainbowColors[colorIndex]
+                        
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.8f),
+                                    color.copy(alpha = 0.7f),
+                                    color.copy(alpha = 0.4f),
+                                    Color.Transparent
+                                ),
+                                radius = particleSize * 1.2f
+                            ),
+                            radius = particleSize,
+                            center = androidx.compose.ui.geometry.Offset(x, y)
+                        )
+                    }
+                } else {
+                    // 普通竞争对手：淡淡的渐变光晕
+                    drawRect(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.08f),
+                                Color.White.copy(alpha = 0.03f),
+                                Color.Transparent
+                            ),
+                            startX = 0f,
+                            endX = size.width * 0.6f
+                        )
+                    )
+                    // 左侧装饰条（根据排名颜色）
+                    drawRect(
+                        brush = Brush.verticalGradient(colors = rankColors.map { it.copy(alpha = 0.6f) }),
+                        size = androidx.compose.ui.geometry.Size(3f, size.height)
+                    )
+                }
+            }
+            .padding(horizontal = 20.dp, vertical = 18.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+            // 排名徽章（前3名增强版）
+            Box(
+                modifier = Modifier.width(if (isTop3) 72.dp else 56.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "#$rank",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp
-                )
+                if (isTop3) {
+                    // 前3名 - 超炫光环徽章
+                    Box(
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // 外层光环
+                        Box(
+                            modifier = Modifier
+                                .size(68.dp)
+                                .graphicsLayer {
+                                    alpha = glowAlpha * 0.6f
+                                }
+                                .background(
+                                    brush = Brush.radialGradient(
+                                        colors = listOf(
+                                            primaryColor.copy(alpha = 0.3f),
+                                            primaryColor.copy(alpha = 0.15f),
+                                            primaryColor.copy(alpha = 0.05f),
+                                            Color.Transparent
+                                        )
+                                    ),
+                                    shape = CircleShape
+                                )
+                        )
+                        
+                        // 中层光环
+                        Box(
+                            modifier = Modifier
+                                .size(60.dp)
+                                .graphicsLayer {
+                                    alpha = glowAlpha * 0.8f
+                                }
+                                .background(
+                                    brush = Brush.radialGradient(
+                                        colors = rankColors.map { it.copy(alpha = 0.4f) } + listOf(Color.Transparent)
+                                    ),
+                                    shape = CircleShape
+                                )
+                        )
+                        
+                        // 核心徽章
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .shadow(
+                                    elevation = 8.dp,
+                                    shape = CircleShape,
+                                    ambientColor = primaryColor,
+                                    spotColor = primaryColor
+                                )
+                                .background(
+                                    brush = Brush.radialGradient(
+                                        colors = listOf(
+                                            primaryColor.copy(alpha = 0.9f),
+                                            primaryColor.copy(alpha = 0.6f),
+                                            primaryColor.copy(alpha = 0.3f)
+                                        )
+                                    ),
+                                    shape = CircleShape
+                                )
+                                .border(
+                                    width = 2.dp,
+                                    brush = Brush.linearGradient(
+                                        colors = listOf(
+                                            Color.White.copy(alpha = 0.8f),
+                                            primaryColor.copy(alpha = 0.6f),
+                                            Color.White.copy(alpha = 0.8f)
+                                        )
+                                    ),
+                                    shape = CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "#$rank",
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White,
+                                modifier = Modifier.graphicsLayer {
+                                    shadowElevation = 12f
+                                }
+                            )
+                        }
+                        
+                        // 顶部装饰图标
+                        Text(
+                            text = when (rank) {
+                                1 -> "👑"
+                                2 -> "⭐"
+                                3 -> "🏆"
+                                else -> ""
+                            },
+                            fontSize = 18.sp,
+                            modifier = Modifier
+                                .offset(y = (-28).dp)
+                                .graphicsLayer {
+                                    alpha = particleIntensity
+                                    scaleX = 0.8f + particleIntensity * 0.4f
+                                    scaleY = 0.8f + particleIntensity * 0.4f
+                                }
+                        )
+                    }
+                } else {
+                    // 普通排名徽章
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .shadow(2.dp, CircleShape)
+                            .background(
+                                brush = Brush.radialGradient(
+                                    colors = rankColors + listOf(rankColors.last().copy(alpha = 0.3f))
+                                ),
+                                shape = CircleShape
+                            )
+                            .border(
+                                width = 1.dp,
+                                color = Color.White.copy(alpha = 0.3f),
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "#$rank",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                    }
+                }
             }
             
             Spacer(modifier = Modifier.width(12.dp))
@@ -1292,15 +2100,17 @@ fun CompetitorCard(
             
             // 公司信息
             Column(
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
+                // 公司名
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (isPlayer) {
                         Text(
                             text = "👤 ",
-                            fontSize = 16.sp
+                            fontSize = 18.sp
                         )
                     }
                     Text(
@@ -1309,25 +2119,45 @@ fun CompetitorCard(
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp
                     )
+                    
+                    // 前3名添加闪光特效
+                    if (isTop3 && !isPlayer) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "✨",
+                            fontSize = 14.sp,
+                            modifier = Modifier.graphicsLayer {
+                                alpha = particleIntensity
+                                scaleX = 0.8f + particleIntensity * 0.4f
+                                scaleY = 0.8f + particleIntensity * 0.4f
+                            }
+                        )
+                    }
                 }
+                
+                // 成立年份和游戏数
                 Text(
                     text = "成立${competitor.yearsFounded}年 | ${if (isPlayer) playerGameCount else competitor.games.size}款游戏",
                     color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 12.sp
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Normal
                 )
+                
+                // 市值和粉丝
                 Row(
-                    modifier = Modifier.padding(top = 4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
                         text = "💰${formatMoney(competitor.marketValue)}",
                         color = Color(0xFFFFD700),
                         fontSize = 11.sp,
-                        modifier = Modifier.padding(end = 8.dp)
+                        fontWeight = FontWeight.Normal
                     )
                     Text(
                         text = "❤️${formatMoneyWithDecimals(competitor.fans.toDouble())}",
                         color = Color(0xFFFF6B6B),
-                        fontSize = 11.sp
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Normal
                     )
                 }
             }
@@ -1339,7 +2169,6 @@ fun CompetitorCard(
                 fontSize = 20.sp
             )
         }
-    }
 }
 
 /**

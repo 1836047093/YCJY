@@ -438,10 +438,18 @@ object SubsidiaryManager {
         val monthlyProfit = monthlyIncome - monthlyExpense
         val newCashBalance = (subsidiary.cashBalance + monthlyProfit).coerceAtLeast(0L) // 资金不能为负数
         
+        // 🆕 动态更新市值（与玩家公司使用相同逻辑）
+        val releasedGamesCount = updatedGames.size // 子公司的游戏都是已发售的
+        val baseMoney = if (newCashBalance < 0) 0L else newCashBalance
+        val gamesValue = releasedGamesCount * 100000L
+        val employeesValue = subsidiary.estimatedEmployeeCount * 50000L
+        val newMarketValue = baseMoney + gamesValue + employeesValue
+        
         return subsidiary.copy(
             monthlyRevenue = monthlyIncome,
             monthlyExpense = monthlyExpense,
             cashBalance = newCashBalance, // 更新资金余额
+            marketValue = newMarketValue, // 🆕 更新市值
             totalRevenue = subsidiary.totalRevenue + monthlyIncome,
             games = updatedGames
         )
