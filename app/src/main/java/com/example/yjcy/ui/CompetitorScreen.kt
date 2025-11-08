@@ -33,8 +33,8 @@ import com.example.yjcy.data.CompetitorNews
 import com.example.yjcy.data.GameIP
 import com.example.yjcy.data.NewsType
 import com.example.yjcy.data.SaveData
-import com.example.yjcy.utils.formatMoneyWithDecimals
 import com.example.yjcy.data.GameReleaseStatus
+import com.example.yjcy.utils.formatMoneyWithDecimals
 import com.example.yjcy.utils.formatMoney
 
 /**

@@ -181,6 +181,7 @@ import com.example.yjcy.ui.SalaryRequestDialog
 import com.example.yjcy.ui.SecretaryChatDialog
 import com.example.yjcy.ui.SecretaryChatScreen
 import com.example.yjcy.ui.ServerManagementContent
+import com.example.yjcy.ui.SubsidiaryManagementScreen
 import com.example.yjcy.ui.TournamentResultDialog
 import com.example.yjcy.ui.TournamentScreen
 import com.example.yjcy.ui.TutorialDialog
@@ -1938,6 +1939,9 @@ fun GameScreen(
     }
     var showTournamentMenu by remember { mutableStateOf(false) }
     var tournamentInitialTab by remember { mutableIntStateOf(0) }
+    
+    var showCompetitorMenu by remember { mutableStateOf(false) } // 竞争对手菜单（包含竞争对手和子公司）
+    var showSubsidiaryManagement by remember { mutableStateOf(false) } // 子公司管理界面
     
     // 上次月结算的年月（防止重复结算）
     var lastSettlementYear by remember { mutableIntStateOf(saveData?.currentYear ?: 1) }
@@ -4081,7 +4085,8 @@ fun GameScreen(
                     },
                     pendingApplicantsCount = pendingApplicantsCount,
                     pendingAssignmentCount = pendingAssignmentCount,
-                    onTournamentClick = { showTournamentMenu = true }
+                    onTournamentClick = { showTournamentMenu = true },
+                    onCompetitorClick = { showCompetitorMenu = true }
                 )
             }
         }
@@ -4099,6 +4104,54 @@ fun GameScreen(
                     selectedTab = 6
                     showTournamentMenu = false
                 }
+            )
+        }
+        
+        // 竞争对手菜单
+        if (showCompetitorMenu) {
+            CompetitorMenuDialog(
+                onDismiss = { showCompetitorMenu = false },
+                onCompetitorManagement = {
+                    selectedTab = 3
+                    showCompetitorMenu = false
+                },
+                onSubsidiaryManagement = {
+                    // 显示子公司管理界面
+                    showSubsidiaryManagement = true
+                    showCompetitorMenu = false
+                }
+            )
+        }
+        
+        // 子公司管理界面
+        if (showSubsidiaryManagement) {
+            SubsidiaryManagementScreen(
+                subsidiaries = subsidiaries,
+                onSubsidiaryUpdate = { updatedSubsidiary ->
+                    subsidiaries = subsidiaries.map { sub ->
+                        if (sub.id == updatedSubsidiary.id) {
+                            updatedSubsidiary
+                        } else {
+                            sub
+                        }
+                    }
+                },
+                onDismiss = {
+                    showSubsidiaryManagement = false
+                },
+                // TopInfoBar参数
+                money = money,
+                fans = fans,
+                year = currentYear,
+                month = currentMonth,
+                day = currentDay,
+                gameSpeed = gameSpeed,
+                onSpeedChange = { newSpeed -> gameSpeed = newSpeed },
+                onPauseToggle = { isPaused = !isPaused },
+                isPaused = isPaused,
+                onSettingsClick = { showSettings = true },
+                isSupporterUnlocked = isSupporterUnlocked,
+                onShowFeatureLockedDialog = { showFeatureLockedDialog = true }
             )
         }
         
@@ -6143,7 +6196,8 @@ fun EnhancedBottomNavigationBar(
     onTabSelected: (Int) -> Unit,
     pendingApplicantsCount: Int = 0, // 待处理应聘者数量
     pendingAssignmentCount: Int = 0, // 待分配项目数量
-    onTournamentClick: () -> Unit = {} // 赛事按钮点击事件
+    onTournamentClick: () -> Unit = {}, // 赛事按钮点击事件
+    onCompetitorClick: () -> Unit = {} // 竞争对手按钮点击事件
 ) {
     Box(
         modifier = Modifier
@@ -6192,7 +6246,7 @@ fun EnhancedBottomNavigationBar(
                 icon = "🎯",
                 label = "竞争对手",
                 isSelected = selectedTab == 3,
-                onClick = { onTabSelected(3) }
+                onClick = onCompetitorClick // 点击显示菜单
             )
             
             EnhancedBottomNavItem(
@@ -8907,6 +8961,119 @@ fun TournamentMenuDialog(
                     )
                     Text(
                         text = "年度游戏行业盛会",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.6f)
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+    }
+}
+
+/**
+ * 竞争对手菜单对话框（从底部弹出）
+ */
+@Composable
+fun CompetitorMenuDialog(
+    onDismiss: () -> Unit,
+    onCompetitorManagement: () -> Unit,
+    onSubsidiaryManagement: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.5f))
+            .clickable(onClick = onDismiss),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    color = Color(0xFF1a1a2e),
+                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+                )
+                .padding(vertical = 16.dp)
+                .clickable(
+                    onClick = {},
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                )
+        ) {
+            // 标题
+            Text(
+                text = "🎯 竞争对手功能",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 8.dp)
+            )
+            
+            HorizontalDivider(
+                color = Color.White.copy(alpha = 0.1f),
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+            
+            // 竞争对手管理选项
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onCompetitorManagement)
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "🎯",
+                    fontSize = 24.sp,
+                    modifier = Modifier.padding(end = 16.dp)
+                )
+                Column {
+                    Text(
+                        text = "竞争对手",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "查看排行榜、新闻和收购对手",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.6f)
+                    )
+                }
+            }
+            
+            // 分隔线
+            HorizontalDivider(
+                color = Color.White.copy(alpha = 0.1f),
+                modifier = Modifier.padding(horizontal = 24.dp)
+            )
+            
+            // 子公司管理选项
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onSubsidiaryManagement)
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "🏭",
+                    fontSize = 24.sp,
+                    modifier = Modifier.padding(end = 16.dp)
+                )
+                Column {
+                    Text(
+                        text = "子公司管理",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF4CAF50)
+                    )
+                    Text(
+                        text = "管理已收购的子公司",
                         fontSize = 12.sp,
                         color = Color.White.copy(alpha = 0.6f)
                     )

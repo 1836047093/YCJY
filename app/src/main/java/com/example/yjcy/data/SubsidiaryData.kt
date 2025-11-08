@@ -10,6 +10,45 @@ enum class SubsidiaryStatus {
 }
 
 /**
+ * 子公司开发偏好
+ */
+enum class DevelopmentPreference {
+    SINGLE_PLAYER_ONLY,  // 只开发单机游戏
+    ONLINE_GAME_ONLY,    // 只开发网游
+    BOTH                 // 都开发
+}
+
+/**
+ * 游戏更新策略
+ */
+enum class GameUpdateStrategy {
+    AGGRESSIVE,  // 激进（频繁更新）
+    MODERATE,    // 适中（定期更新）
+    CONSERVATIVE // 保守（很少更新）
+}
+
+/**
+ * 网游付费内容价格配置（5个付费内容）
+ */
+data class OnlineGamePricing(
+    val price1: Int? = null,        // 第1个付费内容价格（null表示使用默认）
+    val price2: Int? = null,        // 第2个付费内容价格（null表示使用默认）
+    val price3: Int? = null,        // 第3个付费内容价格（null表示使用默认）
+    val price4: Int? = null,        // 第4个付费内容价格（null表示使用默认）
+    val price5: Int? = null         // 第5个付费内容价格（null表示使用默认）
+)
+
+/**
+ * 子公司游戏管理配置
+ */
+data class SubsidiaryGameConfig(
+    val gameId: String,                           // 游戏ID
+    val customPrice: Int? = null,                 // 自定义价格（单机游戏）（null表示使用默认价格）
+    val onlineGamePricing: OnlineGamePricing? = null, // 网游付费内容价格配置
+    val updateStrategy: GameUpdateStrategy = GameUpdateStrategy.MODERATE // 更新策略
+)
+
+/**
  * 子公司数据类（基于收购的竞争对手公司）
  */
 data class Subsidiary(
@@ -35,7 +74,11 @@ data class Subsidiary(
     // 管理设置
     val profitSharingRate: Float = 0.5f,      // 利润分成比例（总公司抽成）
     val autoManagement: Boolean = true,       // 自动管理（默认开启）
-    val status: SubsidiaryStatus = SubsidiaryStatus.ACTIVE
+    val status: SubsidiaryStatus = SubsidiaryStatus.ACTIVE,
+    
+    // 游戏管理
+    val developmentPreference: DevelopmentPreference = DevelopmentPreference.BOTH, // 开发偏好
+    val gameConfigs: Map<String, SubsidiaryGameConfig> = emptyMap() // 各游戏的管理配置
 ) {
     /**
      * 计算月度利润
