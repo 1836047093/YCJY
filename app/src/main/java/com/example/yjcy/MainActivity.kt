@@ -167,6 +167,7 @@ import com.example.yjcy.managers.AchievementManager
 import com.example.yjcy.service.CustomerServiceManager
 import com.example.yjcy.service.JobPostingService
 import com.example.yjcy.taptap.TapLoginManager
+import com.example.yjcy.taptap.TapUpdateManager
 import com.example.yjcy.ui.AchievementPopupQueue
 import com.example.yjcy.ui.BadgeBox
 import com.example.yjcy.ui.BusinessModel
@@ -302,10 +303,10 @@ class MainActivity : ComponentActivity() {
             (application as? YjcyApplication)?.initTapSDKIfNeeded()
             
             // 延迟500ms后检查更新，确保SDK完全初始化
-            // Handler(Looper.getMainLooper()).postDelayed({
-            //     Log.d("MainActivity", "开始检查TapTap更新...")
-            //     TapUpdateManager.checkForceUpdate()
-            // }, 500)
+            Handler(Looper.getMainLooper()).postDelayed({
+                Log.d("MainActivity", "开始检查TapTap更新...")
+                TapUpdateManager.checkForceUpdate()
+            }, 500)
         } else {
             Log.d("MainActivity", "⚠️ 用户未同意隐私政策，等待用户同意后再初始化SDK")
         }
