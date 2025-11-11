@@ -99,6 +99,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -112,8 +113,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.DrawModifier
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.edit
 import androidx.core.net.toUri
@@ -1248,6 +1253,203 @@ fun MainMenuScreen(navController: NavController) {
     }
 }
 
+// 流光环绕边框组件
+@Composable
+fun ScanningBorder(
+    modifier: Modifier = Modifier,
+    borderColor: Color = Color(0xFF3B82F6),
+    borderWidth: Dp = 3.dp,
+    cornerRadius: Dp = 12.dp,
+    scanSpeed: Long = 1500L,
+    content: @Composable () -> Unit
+) {
+    // 定义彩虹渐变色系
+    val rainbowColors = listOf(
+        Color(0xFF3B82F6), // 蓝色
+        Color(0xFF8B5CF6), // 紫色
+        Color(0xFFEC4899), // 粉色
+        Color(0xFFEF4444), // 红色
+        Color(0xFFF59E0B), // 橙色
+        Color(0xFF10B981), // 绿色
+        Color(0xFF3B82F6)  // 蓝色（循环回到开始）
+    )
+    
+    val infiniteTransition = rememberInfiniteTransition(label = "scanning_border")
+    
+    // 两条流光同时运动，错开一定角度
+    val borderProgress1 by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(scanSpeed.toInt(), easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ), label = "border_progress1"
+    )
+    
+    val borderProgress2 by infiniteTransition.animateFloat(
+        initialValue = 0.5f, // 错开一半的位置
+        targetValue = 1.5f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(scanSpeed.toInt(), easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ), label = "border_progress2"
+    )
+    
+    Box(
+        modifier = modifier
+            .background(Color.Transparent)
+            .padding(borderWidth)
+    ) {
+        Canvas(
+            modifier = Modifier.matchParentSize()
+        ) {
+            val strokeWidthPx = borderWidth.toPx()
+            val perimeter = 2 * (size.width + size.height)
+            
+            // 流光宽度约为周长的1/4
+            val lightLength = perimeter * 0.25f
+            
+            // 绘制两条流光
+            fun drawBorderLight(progress: Float) {
+                val currentPos = perimeter * progress
+                val colorPhase = (progress * rainbowColors.size).toInt() % rainbowColors.size
+                val color1 = rainbowColors[colorPhase]
+                val color2 = rainbowColors[(colorPhase + 1) % rainbowColors.size]
+                val color3 = rainbowColors[(colorPhase + 2) % rainbowColors.size]
+                
+                var remainingLength = lightLength
+                var pos = currentPos % perimeter
+                
+                // 持续绘制直到长度用完
+                while (remainingLength > 0.1f) {
+                    pos = pos % perimeter
+                    
+                    when {
+                        // 顶边（从左到右）
+                        pos < size.width -> {
+                            val x = pos
+                            val edgeRemaining = size.width - x
+                            val drawLength = kotlin.math.min(remainingLength, edgeRemaining)
+                            val progress = remainingLength / lightLength
+                            
+                            drawRect(
+                                brush = Brush.horizontalGradient(
+                                    colors = listOf(
+                                        Color.Transparent,
+                                        Color.White.copy(alpha = 0.9f * progress),
+                                        color1.copy(alpha = 0.85f * progress),
+                                        color2.copy(alpha = 0.7f * progress),
+                                        color3.copy(alpha = 0.5f * progress),
+                                        Color.Transparent
+                                    ),
+                                    startX = x,
+                                    endX = x + drawLength
+                                ),
+                                topLeft = Offset(x, 0f),
+                                size =  Size(drawLength, strokeWidthPx)
+                            )
+                            pos += drawLength
+                            remainingLength -= drawLength
+                        }
+                        // 右边（从上到下）
+                        pos < size.width + size.height -> {
+                            val traveled = pos - size.width
+                            val edgeRemaining = size.height - traveled
+                            val drawLength = kotlin.math.min(remainingLength, edgeRemaining)
+                            val y = traveled
+                            val progress = remainingLength / lightLength
+                            
+                            drawRect(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.Transparent,
+                                        Color.White.copy(alpha = 0.9f * progress),
+                                        color1.copy(alpha = 0.85f * progress),
+                                        color2.copy(alpha = 0.7f * progress),
+                                        color3.copy(alpha = 0.5f * progress),
+                                        Color.Transparent
+                                    ),
+                                    startY = y,
+                                    endY = y + drawLength
+                                ),
+                                topLeft = Offset(size.width - strokeWidthPx, y),
+                                size = Size(strokeWidthPx, drawLength)
+                            )
+                            pos += drawLength
+                            remainingLength -= drawLength
+                        }
+                        // 底边（从右到左）
+                        pos < 2 * size.width + size.height -> {
+                            val traveled = pos - size.width - size.height
+                            val edgeRemaining = size.width - traveled
+                            val drawLength = kotlin.math.min(remainingLength, edgeRemaining)
+                            val x = size.width - traveled
+                            val progress = remainingLength / lightLength
+                            
+                            drawRect(
+                                brush = Brush.horizontalGradient(
+                                    colors = listOf(
+                                        Color.Transparent,
+                                        color3.copy(alpha = 0.5f * progress),
+                                        color2.copy(alpha = 0.7f * progress),
+                                        color1.copy(alpha = 0.85f * progress),
+                                        Color.White.copy(alpha = 0.9f * progress),
+                                        Color.Transparent
+                                    ),
+                                    startX = x - drawLength,
+                                    endX = x
+                                ),
+                                topLeft = Offset(x - drawLength, size.height - strokeWidthPx),
+                                size = Size(drawLength, strokeWidthPx)
+                            )
+                            pos += drawLength
+                            remainingLength -= drawLength
+                        }
+                        // 左边（从下到上）
+                        else -> {
+                            val traveled = pos - 2 * size.width - size.height
+                            val edgeRemaining = size.height - traveled
+                            val drawLength = kotlin.math.min(remainingLength, edgeRemaining)
+                            val y = size.height - traveled
+                            val progress = remainingLength / lightLength
+                            
+                            drawRect(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.Transparent,
+                                        color3.copy(alpha = 0.5f * progress),
+                                        color2.copy(alpha = 0.7f * progress),
+                                        color1.copy(alpha = 0.85f * progress),
+                                        Color.White.copy(alpha = 0.9f * progress),
+                                        Color.Transparent
+                                    ),
+                                    startY = y - drawLength,
+                                    endY = y
+                                ),
+                                topLeft = Offset(0f, y - drawLength),
+                                size = Size(strokeWidthPx, drawLength)
+                            )
+                            pos += drawLength
+                            remainingLength -= drawLength
+                        }
+                    }
+                }
+            }
+            
+            // 绘制两条流光
+            drawBorderLight(borderProgress1)
+            drawBorderLight(borderProgress2)
+            
+            // 绘制基础边框
+            drawRect(
+                color = borderColor.copy(alpha = 0.2f),
+                style = Stroke(width = strokeWidthPx)
+            )
+        }
+        content()
+    }
+}
+
 // QQ群提示对话框组件
 @Composable
 fun QQGroupDialog(
@@ -1355,44 +1557,52 @@ fun QQGroupDialog(
                     lineHeight = 22.sp
                 )
                 
-                // QQ群号显示
-                Card(
+                // QQ群号显示（带扫描边框）
+                ScanningBorder(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFF3B82F6).copy(alpha = 0.2f)
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, Color(0xFF3B82F6).copy(alpha = 0.5f))
+                    borderColor = Color(0xFF3B82F6),
+                    borderWidth = 3.dp,
+                    cornerRadius = 12.dp,
+                    scanSpeed = 1500L
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF3B82F6).copy(alpha = 0.2f)
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFF3B82F6).copy(alpha = 0.5f))
                     ) {
-                        Column {
-                            Text(
-                                text = "QQ群号",
-                                fontSize = 12.sp,
-                                color = Color.White.copy(alpha = 0.7f)
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "851082168",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        }
-                        Button(
-                            onClick = { joinQQGroup() },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF10B981)
-                            ),
-                            modifier = Modifier.height(40.dp)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("一键加群", fontSize = 14.sp, color = Color.White)
+                            Column {
+                                Text(
+                                    text = "QQ群号",
+                                    fontSize = 12.sp,
+                                    color = Color.White.copy(alpha = 0.7f)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "851082168",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                            Button(
+                                onClick = { joinQQGroup() },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF10B981)
+                                ),
+                                modifier = Modifier.height(40.dp)
+                            ) {
+                                Text("一键加群", fontSize = 14.sp, color = Color.White)
+                            }
                         }
                     }
                 }

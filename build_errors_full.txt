@@ -1,0 +1,554 @@
+﻿> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:processDebugNavigationResources UP-TO-DATE
+> Task :app:compileDebugNavigationResources UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:processDebugGoogleServices UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:kspDebugKotlin UP-TO-DATE
+
+> Task :app:compileDebugKotlin FAILED
+.\gradlew.bat : e: file:///D:/AI/YCJY/app/src/main/java/com/e
+xample/yjcy/MainActivity.kt:365:21 Unresolved reference 'Priv
+acyPolicyDialog'.
+所在位置 行:1 字符: 1
++ .\gradlew.bat compileDebugKotlin 2>&1 | Out-File -FilePath 
+"build_err ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (e: file:///D:/A 
+   ...yPolicyDialog'.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:408:25 Unresolved reference 'GameSetupScreen'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:426:25 Unresolved reference 'GameScreen'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:429:25 Unresolved reference 'ContinueScreen'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:432:25 Unresolved reference 'SettingsScreen'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:437:43 Cannot infer type for type parameter 'T'. 
+Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:437:54 Unresolved reference 'SaveManager'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:444:53 Unresolved reference 'getAllSavesAsync'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:450:68 Cannot infer type for value parameter 'sav
+eData'. Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:452:46 Unresolved reference 'money'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:453:61 Unresolved reference 'money'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:457:42 Unresolved reference 'unlockedAchievements
+'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:457:73 Cannot infer type for value parameter 'ach
+ievement'. Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:458:79 Unresolved reference 'achievementId'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:459:73 Unresolved reference 'unlockTime'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:460:68 Unresolved reference 'achievementId'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:493:29 Unresolved reference 'AchievementScreen'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:496:47 Cannot infer type for type parameter 'K'. 
+Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:496:47 Cannot infer type for type parameter 'V'. 
+Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:797:9 Unresolved reference 'FpsMonitor'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:886:23 Cannot infer type for type parameter 'T'. 
+Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:886:34 Unresolved reference 'SaveManager'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:931:35 Unresolved reference 'getAllSavesAsync'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:978:9 Unresolved reference 'ModernGameBackground'
+.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:987:13 Unresolved reference 'FpsMonitor'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1091:29 Cannot infer type for type parameter 'T'.
+ Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1092:17 Unresolved reference 'MenuItem'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1099:17 Unresolved reference 'MenuItem'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1107:17 Unresolved reference 'MenuItem'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1114:17 Unresolved reference 'MenuItem'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1139:33 Unresolved reference 'ModernMenuCard'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1569:13 @Composable invocations can only happen f
+rom the context of a @Composable function
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1571:41 @Composable invocations can only happen f
+rom the context of a @Composable function
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1576:13 Syntax error: Expecting an element.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1578:5 Syntax error: Expecting an element.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1582:1 Unresolved reference 'data'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1589:2 Syntax error: Expecting ','.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1592:1 Mixing named and positional arguments is n
+ot allowed unless the order of the arguments matches the orde
+r of the parameters.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1593:5 Anonymous functions with names are prohibi
+ted.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1594:11 Unresolved reference 'MenuItem'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1626:18 Unresolved reference 'onClick'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1634:39 Unresolved reference 'gradient'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1634:54 Unresolved reference 'it'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1657:37 Unresolved reference 'icon'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1662:26 Unresolved reference 'badge'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1662:33 Cannot infer type for type parameter 'T'.
+ Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1662:33 Cannot infer type for type parameter 'R'.
+ Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1662:39 Cannot infer type for type parameter 'T'.
+ Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1683:37 Unresolved reference 'title'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1690:37 Unresolved reference 'description'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1700:2 Syntax error: Expecting ','.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1703:1 Mixing named and positional arguments is n
+ot allowed unless the order of the arguments matches the orde
+r of the parameters.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1704:5 Anonymous functions with names are prohibi
+ted.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1714:1 Unresolved reference 'data'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1721:2 Syntax error: Expecting ','.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1723:1 Mixing named and positional arguments is n
+ot allowed unless the order of the arguments matches the orde
+r of the parameters.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1724:5 Anonymous functions with names are prohibi
+ted.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1784:2 Syntax error: Expecting ','.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1786:1 Mixing named and positional arguments is n
+ot allowed unless the order of the arguments matches the orde
+r of the parameters.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1787:5 Anonymous functions with names are prohibi
+ted.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:1810:9 Unresolved reference 'FpsMonitor'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:2034:2 Syntax error: Expecting ','.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:2035:1 Mixing named and positional arguments is n
+ot allowed unless the order of the arguments matches the orde
+r of the parameters.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:2036:5 Anonymous functions with names are prohibi
+ted.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:2148:23 Cannot infer type for type parameter 'T'.
+ Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:2148:34 Unresolved reference 'SaveManager'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:2868:58 Unresolved reference 'saveGameAsync'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:3981:13 Unresolved reference 'TopInfoBar'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:3988:47 Unresolved reference 'it'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:4007:30 Unresolved reference 'CompanyOverviewCont
+ent'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:4317:17 Unresolved reference 'EnhancedBottomNavig
+ationBar'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:4319:39 Cannot infer type for value parameter 'ne
+wTab'. Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:4334:13 Unresolved reference 'TournamentMenuDialo
+g'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:4350:13 Unresolved reference 'CompetitorMenuDialo
+g'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:5071:25 Unresolved reference 'InGameSettingsConte
+nt'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:5090:59 Cannot infer type for value parameter 'en
+abled'. Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:5101:44 Cannot infer type for value parameter 'en
+abled'. Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:5105:57 Cannot infer type for value parameter 'en
+abled'. Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:5106:58 Cannot infer type for value parameter 'in
+terval'. Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:5108:57 Cannot infer type for value parameter 'up
+datedCodes'. Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:5131:54 Cannot infer type for value parameter 'sk
+illLevel'. Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:5324:47 Cannot infer type for value parameter 'up
+datedMoney'. Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:5643:13 Unresolved reference 'FeatureLockedDialog
+'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:5666:2 Syntax error: Expecting ','.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:5668:1 Mixing named and positional arguments is n
+ot allowed unless the order of the arguments matches the orde
+r of the parameters.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:5669:5 Anonymous functions with names are prohibi
+ted.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:5795:17 Unresolved reference 'GameSpeedDropdown'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:5805:17 Unresolved reference 'FpsMonitor'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:5844:2 Syntax error: Expecting ','.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:5845:1 Mixing named and positional arguments is n
+ot allowed unless the order of the arguments matches the orde
+r of the parameters.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:5846:5 Anonymous functions with names are prohibi
+ted.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:5997:13 Unresolved reference 'CompanyInfoCard'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6011:17 Unresolved reference 'CompanyInfoCard'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6219:13 Unresolved reference 'CompanyInfoCardWith
+YearSelector'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6223:58 Unresolved reference 'it'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6226:21 Unresolved reference 'ExpandableFinancial
+Item'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6231:64 Unresolved reference 'it'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6235:21 @Composable invocations can only happen f
+rom the context of a @Composable function
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6238:21 Unresolved reference 'ExpandableFinancial
+Item'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6243:64 Unresolved reference 'it'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6247:21 @Composable invocations can only happen f
+rom the context of a @Composable function
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6250:21 @Composable invocations can only happen f
+rom the context of a @Composable function
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6274:2 Syntax error: Expecting ','.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6276:1 Mixing named and positional arguments is n
+ot allowed unless the order of the arguments matches the orde
+r of the parameters.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6277:5 Anonymous functions with names are prohibi
+ted.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6354:2 Syntax error: Expecting ','.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6356:1 Mixing named and positional arguments is n
+ot allowed unless the order of the arguments matches the orde
+r of the parameters.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6357:5 Anonymous functions with names are prohibi
+ted.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6541:2 Syntax error: Expecting ','.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6544:1 Mixing named and positional arguments is n
+ot allowed unless the order of the arguments matches the orde
+r of the parameters.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6545:5 Anonymous functions with names are prohibi
+ted.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6621:2 Syntax error: Expecting ','.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6623:1 Mixing named and positional arguments is n
+ot allowed unless the order of the arguments matches the orde
+r of the parameters.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6624:5 Anonymous functions with names are prohibi
+ted.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6652:13 Unresolved reference 'EnhancedBottomNavIt
+em'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6659:13 Unresolved reference 'EnhancedBottomNavIt
+em'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6667:13 Unresolved reference 'EnhancedBottomNavIt
+em'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6675:13 Unresolved reference 'EnhancedBottomNavIt
+em'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6682:13 Unresolved reference 'EnhancedBottomNavIt
+em'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6689:13 Unresolved reference 'EnhancedBottomNavIt
+em'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6697:2 Syntax error: Expecting ','.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6699:1 Mixing named and positional arguments is n
+ot allowed unless the order of the arguments matches the orde
+r of the parameters.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6700:5 Anonymous functions with names are prohibi
+ted.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6759:2 Syntax error: Expecting ','.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6761:1 Mixing named and positional arguments is n
+ot allowed unless the order of the arguments matches the orde
+r of the parameters.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6762:5 Anonymous functions with names are prohibi
+ted.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6764:23 Cannot infer type for type parameter 'T'.
+ Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6764:34 Unresolved reference 'SaveManager'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6775:29 Unresolved reference 'getAllSavesAsync'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6806:9 Unresolved reference 'FpsMonitor'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6852:21 Unresolved reference 'SaveSlotCard'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6855:40 Cannot infer type for value parameter 'sa
+veData'. Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6859:69 Unresolved reference 'companyName'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6859:93 Unresolved reference 'founderName'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6859:117 Unresolved reference 'companyLogo'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6859:141 Unresolved reference 'founderProfession'
+.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6882:13 Unresolved reference 'DeleteSaveConfirmDi
+alog'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6891:37 Unresolved reference 'deleteSaveAsync'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6894:45 Unresolved reference 'getAllSavesAsync'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6913:2 Syntax error: Expecting ','.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6915:1 Mixing named and positional arguments is n
+ot allowed unless the order of the arguments matches the orde
+r of the parameters.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6916:5 Anonymous functions with names are prohibi
+ted.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6993:2 Syntax error: Expecting ','.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6995:1 Mixing named and positional arguments is n
+ot allowed unless the order of the arguments matches the orde
+r of the parameters.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:6996:5 Anonymous functions with names are prohibi
+ted.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7123:2 Syntax error: Expecting ','.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7125:1 Mixing named and positional arguments is n
+ot allowed unless the order of the arguments matches the orde
+r of the parameters.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7126:5 Anonymous functions with names are prohibi
+ted.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7150:9 Unresolved reference 'FpsMonitor'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7254:21 Unresolved reference 'AchievementCard'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7275:2 Syntax error: Expecting ','.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7277:1 Mixing named and positional arguments is n
+ot allowed unless the order of the arguments matches the orde
+r of the parameters.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7278:5 Anonymous functions with names are prohibi
+ted.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7365:2 Syntax error: Expecting ','.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7367:1 Mixing named and positional arguments is n
+ot allowed unless the order of the arguments matches the orde
+r of the parameters.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7368:5 Anonymous functions with names are prohibi
+ted.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7382:9 Unresolved reference 'FpsMonitor'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7416:1 Syntax error: Expecting ')'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7416:7 Unresolved reference 'SaveManager'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7416:26 Syntax error: Expecting ')'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7416:26 Syntax error: Unexpected tokens (use ';' 
+to separate expressions on the same line).
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7417:5 Modifier 'private' is not applicable to 'l
+ocal variable'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7418:5 Modifier 'private' is not applicable to 'l
+ocal variable'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7423:5 Unresolved reference 'companion'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7423:14 Syntax error: Unexpected tokens (use ';' 
+to separate expressions on the same line).
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7424:17 Const 'val' is only allowed on top level,
+ in named objects, or in companion objects.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7425:17 Const 'val' is only allowed on top level,
+ in named objects, or in companion objects.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7432:5 Modifier 'private' is not applicable to 'l
+ocal function'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7541:5 Modifier 'private' is not applicable to 'l
+ocal function'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7551:61 Unresolved reference 'MAX_DAILY_SALES_DAY
+S'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7552:72 Unresolved reference 'MAX_DAILY_SALES_DAY
+S'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7581:72 Unresolved reference 'MAX_COMPETITOR_NEWS
+'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7582:46 Unresolved reference 'MAX_COMPETITOR_NEWS
+'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7598:5 Modifier 'private' is not applicable to 'l
+ocal function'.
+19 actionable tasks: 1 executed, 18 up-to-date
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7607:5 Modifier 'private' is not applicable to 'l
+ocal function'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7613:68 Unresolved reference 'SaveResult'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7613:81 Cannot infer type for type parameter 'T'.
+ Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7652:13 Unresolved reference 'SaveResult'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7660:13 Unresolved reference 'SaveResult'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7666:13 Unresolved reference 'SaveResult'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7816:23 Cannot infer type for type parameter 'T'.
+ Specify it explicitly.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7816:34 Unresolved reference 'SaveManager'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:7855:45 Unresolved reference 'getAllSavesAsync'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:8673:58 Unresolved reference 'saveGameAsync'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:8684:65 Unresolved reference 'getAllSavesAsync'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:8811:70 Unresolved reference 'saveGameAsync'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:8822:77 Unresolved reference 'getAllSavesAsync'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:9611:1 Modifier 'private' is not applicable to 'l
+ocal function'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/Main
+Activity.kt:9789:2 Syntax error: Expecting '}'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/ui/S
+ecretaryChatScreen.kt:34:25 Unresolved reference 'FpsMonitor'
+.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/ui/S
+ecretaryChatScreen.kt:232:9 Unresolved reference 'FpsMonitor'
+.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/ui/S
+ubsidiaryScreen.kt:24:25 Unresolved reference 'TopInfoBar'.
+e: file:///D:/AI/YCJY/app/src/main/java/com/example/yjcy/ui/S
+ubsidiaryScreen.kt:76:9 Unresolved reference 'TopInfoBar'.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileDebugKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.com
+pilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompi
+lerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 6s
