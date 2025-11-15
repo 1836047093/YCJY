@@ -4452,7 +4452,9 @@ fun GameScreen(
                                         day = currentDay
                                     )
                                 ) + competitorNews).take(30)
-                            }
+                            },
+                            isSupporterUnlocked = isSupporterUnlocked,
+                            onShowFeatureLockedDialog = { showFeatureLockedDialog = true }
                         )
                         4 -> TournamentScreen(
                             games = games,
@@ -4575,9 +4577,15 @@ fun GameScreen(
                     showCompetitorMenu = false
                 },
                 onSubsidiaryManagement = {
-                    // 显示子公司管理界面
-                    showSubsidiaryManagement = true
-                    showCompetitorMenu = false
+                    // 检查是否解锁子公司管理功能
+                    if (!isSupporterUnlocked) {
+                        showFeatureLockedDialog = true
+                        showCompetitorMenu = false
+                    } else {
+                        // 显示子公司管理界面
+                        showSubsidiaryManagement = true
+                        showCompetitorMenu = false
+                    }
                 }
             )
         }

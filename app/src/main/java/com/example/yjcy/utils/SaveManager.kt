@@ -31,8 +31,12 @@ class SaveManager(context: Context) {
         .create()
     
     companion object {
-        private const val MAX_DAILY_SALES_DAYS = 365 // 每个游戏最多保留365天的每日数据
-        private const val MAX_COMPETITOR_NEWS = 50 // 最多保留50条竞争对手新闻
+        private const val MAX_DAILY_SALES_DAYS = 180 // 每个游戏最多保留180天的每日数据（降低以减小存档大小）
+        private const val MAX_COMPETITOR_NEWS = 30 // 最多保留30条竞争对手新闻（降低以减小存档大小）
+        private const val MAX_GAMES_PER_COMPETITOR = 10 // 每个竞争对手/子公司最多保留10个游戏（防止无限增长）
+        private const val MAX_TOURNAMENT_HISTORY = 3 // 每个游戏最多保留3场赛事历史
+        private const val MAX_GVA_HISTORY_YEARS = 5 // GVA历史最多保留5年
+        private const val WARNING_SIZE_MB = 5.0 // 存档大小警告阈值（MB）
     }
     
     /**
@@ -151,8 +155,8 @@ class SaveManager(context: Context) {
     private fun cleanSaveData(saveData: SaveData): SaveData {
         Log.d("SaveManager", "===== 开始清理存档数据 =====")
         
-        // 1. 清理收益数据：每个游戏只保留最近365天的每日销售数据
-        val cleanedRevenueData = saveData.revenueData.mapValues { (gameId, revenue) ->
+        // 1. 清理收益数据：每个游戏只保留最近180天的每日销售数据
+        val cleanedRevenueData = saveData.revenueData.mapValues { (_, revenue) ->
             // 记录清理前的数据
             if (revenue.totalRegisteredPlayers > 0) {
                 Log.d("SaveManager", "清理前 - 游戏 ${revenue.gameName}: 总注册=${revenue.totalRegisteredPlayers}")
@@ -187,18 +191,75 @@ class SaveManager(context: Context) {
             cleaned
         }
         
-        // 2. 清理竞争对手新闻：只保留最近50条
+        // 2. 清理竞争对手新闻：只保留最近30条
         val cleanedCompetitorNews = if (saveData.competitorNews.size > MAX_COMPETITOR_NEWS) {
+            Log.d("SaveManager", "清理竞争对手新闻: ${saveData.competitorNews.size}条 → ${MAX_COMPETITOR_NEWS}条")
             saveData.competitorNews.takeLast(MAX_COMPETITOR_NEWS)
         } else {
             saveData.competitorNews
         }
         
-        Log.d("SaveManager", "数据清理完成: 收益数据=${cleanedRevenueData.size}个游戏, 竞争对手新闻=${cleanedCompetitorNews.size}条")
+        // 3. 清理竞争对手游戏：每个公司最多保留10个最新游戏
+        val cleanedCompetitors = saveData.competitors.map { competitor ->
+            if (competitor.games.size > MAX_GAMES_PER_COMPETITOR) {
+                Log.d("SaveManager", "清理竞争对手 ${competitor.name} 的游戏: ${competitor.games.size}个 → ${MAX_GAMES_PER_COMPETITOR}个")
+                // 按发售日期排序，保留最新的游戏
+                val sortedGames = competitor.games.sortedByDescending { game ->
+                    game.releaseYear * 12 + game.releaseMonth
+                }.take(MAX_GAMES_PER_COMPETITOR)
+                competitor.copy(games = sortedGames)
+            } else {
+                competitor
+            }
+        }
+        
+        // 4. 清理子公司游戏：每个子公司最多保留10个最新游戏
+        val cleanedSubsidiaries = saveData.subsidiaries.map { subsidiary ->
+            if (subsidiary.games.size > MAX_GAMES_PER_COMPETITOR) {
+                Log.d("SaveManager", "清理子公司 ${subsidiary.name} 的游戏: ${subsidiary.games.size}个 → ${MAX_GAMES_PER_COMPETITOR}个")
+                val sortedGames = subsidiary.games.sortedByDescending { game ->
+                    game.releaseYear * 12 + game.releaseMonth
+                }.take(MAX_GAMES_PER_COMPETITOR)
+                subsidiary.copy(games = sortedGames)
+            } else {
+                subsidiary
+            }
+        }
+        
+        // 5. 清理玩家游戏的赛事历史：每个游戏最多保留3场赛事
+        val cleanedGames = saveData.games.map { game ->
+            val tournamentHistory = game.tournamentHistory
+            if (tournamentHistory != null && tournamentHistory.size > MAX_TOURNAMENT_HISTORY) {
+                Log.d("SaveManager", "清理游戏 ${game.name} 的赛事历史: ${tournamentHistory.size}场 → ${MAX_TOURNAMENT_HISTORY}场")
+                game.copy(tournamentHistory = tournamentHistory.takeLast(MAX_TOURNAMENT_HISTORY))
+            } else {
+                game
+            }
+        }
+        
+        // 6. 清理GVA历史：只保留最近5年
+        val currentYear = saveData.currentYear
+        val cleanedGvaHistory = if (saveData.gvaHistory.isNotEmpty()) {
+            val filtered = saveData.gvaHistory.filter { nomination ->
+                currentYear - nomination.year <= MAX_GVA_HISTORY_YEARS
+            }
+            if (filtered.size < saveData.gvaHistory.size) {
+                Log.d("SaveManager", "清理GVA历史: ${saveData.gvaHistory.size}条 → ${filtered.size}条")
+            }
+            filtered
+        } else {
+            saveData.gvaHistory
+        }
+        
+        Log.d("SaveManager", "数据清理完成: 收益数据=${cleanedRevenueData.size}个游戏, 竞争对手新闻=${cleanedCompetitorNews.size}条, 竞争对手=${cleanedCompetitors.size}家, 子公司=${cleanedSubsidiaries.size}家")
         
         return saveData.copy(
             revenueData = cleanedRevenueData,
-            competitorNews = cleanedCompetitorNews
+            competitorNews = cleanedCompetitorNews,
+            competitors = cleanedCompetitors,
+            subsidiaries = cleanedSubsidiaries,
+            games = cleanedGames,
+            gvaHistory = cleanedGvaHistory
         )
     }
     
@@ -237,12 +298,28 @@ class SaveManager(context: Context) {
             
             Log.d("SaveManager", "JSON大小: ${String.format(Locale.US, "%.2f", jsonSizeKB)} KB (${String.format(Locale.US, "%.2f", jsonSizeMB)} MB)")
             
+            // 检查存档大小是否过大
+            if (jsonSizeMB > WARNING_SIZE_MB) {
+                Log.w("SaveManager", "⚠️ 警告：存档数据过大！JSON=${String.format(Locale.US, "%.2f", jsonSizeMB)}MB，可能导致保存失败")
+                Log.w("SaveManager", "  - 游戏数量: ${cleanedData.games.size}")
+                Log.w("SaveManager", "  - 员工数量: ${cleanedData.allEmployees.size}")
+                Log.w("SaveManager", "  - 竞争对手: ${cleanedData.competitors.size}家，共${cleanedData.competitors.sumOf { it.games.size }}个游戏")
+                Log.w("SaveManager", "  - 子公司: ${cleanedData.subsidiaries.size}家，共${cleanedData.subsidiaries.sumOf { it.games.size }}个游戏")
+                Log.w("SaveManager", "  - 收益记录: ${cleanedData.revenueData.size}个游戏")
+            }
+            
             // 3. GZIP压缩
             val compressed = compressString(json)
             val compressedSizeKB = compressed.size / 1024.0
+            val compressedSizeMB = compressedSizeKB / 1024.0
             val compressionRatio = (1 - compressedSizeKB / jsonSizeKB) * 100
             
-            Log.d("SaveManager", "压缩后大小: ${String.format(Locale.US, "%.2f", compressedSizeKB)} KB, 压缩率: ${String.format(Locale.US, "%.1f", compressionRatio)}%")
+            Log.d("SaveManager", "压缩后大小: ${String.format(Locale.US, "%.2f", compressedSizeKB)} KB (${String.format(Locale.US, "%.2f", compressedSizeMB)} MB), 压缩率: ${String.format(Locale.US, "%.1f", compressionRatio)}%")
+            
+            // 检查压缩后大小是否仍然过大
+            if (compressedSizeMB > WARNING_SIZE_MB) {
+                Log.e("SaveManager", "❌ 错误：压缩后存档仍然过大！${String.format(Locale.US, "%.2f", compressedSizeMB)}MB，可能超出SharedPreferences限制")
+            }
             
             // 4. Base64编码后存储（因为SharedPreferences只能存字符串）
             val base64Encoded = android.util.Base64.encodeToString(compressed, android.util.Base64.DEFAULT)
@@ -267,15 +344,24 @@ class SaveManager(context: Context) {
             )
         } catch (e: OutOfMemoryError) {
             Log.e("SaveManager", "保存游戏失败: 内存不足", e)
+            e.printStackTrace()
             SaveResult(
                 success = false,
-                errorMessage = "内存不足，存档数据过大。建议清理部分游戏数据。"
+                errorMessage = "内存不足！存档数据过大（游戏: ${saveData.games.size}, 竞争对手: ${saveData.competitors.sumOf { it.games.size }}, 子公司: ${saveData.subsidiaries.sumOf { it.games.size }}）。建议关闭部分功能或重新开档。"
+            )
+        } catch (e: android.os.TransactionTooLargeException) {
+            Log.e("SaveManager", "保存游戏失败: 事务过大", e)
+            e.printStackTrace()
+            SaveResult(
+                success = false,
+                errorMessage = "存档数据过大，超出系统限制！建议重新开档或联系开发者。"
             )
         } catch (e: Exception) {
             Log.e("SaveManager", "保存游戏失败", e)
+            e.printStackTrace()
             SaveResult(
                 success = false,
-                errorMessage = "保存失败: ${e.message}"
+                errorMessage = "保存失败: ${e.javaClass.simpleName} - ${e.message ?: "未知错误"}"
             )
         }
     }

@@ -232,6 +232,7 @@ object RedeemCodeManager {
         AUTO_UPDATE,           // 游戏自动更新功能
         AUTO_PROMOTION,        // 游戏自动宣传功能
         AUTO_COMPLAINT,        // 客诉自动处理功能
-        BATCH_TRAINING         // 员工一键培训功能
+        BATCH_TRAINING,        // 员工一键培训功能
+        SUBSIDIARY_MANAGEMENT  // 子公司管理功能（收购竞争对手）
     }
 }

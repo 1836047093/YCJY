@@ -58,7 +58,9 @@ fun CompetitorContent(
     saveData: SaveData,
     @Suppress("UNUSED_PARAMETER") gameSpeed: Int = 1,
     onAcquisitionSuccess: (CompetitorCompany, Long, Long, Long, List<GameIP>) -> Unit = { _, _, _, _, _ -> },
-    onAIWin: (CompetitorCompany, CompetitorCompany, Long) -> Unit = { _, _, _ -> } // AI获胜回调
+    onAIWin: (CompetitorCompany, CompetitorCompany, Long) -> Unit = { _, _, _ -> }, // AI获胜回调
+    isSupporterUnlocked: Boolean = false, // 是否解锁支持者功能
+    onShowFeatureLockedDialog: () -> Unit = {} // 显示功能解锁对话框的回调
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("📊 排行榜", "📰 新闻", "🏢 对手")
@@ -119,7 +121,7 @@ fun CompetitorContent(
             when (selectedTab) {
                 0 -> LeaderboardContent(saveData)
                 1 -> NewsContent(saveData)
-                2 -> CompetitorsListContent(saveData, onAcquisitionSuccess, onAIWin)
+                2 -> CompetitorsListContent(saveData, onAcquisitionSuccess, onAIWin, isSupporterUnlocked, onShowFeatureLockedDialog)
             }
         }
     }
@@ -1435,7 +1437,9 @@ fun NewsCard(news: CompetitorNews) {
 fun CompetitorsListContent(
     saveData: SaveData,
     onAcquisitionSuccess: (CompetitorCompany, Long, Long, Long, List<GameIP>) -> Unit = { _, _, _, _, _ -> },
-    onAIWin: (CompetitorCompany, CompetitorCompany, Long) -> Unit = { _, _, _ -> } // AI获胜回调
+    onAIWin: (CompetitorCompany, CompetitorCompany, Long) -> Unit = { _, _, _ -> }, // AI获胜回调
+    isSupporterUnlocked: Boolean = false, // 是否解锁支持者功能
+    onShowFeatureLockedDialog: () -> Unit = {} // 显示功能解锁对话框的回调
 ) {
     var selectedCompetitor by remember { mutableStateOf<CompetitorCompany?>(null) }
     var showPlayerDetail by remember { mutableStateOf(false) }
@@ -1508,7 +1512,9 @@ fun CompetitorsListContent(
                 // AI获胜后关闭对话框，并触发外层回调
                 selectedCompetitor = null
                 onAIWin(acquirer, acquired, price)
-            }
+            },
+            isSupporterUnlocked = isSupporterUnlocked,
+            onShowFeatureLockedDialog = onShowFeatureLockedDialog
         )
     }
     
@@ -2181,7 +2187,9 @@ fun CompetitorDetailDialog(
     saveData: SaveData,
     gameSpeed: Int = 1,
     onAcquisitionSuccess: (CompetitorCompany, Long, Long, Long, List<GameIP>) -> Unit = { _, _, _, _, _ -> },
-    onAIWin: (CompetitorCompany, CompetitorCompany, Long) -> Unit = { _, _, _ -> } // AI获胜回调
+    onAIWin: (CompetitorCompany, CompetitorCompany, Long) -> Unit = { _, _, _ -> }, // AI获胜回调
+    isSupporterUnlocked: Boolean = false, // 是否解锁支持者功能
+    onShowFeatureLockedDialog: () -> Unit = {} // 显示功能解锁对话框的回调
 ) {
     var showAcquisitionDialog by remember { mutableStateOf(false) }
     val playerMarketValue = calculatePlayerMarketValue(saveData)
@@ -2281,7 +2289,14 @@ fun CompetitorDetailDialog(
                 ) {
                     // 收购按钮
                     Button(
-                        onClick = { showAcquisitionDialog = true },
+                        onClick = { 
+                            // 检查是否解锁子公司管理功能
+                            if (!isSupporterUnlocked) {
+                                onShowFeatureLockedDialog()
+                            } else {
+                                showAcquisitionDialog = true
+                            }
+                        },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFFFF6B6B)
