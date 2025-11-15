@@ -1538,14 +1538,14 @@ object RevenueManager {
             minOf(withFansBonus, maxDailyNewRegistrations)
         } else {
             // 单机：销量衰减模式
-            // 对于低评分游戏，检查总销量上限
+            // 对于低评分游戏，检查总销量上限（大幅提高上限，避免过早停售）
             val isLowRating = gameRating != null && gameRating < 3.0f
             if (isLowRating) {
-                // 计算总销量上限
+                // 计算总销量上限（大幅提高）
                 val maxTotalSales = when {
-                    gameRating!! < 1.0f -> 50L   // 0-1分：总销量最多50份
-                    gameRating < 2.0f -> 200L  // 1-2分：总销量最多200份
-                    else -> 500L            // 2-3分：总销量最多500份
+                    gameRating!! < 1.0f -> 500L    // 0-1分：总销量最多500份（原50）
+                    gameRating < 2.0f -> 2000L   // 1-2分：总销量最多2000份（原200）
+                    else -> 5000L                // 2-3分：总销量最多5000份（原500）
                 }
                 
                 // 检查当前总销量是否已达到上限
@@ -1557,9 +1557,9 @@ object RevenueManager {
                 
                 // 计算单日销量上限
                 val maxDailySales = when {
-                    gameRating < 1.0f -> 5L   // 0-1分：每天最多5份
-                    gameRating < 2.0f -> 20L  // 1-2分：每天最多20份
-                    else -> 50L            // 2-3分：每天最多50份
+                    gameRating < 1.0f -> 5L    // 0-1分：每天最多5份
+                    gameRating < 2.0f -> 20L   // 1-2分：每天最多20份
+                    else -> 50L                // 2-3分：每天最多50份
                 }
                 
                 // 销量衰减模式
@@ -2299,6 +2299,17 @@ object RevenueManager {
                 server
             }
         }
+        gameServerMap[gameId] = serverInfo.copy(servers = updatedServers)
+        saveServerData()
+        return true
+    }
+    
+    /**
+     * 删除服务器（退租）
+     */
+    fun removeServerFromGame(gameId: String, serverId: String): Boolean {
+        val serverInfo = gameServerMap[gameId] ?: return false
+        val updatedServers = serverInfo.servers.filter { it.id != serverId }
         gameServerMap[gameId] = serverInfo.copy(servers = updatedServers)
         saveServerData()
         return true

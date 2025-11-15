@@ -53,7 +53,8 @@ enum class ServerFilter {
 @Composable
 fun ServerManagementContent(
     games: List<Game>,
-    onPurchaseServer: (ServerType) -> Unit // 购买服务器到公共池
+    onPurchaseServer: (ServerType) -> Unit, // 购买服务器到公共池
+    onRemoveServer: (String, String) -> Unit = { _, _ -> } // 删除服务器（gameId, serverId）
 ) {
     var selectedFilter by remember { mutableStateOf(ServerFilter.ALL) }
     var showFilterDialog by remember { mutableStateOf(false) }
@@ -317,7 +318,15 @@ fun ServerManagementContent(
                 ) {
                     items(filteredServers) { serverDetail ->
                         RentedServerCard(
-                            serverDetail = serverDetail
+                            serverDetail = serverDetail,
+                            onAddMore = { serverType ->
+                                onPurchaseServer(serverType)
+                                refreshTrigger++ // 触发刷新
+                            },
+                            onRemove = {
+                                onRemoveServer(serverDetail.gameId, serverDetail.server.id)
+                                refreshTrigger++ // 触发刷新
+                            }
                         )
                     }
                 }
@@ -772,9 +781,12 @@ fun QuickPurchaseDialog(
  */
 @Composable
 fun RentedServerCard(
-    serverDetail: ServerDetail
+    serverDetail: ServerDetail,
+    onAddMore: (ServerType) -> Unit = {},
+    onRemove: () -> Unit = {}
 ) {
     val server = serverDetail.server
+    var showRemoveConfirmDialog by remember { mutableStateOf(false) }
     
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -870,7 +882,136 @@ fun RentedServerCard(
                     fontWeight = FontWeight.Medium
                 )
             }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // 操作按钮
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // 增加服务器按钮
+                OutlinedButton(
+                    onClick = { onAddMore(server.type) },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color(0xFF10B981)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "增加",
+                        fontSize = 13.sp
+                    )
+                }
+                
+                // 退租按钮
+                OutlinedButton(
+                    onClick = { showRemoveConfirmDialog = true },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color(0xFFEF4444)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "退租",
+                        fontSize = 13.sp
+                    )
+                }
+            }
         }
+    }
+    
+    // 退租确认对话框
+    if (showRemoveConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showRemoveConfirmDialog = false },
+            containerColor = Color(0xFF1F2937),
+            icon = {
+                Text(
+                    text = "⚠️",
+                    fontSize = 36.sp
+                )
+            },
+            title = {
+                Text(
+                    text = "确认退租",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "确定要退租这台服务器吗？",
+                        fontSize = 14.sp,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color.White.copy(alpha = 0.1f)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp)
+                        ) {
+                            Text(
+                                text = server.type.displayName,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "容量: ${server.type.capacity}万人",
+                                fontSize = 12.sp,
+                                color = Color.Gray
+                            )
+                            Text(
+                                text = "月费: ¥${formatMoneyWithDecimals(server.type.cost.toDouble())}",
+                                fontSize = 12.sp,
+                                color = Color(0xFF10B981)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "⚠️ 退租后将立即停止服务，请确保有足够的容量承载玩家！",
+                        fontSize = 12.sp,
+                        color = Color(0xFFFBBF24)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onRemove()
+                        showRemoveConfirmDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFEF4444)
+                    )
+                ) {
+                    Text("确认退租", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRemoveConfirmDialog = false }) {
+                    Text("取消", color = Color.White)
+                }
+            }
+        )
     }
 }
 

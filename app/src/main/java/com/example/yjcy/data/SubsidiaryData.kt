@@ -568,27 +568,36 @@ object SubsidiaryManager {
                         newLastDecayDay = newDaysSinceLaunch
                     }
                     
-                    // 4. 计算注册数增长（每日）× 30天
-                    var newTotalRegistered = game.totalRegisteredPlayers
-                    for (day in 1..30) {
-                        val baseGrowthRate = when {
-                            game.rating >= 8.5f -> 0.05
-                            game.rating >= 8.0f -> 0.04
-                            game.rating >= 7.0f -> 0.03
-                            else -> 0.02
-                        }
-                        
-                        val interestMultiplier = when {
-                            newPlayerInterest >= 80.0 -> 1.15
-                            newPlayerInterest >= 70.0 -> 1.0
-                            newPlayerInterest >= 50.0 -> 0.85
-                            newPlayerInterest >= 30.0 -> 0.7
-                            else -> 0.5
-                        }
-                        
-                        val dailyRegistrations = (newTotalRegistered * baseGrowthRate * interestMultiplier * 0.01).toLong().coerceAtLeast(10L)
-                        newTotalRegistered += dailyRegistrations
+                    // 4. 计算注册数增长（固定每日新增 + 倍率，避免复利爆炸）
+                    // 基础每日新增（根据评分）
+                    val baseDailyNew = when {
+                        game.rating >= 9.0f -> 8000L   // 神作：每日8K
+                        game.rating >= 8.5f -> 5000L   // 优秀：每日5K
+                        game.rating >= 8.0f -> 3000L   // 良好：每日3K
+                        game.rating >= 7.0f -> 1500L   // 一般：每日1.5K
+                        else -> 800L                   // 及格：每日800
                     }
+                    
+                    // 兴趣值倍率（注册数增长用）
+                    val registrationInterestMultiplier = when {
+                        newPlayerInterest >= 80.0 -> 1.3
+                        newPlayerInterest >= 70.0 -> 1.0
+                        newPlayerInterest >= 50.0 -> 0.8
+                        newPlayerInterest >= 30.0 -> 0.6
+                        else -> 0.5
+                    }
+                    
+                    // 生命周期倍率（后期自然衰减）
+                    val lifecycleMultiplier = when {
+                        newLifecycleProgress < 30.0 -> 1.2   // 成长期：加速
+                        newLifecycleProgress < 70.0 -> 1.0   // 成熟期：正常
+                        newLifecycleProgress < 90.0 -> 0.6   // 衰退期：减速
+                        else -> 0.3                          // 末期：大幅减速
+                    }
+                    
+                    // 月度新增 = 每日新增 × 30天 × 倍率
+                    val monthlyNewRegistrations = (baseDailyNew * 30 * registrationInterestMultiplier * lifecycleMultiplier).toLong()
+                    val newTotalRegistered = game.totalRegisteredPlayers + monthlyNewRegistrations
                     
                     // 5. 计算活跃玩家数
                     val activeMultiplier = when {

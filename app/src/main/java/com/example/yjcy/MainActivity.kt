@@ -4504,6 +4504,10 @@ fun GameScreen(
                                     purchaseMonth = currentMonth,
                                     purchaseDay = currentDay
                                 )
+                            },
+                            onRemoveServer = { gameId, serverId ->
+                                // 退租服务器
+                                RevenueManager.removeServerFromGame(gameId, serverId)
                             }
                         )
                         6 -> GVAScreen(
@@ -4750,14 +4754,12 @@ fun GameScreen(
                     // 评分对话框关闭时，只有当游戏还未发售时才更新状态为RATED
                     games = games.map { existingGame ->
                         if (existingGame.id == pendingRatingGame!!.id) {
-                            // 检查游戏是否已经发售（RELEASED状态）
+                            // 检查游戏当前状态，避免覆盖已下架游戏的状态
                             val currentStatus = existingGame.releaseStatus
-                            val newStatus = if (currentStatus == GameReleaseStatus.RELEASED) {
-                                // 已发售的游戏保持RELEASED状态，不要改回RATED
-                                GameReleaseStatus.RELEASED
-                            } else {
-                                // 未发售的游戏设置为RATED（这种情况理论上不应该发生）
-                                GameReleaseStatus.RATED
+                            val newStatus = when (currentStatus) {
+                                GameReleaseStatus.RELEASED -> GameReleaseStatus.RELEASED  // 已发售保持不变
+                                GameReleaseStatus.REMOVED_FROM_MARKET -> GameReleaseStatus.REMOVED_FROM_MARKET  // 已下架保持不变
+                                else -> GameReleaseStatus.RATED  // 其他情况（READY_FOR_RELEASE等）设置为RATED
                             }
                             
                             val ratedGame = existingGame.copy(

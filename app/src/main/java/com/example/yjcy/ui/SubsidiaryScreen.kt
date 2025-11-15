@@ -678,7 +678,7 @@ private fun SubsidiaryCard(
                     }
                 }
                 
-                // 第二行：正在开发（显示数量）
+                // 第二行：项目管理（显示开发中数量）
                 OutlinedButton(
                     onClick = onDevelopingGamesClick,
                     modifier = Modifier.fillMaxWidth(),
@@ -688,7 +688,7 @@ private fun SubsidiaryCard(
                 ) {
                     val devCount = subsidiary.developingGames.size
                     SingleLineText(
-                        text = if (devCount > 0) "⚙️ 正在开发 ($devCount)" else "⚙️ 正在开发",
+                        text = if (devCount > 0) "📋 项目管理 ($devCount)" else "📋 项目管理",
                         fontSize = 13.sp
                     )
                 }
