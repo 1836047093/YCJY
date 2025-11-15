@@ -31,7 +31,7 @@ import androidx.navigation.NavController
 import com.example.yjcy.data.ChatMessage
 import com.example.yjcy.data.MessageSender
 import com.example.yjcy.data.SecretaryReplyManager
-import com.example.yjcy.FpsMonitor
+import com.example.yjcy.ui.composables.FpsMonitor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 

@@ -29,7 +29,9 @@ import com.example.yjcy.data.GameUpdateStrategy
 import com.example.yjcy.data.SubsidiaryGameConfig
 import com.example.yjcy.data.OnlineGamePricing
 import com.example.yjcy.data.CompetitorGame
+import com.example.yjcy.data.DevelopingGame
 import com.example.yjcy.data.getRecommendedPrice
+import com.example.yjcy.data.DevelopmentPhase
 import com.example.yjcy.ui.components.SingleLineText
 import com.example.yjcy.ui.components.MultiLineText
 import com.example.yjcy.utils.formatMoney
@@ -176,6 +178,7 @@ private fun SubsidiaryListTab(
     var selectedSubsidiary by remember { mutableStateOf<Subsidiary?>(null) }
     var showGameManagement by remember { mutableStateOf(false) }
     var showDevConfig by remember { mutableStateOf(false) }
+    var showDevelopingGames by remember { mutableStateOf(false) }
     
     if (subsidiaries.isEmpty()) {
         // 空状态
@@ -222,6 +225,10 @@ private fun SubsidiaryListTab(
                     onDevConfigClick = {
                         selectedSubsidiary = subsidiary
                         showDevConfig = true
+                    },
+                    onDevelopingGamesClick = {
+                        selectedSubsidiary = subsidiary
+                        showDevelopingGames = true
                     }
                 )
             }
@@ -249,6 +256,14 @@ private fun SubsidiaryListTab(
                 onSubsidiaryUpdate(updated)
                 showDevConfig = false
             }
+        )
+    }
+    
+    // 正在开发对话框
+    if (showDevelopingGames && selectedSubsidiary != null) {
+        DevelopingGamesDialog(
+            subsidiary = selectedSubsidiary!!,
+            onDismiss = { showDevelopingGames = false }
         )
     }
 }
@@ -536,7 +551,8 @@ private fun StatCard(
 private fun SubsidiaryCard(
     subsidiary: Subsidiary,
     onGameManagementClick: () -> Unit,
-    onDevConfigClick: () -> Unit
+    onDevConfigClick: () -> Unit,
+    onDevelopingGamesClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -631,29 +647,50 @@ private fun SubsidiaryCard(
             
             Spacer(modifier = Modifier.height(12.dp))
             
-            // 管理按钮
-            Row(
+            // 管理按钮（两行）
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                OutlinedButton(
-                    onClick = onGameManagementClick,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color(0xFF64B5F6)
-                    )
+                // 第一行：游戏管理和开发配置
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    SingleLineText(text = "🎮 游戏管理", fontSize = 13.sp)
+                    OutlinedButton(
+                        onClick = onGameManagementClick,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color(0xFF64B5F6)
+                        )
+                    ) {
+                        SingleLineText(text = "🎮 游戏管理", fontSize = 13.sp)
+                    }
+                    
+                    OutlinedButton(
+                        onClick = onDevConfigClick,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color(0xFF4CAF50)
+                        )
+                    ) {
+                        SingleLineText(text = "⚙️ 开发配置", fontSize = 13.sp)
+                    }
                 }
                 
+                // 第二行：正在开发（显示数量）
                 OutlinedButton(
-                    onClick = onDevConfigClick,
-                    modifier = Modifier.weight(1f),
+                    onClick = onDevelopingGamesClick,
+                    modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color(0xFF4CAF50)
+                        contentColor = Color(0xFFFFA726)
                     )
                 ) {
-                    SingleLineText(text = "⚙️ 开发配置", fontSize = 13.sp)
+                    val devCount = subsidiary.developingGames.size
+                    SingleLineText(
+                        text = if (devCount > 0) "⚙️ 正在开发 ($devCount)" else "⚙️ 正在开发",
+                        fontSize = 13.sp
+                    )
                 }
             }
         }
@@ -1206,7 +1243,10 @@ private fun GameManagementCard(
                 )
                 val updatedConfigs = subsidiary.gameConfigs.toMutableMap()
                 updatedConfigs[game.id] = newConfig
-                onSubsidiaryUpdate(subsidiary.copy(gameConfigs = updatedConfigs))
+                onSubsidiaryUpdate(subsidiary.copy(
+                    gameConfigs = updatedConfigs,
+                    developingGames = subsidiary.developingGames
+                ))
                 showPriceDialog = false
             },
             onConfirmOnline = { newOnlinePricing ->
@@ -1219,7 +1259,10 @@ private fun GameManagementCard(
                 )
                 val updatedConfigs = subsidiary.gameConfigs.toMutableMap()
                 updatedConfigs[game.id] = newConfig
-                onSubsidiaryUpdate(subsidiary.copy(gameConfigs = updatedConfigs))
+                onSubsidiaryUpdate(subsidiary.copy(
+                    gameConfigs = updatedConfigs,
+                    developingGames = subsidiary.developingGames
+                ))
                 showPriceDialog = false
             }
         )
@@ -1240,7 +1283,10 @@ private fun GameManagementCard(
                 )
                 val updatedConfigs = subsidiary.gameConfigs.toMutableMap()
                 updatedConfigs[game.id] = newConfig
-                onSubsidiaryUpdate(subsidiary.copy(gameConfigs = updatedConfigs))
+                onSubsidiaryUpdate(subsidiary.copy(
+                    gameConfigs = updatedConfigs,
+                    developingGames = subsidiary.developingGames
+                ))
                 showStrategyDialog = false
             }
         )
@@ -1291,7 +1337,10 @@ private fun DevelopmentConfigTab(
                     description = "专注于单机市场",
                     isSelected = subsidiary.developmentPreference == DevelopmentPreference.SINGLE_PLAYER_ONLY,
                     onClick = {
-                        onSubsidiaryUpdate(subsidiary.copy(developmentPreference = DevelopmentPreference.SINGLE_PLAYER_ONLY))
+                        onSubsidiaryUpdate(subsidiary.copy(
+                            developmentPreference = DevelopmentPreference.SINGLE_PLAYER_ONLY,
+                            developingGames = subsidiary.developingGames
+                        ))
                     }
                 )
                 
@@ -1302,7 +1351,10 @@ private fun DevelopmentConfigTab(
                     description = "专注于网游市场",
                     isSelected = subsidiary.developmentPreference == DevelopmentPreference.ONLINE_GAME_ONLY,
                     onClick = {
-                        onSubsidiaryUpdate(subsidiary.copy(developmentPreference = DevelopmentPreference.ONLINE_GAME_ONLY))
+                        onSubsidiaryUpdate(subsidiary.copy(
+                            developmentPreference = DevelopmentPreference.ONLINE_GAME_ONLY,
+                            developingGames = subsidiary.developingGames
+                        ))
                     }
                 )
                 
@@ -1313,7 +1365,10 @@ private fun DevelopmentConfigTab(
                     description = "灵活应对市场需求",
                     isSelected = subsidiary.developmentPreference == DevelopmentPreference.BOTH,
                     onClick = {
-                        onSubsidiaryUpdate(subsidiary.copy(developmentPreference = DevelopmentPreference.BOTH))
+                        onSubsidiaryUpdate(subsidiary.copy(
+                            developmentPreference = DevelopmentPreference.BOTH,
+                            developingGames = subsidiary.developingGames
+                        ))
                     }
                 )
             }
@@ -1920,6 +1975,269 @@ private fun SubsidiarySelectorItem(
                 color = Color(0xFF60A5FA),
                 fontWeight = FontWeight.Bold
             )
+        }
+    }
+}
+
+/**
+ * 正在开发对话框
+ */
+@Composable
+private fun DevelopingGamesDialog(
+    subsidiary: Subsidiary,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 600.dp),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF1E1E2E)
+            )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+            ) {
+                // 标题
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "⚙️ 正在开发",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Text(text = "✕", fontSize = 20.sp, color = Color.White.copy(alpha = 0.7f))
+                    }
+                }
+                
+                Text(
+                    text = subsidiary.name,
+                    fontSize = 14.sp,
+                    color = Color.White.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                
+                HorizontalDivider(
+                    color = Color.White.copy(alpha = 0.1f),
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                
+                // 开发中游戏列表
+                if (subsidiary.developingGames.isEmpty()) {
+                    // 空状态
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 40.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "🎮",
+                                fontSize = 48.sp
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "暂无开发中的游戏",
+                                fontSize = 16.sp,
+                                color = Color.Gray
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(subsidiary.developingGames) { game ->
+                            DevelopingGameCard(game = game)
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 关闭按钮
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF3B82F6)
+                    )
+                ) {
+                    Text("关闭", fontSize = 14.sp, color = Color.White)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 开发中游戏卡片
+ */
+@Composable
+private fun DevelopingGameCard(game: DevelopingGame) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF2D2D44)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            // 游戏名称和主题
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = game.name,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = game.theme.displayName,
+                            fontSize = 12.sp,
+                            color = Color(0xFF60A5FA),
+                            modifier = Modifier
+                                .background(Color(0xFF60A5FA).copy(alpha = 0.2f), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                        Text(
+                            text = when (game.businessModel) {
+                                BusinessModel.SINGLE_PLAYER -> "单机"
+                                BusinessModel.ONLINE_GAME -> "网游"
+                                else -> "未知"
+                            },
+                            fontSize = 12.sp,
+                            color = Color(0xFF10B981),
+                            modifier = Modifier
+                                .background(Color(0xFF10B981).copy(alpha = 0.2f), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+                
+                // 预估评分
+                if (game.estimatedRating > 0) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "预估评分",
+                            fontSize = 10.sp,
+                            color = Color.White.copy(alpha = 0.6f)
+                        )
+                        Text(
+                            text = String.format("%.1f", game.estimatedRating),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFFD700)
+                        )
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // 开发阶段
+            val phaseText = when (game.currentPhase) {
+                DevelopmentPhase.DESIGN -> "📋 需求文档"
+                DevelopmentPhase.ART_SOUND -> "🎨 美术音效"
+                DevelopmentPhase.PROGRAMMING -> "💻 程序实现"
+            }
+            
+            val phaseColor = when (game.currentPhase) {
+                DevelopmentPhase.DESIGN -> Color(0xFF8B5CF6)
+                DevelopmentPhase.ART_SOUND -> Color(0xFFF59E0B)
+                DevelopmentPhase.PROGRAMMING -> Color(0xFF10B981)
+            }
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = phaseText,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = phaseColor
+                )
+                Text(
+                    text = "${game.phaseProgress.toInt()}%",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // 进度条
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(game.phaseProgress / 100f)
+                        .fillMaxHeight()
+                        .background(
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(phaseColor, phaseColor.copy(alpha = 0.8f))
+                            ),
+                            shape = RoundedCornerShape(4.dp)
+                        )
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // 平台和开始日期
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 平台标签
+                Text(
+                    text = game.platforms.joinToString(", ") { it.displayName },
+                    fontSize = 11.sp,
+                    color = Color.White.copy(alpha = 0.8f),
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "开始于 ${game.startDate.year}/${game.startDate.month}",
+                    fontSize = 11.sp,
+                    color = Color.White.copy(alpha = 0.6f)
+                )
+            }
         }
     }
 }

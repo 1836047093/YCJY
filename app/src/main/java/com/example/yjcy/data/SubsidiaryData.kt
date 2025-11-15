@@ -1,5 +1,9 @@
 package com.example.yjcy.data
 
+import com.example.yjcy.ui.BusinessModel
+import com.example.yjcy.ui.GameTheme
+import com.example.yjcy.ui.Platform
+
 /**
  * 子公司运营状态
  */
@@ -26,6 +30,21 @@ enum class GameUpdateStrategy {
     MODERATE,    // 适中（定期更新）
     CONSERVATIVE // 保守（很少更新）
 }
+
+/**
+ * 子公司正在开发的游戏
+ */
+data class DevelopingGame(
+    val id: String,                           // 游戏ID
+    val name: String,                         // 游戏名称
+    val theme: GameTheme,                     // 游戏主题
+    val platforms: List<Platform>,            // 平台
+    val businessModel: BusinessModel,         // 商业模式
+    val currentPhase: DevelopmentPhase = DevelopmentPhase.DESIGN, // 当前开发阶段
+    val phaseProgress: Float = 0f,            // 当前阶段进度 (0-100)
+    val startDate: GameDate,                  // 开始开发日期
+    val estimatedRating: Float = 0f           // 预估评分（基于员工技能）
+)
 
 /**
  * 网游付费内容价格配置（5个付费内容）
@@ -66,7 +85,8 @@ data class Subsidiary(
     val totalRevenue: Long = 0L,              // 累计总收入（收购后）
     
     // 游戏数据
-    val games: List<CompetitorGame>,          // 继承的游戏（含开发中和已发售）
+    val games: List<CompetitorGame>,          // 已发售的游戏
+    val developingGames: List<DevelopingGame> = emptyList(), // 正在开发的游戏
     
     // 员工数据（根据游戏反推）
     val estimatedEmployeeCount: Int,          // 估算员工数（基于游戏数量）
@@ -275,11 +295,237 @@ object SubsidiaryManager {
     }
     
     /**
+     * 推进游戏开发进度
+     * @return 更新后的开发中游戏列表
+     */
+    private fun updateDevelopingGames(
+        developingGames: List<DevelopingGame>,
+        employeeCount: Int
+    ): List<DevelopingGame> {
+        return developingGames.map { game ->
+            // 基础进度：每月2%
+            val baseProgress = 2f
+            
+            // 员工数量加成（每5名员工+0.5%，最多+3%）
+            val employeeBonus = (employeeCount / 5 * 0.5f).coerceAtMost(3f)
+            
+            // 总进度增加
+            val progressIncrease = baseProgress + employeeBonus
+            val newProgress = (game.phaseProgress + progressIncrease).coerceAtMost(100f)
+            
+            // 检查当前阶段是否完成
+            if (newProgress >= 100f) {
+                // 进入下一阶段
+                when (game.currentPhase) {
+                    DevelopmentPhase.DESIGN -> {
+                        // 进入美术音效阶段
+                        game.copy(
+                            currentPhase = DevelopmentPhase.ART_SOUND,
+                            phaseProgress = 0f
+                        )
+                    }
+                    DevelopmentPhase.ART_SOUND -> {
+                        // 进入程序实现阶段
+                        game.copy(
+                            currentPhase = DevelopmentPhase.PROGRAMMING,
+                            phaseProgress = 0f
+                        )
+                    }
+                    DevelopmentPhase.PROGRAMMING -> {
+                        // 保持在100%，等待被移除
+                        game.copy(phaseProgress = 100f)
+                    }
+                }
+            } else {
+                // 更新当前阶段进度
+                game.copy(phaseProgress = newProgress)
+            }
+        }
+    }
+    
+    /**
+     * 检查并移除已完成的游戏
+     * @return Pair(剩余的开发中游戏, 完成的游戏列表)
+     */
+    private fun extractCompletedGames(
+        developingGames: List<DevelopingGame>,
+        currentDate: GameDate
+    ): Pair<List<DevelopingGame>, List<CompetitorGame>> {
+        val completed = mutableListOf<CompetitorGame>()
+        val remaining = mutableListOf<DevelopingGame>()
+        
+        developingGames.forEach { game ->
+            if (game.currentPhase == DevelopmentPhase.PROGRAMMING && game.phaseProgress >= 100f) {
+                // 游戏完成，创建 CompetitorGame
+                val finalRating = if (game.estimatedRating > 0) {
+                    game.estimatedRating
+                } else {
+                    // 基于随机生成评分（6.0-8.5）
+                    (kotlin.random.Random.nextDouble(6.0, 8.5)).toFloat()
+                }
+                
+                // 计算初始玩家数/销量
+                val (initialPlayers, initialSales) = when (game.businessModel) {
+                    BusinessModel.ONLINE_GAME -> {
+                        // 网游：初始注册数 = 评分 * 2000-5000
+                        val registered = (finalRating * kotlin.random.Random.nextInt(2000, 5000)).toLong()
+                        Pair(registered, 0L)
+                    }
+                    BusinessModel.SINGLE_PLAYER -> {
+                        // 单机：初始销量 = 评分 * 500-1500
+                        val sales = (finalRating * kotlin.random.Random.nextInt(500, 1500)).toLong()
+                        Pair(0L, sales)
+                    }
+                }
+                
+                completed.add(
+                    CompetitorGame(
+                        id = game.id,
+                        name = game.name,
+                        companyId = 0, // 子公司ID，待填充
+                        companyName = "", // 子公司名称，待填充
+                        theme = game.theme,
+                        platforms = game.platforms,
+                        businessModel = game.businessModel,
+                        rating = finalRating,
+                        activePlayers = if (game.businessModel == BusinessModel.ONLINE_GAME) {
+                            (initialPlayers * 0.4).toLong()
+                        } else 0L,
+                        salesCount = initialSales,
+                        releaseYear = currentDate.year,
+                        releaseMonth = currentDate.month,
+                        totalRevenue = 0.0,
+                        monetizationRevenue = 0.0,
+                        totalRegisteredPlayers = initialPlayers,
+                        playerInterest = 100.0,
+                        lifecycleProgress = 0.0,
+                        daysSinceLaunch = 0,
+                        lastInterestDecayDay = 0
+                    )
+                )
+            } else {
+                remaining.add(game)
+            }
+        }
+        
+        return Pair(remaining, completed)
+    }
+    
+    /**
+     * 尝试开始新游戏开发
+     * @return 新开发的游戏（可能为null）
+     */
+    private fun tryStartNewGame(
+        subsidiary: Subsidiary,
+        currentDate: GameDate
+    ): DevelopingGame? {
+        // 开发概率：
+        // - 少于3个开发中：30%概率
+        // - 3-5个开发中：15%概率
+        // - 5个以上：5%概率
+        val probability = when {
+            subsidiary.developingGames.size < 3 -> 0.30
+            subsidiary.developingGames.size < 5 -> 0.15
+            else -> 0.05
+        }
+        
+        if (kotlin.random.Random.nextDouble() > probability) {
+            return null
+        }
+        
+        // 根据开发偏好决定游戏类型
+        val businessModel = when (subsidiary.developmentPreference) {
+            DevelopmentPreference.SINGLE_PLAYER_ONLY -> BusinessModel.SINGLE_PLAYER
+            DevelopmentPreference.ONLINE_GAME_ONLY -> BusinessModel.ONLINE_GAME
+            DevelopmentPreference.BOTH -> {
+                if (kotlin.random.Random.nextBoolean()) {
+                    BusinessModel.SINGLE_PLAYER
+                } else {
+                    BusinessModel.ONLINE_GAME
+                }
+            }
+        }
+        
+        // 随机选择主题
+        val theme = com.example.yjcy.ui.GameTheme.entries.random()
+        
+        // 随机选择1-3个平台
+        val allPlatforms = com.example.yjcy.ui.Platform.entries
+        val platformCount = kotlin.random.Random.nextInt(1, 4)
+        val platforms = allPlatforms.shuffled().take(platformCount)
+        
+        // 生成游戏名称
+        val gameName = generateGameName(theme)
+        
+        // 预估评分（基于员工数量）
+        val estimatedRating = when {
+            subsidiary.estimatedEmployeeCount >= 30 -> kotlin.random.Random.nextFloat() * 1.5f + 7.5f // 7.5-9.0
+            subsidiary.estimatedEmployeeCount >= 20 -> kotlin.random.Random.nextFloat() * 1.0f + 7.0f // 7.0-8.0
+            else -> kotlin.random.Random.nextFloat() * 1.0f + 6.0f // 6.0-7.0
+        }.coerceIn(6.0f, 9.5f)
+        
+        return DevelopingGame(
+            id = "sub_${subsidiary.id}_${System.currentTimeMillis()}",
+            name = gameName,
+            theme = theme,
+            platforms = platforms,
+            businessModel = businessModel,
+            currentPhase = DevelopmentPhase.DESIGN,
+            phaseProgress = 0f,
+            startDate = currentDate,
+            estimatedRating = estimatedRating
+        )
+    }
+    
+    /**
+     * 生成游戏名称
+     */
+    private fun generateGameName(theme: com.example.yjcy.ui.GameTheme): String {
+        val prefixes = listOf("超级", "终极", "王者", "传奇", "无敌", "梦幻", "狂野", "疯狂", "史诗", "极限")
+        val suffixes = listOf("之路", "传说", "战记", "物语", "奇遇", "冒险", "征途", "荣耀", "纪元", "世界")
+        
+        val prefix = if (kotlin.random.Random.nextBoolean()) prefixes.random() else ""
+        val suffix = if (kotlin.random.Random.nextBoolean()) suffixes.random() else ""
+        
+        return "$prefix${theme.displayName}$suffix".trim()
+    }
+    
+    /**
      * 更新子公司月度数据
      */
-    fun updateMonthlyData(subsidiary: Subsidiary): Subsidiary {
+    fun updateMonthlyData(subsidiary: Subsidiary, currentDate: GameDate): Subsidiary {
         if (subsidiary.status != SubsidiaryStatus.ACTIVE) {
             return subsidiary
+        }
+        
+        // 🆕 1. 推进开发中游戏的进度
+        var updatedDevelopingGames = updateDevelopingGames(
+            subsidiary.developingGames,
+            subsidiary.estimatedEmployeeCount
+        )
+        
+        // 🆕 2. 提取已完成的游戏
+        val (remainingDev, completedGames) = extractCompletedGames(
+            updatedDevelopingGames,
+            currentDate
+        )
+        updatedDevelopingGames = remainingDev
+        
+        // 🆕 3. 将完成的游戏添加到已发售列表（填充公司信息）
+        val newlyReleasedGames = completedGames.map { game ->
+            game.copy(
+                companyId = subsidiary.id,
+                companyName = subsidiary.name
+            )
+        }
+        
+        // 🆕 4. 尝试开始新游戏开发
+        val newGame = tryStartNewGame(subsidiary, currentDate)
+        if (newGame != null) {
+            updatedDevelopingGames = updatedDevelopingGames + newGame
+            android.util.Log.d("SubsidiaryManager", 
+                "子公司${subsidiary.name}开始开发新游戏《${newGame.name}》（${newGame.theme.displayName}）"
+            )
         }
         
         // 计算本月收入
@@ -434,16 +680,27 @@ object SubsidiaryManager {
             }
         }
         
+        // 🆕 5. 合并新发售的游戏到已发售列表
+        val finalGames = updatedGames + newlyReleasedGames
+        
         // 更新资金余额：本月利润 = 收入 - 支出
         val monthlyProfit = monthlyIncome - monthlyExpense
         val newCashBalance = (subsidiary.cashBalance + monthlyProfit).coerceAtLeast(0L) // 资金不能为负数
         
         // 🆕 动态更新市值（与玩家公司使用相同逻辑）
-        val releasedGamesCount = updatedGames.size // 子公司的游戏都是已发售的
+        val releasedGamesCount = finalGames.size // 包含新发售的游戏
         val baseMoney = if (newCashBalance < 0) 0L else newCashBalance
         val gamesValue = releasedGamesCount * 100000L
         val employeesValue = subsidiary.estimatedEmployeeCount * 50000L
         val newMarketValue = baseMoney + gamesValue + employeesValue
+        
+        // 🆕 记录完成的游戏
+        if (completedGames.isNotEmpty()) {
+            android.util.Log.d("SubsidiaryManager",
+                "子公司${subsidiary.name}完成${completedGames.size}款游戏开发：" +
+                completedGames.joinToString(", ") { "《${it.name}》(${it.rating}分)" }
+            )
+        }
         
         return subsidiary.copy(
             monthlyRevenue = monthlyIncome,
@@ -451,7 +708,8 @@ object SubsidiaryManager {
             cashBalance = newCashBalance, // 更新资金余额
             marketValue = newMarketValue, // 🆕 更新市值
             totalRevenue = subsidiary.totalRevenue + monthlyIncome,
-            games = updatedGames
+            games = finalGames, // 🆕 包含新发售的游戏
+            developingGames = updatedDevelopingGames // 🆕 更新开发中游戏列表
         )
     }
 }
