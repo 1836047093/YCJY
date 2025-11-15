@@ -105,6 +105,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -117,9 +118,14 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.DrawModifier
-import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.StrokeCap
+import kotlin.math.abs
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -216,7 +222,6 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
-import kotlin.math.abs
 import kotlin.random.Random
 
 
@@ -1303,11 +1308,94 @@ fun ScanningBorder(
         Canvas(
             modifier = Modifier.matchParentSize()
         ) {
+            // 计算圆角半径的像素值
+            val cornerRadiusPx = cornerRadius.toPx()
             val strokeWidthPx = borderWidth.toPx()
-            val perimeter = 2 * (size.width + size.height)
+            // 考虑圆角后的周长计算
+            val cornerLength = (Math.PI * cornerRadiusPx) / 2f // 每个圆角的弧长
+            val straightPerimeter = 2 * (size.width + size.height - 4 * cornerRadiusPx)
+            val perimeter = straightPerimeter + 4 * cornerLength
             
             // 流光宽度约为周长的1/4
             val lightLength = perimeter * 0.25f
+            
+            // 创建带圆角的矩形路径
+            fun createRoundedRectPath(): Path {
+                return Path().apply {
+                    addRoundRect(
+                        androidx.compose.ui.geometry.RoundRect(
+                            rect = androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height),
+                            topLeft = androidx.compose.ui.geometry.CornerRadius(cornerRadiusPx, cornerRadiusPx),
+                            topRight = androidx.compose.ui.geometry.CornerRadius(cornerRadiusPx, cornerRadiusPx),
+                            bottomRight = androidx.compose.ui.geometry.CornerRadius(cornerRadiusPx, cornerRadiusPx),
+                            bottomLeft = androidx.compose.ui.geometry.CornerRadius(cornerRadiusPx, cornerRadiusPx)
+                        )
+                    )
+                }
+            }
+            
+            // 绘制带颜色渐变的边框段
+            fun drawBorderSegment(
+                startX: Float,
+                startY: Float,
+                endX: Float,
+                endY: Float,
+                gradientColors: List<Color>,
+                strokeWidth: Float
+            ) {
+                val path = Path().apply {
+                    moveTo(startX, startY)
+                    lineTo(endX, endY)
+                }
+                drawPath(
+                    path = path,
+                    brush = Brush.linearGradient(
+                        colors = gradientColors,
+                        start = Offset(startX, startY),
+                        end = Offset(endX, endY)
+                    ),
+                    style = Stroke(
+                        width = strokeWidth,
+                        cap = androidx.compose.ui.graphics.StrokeCap.Round
+                    )
+                )
+            }
+            
+            // 绘制圆弧段
+            fun drawBorderArc(
+                centerX: Float,
+                centerY: Float,
+                radius: Float,
+                startAngle: Float,
+                sweepAngle: Float,
+                gradientColors: List<Color>,
+                strokeWidth: Float
+            ) {
+                val path = Path()
+                val endAngle = startAngle + sweepAngle
+                path.arcTo(
+                    rect = androidx.compose.ui.geometry.Rect(
+                        left = centerX - radius,
+                        top = centerY - radius,
+                        right = centerX + radius,
+                        bottom = centerY + radius
+                    ),
+                    startAngleDegrees = startAngle,
+                    sweepAngleDegrees = sweepAngle,
+                    forceMoveTo = true
+                )
+                drawPath(
+                    path = path,
+                    brush = Brush.sweepGradient(
+                        colors = gradientColors,
+                        center = Offset(centerX, centerY)
+                    ),
+                    style = Stroke(
+                        width = strokeWidth,
+                        cap = androidx.compose.ui.graphics.StrokeCap.Round
+                    )
+                )
+            }
             
             // 绘制两条流光
             fun drawBorderLight(progress: Float) {
@@ -1323,111 +1411,152 @@ fun ScanningBorder(
                 // 持续绘制直到长度用完
                 while (remainingLength > 0.1f) {
                     pos = pos % perimeter
+                    val progress = remainingLength / lightLength
+                    val gradientColors = listOf(
+                        Color.Transparent,
+                        Color.White.copy(alpha = (0.9f * progress).toFloat()),
+                        color1.copy(alpha = (0.85f * progress).toFloat()),
+                        color2.copy(alpha = (0.7f * progress).toFloat()),
+                        color3.copy(alpha = (0.5f * progress).toFloat()),
+                        Color.Transparent
+                    )
                     
                     when {
-                        // 顶边（从左到右）
-                        pos < size.width -> {
-                            val x = pos
-                            val edgeRemaining = size.width - x
-                            val drawLength = kotlin.math.min(remainingLength, edgeRemaining)
-                            val progress = remainingLength / lightLength
+                        // 左上角圆角
+                        pos < cornerLength -> {
+                            val drawLength = kotlin.math.min(remainingLength, cornerLength).toFloat()
+                            val sweepAngle = (drawLength / cornerLength * 90f).toFloat()
                             
-                            drawRect(
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(
-                                        Color.Transparent,
-                                        Color.White.copy(alpha = 0.9f * progress),
-                                        color1.copy(alpha = 0.85f * progress),
-                                        color2.copy(alpha = 0.7f * progress),
-                                        color3.copy(alpha = 0.5f * progress),
-                                        Color.Transparent
-                                    ),
-                                    startX = x,
-                                    endX = x + drawLength
-                                ),
-                                topLeft = Offset(x, 0f),
-                                size =  Size(drawLength, strokeWidthPx)
+                            drawBorderArc(
+                                centerX = cornerRadiusPx,
+                                centerY = cornerRadiusPx,
+                                radius = (cornerRadiusPx - strokeWidthPx / 2).toFloat(),
+                                startAngle = 180f,
+                                sweepAngle = sweepAngle,
+                                gradientColors = gradientColors,
+                                strokeWidth = strokeWidthPx
+                            )
+                            pos += drawLength
+                            remainingLength -= drawLength
+                        }
+                        // 顶边（从左到右）
+                        pos < cornerLength + size.width - 2 * cornerRadiusPx -> {
+                            val x = pos - cornerLength + cornerRadiusPx
+                            val edgeRemaining = (cornerLength + size.width - 2 * cornerRadiusPx) - pos
+                            val drawLength = kotlin.math.min(remainingLength, edgeRemaining).toFloat()
+                            
+                            drawBorderSegment(
+                                startX = x.toFloat(),
+                                startY = (strokeWidthPx / 2).toFloat(),
+                                endX = (x + drawLength).toFloat(),
+                                endY = (strokeWidthPx / 2).toFloat(),
+                                gradientColors = gradientColors,
+                                strokeWidth = strokeWidthPx
+                            )
+                            pos += drawLength
+                            remainingLength -= drawLength
+                        }
+                        // 右上角圆角
+                        pos < 2 * cornerLength + size.width - 2 * cornerRadiusPx -> {
+                            val drawLength = kotlin.math.min(remainingLength, cornerLength).toFloat()
+                            val sweepAngle = (drawLength / cornerLength * 90f).toFloat()
+                            
+                            drawBorderArc(
+                                centerX = (size.width - cornerRadiusPx).toFloat(),
+                                centerY = cornerRadiusPx,
+                                radius = (cornerRadiusPx - strokeWidthPx / 2).toFloat(),
+                                startAngle = 270f,
+                                sweepAngle = sweepAngle,
+                                gradientColors = gradientColors,
+                                strokeWidth = strokeWidthPx
                             )
                             pos += drawLength
                             remainingLength -= drawLength
                         }
                         // 右边（从上到下）
-                        pos < size.width + size.height -> {
-                            val traveled = pos - size.width
-                            val edgeRemaining = size.height - traveled
-                            val drawLength = kotlin.math.min(remainingLength, edgeRemaining)
-                            val y = traveled
-                            val progress = remainingLength / lightLength
+                        pos < 2 * cornerLength + size.width - 2 * cornerRadiusPx + size.height - 2 * cornerRadiusPx -> {
+                            val traveled = pos - (2 * cornerLength + size.width - 2 * cornerRadiusPx)
+                            val y = traveled + cornerRadiusPx
+                            val edgeRemaining = (2 * cornerLength + size.width - 2 * cornerRadiusPx + size.height - 2 * cornerRadiusPx) - pos
+                            val drawLength = kotlin.math.min(remainingLength, edgeRemaining).toFloat()
                             
-                            drawRect(
-                                brush = Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color.Transparent,
-                                        Color.White.copy(alpha = 0.9f * progress),
-                                        color1.copy(alpha = 0.85f * progress),
-                                        color2.copy(alpha = 0.7f * progress),
-                                        color3.copy(alpha = 0.5f * progress),
-                                        Color.Transparent
-                                    ),
-                                    startY = y,
-                                    endY = y + drawLength
-                                ),
-                                topLeft = Offset(size.width - strokeWidthPx, y),
-                                size = Size(strokeWidthPx, drawLength)
+                            drawBorderSegment(
+                                startX = (size.width - strokeWidthPx / 2).toFloat(),
+                                startY = y.toFloat(),
+                                endX = (size.width - strokeWidthPx / 2).toFloat(),
+                                endY = (y + drawLength).toFloat(),
+                                gradientColors = gradientColors,
+                                strokeWidth = strokeWidthPx
+                            )
+                            pos += drawLength
+                            remainingLength -= drawLength
+                        }
+                        // 右下角圆角
+                        pos < 3 * cornerLength + size.width - 2 * cornerRadiusPx + size.height - 2 * cornerRadiusPx -> {
+                            val drawLength = kotlin.math.min(remainingLength, cornerLength).toFloat()
+                            val sweepAngle = (drawLength / cornerLength * 90f).toFloat()
+                            
+                            drawBorderArc(
+                                centerX = (size.width - cornerRadiusPx).toFloat(),
+                                centerY = (size.height - cornerRadiusPx).toFloat(),
+                                radius = (cornerRadiusPx - strokeWidthPx / 2).toFloat(),
+                                startAngle = 0f,
+                                sweepAngle = sweepAngle,
+                                gradientColors = gradientColors,
+                                strokeWidth = strokeWidthPx
                             )
                             pos += drawLength
                             remainingLength -= drawLength
                         }
                         // 底边（从右到左）
-                        pos < 2 * size.width + size.height -> {
-                            val traveled = pos - size.width - size.height
-                            val edgeRemaining = size.width - traveled
-                            val drawLength = kotlin.math.min(remainingLength, edgeRemaining)
-                            val x = size.width - traveled
-                            val progress = remainingLength / lightLength
+                        pos < 3 * cornerLength + 2 * (size.width - 2 * cornerRadiusPx) + size.height - 2 * cornerRadiusPx -> {
+                            val traveled = pos - (3 * cornerLength + size.width - 2 * cornerRadiusPx + size.height - 2 * cornerRadiusPx)
+                            val x = size.width - traveled - cornerRadiusPx
+                            val edgeRemaining = (3 * cornerLength + 2 * (size.width - 2 * cornerRadiusPx) + size.height - 2 * cornerRadiusPx) - pos
+                            val drawLength = kotlin.math.min(remainingLength, edgeRemaining).toFloat()
                             
-                            drawRect(
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(
-                                        Color.Transparent,
-                                        color3.copy(alpha = 0.5f * progress),
-                                        color2.copy(alpha = 0.7f * progress),
-                                        color1.copy(alpha = 0.85f * progress),
-                                        Color.White.copy(alpha = 0.9f * progress),
-                                        Color.Transparent
-                                    ),
-                                    startX = x - drawLength,
-                                    endX = x
-                                ),
-                                topLeft = Offset(x - drawLength, size.height - strokeWidthPx),
-                                size = Size(drawLength, strokeWidthPx)
+                            drawBorderSegment(
+                                startX = x.toFloat(),
+                                startY = (size.height - strokeWidthPx / 2).toFloat(),
+                                endX = (x - drawLength).toFloat(),
+                                endY = (size.height - strokeWidthPx / 2).toFloat(),
+                                gradientColors = gradientColors,
+                                strokeWidth = strokeWidthPx
+                            )
+                            pos += drawLength
+                            remainingLength -= drawLength
+                        }
+                        // 左下角圆角
+                        pos < 4 * cornerLength + 2 * (size.width - 2 * cornerRadiusPx) + size.height - 2 * cornerRadiusPx -> {
+                            val drawLength = kotlin.math.min(remainingLength, cornerLength).toFloat()
+                            val sweepAngle = (drawLength / cornerLength * 90f).toFloat()
+                            
+                            drawBorderArc(
+                                centerX = cornerRadiusPx,
+                                centerY = (size.height - cornerRadiusPx).toFloat(),
+                                radius = (cornerRadiusPx - strokeWidthPx / 2).toFloat(),
+                                startAngle = 90f,
+                                sweepAngle = sweepAngle,
+                                gradientColors = gradientColors,
+                                strokeWidth = strokeWidthPx
                             )
                             pos += drawLength
                             remainingLength -= drawLength
                         }
                         // 左边（从下到上）
                         else -> {
-                            val traveled = pos - 2 * size.width - size.height
-                            val edgeRemaining = size.height - traveled
-                            val drawLength = kotlin.math.min(remainingLength, edgeRemaining)
-                            val y = size.height - traveled
-                            val progress = remainingLength / lightLength
+                            val traveled = pos - (4 * cornerLength + 2 * (size.width - 2 * cornerRadiusPx) + size.height - 2 * cornerRadiusPx)
+                            val y = size.height - traveled - cornerRadiusPx
+                            val edgeRemaining = perimeter - pos
+                            val drawLength = kotlin.math.min(remainingLength, edgeRemaining).toFloat()
                             
-                            drawRect(
-                                brush = Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color.Transparent,
-                                        color3.copy(alpha = 0.5f * progress),
-                                        color2.copy(alpha = 0.7f * progress),
-                                        color1.copy(alpha = 0.85f * progress),
-                                        Color.White.copy(alpha = 0.9f * progress),
-                                        Color.Transparent
-                                    ),
-                                    startY = y - drawLength,
-                                    endY = y
-                                ),
-                                topLeft = Offset(0f, y - drawLength),
-                                size = Size(strokeWidthPx, drawLength)
+                            drawBorderSegment(
+                                startX = (strokeWidthPx / 2).toFloat(),
+                                startY = y.toFloat(),
+                                endX = (strokeWidthPx / 2).toFloat(),
+                                endY = (y - drawLength).toFloat(),
+                                gradientColors = gradientColors,
+                                strokeWidth = strokeWidthPx
                             )
                             pos += drawLength
                             remainingLength -= drawLength
@@ -1440,8 +1569,9 @@ fun ScanningBorder(
             drawBorderLight(borderProgress1)
             drawBorderLight(borderProgress2)
             
-            // 绘制基础边框
-            drawRect(
+            // 绘制带圆角的基础边框
+            drawPath(
+                path = createRoundedRectPath(),
                 color = borderColor.copy(alpha = 0.2f),
                 style = Stroke(width = strokeWidthPx)
             )
