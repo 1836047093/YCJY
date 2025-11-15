@@ -1376,59 +1376,106 @@ object CompetitorManager {
     ): List<CompetitorCompany> {
         return companies.map { company ->
             val fixedGames = company.games.map { game ->
-                // 只处理网游，且totalRegisteredPlayers为0（表示旧存档）
-                if (game.businessModel == BusinessModel.ONLINE_GAME && game.totalRegisteredPlayers == 0L) {
-                    // 计算上线天数
-                    val monthsSinceRelease = (currentYear - game.releaseYear) * 12 + (currentMonth - game.releaseMonth)
-                    val daysSinceLaunch = monthsSinceRelease * 30
-                    
-                    // 计算生命周期进度
-                    val totalLifecycleDays = 365
-                    val lifecycleProgress = ((daysSinceLaunch.toDouble() / totalLifecycleDays) * 100.0).coerceIn(0.0, 100.0)
-                    
-                    // 模拟历史兴趣值衰减
-                    var playerInterest = 100.0
-                    val decayCount = daysSinceLaunch / 90
-                    for (i in 0 until decayCount) {
-                        val dayAtInterval = (i + 1) * 90
-                        val progressAtInterval = ((dayAtInterval.toDouble() / totalLifecycleDays) * 100.0).coerceIn(0.0, 100.0)
-                        val decayRate = when {
-                            progressAtInterval < 30.0 -> 8.0
-                            progressAtInterval < 70.0 -> 15.0
-                            progressAtInterval < 90.0 -> 25.0
-                            else -> 35.0
+                when (game.businessModel) {
+                    BusinessModel.ONLINE_GAME -> {
+                        // 修复网游：totalRegisteredPlayers为0（表示旧存档或数据损坏）
+                        if (game.totalRegisteredPlayers == 0L) {
+                            // 计算上线天数
+                            val monthsSinceRelease = (currentYear - game.releaseYear) * 12 + (currentMonth - game.releaseMonth)
+                            val daysSinceLaunch = monthsSinceRelease * 30
+                            
+                            // 计算生命周期进度
+                            val totalLifecycleDays = 365
+                            val lifecycleProgress = ((daysSinceLaunch.toDouble() / totalLifecycleDays) * 100.0).coerceIn(0.0, 100.0)
+                            
+                            // 模拟历史兴趣值衰减
+                            var playerInterest = 100.0
+                            val decayCount = daysSinceLaunch / 90
+                            for (i in 0 until decayCount) {
+                                val dayAtInterval = (i + 1) * 90
+                                val progressAtInterval = ((dayAtInterval.toDouble() / totalLifecycleDays) * 100.0).coerceIn(0.0, 100.0)
+                                val decayRate = when {
+                                    progressAtInterval < 30.0 -> 8.0
+                                    progressAtInterval < 70.0 -> 15.0
+                                    progressAtInterval < 90.0 -> 25.0
+                                    else -> 35.0
+                                }
+                                playerInterest = (playerInterest - decayRate).coerceIn(0.0, 100.0)
+                            }
+                            
+                            // 根据当前活跃玩家数和兴趣值反推总注册数
+                            val interestMultiplier = when {
+                                playerInterest >= 70.0 -> 1.0
+                                playerInterest >= 50.0 -> 0.7
+                                playerInterest >= 30.0 -> 0.4
+                                else -> 0.2
+                            }
+                            val totalRegistered = if (interestMultiplier > 0) {
+                                (game.activePlayers / (0.4 * interestMultiplier)).toLong()
+                            } else {
+                                (game.activePlayers * 5).toLong()
+                            }
+                            
+                            android.util.Log.d("CompetitorManager", 
+                                "🔧 修复网游数据 - ${game.name}：" +
+                                "天数=$daysSinceLaunch, 生命周期=${lifecycleProgress.toInt()}%, " +
+                                "兴趣值=${playerInterest.toInt()}%, 注册数=$totalRegistered, 活跃=${game.activePlayers}"
+                            )
+                            
+                            game.copy(
+                                totalRegisteredPlayers = totalRegistered,
+                                playerInterest = playerInterest,
+                                lifecycleProgress = lifecycleProgress,
+                                daysSinceLaunch = daysSinceLaunch,
+                                lastInterestDecayDay = decayCount * 90
+                            )
+                        } else {
+                            game
                         }
-                        playerInterest = (playerInterest - decayRate).coerceIn(0.0, 100.0)
                     }
-                    
-                    // 根据当前活跃玩家数和兴趣值反推总注册数
-                    val interestMultiplier = when {
-                        playerInterest >= 70.0 -> 1.0
-                        playerInterest >= 50.0 -> 0.7
-                        playerInterest >= 30.0 -> 0.4
-                        else -> 0.2
+                    BusinessModel.SINGLE_PLAYER -> {
+                        // 🆕 修复单机游戏：salesCount为0但游戏已上线较久（表示数据损坏或重置）
+                        val monthsSinceRelease = (currentYear - game.releaseYear) * 12 + (currentMonth - game.releaseMonth)
+                        
+                        // 如果游戏已上线超过1个月，但销量为0，则认为数据异常，需要修复
+                        if (game.salesCount == 0L && monthsSinceRelease > 1) {
+                            // 根据评分和上线时间重新计算合理的销量
+                            val ratingBase = when {
+                                game.rating >= 9.0f -> kotlin.random.Random.nextLong(200000L, 500000L)
+                                game.rating >= 8.5f -> kotlin.random.Random.nextLong(120000L, 300000L)
+                                game.rating >= 8.0f -> kotlin.random.Random.nextLong(80000L, 200000L)
+                                game.rating >= 7.5f -> kotlin.random.Random.nextLong(50000L, 120000L)
+                                game.rating >= 7.0f -> kotlin.random.Random.nextLong(30000L, 80000L)
+                                game.rating >= 6.5f -> kotlin.random.Random.nextLong(15000L, 40000L)
+                                else -> kotlin.random.Random.nextLong(8000L, 20000L)
+                            }
+                            
+                            // 时间累积销量
+                            val timeMultiplier = when {
+                                monthsSinceRelease <= 12 -> kotlin.random.Random.nextDouble(1.0, 2.0)
+                                monthsSinceRelease <= 24 -> kotlin.random.Random.nextDouble(2.0, 4.0)
+                                monthsSinceRelease <= 36 -> kotlin.random.Random.nextDouble(4.0, 7.0)
+                                monthsSinceRelease <= 48 -> kotlin.random.Random.nextDouble(6.0, 10.0)
+                                else -> kotlin.random.Random.nextDouble(8.0, 12.0)
+                            }
+                            
+                            val repairedSalesCount = ((ratingBase * timeMultiplier).toLong()).coerceIn(1000L, 6000000L)
+                            val repairedRevenue = repairedSalesCount * 50.0
+                            
+                            android.util.Log.d("CompetitorManager", 
+                                "🔧 修复单机游戏数据 - ${game.name}：" +
+                                "评分=${game.rating}, 上线${monthsSinceRelease}个月, " +
+                                "销量=${game.salesCount} → $repairedSalesCount"
+                            )
+                            
+                            game.copy(
+                                salesCount = repairedSalesCount,
+                                totalRevenue = repairedRevenue
+                            )
+                        } else {
+                            game
+                        }
                     }
-                    val totalRegistered = if (interestMultiplier > 0) {
-                        (game.activePlayers / (0.4 * interestMultiplier)).toLong()
-                    } else {
-                        (game.activePlayers * 5).toLong()
-                    }
-                    
-                    android.util.Log.d("CompetitorManager", 
-                        "修复旧存档游戏 ${game.name}：" +
-                        "天数=$daysSinceLaunch, 生命周期=${lifecycleProgress.toInt()}%, " +
-                        "兴趣值=${playerInterest.toInt()}%, 注册数=$totalRegistered, 活跃=${game.activePlayers}"
-                    )
-                    
-                    game.copy(
-                        totalRegisteredPlayers = totalRegistered,
-                        playerInterest = playerInterest,
-                        lifecycleProgress = lifecycleProgress,
-                        daysSinceLaunch = daysSinceLaunch,
-                        lastInterestDecayDay = decayCount * 90
-                    )
-                } else {
-                    game
                 }
             }
             

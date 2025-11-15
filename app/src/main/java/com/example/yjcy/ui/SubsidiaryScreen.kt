@@ -179,6 +179,7 @@ private fun SubsidiaryListTab(
     var showGameManagement by remember { mutableStateOf(false) }
     var showDevConfig by remember { mutableStateOf(false) }
     var showDevelopingGames by remember { mutableStateOf(false) }
+    var showEmployeeManagement by remember { mutableStateOf(false) }
     
     if (subsidiaries.isEmpty()) {
         // 空状态
@@ -229,6 +230,10 @@ private fun SubsidiaryListTab(
                     onDevelopingGamesClick = {
                         selectedSubsidiary = subsidiary
                         showDevelopingGames = true
+                    },
+                    onEmployeeManagementClick = {
+                        selectedSubsidiary = subsidiary
+                        showEmployeeManagement = true
                     }
                 )
             }
@@ -264,6 +269,14 @@ private fun SubsidiaryListTab(
         DevelopingGamesDialog(
             subsidiary = selectedSubsidiary!!,
             onDismiss = { showDevelopingGames = false }
+        )
+    }
+    
+    // 员工管理对话框
+    if (showEmployeeManagement && selectedSubsidiary != null) {
+        EmployeeManagementDialog(
+            subsidiary = selectedSubsidiary!!,
+            onDismiss = { showEmployeeManagement = false }
         )
     }
 }
@@ -552,7 +565,8 @@ private fun SubsidiaryCard(
     subsidiary: Subsidiary,
     onGameManagementClick: () -> Unit,
     onDevConfigClick: () -> Unit,
-    onDevelopingGamesClick: () -> Unit
+    onDevelopingGamesClick: () -> Unit,
+    onEmployeeManagementClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -678,19 +692,34 @@ private fun SubsidiaryCard(
                     }
                 }
                 
-                // 第二行：项目管理（显示开发中数量）
-                OutlinedButton(
-                    onClick = onDevelopingGamesClick,
+                // 第二行：项目管理 和 员工管理
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color(0xFFFFA726)
-                    )
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val devCount = subsidiary.developingGames.size
-                    SingleLineText(
-                        text = if (devCount > 0) "📋 项目管理 ($devCount)" else "📋 项目管理",
-                        fontSize = 13.sp
-                    )
+                    OutlinedButton(
+                        onClick = onDevelopingGamesClick,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color(0xFFFFA726)
+                        )
+                    ) {
+                        val devCount = subsidiary.developingGames.size
+                        SingleLineText(
+                            text = if (devCount > 0) "📋 项目管理 ($devCount)" else "📋 项目管理",
+                            fontSize = 13.sp
+                        )
+                    }
+                    
+                    OutlinedButton(
+                        onClick = onEmployeeManagementClick,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color(0xFF9C27B0)
+                        )
+                    ) {
+                        SingleLineText(text = "👥 员工管理", fontSize = 13.sp)
+                    }
                 }
             }
         }
@@ -2239,5 +2268,276 @@ private fun DevelopingGameCard(game: DevelopingGame) {
                 )
             }
         }
+    }
+}
+
+/**
+ * 员工管理对话框
+ * 显示子公司员工概况和统计信息
+ */
+@Composable
+private fun EmployeeManagementDialog(
+    subsidiary: Subsidiary,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 600.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF1E1E2E)
+            )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+            ) {
+                // 标题
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SingleLineText(
+                        text = "👥 员工管理",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF9C27B0)
+                    )
+                    IconButton(onClick = onDismiss) {
+                        SingleLineText(text = "✕", fontSize = 20.sp, color = Color.White)
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 公司名称
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = subsidiary.logo, fontSize = 24.sp)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    SingleLineText(
+                        text = subsidiary.name,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 内容区域（可滚动）
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // 员工总数卡片
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF2C2C3E)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            SingleLineText(
+                                text = "📊 员工概况",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF9C27B0),
+                                modifier = Modifier.padding(bottom = 12.dp)
+                            )
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    SingleLineText(
+                                        text = "总员工数",
+                                        fontSize = 12.sp,
+                                        color = Color.White.copy(alpha = 0.6f)
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    SingleLineText(
+                                        text = "${subsidiary.estimatedEmployeeCount}人",
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF64B5F6)
+                                    )
+                                }
+                                
+                                Column(horizontalAlignment = Alignment.End) {
+                                    SingleLineText(
+                                        text = "月度工资",
+                                        fontSize = 12.sp,
+                                        color = Color.White.copy(alpha = 0.6f)
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    SingleLineText(
+                                        text = formatMoney(subsidiary.monthlyWageCost),
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFFFA726)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 员工构成估算
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF2C2C3E)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            SingleLineText(
+                                text = "👔 人员构成（估算）",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF9C27B0),
+                                modifier = Modifier.padding(bottom = 12.dp)
+                            )
+                            
+                            // 基于游戏数量估算的员工分布
+                            val baseManagement = 5
+                            val gameEmployees = subsidiary.games.size * 5
+                            
+                            EmployeeRoleRow("管理层", baseManagement, Color(0xFFFFD700))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            EmployeeRoleRow("开发团队", gameEmployees, Color(0xFF64B5F6))
+                            
+                            Spacer(modifier = Modifier.height(12.dp))
+                            HorizontalDivider(color = Color.White.copy(alpha = 0.2f))
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
+                            // 说明文字
+                            MultiLineText(
+                                text = "💡 员工数量基于游戏数量估算\n• 基础管理人员：$baseManagement 人\n• 每款游戏配备：5人开发团队",
+                                fontSize = 11.sp,
+                                color = Color.White.copy(alpha = 0.6f),
+                                maxLines = 5
+                            )
+                        }
+                    }
+                    
+                    // 工资成本详情
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF2C2C3E)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            SingleLineText(
+                                text = "💰 成本详情",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF9C27B0),
+                                modifier = Modifier.padding(bottom = 12.dp)
+                            )
+                            
+                            val avgSalary = 15000L
+                            InfoRow("人均月薪", formatMoney(avgSalary))
+                            InfoRow("员工总数", "${subsidiary.estimatedEmployeeCount}人")
+                            
+                            Spacer(modifier = Modifier.height(8.dp))
+                            HorizontalDivider(color = Color.White.copy(alpha = 0.2f))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                SingleLineText(
+                                    text = "月度工资总额",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                SingleLineText(
+                                    text = formatMoney(subsidiary.monthlyWageCost),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFFFA726)
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // 关闭按钮
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF9C27B0)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    SingleLineText(text = "关闭", fontSize = 15.sp)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 员工职位行
+ */
+@Composable
+private fun EmployeeRoleRow(
+    roleName: String,
+    count: Int,
+    color: Color
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(color.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
+            .padding(12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        SingleLineText(
+            text = roleName,
+            fontSize = 13.sp,
+            color = Color.White
+        )
+        SingleLineText(
+            text = "${count}人",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = color
+        )
     }
 }

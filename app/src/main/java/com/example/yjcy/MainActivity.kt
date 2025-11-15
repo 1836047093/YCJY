@@ -245,14 +245,12 @@ var currentLoadedSaveData: SaveData? = null
  * @return 操作后的资金（已处理溢出）
  */
 private fun safeAddMoney(current: Long, amount: Long): Long {
-    // 如果当前值为负数且金额也为负数，可能导致异常，重置为0
-    if (current < 0 && amount < 0) {
-        Log.w("MainActivity", "⚠️ 检测到资金为负数($current)且继续减少($amount)，重置为0")
-        return 0L
-    }
+    // 修复：移除负数重置逻辑，允许玩家持续负债
+    // 只需要检查溢出和过度负债（-100亿以下）
     
     // 检查累加是否会溢出
     val maxValue = Long.MAX_VALUE / 2
+    val minValue = -10_000_000_000L // 最大负债：100亿
     
     return when {
         // 当前值已达到上限，不允许再增加
@@ -268,10 +266,10 @@ private fun safeAddMoney(current: Long, amount: Long): Long {
         // 正常累加
         else -> {
             val result = current + amount
-            // 如果结果为负数且减少金额过大，限制为0（允许负债，但限制过度负债）
-            if (result < -10_000_000_000L) { // 负债超过100亿时限制
+            // 如果负债超过100亿，限制为-100亿（防止溢出）
+            if (result < minValue) {
                 Log.w("MainActivity", "⚠️ 资金负债过大($result)，限制为-100亿")
-                -10_000_000_000L
+                minValue
             } else {
                 result
             }
@@ -2261,15 +2259,10 @@ fun GameScreen(
     val activity = LocalActivity.current!!
     
     // 游戏状态数据 - 如果有存档数据则使用存档数据，否则使用默认值
-    // 修复：如果读取到的资金为负数（溢出），重置为默认值
     var money by remember { 
         mutableLongStateOf(
-            if (saveData?.money != null && saveData.money < 0) {
-                Log.w("MainActivity", "⚠️ 读取存档时发现资金为负数(${saveData.money})，重置为300万")
-                3000000L
-            } else {
-                saveData?.money ?: 3000000L
-            }
+            // 修复：允许负数资金（玩家可能负债），不要强制重置
+            saveData?.money ?: 3000000L
         ) 
     }
     var fans by remember { mutableLongStateOf(saveData?.fans ?: 0L) }
@@ -2750,48 +2743,94 @@ fun GameScreen(
             if (subsidiaries.isNotEmpty()) {
                 val fixedSubsidiaries = subsidiaries.map { subsidiary ->
                     val fixedGames = subsidiary.games.map { game ->
-                        if (game.businessModel == com.example.yjcy.ui.BusinessModel.ONLINE_GAME && 
-                            game.totalRegisteredPlayers == 0L) {
-                            val monthsSinceRelease = (currentYear - game.releaseYear) * 12 + (currentMonth - game.releaseMonth)
-                            val daysSinceLaunch = monthsSinceRelease * 30
-                            val totalLifecycleDays = 365
-                            val lifecycleProgress = ((daysSinceLaunch.toDouble() / totalLifecycleDays) * 100.0).coerceIn(0.0, 100.0)
-                            
-                            var playerInterest = 100.0
-                            val decayCount = daysSinceLaunch / 90
-                            for (i in 0 until decayCount) {
-                                val dayAtInterval = (i + 1) * 90
-                                val progressAtInterval = ((dayAtInterval.toDouble() / totalLifecycleDays) * 100.0).coerceIn(0.0, 100.0)
-                                val decayRate = when {
-                                    progressAtInterval < 30.0 -> 8.0
-                                    progressAtInterval < 70.0 -> 15.0
-                                    progressAtInterval < 90.0 -> 25.0
-                                    else -> 35.0
+                        when (game.businessModel) {
+                            com.example.yjcy.ui.BusinessModel.ONLINE_GAME -> {
+                                // 修复网游：totalRegisteredPlayers为0
+                                if (game.totalRegisteredPlayers == 0L) {
+                                    val monthsSinceRelease = (currentYear - game.releaseYear) * 12 + (currentMonth - game.releaseMonth)
+                                    val daysSinceLaunch = monthsSinceRelease * 30
+                                    val totalLifecycleDays = 365
+                                    val lifecycleProgress = ((daysSinceLaunch.toDouble() / totalLifecycleDays) * 100.0).coerceIn(0.0, 100.0)
+                                    
+                                    var playerInterest = 100.0
+                                    val decayCount = daysSinceLaunch / 90
+                                    for (i in 0 until decayCount) {
+                                        val dayAtInterval = (i + 1) * 90
+                                        val progressAtInterval = ((dayAtInterval.toDouble() / totalLifecycleDays) * 100.0).coerceIn(0.0, 100.0)
+                                        val decayRate = when {
+                                            progressAtInterval < 30.0 -> 8.0
+                                            progressAtInterval < 70.0 -> 15.0
+                                            progressAtInterval < 90.0 -> 25.0
+                                            else -> 35.0
+                                        }
+                                        playerInterest = (playerInterest - decayRate).coerceIn(0.0, 100.0)
+                                    }
+                                    
+                                    val interestMultiplier = when {
+                                        playerInterest >= 70.0 -> 1.0
+                                        playerInterest >= 50.0 -> 0.7
+                                        playerInterest >= 30.0 -> 0.4
+                                        else -> 0.2
+                                    }
+                                    val totalRegistered = if (interestMultiplier > 0) {
+                                        (game.activePlayers / (0.4 * interestMultiplier)).toLong()
+                                    } else {
+                                        (game.activePlayers * 5).toLong()
+                                    }
+                                    
+                                    Log.d("MainActivity", "🔧 修复子公司网游数据 - ${subsidiary.name} - ${game.name}")
+                                    
+                                    game.copy(
+                                        totalRegisteredPlayers = totalRegistered,
+                                        playerInterest = playerInterest,
+                                        lifecycleProgress = lifecycleProgress,
+                                        daysSinceLaunch = daysSinceLaunch,
+                                        lastInterestDecayDay = decayCount * 90
+                                    )
+                                } else {
+                                    game
                                 }
-                                playerInterest = (playerInterest - decayRate).coerceIn(0.0, 100.0)
                             }
-                            
-                            val interestMultiplier = when {
-                                playerInterest >= 70.0 -> 1.0
-                                playerInterest >= 50.0 -> 0.7
-                                playerInterest >= 30.0 -> 0.4
-                                else -> 0.2
+                            com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER -> {
+                                // 🆕 修复单机游戏：salesCount为0但游戏已上线较久
+                                val monthsSinceRelease = (currentYear - game.releaseYear) * 12 + (currentMonth - game.releaseMonth)
+                                
+                                if (game.salesCount == 0L && monthsSinceRelease > 1) {
+                                    // 根据评分和上线时间重新计算合理的销量
+                                    val ratingBase = when {
+                                        game.rating >= 9.0f -> kotlin.random.Random.nextLong(200000L, 500000L)
+                                        game.rating >= 8.5f -> kotlin.random.Random.nextLong(120000L, 300000L)
+                                        game.rating >= 8.0f -> kotlin.random.Random.nextLong(80000L, 200000L)
+                                        game.rating >= 7.5f -> kotlin.random.Random.nextLong(50000L, 120000L)
+                                        game.rating >= 7.0f -> kotlin.random.Random.nextLong(30000L, 80000L)
+                                        game.rating >= 6.5f -> kotlin.random.Random.nextLong(15000L, 40000L)
+                                        else -> kotlin.random.Random.nextLong(8000L, 20000L)
+                                    }
+                                    
+                                    val timeMultiplier = when {
+                                        monthsSinceRelease <= 12 -> kotlin.random.Random.nextDouble(1.0, 2.0)
+                                        monthsSinceRelease <= 24 -> kotlin.random.Random.nextDouble(2.0, 4.0)
+                                        monthsSinceRelease <= 36 -> kotlin.random.Random.nextDouble(4.0, 7.0)
+                                        monthsSinceRelease <= 48 -> kotlin.random.Random.nextDouble(6.0, 10.0)
+                                        else -> kotlin.random.Random.nextDouble(8.0, 12.0)
+                                    }
+                                    
+                                    val repairedSalesCount = ((ratingBase * timeMultiplier).toLong()).coerceIn(1000L, 6000000L)
+                                    val repairedRevenue = repairedSalesCount * 50.0
+                                    
+                                    Log.d("MainActivity", 
+                                        "🔧 修复子公司单机游戏数据 - ${subsidiary.name} - ${game.name}：" +
+                                        "销量 ${game.salesCount} → $repairedSalesCount"
+                                    )
+                                    
+                                    game.copy(
+                                        salesCount = repairedSalesCount,
+                                        totalRevenue = repairedRevenue
+                                    )
+                                } else {
+                                    game
+                                }
                             }
-                            val totalRegistered = if (interestMultiplier > 0) {
-                                (game.activePlayers / (0.4 * interestMultiplier)).toLong()
-                            } else {
-                                (game.activePlayers * 5).toLong()
-                            }
-                            
-                            game.copy(
-                                totalRegisteredPlayers = totalRegistered,
-                                playerInterest = playerInterest,
-                                lifecycleProgress = lifecycleProgress,
-                                daysSinceLaunch = daysSinceLaunch,
-                                lastInterestDecayDay = decayCount * 90
-                            )
-                        } else {
-                            game
                         }
                     }
                     subsidiary.copy(
@@ -2801,7 +2840,7 @@ fun GameScreen(
                 }
                 if (fixedSubsidiaries != subsidiaries) {
                     subsidiaries = fixedSubsidiaries
-                    Log.d("MainActivity", "✅ 已修复旧存档的子公司游戏数据")
+                    Log.d("MainActivity", "✅ 已修复旧存档的子公司游戏数据（网游+单机）")
                 }
             }
         }

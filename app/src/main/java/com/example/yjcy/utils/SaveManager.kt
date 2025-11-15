@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.core.content.edit
 import com.example.yjcy.data.RevenueManager
+import com.example.yjcy.data.RevenueStatistics
 import com.example.yjcy.data.SaveData
 import com.google.gson.GsonBuilder
 import kotlinx.coroutines.Dispatchers
@@ -168,14 +169,43 @@ class SaveManager(context: Context) {
                 val totalRevenue = revenue.dailySalesList.sumOf { it.revenue }
                 
                 Log.d("SaveManager", "游戏 ${revenue.gameName} 清理前: ${revenue.dailySalesList.size}天, 清理后: ${recentDailySales.size}天")
+                Log.d("SaveManager", "  保存总销量: $totalSales, 总收益: $totalRevenue")
                 
                 // 更新统计数据以保留总计信息
-                revenue.copy(
-                    dailySalesList = recentDailySales,
-                    statistics = revenue.statistics?.copy(
+                // 修复：如果statistics为null，创建新的statistics对象
+                val updatedStatistics = if (revenue.statistics != null) {
+                    revenue.statistics.copy(
                         totalSales = totalSales,
                         totalRevenue = totalRevenue
                     )
+                } else {
+                    // 创建新的statistics对象，保存全部历史数据
+                    RevenueStatistics(
+                        totalRevenue = totalRevenue,
+                        totalSales = totalSales,
+                        averageDailyRevenue = if (revenue.dailySalesList.isNotEmpty()) totalRevenue / revenue.dailySalesList.size else 0.0,
+                        averageDailySales = if (revenue.dailySalesList.isNotEmpty()) totalSales / revenue.dailySalesList.size else 0L,
+                        peakDailySales = revenue.dailySalesList.maxOfOrNull { it.sales } ?: 0L,
+                        peakDailyRevenue = revenue.dailySalesList.maxOfOrNull { it.revenue } ?: 0.0,
+                        daysOnMarket = revenue.dailySalesList.size,
+                        revenueGrowthRate = 0.0
+                    )
+                }
+                
+                // 修复：显式保留所有关键字段，防止数据丢失
+                revenue.copy(
+                    dailySalesList = recentDailySales,
+                    statistics = updatedStatistics,
+                    // 显式保留网游特有字段
+                    playerInterest = revenue.playerInterest,
+                    totalRegisteredPlayers = revenue.totalRegisteredPlayers,
+                    lifecycleProgress = revenue.lifecycleProgress,
+                    daysSinceLaunch = revenue.daysSinceLaunch,
+                    lastInterestDecayDay = revenue.lastInterestDecayDay,
+                    monetizationRevenues = revenue.monetizationRevenues,
+                    updateCount = revenue.updateCount,
+                    cumulativeSalesMultiplier = revenue.cumulativeSalesMultiplier,
+                    updateTask = revenue.updateTask
                 )
             } else {
                 revenue

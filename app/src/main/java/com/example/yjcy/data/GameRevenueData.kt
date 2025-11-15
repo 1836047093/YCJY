@@ -89,16 +89,20 @@ data class GameRevenue(
 ) {
     /**
      * 获取总收益
+     * 修复：优先使用statistics中保存的总收益，防止因清理dailySalesList导致历史数据丢失
      */
     fun getTotalRevenue(): Double {
-        return dailySalesList.sumOf { it.revenue }
+        // 如果statistics存在且有总收益数据，优先使用（包含全部历史）
+        return statistics?.totalRevenue ?: dailySalesList.sumOf { it.revenue }
     }
     
     /**
      * 获取总销量
+     * 修复：优先使用statistics中保存的总销量，防止因清理dailySalesList导致历史数据丢失
      */
     fun getTotalSales(): Long {
-        return dailySalesList.sumOf { it.sales }
+        // 如果statistics存在且有总销量数据，优先使用（包含全部历史）
+        return statistics?.totalSales ?: dailySalesList.sumOf { it.sales }
     }
     
     /**
