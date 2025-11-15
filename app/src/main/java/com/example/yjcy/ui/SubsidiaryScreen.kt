@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -32,6 +33,12 @@ import com.example.yjcy.data.CompetitorGame
 import com.example.yjcy.data.DevelopingGame
 import com.example.yjcy.data.getRecommendedPrice
 import com.example.yjcy.data.DevelopmentPhase
+import com.example.yjcy.data.Employee
+import com.example.yjcy.data.GameDate
+import com.example.yjcy.data.SubsidiaryManager
+import com.example.yjcy.data.SubsidiaryJobPosting
+import com.example.yjcy.data.SubsidiaryApplicant
+import com.example.yjcy.data.SubsidiaryApplicantStatus
 import com.example.yjcy.ui.components.SingleLineText
 import com.example.yjcy.ui.components.MultiLineText
 import com.example.yjcy.utils.formatMoney
@@ -122,7 +129,10 @@ fun SubsidiaryManagementScreen(
         when (selectedTab) {
             0 -> SubsidiaryListTab(
                 subsidiaries = subsidiaries,
-                onSubsidiaryUpdate = onSubsidiaryUpdate
+                onSubsidiaryUpdate = onSubsidiaryUpdate,
+                year = year,
+                month = month,
+                day = day
             )
             1 -> FinancialOverviewTab(subsidiaries = subsidiaries)
         }
@@ -173,7 +183,10 @@ private fun SubsidiaryTopBar(onBack: () -> Unit) {
 @Composable
 private fun SubsidiaryListTab(
     subsidiaries: List<Subsidiary>,
-    onSubsidiaryUpdate: (Subsidiary) -> Unit
+    onSubsidiaryUpdate: (Subsidiary) -> Unit,
+    year: Int = 1,
+    month: Int = 1,
+    day: Int = 1
 ) {
     var selectedSubsidiary by remember { mutableStateOf<Subsidiary?>(null) }
     var showGameManagement by remember { mutableStateOf(false) }
@@ -276,7 +289,11 @@ private fun SubsidiaryListTab(
     if (showEmployeeManagement && selectedSubsidiary != null) {
         EmployeeManagementDialog(
             subsidiary = selectedSubsidiary!!,
-            onDismiss = { showEmployeeManagement = false }
+            onDismiss = { showEmployeeManagement = false },
+            onSubsidiaryUpdate = { updated ->
+                onSubsidiaryUpdate(updated)
+            },
+            currentDate = GameDate(year, month, day)
         )
     }
 }
@@ -1274,7 +1291,8 @@ private fun GameManagementCard(
                 updatedConfigs[game.id] = newConfig
                 onSubsidiaryUpdate(subsidiary.copy(
                     gameConfigs = updatedConfigs,
-                    developingGames = subsidiary.developingGames
+                    developingGames = subsidiary.developingGames,
+                    employees = subsidiary.employees
                 ))
                 showPriceDialog = false
             },
@@ -1290,7 +1308,8 @@ private fun GameManagementCard(
                 updatedConfigs[game.id] = newConfig
                 onSubsidiaryUpdate(subsidiary.copy(
                     gameConfigs = updatedConfigs,
-                    developingGames = subsidiary.developingGames
+                    developingGames = subsidiary.developingGames,
+                    employees = subsidiary.employees
                 ))
                 showPriceDialog = false
             }
@@ -1314,7 +1333,8 @@ private fun GameManagementCard(
                 updatedConfigs[game.id] = newConfig
                 onSubsidiaryUpdate(subsidiary.copy(
                     gameConfigs = updatedConfigs,
-                    developingGames = subsidiary.developingGames
+                    developingGames = subsidiary.developingGames,
+                    employees = subsidiary.employees
                 ))
                 showStrategyDialog = false
             }
@@ -1368,7 +1388,8 @@ private fun DevelopmentConfigTab(
                     onClick = {
                         onSubsidiaryUpdate(subsidiary.copy(
                             developmentPreference = DevelopmentPreference.SINGLE_PLAYER_ONLY,
-                            developingGames = subsidiary.developingGames
+                            developingGames = subsidiary.developingGames,
+                            employees = subsidiary.employees
                         ))
                     }
                 )
@@ -1382,7 +1403,8 @@ private fun DevelopmentConfigTab(
                     onClick = {
                         onSubsidiaryUpdate(subsidiary.copy(
                             developmentPreference = DevelopmentPreference.ONLINE_GAME_ONLY,
-                            developingGames = subsidiary.developingGames
+                            developingGames = subsidiary.developingGames,
+                            employees = subsidiary.employees
                         ))
                     }
                 )
@@ -1396,7 +1418,8 @@ private fun DevelopmentConfigTab(
                     onClick = {
                         onSubsidiaryUpdate(subsidiary.copy(
                             developmentPreference = DevelopmentPreference.BOTH,
-                            developingGames = subsidiary.developingGames
+                            developingGames = subsidiary.developingGames,
+                            employees = subsidiary.employees
                         ))
                     }
                 )
@@ -2273,13 +2296,19 @@ private fun DevelopingGameCard(game: DevelopingGame) {
 
 /**
  * 员工管理对话框
- * 显示子公司员工概况和统计信息
+ * 显示子公司员工概况和统计信息，支持招聘和解雇
  */
 @Composable
 private fun EmployeeManagementDialog(
     subsidiary: Subsidiary,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onSubsidiaryUpdate: (Subsidiary) -> Unit = {},
+    currentDate: GameDate = GameDate(1, 1, 1)
 ) {
+    var showHireDialog by remember { mutableStateOf(false) }
+    var showCandidateDialog by remember { mutableStateOf(false) }
+    var showFireDialog by remember { mutableStateOf(false) }
+    var selectedEmployeeToFire by remember { mutableStateOf<Employee?>(null) }
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
@@ -2413,21 +2442,99 @@ private fun EmployeeManagementDialog(
                                 .fillMaxWidth()
                                 .padding(16.dp)
                         ) {
-                            SingleLineText(
-                                text = "👔 人员构成（估算）",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF9C27B0),
-                                modifier = Modifier.padding(bottom = 12.dp)
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                SingleLineText(
+                                    text = "👔 团队详情",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF9C27B0)
+                                )
+                                
+                                // 招聘和候选人按钮
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    // 招聘按钮
+                                    Button(
+                                        onClick = { showHireDialog = true },
+                                        enabled = subsidiary.employees.size < 30,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xFF4CAF50),
+                                            disabledContainerColor = Color.Gray
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                        shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            SingleLineText(text = "+", fontSize = 14.sp, color = Color.White)
+                                            SingleLineText(text = "招聘", fontSize = 13.sp, color = Color.White)
+                                        }
+                                    }
+                                    
+                                    // 候选人按钮
+                                    OutlinedButton(
+                                        onClick = { showCandidateDialog = true },
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            contentColor = Color(0xFF64B5F6)
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                        shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            SingleLineText(text = "👥", fontSize = 14.sp)
+                                            SingleLineText(text = "候选人", fontSize = 13.sp, color = Color(0xFF64B5F6))
+                                        }
+                                    }
+                                }
+                            }
                             
-                            // 基于游戏数量估算的员工分布
-                            val baseManagement = 5
-                            val gameEmployees = subsidiary.games.size * 5
+                            Spacer(modifier = Modifier.height(12.dp))
                             
-                            EmployeeRoleRow("管理层", baseManagement, Color(0xFFFFD700))
-                            Spacer(modifier = Modifier.height(8.dp))
-                            EmployeeRoleRow("开发团队", gameEmployees, Color(0xFF64B5F6))
+                            // 统计各职位人数和技能等级
+                            val employeesByPosition = subsidiary.employees.groupBy { it.position }
+                            
+                            // 显示各职位信息
+                            listOf(
+                                "程序员" to Color(0xFF3B82F6),
+                                "策划师" to Color(0xFF10B981),
+                                "美工" to Color(0xFFF59E0B),
+                                "音乐家" to Color(0xFF8B5CF6),
+                                "客服" to Color(0xFFEC4899)
+                            ).forEach { (position, color) ->
+                                val employees = employeesByPosition[position] ?: emptyList()
+                                if (employees.isNotEmpty()) {
+                                    val avgSkill = when (position) {
+                                        "程序员" -> employees.map { it.skillDevelopment }.average()
+                                        "策划师" -> employees.map { it.skillDesign }.average()
+                                        "美工" -> employees.map { it.skillArt }.average()
+                                        "音乐家" -> employees.map { it.skillMusic }.average()
+                                        "客服" -> employees.map { it.skillService }.average()
+                                        else -> 0.0
+                                    }
+                                    EmployeePositionRow(
+                                        position = position,
+                                        count = employees.size,
+                                        avgSkillLevel = avgSkill,
+                                        color = color,
+                                        employees = employees,
+                                        onEmployeeClick = { employee ->
+                                            selectedEmployeeToFire = employee
+                                            showFireDialog = true
+                                        }
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
+                            }
                             
                             Spacer(modifier = Modifier.height(12.dp))
                             HorizontalDivider(color = Color.White.copy(alpha = 0.2f))
@@ -2435,62 +2542,14 @@ private fun EmployeeManagementDialog(
                             
                             // 说明文字
                             MultiLineText(
-                                text = "💡 员工数量基于游戏数量估算\n• 基础管理人员：$baseManagement 人\n• 每款游戏配备：5人开发团队",
+                                text = "💡 显示各岗位人数和专属技能平均等级\n• 程序员：开发技能\n• 策划师：设计技能\n• 美工：美术技能\n• 音乐家：音乐技能\n• 客服：服务技能",
                                 fontSize = 11.sp,
                                 color = Color.White.copy(alpha = 0.6f),
-                                maxLines = 5
+                                maxLines = 6
                             )
                         }
                     }
                     
-                    // 工资成本详情
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFF2C2C3E)
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp)
-                        ) {
-                            SingleLineText(
-                                text = "💰 成本详情",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF9C27B0),
-                                modifier = Modifier.padding(bottom = 12.dp)
-                            )
-                            
-                            val avgSalary = 15000L
-                            InfoRow("人均月薪", formatMoney(avgSalary))
-                            InfoRow("员工总数", "${subsidiary.estimatedEmployeeCount}人")
-                            
-                            Spacer(modifier = Modifier.height(8.dp))
-                            HorizontalDivider(color = Color.White.copy(alpha = 0.2f))
-                            Spacer(modifier = Modifier.height(8.dp))
-                            
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                SingleLineText(
-                                    text = "月度工资总额",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                                SingleLineText(
-                                    text = formatMoney(subsidiary.monthlyWageCost),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFFFA726)
-                                )
-                            }
-                        }
-                    }
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -2509,35 +2568,963 @@ private fun EmployeeManagementDialog(
             }
         }
     }
+    
+    // 招聘对话框 - 发布岗位
+    if (showHireDialog) {
+        SubsidiaryHireDialog(
+            subsidiary = subsidiary,
+            onDismiss = { showHireDialog = false },
+            onConfirm = { position, skillLevel, salary ->
+                // 发布招聘岗位
+                val updatedSubsidiary = SubsidiaryManager.postJob(
+                    subsidiary = subsidiary,
+                    position = position,
+                    requiredSkillLevel = skillLevel,
+                    salary = salary,
+                    currentDate = currentDate
+                )
+                onSubsidiaryUpdate(updatedSubsidiary)
+                showHireDialog = false
+            }
+        )
+    }
+    
+    // 候选人列表对话框 - 显示已发布岗位的应聘者
+    if (showCandidateDialog) {
+        SubsidiaryApplicantDialog(
+            subsidiary = subsidiary,
+            currentDate = currentDate,
+            onDismiss = { showCandidateDialog = false },
+            onHireApplicant = { jobPostingId, applicantId ->
+                val updatedSubsidiary = SubsidiaryManager.hireApplicant(
+                    subsidiary = subsidiary,
+                    jobPostingId = jobPostingId,
+                    applicantId = applicantId,
+                    currentDate = currentDate
+                )
+                onSubsidiaryUpdate(updatedSubsidiary)
+            },
+            onClosePosting = { jobPostingId ->
+                val updatedSubsidiary = SubsidiaryManager.closeJobPosting(
+                    subsidiary = subsidiary,
+                    jobPostingId = jobPostingId
+                )
+                onSubsidiaryUpdate(updatedSubsidiary)
+            }
+        )
+    }
+    
+    // 解雇对话框
+    if (showFireDialog && selectedEmployeeToFire != null) {
+        SubsidiaryFireDialog(
+            employee = selectedEmployeeToFire!!,
+            subsidiary = subsidiary,
+            currentDate = currentDate,
+            onDismiss = {
+                showFireDialog = false
+                selectedEmployeeToFire = null
+            },
+            onConfirm = {
+                // 计算补偿金
+                val severancePay = selectedEmployeeToFire!!.calculateSeverancePay(
+                    currentDate.year,
+                    currentDate.month,
+                    currentDate.day
+                )
+                
+                // 从子公司资金扣除补偿金
+                val updatedSubsidiary = subsidiary.copy(
+                    employees = subsidiary.employees.filter { it.id != selectedEmployeeToFire!!.id },
+                    monthlyWageCost = subsidiary.monthlyWageCost - selectedEmployeeToFire!!.salary,
+                    cashBalance = subsidiary.cashBalance - severancePay
+                )
+                onSubsidiaryUpdate(updatedSubsidiary)
+                showFireDialog = false
+                selectedEmployeeToFire = null
+            }
+        )
+    }
 }
 
 /**
- * 员工职位行
+ * 员工职位行（带技能等级，支持点击查看员工列表）
  */
 @Composable
-private fun EmployeeRoleRow(
-    roleName: String,
+private fun EmployeePositionRow(
+    position: String,
     count: Int,
-    color: Color
+    avgSkillLevel: Double,
+    color: Color,
+    employees: List<Employee> = emptyList(),
+    onEmployeeClick: (Employee) -> Unit = {}
 ) {
+    var showEmployeeList by remember { mutableStateOf(false) }
+    
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(color.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
+            .clickable { if (employees.isNotEmpty()) showEmployeeList = true }
             .padding(12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // 左侧：职位名称
         SingleLineText(
-            text = roleName,
-            fontSize = 13.sp,
-            color = Color.White
-        )
-        SingleLineText(
-            text = "${count}人",
+            text = position,
             fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.Medium,
             color = color
         )
+        
+        // 右侧：人数和技能等级
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 技能等级
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SingleLineText(
+                    text = "⭐",
+                    fontSize = 12.sp
+                )
+                SingleLineText(
+                    text = String.format("%.1f级", avgSkillLevel),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFFFD700)
+                )
+            }
+            
+            // 人数
+            SingleLineText(
+                text = "${count}人",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = color
+            )
+        }
     }
+    
+    // 员工列表对话框
+    if (showEmployeeList) {
+        Dialog(onDismissRequest = { showEmployeeList = false }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 400.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E2E))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        SingleLineText(
+                            text = "$position 列表",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = color
+                        )
+                        IconButton(onClick = { showEmployeeList = false }) {
+                            SingleLineText(text = "✕", fontSize = 18.sp, color = Color.White)
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(employees) { employee ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        showEmployeeList = false
+                                        onEmployeeClick(employee)
+                                    },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = Color(0xFF2C2C3E)
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        SingleLineText(
+                                            text = employee.name,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color.White
+                                        )
+                                        val skillLevel = when (position) {
+                                            "程序员" -> employee.skillDevelopment
+                                            "策划师" -> employee.skillDesign
+                                            "美工" -> employee.skillArt
+                                            "音乐家" -> employee.skillMusic
+                                            "客服" -> employee.skillService
+                                            else -> 0
+                                        }
+                                        SingleLineText(
+                                            text = "技能: $skillLevel 级 | 月薪: ¥${employee.salary}",
+                                            fontSize = 12.sp,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                    SingleLineText(
+                                        text = "解雇 →",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFFEF4444)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 水平滚动选择器组件
+ */
+@Composable
+private fun HorizontalScrollSelector(
+    items: List<String>,
+    selectedItem: String,
+    onItemSelected: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    LazyRow(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(70.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(horizontal = 24.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        items(items) { item ->
+            val isSelected = item == selectedItem
+            Box(
+                modifier = Modifier
+                    .width(90.dp)
+                    .height(50.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(
+                        if (isSelected) {
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    Color(0xFF4CAF50),
+                                    Color(0xFF66BB6A)
+                                )
+                            )
+                        } else {
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.1f),
+                                    Color.White.copy(alpha = 0.05f)
+                                )
+                            )
+                        }
+                    )
+                    .clickable { onItemSelected(item) }
+                    .then(
+                        if (isSelected) {
+                            Modifier.shadow(8.dp, RoundedCornerShape(12.dp))
+                        } else {
+                            Modifier
+                        }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                SingleLineText(
+                    text = item,
+                    fontSize = if (isSelected) 16.sp else 14.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isSelected) Color.White else Color.White.copy(alpha = 0.6f)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 子公司招聘对话框 - 简单版本
+ */
+@Composable
+private fun SubsidiaryHireDialog(
+    subsidiary: Subsidiary,
+    onDismiss: () -> Unit,
+    onConfirm: (position: String, skillLevel: Int, salary: Int) -> Unit
+) {
+    var selectedPosition by remember { mutableStateOf("程序员") }
+    var skillLevel by remember { mutableIntStateOf(1) }
+    var salary by remember { mutableIntStateOf(10000) }
+    
+    // 计算最低薪资
+    val minSalary = skillLevel * 10000
+    
+    // 确保薪资不低于最低薪资
+    LaunchedEffect(skillLevel) {
+        if (salary < minSalary) {
+            salary = minSalary
+        }
+    }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1a1a2e),
+        titleContentColor = Color.White,
+        textContentColor = Color.White,
+        title = {
+            SingleLineText(
+                text = "招聘员工",
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF4CAF50)
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // 公司名称
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(6.dp))
+                        .padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = subsidiary.logo, fontSize = 20.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    SingleLineText(text = subsidiary.name, fontSize = 14.sp, color = Color.White)
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // 员工上限提示
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            if (subsidiary.employees.size >= 30) Color(0xFFEF4444).copy(alpha = 0.2f)
+                            else Color(0xFF4CAF50).copy(alpha = 0.2f),
+                            RoundedCornerShape(6.dp)
+                        )
+                        .padding(8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    SingleLineText(
+                        text = "当前员工数",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+                    SingleLineText(
+                        text = "${subsidiary.employees.size} / 30",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (subsidiary.employees.size >= 30) Color(0xFFEF4444) else Color(0xFF4CAF50)
+                    )
+                }
+                
+                // 职位选择
+                SingleLineText(text = "选择职位", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                HorizontalScrollSelector(
+                    items = listOf("程序员", "策划师", "美工", "音乐家", "客服"),
+                    selectedItem = selectedPosition,
+                    onItemSelected = { selectedPosition = it }
+                )
+                
+                // 技能等级选择
+                SingleLineText(text = "技能等级", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                HorizontalScrollSelector(
+                    items = (1..5).map { "${it}级" },
+                    selectedItem = "${skillLevel}级",
+                    onItemSelected = { 
+                        skillLevel = it.replace("级", "").toInt()
+                    }
+                )
+                
+                // 薪资设置
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        SingleLineText(text = "月薪", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        SingleLineText(
+                            text = "¥$salary",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF4CAF50)
+                        )
+                    }
+                    SingleLineText(
+                        text = "最低标准: ¥$minSalary",
+                        fontSize = 11.sp,
+                        color = Color.Gray
+                    )
+                    Slider(
+                        value = salary.toFloat(),
+                        onValueChange = { salary = it.toInt() },
+                        valueRange = minSalary.toFloat()..60000f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = Color(0xFF4CAF50),
+                            activeTrackColor = Color(0xFF4CAF50)
+                        )
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(selectedPosition, skillLevel, salary) },
+                enabled = subsidiary.employees.size < 30
+            ) {
+                SingleLineText(text = "确认招聘", color = Color(0xFF4CAF50))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                SingleLineText(text = "取消", color = Color.Gray)
+            }
+        }
+    )
+}
+
+/**
+ * 子公司应聘者管理对话框（显示已发布岗位的应聘者）
+ */
+@Composable
+private fun SubsidiaryApplicantDialog(
+    subsidiary: Subsidiary,
+    currentDate: GameDate,
+    onDismiss: () -> Unit,
+    onHireApplicant: (jobPostingId: String, applicantId: String) -> Unit,
+    onClosePosting: (jobPostingId: String) -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.95f)
+                .fillMaxHeight(0.85f),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF1a1a2e)
+            )
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                // 顶部标题栏
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(
+                                    Color(0xFF0F172A),
+                                    Color(0xFF1E293B)
+                                )
+                            )
+                        )
+                        .padding(20.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(text = subsidiary.logo, fontSize = 28.sp)
+                        Column {
+                            SingleLineText(
+                                text = "${subsidiary.name} - 应聘者",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            SingleLineText(
+                                text = "员工: ${subsidiary.employees.size} / 30 | 岗位: ${subsidiary.jobPostings.count { it.isActive }}",
+                                fontSize = 13.sp,
+                                color = Color(0xFF64B5F6)
+                            )
+                        }
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Text(text = "✕", fontSize = 20.sp, color = Color.White)
+                    }
+                }
+                
+                // 内容区
+                if (subsidiary.jobPostings.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Text(text = "📋", fontSize = 64.sp)
+                            SingleLineText(
+                                text = "还没有发布招聘岗位",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            SingleLineText(
+                                text = "点击左侧\"+招聘\"按钮发布岗位",
+                                fontSize = 14.sp,
+                                color = Color.Gray
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        items(subsidiary.jobPostings.filter { it.isActive }) { posting ->
+                            SubsidiaryJobPostingCard(
+                                posting = posting,
+                                subsidiary = subsidiary,
+                                onHireApplicant = { applicantId ->
+                                    onHireApplicant(posting.id, applicantId)
+                                },
+                                onClosePosting = {
+                                    onClosePosting(posting.id)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 子公司岗位卡片（显示岗位信息和应聘者）
+ */
+@Composable
+private fun SubsidiaryJobPostingCard(
+    posting: SubsidiaryJobPosting,
+    subsidiary: Subsidiary,
+    onHireApplicant: (applicantId: String) -> Unit,
+    onClosePosting: () -> Unit
+) {
+    var expanded by remember { mutableStateOf(true) }
+    val pendingApplicants = posting.applicants.filter { it.status == SubsidiaryApplicantStatus.PENDING }
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF2C2C3E)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            // 岗位头部
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 职位图标
+                    val icon = when (posting.position) {
+                        "程序员" -> "💻"
+                        "策划师" -> "📋"
+                        "美工" -> "🎨"
+                        "音乐家" -> "🎵"
+                        "客服" -> "💬"
+                        else -> "💼"
+                    }
+                    Text(text = icon, fontSize = 32.sp)
+                    
+                    Column {
+                        SingleLineText(
+                            text = posting.position,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        SingleLineText(
+                            text = "Lv.${posting.requiredSkillLevel} | ¥${String.format("%,d", posting.salary)}/月",
+                            fontSize = 13.sp,
+                            color = Color.Gray
+                        )
+                    }
+                }
+                
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // 应聘者数量
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (pendingApplicants.isNotEmpty()) Color(0xFF4CAF50).copy(alpha = 0.2f)
+                               else Color.White.copy(alpha = 0.1f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = "👥", fontSize = 14.sp)
+                            SingleLineText(
+                                text = "${pendingApplicants.size}",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (pendingApplicants.isNotEmpty()) Color(0xFF4CAF50) else Color.Gray
+                            )
+                        }
+                    }
+                    
+                    // 关闭岗位按钮
+                    IconButton(
+                        onClick = onClosePosting,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Text(text = "✕", fontSize = 16.sp, color = Color(0xFFEF4444))
+                    }
+                }
+            }
+            
+            // 应聘者列表
+            if (pendingApplicants.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                pendingApplicants.forEach { applicant ->
+                    SubsidiaryApplicantCard(
+                        applicant = applicant,
+                        isEmployeeFull = subsidiary.employees.size >= 30,
+                        onHireClick = {
+                            if (subsidiary.employees.size < 30) {
+                                onHireApplicant(applicant.id)
+                            }
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+            } else {
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Color.White.copy(alpha = 0.05f),
+                            RoundedCornerShape(8.dp)
+                        )
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    SingleLineText(
+                        text = "🔍 暂无应聘者，请耐心等待",
+                        fontSize = 13.sp,
+                        color = Color.Gray
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 子公司应聘者卡片
+ */
+@Composable
+private fun SubsidiaryApplicantCard(
+    applicant: SubsidiaryApplicant,
+    isEmployeeFull: Boolean,
+    onHireClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF1E1E2E)
+        ),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    SingleLineText(
+                        text = applicant.name,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    SingleLineText(
+                        text = "${applicant.age}岁",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.6f)
+                    )
+                }
+                
+                Button(
+                    onClick = onHireClick,
+                    enabled = !isEmployeeFull,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF4CAF50),
+                        disabledContainerColor = Color.Gray
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    SingleLineText(
+                        text = if (isEmployeeFull) "已满员" else "雇佣",
+                        fontSize = 12.sp,
+                        color = Color.White
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // 技能列表 - 紧凑显示
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                applicant.skills.forEach { (skillName, level) ->
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color.White.copy(alpha = 0.1f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            SingleLineText(
+                                text = skillName,
+                                fontSize = 11.sp,
+                                color = Color.White.copy(alpha = 0.7f)
+                            )
+                            SingleLineText(
+                                text = "Lv.$level",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFFFD700)
+                            )
+                        }
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // 期望薪资
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SingleLineText(
+                    text = "期望薪资: ¥${String.format("%,d", applicant.expectedSalary)}/月",
+                    fontSize = 11.sp,
+                    color = Color.Gray
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 子公司解雇员工对话框
+ */
+@Composable
+private fun SubsidiaryFireDialog(
+    employee: Employee,
+    subsidiary: Subsidiary,
+    currentDate: GameDate,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    // 计算补偿金
+    val workMonths = employee.calculateWorkMonths(currentDate.year, currentDate.month, currentDate.day)
+    val workYears = (workMonths + 11) / 12
+    val severancePay = employee.calculateSeverancePay(currentDate.year, currentDate.month, currentDate.day)
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1a1a2e),
+        titleContentColor = Color.White,
+        textContentColor = Color.White,
+        title = {
+            SingleLineText(
+                text = "确认解雇",
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFEF4444)
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // 公司名称
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(6.dp))
+                        .padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = subsidiary.logo, fontSize = 20.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    SingleLineText(text = subsidiary.name, fontSize = 14.sp, color = Color.White)
+                }
+                
+                // 员工信息
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF2C2C3E)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        SingleLineText(
+                            text = employee.name,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        InfoRow("职位", employee.position)
+                        InfoRow("月薪", "¥${employee.salary}")
+                        InfoRow("工作时长", "$workMonths 个月 ($workYears 年)")
+                    }
+                }
+                
+                // 补偿金信息
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFFEF4444).copy(alpha = 0.2f)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        SingleLineText(
+                            text = "💰 解雇补偿金",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFEF4444)
+                        )
+                        SingleLineText(
+                            text = "公式: 月薪 × (2N + 1)",
+                            fontSize = 11.sp,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            SingleLineText(
+                                text = "需支付",
+                                fontSize = 13.sp,
+                                color = Color.White
+                            )
+                            SingleLineText(
+                                text = "¥$severancePay",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFEF4444)
+                            )
+                        }
+                    }
+                }
+                
+                // 资金不足警告
+                if (subsidiary.cashBalance < severancePay) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFFEF4444).copy(alpha = 0.3f), RoundedCornerShape(6.dp))
+                            .padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        SingleLineText(text = "⚠️", fontSize = 14.sp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        MultiLineText(
+                            text = "子公司资金不足！当前资金: ¥${formatMoney(subsidiary.cashBalance)}",
+                            fontSize = 12.sp,
+                            color = Color.White,
+                            maxLines = 2
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                enabled = subsidiary.cashBalance >= severancePay
+            ) {
+                SingleLineText(
+                    text = "确认解雇",
+                    color = if (subsidiary.cashBalance >= severancePay) Color(0xFFEF4444) else Color.Gray
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                SingleLineText(text = "取消", color = Color.Gray)
+            }
+        }
+    )
 }

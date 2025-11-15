@@ -58,6 +58,42 @@ data class OnlineGamePricing(
 )
 
 /**
+ * 子公司应聘者状态
+ */
+enum class SubsidiaryApplicantStatus {
+    PENDING,   // 待处理
+    HIRED,     // 已雇佣
+    REJECTED   // 已拒绝
+}
+
+/**
+ * 子公司应聘者
+ */
+data class SubsidiaryApplicant(
+    val id: String,                                    // 应聘者ID
+    val name: String,                                  // 姓名
+    val age: Int,                                      // 年龄
+    val position: String,                              // 应聘职位
+    val skills: Map<String, Int>,                     // 技能等级 (技能名 -> 等级)
+    val expectedSalary: Int,                           // 期望薪资
+    val applyDate: GameDate,                           // 应聘日期
+    val status: SubsidiaryApplicantStatus = SubsidiaryApplicantStatus.PENDING // 状态
+)
+
+/**
+ * 子公司招聘岗位
+ */
+data class SubsidiaryJobPosting(
+    val id: String,                                    // 岗位ID
+    val position: String,                              // 职位
+    val requiredSkillLevel: Int,                       // 要求技能等级
+    val salary: Int,                                   // 薪资
+    val postDate: GameDate,                            // 发布日期
+    val applicants: List<SubsidiaryApplicant> = emptyList(), // 应聘者列表
+    val isActive: Boolean = true                       // 是否激活
+)
+
+/**
  * 子公司游戏管理配置
  */
 data class SubsidiaryGameConfig(
@@ -88,9 +124,13 @@ data class Subsidiary(
     val games: List<CompetitorGame>,          // 已发售的游戏
     val developingGames: List<DevelopingGame> = emptyList(), // 正在开发的游戏
     
-    // 员工数据（根据游戏反推）
-    val estimatedEmployeeCount: Int,          // 估算员工数（基于游戏数量）
+    // 员工数据
+    val employees: List<Employee> = emptyList(), // 真实员工列表
+    val estimatedEmployeeCount: Int,          // 估算员工数（基于游戏数量，仅用于向后兼容）
     val monthlyWageCost: Long,                // 月度工资成本
+    
+    // 招聘数据
+    val jobPostings: List<SubsidiaryJobPosting> = emptyList(), // 招聘岗位列表
     
     // 管理设置
     val profitSharingRate: Float = 0.5f,      // 利润分成比例（总公司抽成）
@@ -168,9 +208,86 @@ object SubsidiaryManager {
      * 估算员工数量（基于游戏数量）
      */
     fun estimateEmployeeCount(company: CompetitorCompany): Int {
-        val baseEmployees = 5 // 基础管理人员
         val gameEmployees = company.games.size * 5 // 每款游戏5人
-        return baseEmployees + gameEmployees
+        return gameEmployees.coerceAtLeast(10) // 最少10人
+    }
+    
+    /**
+     * 生成子公司员工列表（基于游戏数量和质量）
+     */
+    private fun generateSubsidiaryEmployees(
+        company: CompetitorCompany,
+        subsidiaryId: Int
+    ): List<Employee> {
+        val employees = mutableListOf<Employee>()
+        val totalEmployees = estimateEmployeeCount(company)
+        
+        // 根据游戏数量和评分，生成不同职位的员工
+        val avgRating = if (company.games.isNotEmpty()) {
+            company.games.map { it.rating }.average().toFloat()
+        } else 6.0f
+        
+        // 根据平均评分决定技能等级分布
+        val skillLevel = when {
+            avgRating >= 8.5f -> 4 // 高评分公司，员工技能4级
+            avgRating >= 7.5f -> 3 // 中高评分公司，员工技能3级
+            avgRating >= 6.5f -> 2 // 中等评分公司，员工技能2级
+            else -> 1 // 低评分公司，员工技能1级
+        }
+        
+        // 每个职位大约占20%
+        val positionsCount = totalEmployees / 5
+        
+        val positions = listOf("程序员", "策划师", "美工", "音乐家", "客服")
+        var employeeId = subsidiaryId * 1000 // 使用子公司ID作为员工ID前缀
+        
+        positions.forEach { position ->
+            val count = if (position == "程序员") {
+                // 程序员稍多一些
+                positionsCount + (totalEmployees % 5)
+            } else {
+                positionsCount
+            }
+            
+            repeat(count) {
+                val name = generateEmployeeName()
+                val salary = skillLevel * 10000 + kotlin.random.Random.nextInt(-2000, 2000)
+                
+                employees.add(
+                    Employee(
+                        id = employeeId++,
+                        name = name,
+                        position = position,
+                        skillDevelopment = if (position == "程序员") skillLevel else skillLevel - 1.coerceAtLeast(1),
+                        skillDesign = if (position == "策划师") skillLevel else skillLevel - 1.coerceAtLeast(1),
+                        skillArt = if (position == "美工") skillLevel else skillLevel - 1.coerceAtLeast(1),
+                        skillMusic = if (position == "音乐家") skillLevel else skillLevel - 1.coerceAtLeast(1),
+                        skillService = if (position == "客服") skillLevel else skillLevel - 1.coerceAtLeast(1),
+                        salary = salary,
+                        experience = skillLevel * 365,
+                        motivation = kotlin.random.Random.nextInt(70, 100),
+                        loyalty = kotlin.random.Random.nextInt(70, 100),
+                        isFounder = false,
+                        hireYear = 1,
+                        hireMonth = 1,
+                        hireDay = 1
+                    )
+                )
+            }
+        }
+        
+        return employees
+    }
+    
+    /**
+     * 生成员工名字
+     */
+    private fun generateEmployeeName(): String {
+        val surnames = listOf("王", "李", "张", "刘", "陈", "杨", "黄", "赵", "吴", "周",
+                              "徐", "孙", "马", "朱", "胡", "郭", "何", "高", "林", "罗")
+        val givenNames = listOf("伟", "芳", "娜", "秀英", "敏", "静", "丽", "强", "磊", "军",
+                                "洋", "勇", "艳", "杰", "涛", "明", "超", "秀兰", "霞", "平")
+        return "${surnames.random()}${givenNames.random()}"
     }
     
     /**
@@ -193,6 +310,10 @@ object SubsidiaryManager {
         // 初始资金：市值的10%作为启动资金
         val initialCash = (company.marketValue * 0.1).toLong().coerceAtLeast(500000L) // 最低50万
         
+        // 生成真实员工列表
+        val employees = generateSubsidiaryEmployees(company, company.id)
+        val actualWageCost = employees.sumOf { it.salary.toLong() }
+        
         return Subsidiary(
             id = company.id,
             name = company.name,
@@ -205,8 +326,9 @@ object SubsidiaryManager {
             monthlyExpense = 0L,
             totalRevenue = 0L,
             games = company.games,
-            estimatedEmployeeCount = estimateEmployeeCount(company),
-            monthlyWageCost = estimateWageCost(company),
+            employees = employees, // 使用真实员工列表
+            estimatedEmployeeCount = employees.size,
+            monthlyWageCost = actualWageCost, // 使用真实工资总额
             profitSharingRate = 0.5f,
             autoManagement = true,
             status = SubsidiaryStatus.ACTIVE
@@ -295,22 +417,56 @@ object SubsidiaryManager {
     }
     
     /**
-     * 推进游戏开发进度
+     * 推进游戏开发进度（使用真实员工技能，像玩家一样）
      * @return 更新后的开发中游戏列表
      */
     private fun updateDevelopingGames(
         developingGames: List<DevelopingGame>,
-        employeeCount: Int
+        employees: List<Employee>
     ): List<DevelopingGame> {
         return developingGames.map { game ->
+            // 获取当前阶段所需的员工
+            val requiredEmployees = when (game.currentPhase) {
+                DevelopmentPhase.DESIGN -> employees.filter { it.position == "策划师" }
+                DevelopmentPhase.ART_SOUND -> employees.filter { it.position == "美工" || it.position == "音乐家" }
+                DevelopmentPhase.PROGRAMMING -> employees.filter { it.position == "程序员" }
+            }
+            
+            if (requiredEmployees.isEmpty()) {
+                // 没有合适的员工，进度不增加
+                return@map game
+            }
+            
             // 基础进度：每月2%
             val baseProgress = 2f
             
-            // 员工数量加成（每5名员工+0.5%，最多+3%）
-            val employeeBonus = (employeeCount / 5 * 0.5f).coerceAtMost(3f)
+            // 计算技能倍率（根据员工专属技能）
+            val avgSkillLevel = when (game.currentPhase) {
+                DevelopmentPhase.DESIGN -> requiredEmployees.map { it.skillDesign }.average()
+                DevelopmentPhase.ART_SOUND -> requiredEmployees.map { 
+                    maxOf(it.skillArt, it.skillMusic)
+                }.average()
+                DevelopmentPhase.PROGRAMMING -> requiredEmployees.map { it.skillDevelopment }.average()
+            }
+            
+            val skillMultiplier = when {
+                avgSkillLevel >= 4.5 -> 1.6f // 平均4-5级：1.6倍
+                avgSkillLevel >= 3.5 -> 1.3f // 平均4级：1.3倍
+                avgSkillLevel >= 2.5 -> 1.0f // 平均3级：1.0倍
+                avgSkillLevel >= 1.5 -> 0.8f // 平均2级：0.8倍
+                else -> 0.5f                  // 平均1级：0.5倍
+            }
+            
+            // 人数倍率
+            val countMultiplier = when (requiredEmployees.size) {
+                1 -> 1.0f
+                2 -> 1.3f
+                3 -> 1.5f
+                else -> 1.6f
+            }
             
             // 总进度增加
-            val progressIncrease = baseProgress + employeeBonus
+            val progressIncrease = baseProgress * skillMultiplier * countMultiplier
             val newProgress = (game.phaseProgress + progressIncrease).coerceAtMost(100f)
             
             // 检查当前阶段是否完成
@@ -491,6 +647,79 @@ object SubsidiaryManager {
     }
     
     /**
+     * 修复旧存档的子公司（为没有员工列表的子公司生成员工）
+     */
+    fun fixLegacySubsidiary(subsidiary: Subsidiary): Subsidiary {
+        // 如果已经有员工列表，不需要修复
+        if (subsidiary.employees.isNotEmpty()) {
+            return subsidiary
+        }
+        
+        // 生成员工列表
+        val avgRating = if (subsidiary.games.isNotEmpty()) {
+            subsidiary.games.map { it.rating }.average().toFloat()
+        } else 6.0f
+        
+        val skillLevel = when {
+            avgRating >= 8.5f -> 4
+            avgRating >= 7.5f -> 3
+            avgRating >= 6.5f -> 2
+            else -> 1
+        }
+        
+        val totalEmployees = subsidiary.estimatedEmployeeCount
+        val positionsCount = totalEmployees / 5
+        val positions = listOf("程序员", "策划师", "美工", "音乐家", "客服")
+        var employeeId = subsidiary.id * 1000
+        
+        val employees = mutableListOf<Employee>()
+        positions.forEach { position ->
+            val count = if (position == "程序员") {
+                positionsCount + (totalEmployees % 5)
+            } else {
+                positionsCount
+            }
+            
+            repeat(count) {
+                val name = generateEmployeeName()
+                val salary = skillLevel * 10000 + kotlin.random.Random.nextInt(-2000, 2000)
+                
+                employees.add(
+                    Employee(
+                        id = employeeId++,
+                        name = name,
+                        position = position,
+                        skillDevelopment = if (position == "程序员") skillLevel else skillLevel - 1.coerceAtLeast(1),
+                        skillDesign = if (position == "策划师") skillLevel else skillLevel - 1.coerceAtLeast(1),
+                        skillArt = if (position == "美工") skillLevel else skillLevel - 1.coerceAtLeast(1),
+                        skillMusic = if (position == "音乐家") skillLevel else skillLevel - 1.coerceAtLeast(1),
+                        skillService = if (position == "客服") skillLevel else skillLevel - 1.coerceAtLeast(1),
+                        salary = salary,
+                        experience = skillLevel * 365,
+                        motivation = kotlin.random.Random.nextInt(70, 100),
+                        loyalty = kotlin.random.Random.nextInt(70, 100),
+                        isFounder = false,
+                        hireYear = 1,
+                        hireMonth = 1,
+                        hireDay = 1
+                    )
+                )
+            }
+        }
+        
+        val actualWageCost = employees.sumOf { it.salary.toLong() }
+        
+        android.util.Log.d("SubsidiaryManager", 
+            "修复旧存档子公司${subsidiary.name}：生成${employees.size}名员工，技能等级${skillLevel}"
+        )
+        
+        return subsidiary.copy(
+            employees = employees,
+            monthlyWageCost = actualWageCost
+        )
+    }
+    
+    /**
      * 更新子公司月度数据
      */
     fun updateMonthlyData(subsidiary: Subsidiary, currentDate: GameDate): Subsidiary {
@@ -498,10 +727,10 @@ object SubsidiaryManager {
             return subsidiary
         }
         
-        // 🆕 1. 推进开发中游戏的进度
+        // 🆕 1. 推进开发中游戏的进度（使用真实员工）
         var updatedDevelopingGames = updateDevelopingGames(
             subsidiary.developingGames,
-            subsidiary.estimatedEmployeeCount
+            subsidiary.employees
         )
         
         // 🆕 2. 提取已完成的游戏
@@ -718,7 +947,254 @@ object SubsidiaryManager {
             marketValue = newMarketValue, // 🆕 更新市值
             totalRevenue = subsidiary.totalRevenue + monthlyIncome,
             games = finalGames, // 🆕 包含新发售的游戏
-            developingGames = updatedDevelopingGames // 🆕 更新开发中游戏列表
+            developingGames = updatedDevelopingGames, // 🆕 更新开发中游戏列表
+            employees = subsidiary.employees // 确保employees不丢失
+        )
+    }
+    
+    /**
+     * 为子公司招聘新员工
+     */
+    fun hireEmployee(
+        subsidiary: Subsidiary,
+        position: String,
+        skillLevel: Int,
+        salary: Int,
+        currentDate: GameDate
+    ): Employee {
+        // 生成员工ID（使用子公司ID * 1000 + 当前员工数）
+        val employeeId = subsidiary.id * 1000 + subsidiary.employees.size + 1
+        
+        // 生成员工名字
+        val name = generateEmployeeName()
+        
+        // 根据职位设置技能
+        return Employee(
+            id = employeeId,
+            name = name,
+            position = position,
+            skillDevelopment = if (position == "程序员") skillLevel else (skillLevel - 1).coerceAtLeast(1),
+            skillDesign = if (position == "策划师") skillLevel else (skillLevel - 1).coerceAtLeast(1),
+            skillArt = if (position == "美工") skillLevel else (skillLevel - 1).coerceAtLeast(1),
+            skillMusic = if (position == "音乐家") skillLevel else (skillLevel - 1).coerceAtLeast(1),
+            skillService = if (position == "客服") skillLevel else (skillLevel - 1).coerceAtLeast(1),
+            salary = salary,
+            experience = skillLevel * 365,
+            motivation = kotlin.random.Random.nextInt(70, 100),
+            loyalty = kotlin.random.Random.nextInt(70, 100),
+            isFounder = false,
+            hireYear = currentDate.year,
+            hireMonth = currentDate.month,
+            hireDay = currentDate.day
+        )
+    }
+    
+    /**
+     * 发布招聘岗位
+     */
+    fun postJob(
+        subsidiary: Subsidiary,
+        position: String,
+        requiredSkillLevel: Int,
+        salary: Int,
+        currentDate: GameDate
+    ): Subsidiary {
+        val jobId = "job_${subsidiary.id}_${System.currentTimeMillis()}"
+        val newPosting = SubsidiaryJobPosting(
+            id = jobId,
+            position = position,
+            requiredSkillLevel = requiredSkillLevel,
+            salary = salary,
+            postDate = currentDate,
+            applicants = emptyList(),
+            isActive = true
+        )
+        
+        return subsidiary.copy(
+            jobPostings = subsidiary.jobPostings + newPosting
+        )
+    }
+    
+    /**
+     * 生成应聘者（每日调用）
+     */
+    fun generateApplicants(
+        subsidiary: Subsidiary,
+        currentDate: GameDate
+    ): Subsidiary {
+        val updatedPostings = subsidiary.jobPostings.map { posting ->
+            if (!posting.isActive) return@map posting
+            
+            // 根据薪资计算每日应聘者数量
+            val minSalary = posting.requiredSkillLevel * 10000
+            val salaryRatio = posting.salary.toFloat() / minSalary
+            
+            val dailyApplicantCount = when {
+                salaryRatio >= 1.5f -> kotlin.random.Random.nextInt(1, 3) // 高薪：1-2人/天
+                salaryRatio >= 1.25f -> kotlin.random.Random.nextInt(0, 2) // 较高薪：0-1人/天
+                salaryRatio >= 1.15f -> kotlin.random.Random.nextInt(0, 2) // 一般薪：0-1人/天
+                else -> if (kotlin.random.Random.nextFloat() < 0.3f) 1 else 0 // 低薪：30%概率1人
+            }
+            
+            if (dailyApplicantCount == 0) return@map posting
+            
+            // 生成应聘者
+            val newApplicants = (0 until dailyApplicantCount).map {
+                generateApplicant(posting, currentDate)
+            }
+            
+            posting.copy(
+                applicants = posting.applicants + newApplicants
+            )
+        }
+        
+        return subsidiary.copy(
+            jobPostings = updatedPostings
+        )
+    }
+    
+    /**
+     * 生成一个应聘者
+     */
+    private fun generateApplicant(
+        posting: SubsidiaryJobPosting,
+        currentDate: GameDate
+    ): SubsidiaryApplicant {
+        val name = generateEmployeeName()
+        val age = kotlin.random.Random.nextInt(22, 45)
+        
+        // 技能等级（主技能在要求等级±1范围内）
+        val mainSkillLevel = (posting.requiredSkillLevel - 1).coerceAtLeast(1) + kotlin.random.Random.nextInt(0, 3).coerceAtMost(5)
+        val otherSkillLevel = kotlin.random.Random.nextInt(1, 4)
+        
+        val skills = when (posting.position) {
+            "程序员" -> mapOf(
+                "开发" to mainSkillLevel,
+                "设计" to otherSkillLevel,
+                "美工" to otherSkillLevel
+            )
+            "策划师" -> mapOf(
+                "设计" to mainSkillLevel,
+                "开发" to otherSkillLevel,
+                "服务" to otherSkillLevel
+            )
+            "美工" -> mapOf(
+                "美工" to mainSkillLevel,
+                "设计" to otherSkillLevel,
+                "音乐" to otherSkillLevel
+            )
+            "音乐家" -> mapOf(
+                "音乐" to mainSkillLevel,
+                "美工" to otherSkillLevel,
+                "设计" to otherSkillLevel
+            )
+            "客服" -> mapOf(
+                "服务" to mainSkillLevel,
+                "设计" to otherSkillLevel,
+                "开发" to otherSkillLevel
+            )
+            else -> emptyMap()
+        }
+        
+        // 期望薪资在岗位薪资的90%-110%之间
+        val expectedSalary = (posting.salary * (0.9 + kotlin.random.Random.nextDouble() * 0.2)).toInt()
+        
+        return SubsidiaryApplicant(
+            id = "applicant_${System.currentTimeMillis()}_${kotlin.random.Random.nextInt(1000, 9999)}",
+            name = name,
+            age = age,
+            position = posting.position,
+            skills = skills,
+            expectedSalary = expectedSalary,
+            applyDate = currentDate,
+            status = SubsidiaryApplicantStatus.PENDING
+        )
+    }
+    
+    /**
+     * 雇佣应聘者
+     */
+    fun hireApplicant(
+        subsidiary: Subsidiary,
+        jobPostingId: String,
+        applicantId: String,
+        currentDate: GameDate
+    ): Subsidiary {
+        val posting = subsidiary.jobPostings.find { it.id == jobPostingId } ?: return subsidiary
+        val applicant = posting.applicants.find { it.id == applicantId } ?: return subsidiary
+        
+        if (applicant.status != SubsidiaryApplicantStatus.PENDING) {
+            return subsidiary
+        }
+        
+        // 创建员工
+        val employeeId = subsidiary.id * 1000 + subsidiary.employees.size + 1
+        val newEmployee = Employee(
+            id = employeeId,
+            name = applicant.name,
+            position = applicant.position,
+            skillDevelopment = applicant.skills["开发"] ?: 1,
+            skillDesign = applicant.skills["设计"] ?: 1,
+            skillArt = applicant.skills["美工"] ?: 1,
+            skillMusic = applicant.skills["音乐"] ?: 1,
+            skillService = applicant.skills["服务"] ?: 1,
+            salary = posting.salary,
+            experience = applicant.skills.values.maxOrNull()?.times(365) ?: 365,
+            motivation = kotlin.random.Random.nextInt(70, 100),
+            loyalty = kotlin.random.Random.nextInt(70, 100),
+            isFounder = false,
+            hireYear = currentDate.year,
+            hireMonth = currentDate.month,
+            hireDay = currentDate.day
+        )
+        
+        // 更新应聘者状态
+        val updatedPostings = subsidiary.jobPostings.map { p ->
+            if (p.id == jobPostingId) {
+                p.copy(
+                    applicants = p.applicants.map { a ->
+                        if (a.id == applicantId) {
+                            a.copy(status = SubsidiaryApplicantStatus.HIRED)
+                        } else a
+                    }
+                )
+            } else p
+        }
+        
+        return subsidiary.copy(
+            employees = subsidiary.employees + newEmployee,
+            monthlyWageCost = subsidiary.monthlyWageCost + posting.salary,
+            jobPostings = updatedPostings
+        )
+    }
+    
+    /**
+     * 关闭招聘岗位
+     */
+    fun closeJobPosting(
+        subsidiary: Subsidiary,
+        jobPostingId: String
+    ): Subsidiary {
+        val updatedPostings = subsidiary.jobPostings.map { posting ->
+            if (posting.id == jobPostingId) {
+                posting.copy(isActive = false)
+            } else posting
+        }
+        
+        return subsidiary.copy(
+            jobPostings = updatedPostings
+        )
+    }
+    
+    /**
+     * 删除招聘岗位
+     */
+    fun deleteJobPosting(
+        subsidiary: Subsidiary,
+        jobPostingId: String
+    ): Subsidiary {
+        return subsidiary.copy(
+            jobPostings = subsidiary.jobPostings.filter { it.id != jobPostingId }
         )
     }
 }

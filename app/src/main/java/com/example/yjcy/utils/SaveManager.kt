@@ -250,7 +250,10 @@ class SaveManager(context: Context) {
                 val sortedGames = subsidiary.games.sortedByDescending { game ->
                     game.releaseYear * 12 + game.releaseMonth
                 }.take(MAX_GAMES_PER_COMPETITOR)
-                subsidiary.copy(games = sortedGames)
+                subsidiary.copy(
+                    games = sortedGames,
+                    employees = subsidiary.employees ?: emptyList() // 确保不为null
+                )
             } else {
                 subsidiary
             }

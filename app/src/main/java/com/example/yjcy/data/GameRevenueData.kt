@@ -685,26 +685,26 @@ object RevenueManager {
     }
 
     /**
-     * 计算下一次更新成本（随更新次数递增，带成本上限）
+     * 计算下一次更新成本（随更新次数递增，无上限）
      * 
      * **单机游戏**（DLC/资料片性质）：
-     * - 基础成本：1,200,000元（大幅上调）
+     * - 基础成本：2,000,000元（再次上调）
      * - 递增系数：1.25（每次+25%）
-     * - 成本上限：5,000,000元（第7次达到）
-     * - 价格梯度：1200K → 1500K → 1875K → 2343.75K → 2929.7K → 3662.1K → 4577.6K → 5000K（上限）
+     * - 无上限，持续递增
+     * - 价格梯度：200万 → 250万 → 312.5万 → 390.6万 → 488.3万 → 610.4万 → 762.9万 → 953.7万 → 1192万...
      * 
      * **网络游戏**（持续运营性质）：
-     * - 基础成本：2,000,000元（大幅上调）
+     * - 基础成本：4,000,000元（再次上调）
      * - 递增系数：1.25（每次+25%）
-     * - 成本上限：10,000,000元（第8次达到）
-     * - 价格梯度：2000K → 2500K → 3125K → 3906K → 4882K → 6103K → 7629K → 9536K → 10000K（上限）
+     * - 无上限，持续递增
+     * - 价格梯度：400万 → 500万 → 625万 → 781万 → 977万 → 1221万 → 1526万 → 1907万 → 2384万...
      * 
      * **设计理念**：
-     * - 单机游戏基础成本大幅提升至120万，网游提升至200万，使更新成为重大投资决策
-     * - 设置成本上限防止后期成本过高导致游戏失衡
-     * - 单机第7次更新后达到上限500万，网游第8次更新后达到上限1000万
-     * - 鼓励玩家谨慎规划更新策略，而非无脑更新
-     * - 更新成本上调后，需要游戏有足够收益才能支撑长期运营
+     * - 单机游戏基础成本提升至200万，网游提升至400万，使更新成为重大投资决策
+     * - 移除成本上限，让更新成本持续递增，增加后期运营压力和策略深度
+     * - 第10次更新：单机约1192万，网游约2384万
+     * - 第15次更新：单机约5729万，网游约1.15亿
+     * - 鼓励玩家在早期阶段多更新，后期需要权衡收益与成本
      */
     fun calculateUpdateCost(gameId: String): Double {
         val gameRevenue = gameRevenueMap[gameId] ?: return 0.0
@@ -713,18 +713,15 @@ object RevenueManager {
         val (businessModel, _) = gameInfoMap[gameId] 
             ?: (com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER to emptyList())
         
-        // 根据商业模式设置不同的基础成本和上限
-        val (base, maxCost) = when (businessModel) {
-            com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER -> Pair(1_200_000.0, 5_000_000.0)  // 单机：基础1200K（大幅上调），上限5000K
-            com.example.yjcy.ui.BusinessModel.ONLINE_GAME -> Pair(2_000_000.0, 10_000_000.0)    // 网游：基础2000K，上限10000K
+        // 根据商业模式设置不同的基础成本（无上限）
+        val base = when (businessModel) {
+            com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER -> 2_000_000.0  // 单机：基础200万
+            com.example.yjcy.ui.BusinessModel.ONLINE_GAME -> 4_000_000.0    // 网游：基础400万
         }
         
-        // 使用1.25的递增系数（每次+25%），但不超过上限
+        // 使用1.25的递增系数（每次+25%），无上限
         val factor = Math.pow(1.25, gameRevenue.updateCount.toDouble())
-        val calculatedCost = base * factor
-        
-        // 返回计算成本和上限中的较小值
-        return calculatedCost.coerceAtMost(maxCost)
+        return base * factor
     }
 
     /**

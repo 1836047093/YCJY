@@ -2835,12 +2835,25 @@ fun GameScreen(
                     }
                     subsidiary.copy(
                         games = fixedGames,
-                        developingGames = subsidiary.developingGames ?: emptyList() // 🆕 修复旧存档兼容性
+                        developingGames = subsidiary.developingGames ?: emptyList(), // 🆕 修复旧存档兼容性
+                        employees = subsidiary.employees ?: emptyList(), // 🆕 确保employees不为null
+                        jobPostings = subsidiary.jobPostings ?: emptyList() // 🆕 确保jobPostings不为null
                     )
                 }
                 if (fixedSubsidiaries != subsidiaries) {
                     subsidiaries = fixedSubsidiaries
                     Log.d("MainActivity", "✅ 已修复旧存档的子公司游戏数据（网游+单机）")
+                }
+            }
+            
+            // 🆕 修复旧存档中的子公司员工列表（向后兼容）
+            if (subsidiaries.isNotEmpty()) {
+                val fixedSubsidiaries = subsidiaries.map { subsidiary ->
+                    SubsidiaryManager.fixLegacySubsidiary(subsidiary)
+                }
+                if (fixedSubsidiaries != subsidiaries) {
+                    subsidiaries = fixedSubsidiaries
+                    Log.d("MainActivity", "✅ 已修复旧存档的子公司员工列表")
                 }
             }
         }
@@ -3290,6 +3303,12 @@ fun GameScreen(
                     competitors = updatedCompetitors
                     // 添加新闻，保持最近30条
                     competitorNews = (newNews + competitorNews).take(30)
+                    
+                    // 每日：为子公司生成应聘者
+                    subsidiaries = subsidiaries.map { subsidiary ->
+                        val currentDate = GameDate(currentYear, currentMonth, currentDay)
+                        SubsidiaryManager.generateApplicants(subsidiary, currentDate)
+                    }
                     
                     // 月结算：更新子公司
                     subsidiaries = subsidiaries.map { subsidiary ->
@@ -4003,10 +4022,32 @@ fun GameScreen(
                                 recommendedItems.map { it.getUpdateContentName() }
                             }
                             
+                            // 计算更新费用
+                            val updateCost = RevenueManager.calculateUpdateCost(releasedGame.id)
+                            
+                            // 检查资金是否足够
+                            if (money >= updateCost.toLong()) {
+                                // 扣除更新费用
+                                money -= updateCost.toLong()
+                                
                                 // 自动更新使用默认公告
                                 val autoAnnouncement = CommentGenerator.generateDefaultAnnouncement(autoUpdateFeatures)
                                 RevenueManager.createUpdateTask(releasedGame.id, autoUpdateFeatures, autoAnnouncement)
-                            println("【自动更新】已自动创建下一次更新任务，共${autoUpdateFeatures.size}项内容，员工将继续工作")
+                                println("【自动更新】已自动创建下一次更新任务，共${autoUpdateFeatures.size}项内容，扣除费用 ¥${formatMoney(updateCost.toLong())}，员工将继续工作")
+                            } else {
+                                // 资金不足，无法自动更新，关闭自动更新开关
+                                val gameToUpdate = games.find { it.id == releasedGame.id }
+                                if (gameToUpdate != null) {
+                                    games = games.map { 
+                                        if (it.id == releasedGame.id) {
+                                            it.copy(autoUpdate = false, assignedEmployees = emptyList())
+                                        } else {
+                                            it
+                                        }
+                                    }
+                                }
+                                println("【自动更新】游戏《${releasedGame.name}》资金不足（需要 ¥${formatMoney(updateCost.toLong())}，当前 ¥${formatMoney(money)}），已自动关闭自动更新功能")
+                            }
                         }
                     }
                 }
