@@ -109,7 +109,7 @@ fun TournamentScreen(
         Box(modifier = Modifier.weight(1f)) {
             when (selectedTab) {
                 0 -> EligibleGamesTab(
-                    games = eligibleGames,
+                    games = games,
                     revenueDataMap = revenueDataMap,
                     currentDate = currentDate,
                     money = money,
@@ -130,7 +130,7 @@ fun TournamentScreen(
 }
 
 /**
- * 可举办赛事标签页
+ * 可举办赛事标签页 - 显示所有赛事类型
  */
 @Composable
 fun EligibleGamesTab(
@@ -140,45 +140,59 @@ fun EligibleGamesTab(
     money: Long,
     onHostTournament: (String, TournamentType) -> Unit
 ) {
-    var selectedGame by remember { mutableStateOf<Game?>(null) }
-    
-    if (games.isEmpty()) {
-        EmptyStateView(
-            icon = "🎮",
-            title = "暂无可举办赛事的游戏",
-            message = "需要：MOBA/射击/体育/竞速/策略类网游、评分≥8.0、活跃玩家≥10万"
-        )
-        return
-    }
+    var selectedTournamentType by remember { mutableStateOf<TournamentType?>(null) }
     
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        items(games) { game ->
-            TournamentGameCard(
-                game = game,
-                revenueData = revenueDataMap[game.id],
-                currentDate = currentDate,
+        // 显示所有赛事类型
+        items(TournamentType.values().toList()) { tournamentType ->
+            // 找到符合这个赛事类型条件的游戏
+            val eligibleGamesForType = games.filter { game ->
+                val revenueData = revenueDataMap[game.id]
+                val eligibility = TournamentManager.canHostTournamentType(
+                    game, revenueData, tournamentType, currentDate, money
+                )
+                eligibility is TournamentEligibility.Eligible
+            }
+            
+            TournamentTypeCard(
+                tournamentType = tournamentType,
+                eligibleGames = eligibleGamesForType,
+                totalGames = games.size,
                 money = money,
-                onClick = { selectedGame = game }
+                onClick = {
+                    if (eligibleGamesForType.isNotEmpty()) {
+                        selectedTournamentType = tournamentType
+                    }
+                }
             )
         }
     }
     
-    // 赛事策划对话框
-    selectedGame?.let { game ->
-        TournamentPlanDialog(
-            game = game,
-            revenueData = revenueDataMap[game.id],
+    // 游戏选择对话框
+    selectedTournamentType?.let { type ->
+        val eligibleGamesForType = games.filter { game ->
+            val revenueData = revenueDataMap[game.id]
+            val eligibility = TournamentManager.canHostTournamentType(
+                game, revenueData, type, currentDate, money
+            )
+            eligibility is TournamentEligibility.Eligible
+        }
+        
+        TournamentGameSelectionDialog(
+            tournamentType = type,
+            games = eligibleGamesForType,
+            revenueDataMap = revenueDataMap,
             currentDate = currentDate,
             money = money,
-            onDismiss = { selectedGame = null },
-            onConfirm = { type ->
+            onDismiss = { selectedTournamentType = null },
+            onSelectGame = { game ->
                 onHostTournament(game.id, type)
-                selectedGame = null
+                selectedTournamentType = null
             }
         )
     }
@@ -827,3 +841,337 @@ private fun calculateDaysBetween(from: GameDate, to: GameDate): Int {
 
 @Composable
 fun Modifier.alpha(alpha: Float): Modifier = this.graphicsLayer(alpha = alpha)
+
+/**
+ * 赛事类型卡片 - 显示赛事详情
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TournamentTypeCard(
+    tournamentType: TournamentType,
+    eligibleGames: List<Game>,
+    totalGames: Int,
+    money: Long,
+    onClick: () -> Unit
+) {
+    val isEligible = eligibleGames.isNotEmpty()
+    val canAfford = money >= tournamentType.baseCost
+    
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (isEligible) Modifier.clickable(onClick = onClick)
+                else Modifier
+            ),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isEligible) 
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            else 
+                Color.White.copy(alpha = 0.1f)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            // 标题行
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = tournamentType.icon,
+                        fontSize = 32.sp
+                    )
+                    Column {
+                        Text(
+                            text = tournamentType.displayName,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isEligible) MaterialTheme.colorScheme.primary else Color.Gray
+                        )
+                        Text(
+                            text = "${tournamentType.duration}天赛事",
+                            fontSize = 12.sp,
+                            color = Color.Gray
+                        )
+                    }
+                }
+                
+                // 状态标签
+                if (isEligible) {
+                    Surface(
+                        color = Color(0xFF4CAF50),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "✓ 可举办 (${eligibleGames.size})",
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                } else {
+                    Surface(
+                        color = Color(0xFF666666),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "✗ 暂不可用",
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // 赛事信息网格
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    InfoItem(
+                        label = "举办成本",
+                        value = formatMoney(tournamentType.baseCost),
+                        icon = "💰",
+                        color = if (canAfford) Color(0xFF4CAF50) else Color.Red
+                    )
+                    InfoItem(
+                        label = "奖金池",
+                        value = formatMoney(tournamentType.prizePool),
+                        icon = "🏆",
+                        color = Color(0xFFFFC107)
+                    )
+                }
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    InfoItem(
+                        label = "所需活跃",
+                        value = formatPlayerCount(tournamentType.minActivePlayers),
+                        icon = "👥",
+                        color = Color(0xFF2196F3)
+                    )
+                    InfoItem(
+                        label = "冷却时间",
+                        value = "${tournamentType.cooldownDays}天",
+                        icon = "⏰",
+                        color = Color(0xFF9C27B0)
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // 奖励预览
+            Surface(
+                color = Color(0xFF1E88E5).copy(alpha = 0.1f),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp)
+                ) {
+                    Text(
+                        text = "📈 预期收益",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1E88E5)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "• 粉丝增长: ${(tournamentType.fansGrowthMin * 100).toInt()}-${(tournamentType.fansGrowthMax * 100).toInt()}%",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.9f)
+                    )
+                    Text(
+                        text = "• 活跃玩家: ${(tournamentType.playersGrowthMin * 100).toInt()}-${(tournamentType.playersGrowthMax * 100).toInt()}%",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.9f)
+                    )
+                    Text(
+                        text = "• 兴趣值恢复: +${tournamentType.interestBonus.toInt()}%",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.9f)
+                    )
+                }
+            }
+            
+            // 参赛条件提示
+            if (!isEligible && totalGames > 0) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "⚠️ 需要：竞技类网游、评分≥8.0、活跃玩家≥${formatPlayerCount(tournamentType.minActivePlayers)}",
+                    fontSize = 11.sp,
+                    color = Color(0xFFFF9800),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFFFF9800).copy(alpha = 0.1f), RoundedCornerShape(4.dp))
+                        .padding(8.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 信息项
+ */
+@Composable
+fun RowScope.InfoItem(
+    label: String,
+    value: String,
+    icon: String,
+    color: Color
+) {
+    Column(
+        modifier = Modifier.weight(1f)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = icon,
+                fontSize = 16.sp
+            )
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                color = Color.Gray
+            )
+        }
+        Text(
+            text = value,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = color
+        )
+    }
+}
+
+/**
+ * 游戏选择对话框
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TournamentGameSelectionDialog(
+    tournamentType: TournamentType,
+    games: List<Game>,
+    revenueDataMap: Map<String, GameRevenue>,
+    currentDate: GameDate,
+    money: Long,
+    onDismiss: () -> Unit,
+    onSelectGame: (Game) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(text = tournamentType.icon, fontSize = 28.sp)
+                    Column {
+                        Text(
+                            text = "举办${tournamentType.displayName}",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "选择参赛游戏",
+                            fontSize = 13.sp,
+                            color = Color.Gray
+                        )
+                    }
+                }
+            }
+        },
+        text = {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.heightIn(max = 400.dp)
+            ) {
+                items(games) { game ->
+                    val revenueData = revenueDataMap[game.id]
+                    val activePlayers = revenueData?.getActivePlayers() ?: 0
+                    
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelectGame(game) },
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = game.name,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        text = "⭐ ${game.rating?.let { String.format("%.1f", it) } ?: "未评分"}",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFFFFC107)
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "👥 ${formatPlayerCount(activePlayers)}",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF2196F3)
+                                )
+                                Text(
+                                    text = game.theme.displayName,
+                                    fontSize = 12.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消")
+            }
+        }
+    )
+}

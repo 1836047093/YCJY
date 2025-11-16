@@ -685,7 +685,7 @@ private fun GVAHelpDialog(onDismiss: () -> Unit) {
                 item {
                     HelpSection(
                         title = "🎯 自动参赛条件",
-                        content = "✅ 游戏已发售\n✅ 评分≥6.0\n✅ 在当年1-12月发售\n\n符合条件的游戏会自动参与评选，无需手动报名！"
+                        content = "✅ 游戏已发售\n✅ 评分≥8.0（高质量门槛）\n✅ 在当年1-12月发售\n\n只有优秀作品才能参与GVA评选！符合条件的游戏会自动参与，无需手动报名。"
                     )
                 }
                 

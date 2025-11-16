@@ -161,6 +161,8 @@ import com.example.yjcy.data.GameRatingCalculator
 import com.example.yjcy.data.GameReleaseStatus
 import com.example.yjcy.data.GameRevenue
 import com.example.yjcy.data.GameUpdate
+import com.example.yjcy.data.Loan
+import com.example.yjcy.data.LoanType
 import com.example.yjcy.data.MessageSender
 import com.example.yjcy.data.MonetizationConfig
 import com.example.yjcy.data.MonetizationItem
@@ -189,6 +191,7 @@ import com.example.yjcy.ui.GVAAwardDialog
 import com.example.yjcy.ui.GVAScreen
 import com.example.yjcy.ui.GameRatingDialog
 import com.example.yjcy.ui.GameReleaseDialog
+import com.example.yjcy.ui.LoanDialog
 import com.example.yjcy.ui.ProjectDisplayType
 import com.example.yjcy.ui.ProjectManagementWrapper
 import com.example.yjcy.ui.SalaryRequestDialog
@@ -2363,6 +2366,9 @@ fun GameScreen(
     var autoProcessComplaints by remember { mutableStateOf(saveData?.autoProcessComplaints ?: false) }
     var autoPromotionThreshold by remember { mutableFloatStateOf(saveData?.autoPromotionThreshold ?: 0.5f) }
     
+    // 贷款数据状态
+    var loans by remember { mutableStateOf(saveData?.loans ?: emptyList()) }
+    
     // 自动审批涨薪状态
     var autoApproveSalaryIncrease by remember { mutableStateOf(saveData?.autoApproveSalaryIncrease ?: false) }
     
@@ -3176,6 +3182,10 @@ fun GameScreen(
                 if (needSettlement) {
                     Log.d("MainActivity", "🗓️ 触发月结算: ${currentYear}年${currentMonth}月（上次结算: ${lastSettlementYear}年${lastSettlementMonth}月）")
                     
+                    // 记录月结算开始时的资金
+                    val settlementStartMoney = money
+                    Log.d("MainActivity", "💰 月结算开始资金: ${formatMoney(settlementStartMoney)}")
+                    
                     // 月结算：玩家公司粉丝自然增长
                     val releasedGames = games.filter { 
                         it.releaseStatus == GameReleaseStatus.RELEASED || 
@@ -3268,6 +3278,7 @@ fun GameScreen(
                         
                         // 检查资金是否足够
                         if (money >= totalCost) {
+                            val moneyBeforePromotion = money
                             money = safeAddMoney(money, -totalCost)
                             fans += selectedPromotionType.fansGain * gamesNeedingPromotion.size
                             
@@ -3287,7 +3298,8 @@ fun GameScreen(
                                 }
                             }
                             
-                            Log.d("MainActivity", "自动宣传: 为${gamesNeedingPromotion.size}个游戏进行了${selectedPromotionType.displayName}，总费用¥${totalCost}，宣传指数提升${(selectedPromotionType.promotionIndexGain * 100).toInt()}%")
+                            Log.d("MainActivity", "📢 月结算自动宣传: ${gamesNeedingPromotion.size}个游戏 × ${selectedPromotionType.displayName}")
+                            Log.d("MainActivity", "💰 宣传费用: -${formatMoney(totalCost)} | 资金: ${formatMoney(moneyBeforePromotion)} → ${formatMoney(money)}")
                         } else {
                             Log.d("MainActivity", "自动宣传: 资金不足（需要¥${totalCost}，当前¥${money}），跳过自动宣传")
                         }
@@ -3350,6 +3362,61 @@ fun GameScreen(
                     if (totalSalaryCost > 0) {
                         money = safeAddMoney(money.toLong(), -totalSalaryCost)
                         Log.d("MainActivity", "💰 月结算工资扣除: -¥$totalSalaryCost (员工数:${allEmployees.size}, 扣费后:¥$money)")
+                        
+                        // 记录资金流水
+                        com.example.yjcy.utils.MoneyFlowTracker.recordFlow(
+                            date = com.example.yjcy.data.GameDate(currentYear, currentMonth, currentDay),
+                            type = com.example.yjcy.utils.MoneyFlowTracker.FlowType.SALARY,
+                            amount = -totalSalaryCost,
+                            balance = money,
+                            description = "${allEmployees.size}名员工"
+                        )
+                    }
+                    
+                    // 月结算：处理贷款还款
+                    if (loans.isNotEmpty()) {
+                        // 详细记录每笔贷款信息
+                        loans.forEach { loan ->
+                            Log.d("MainActivity", "📝 贷款详情: ${loan.loanType.typeName} | 本金:${formatMoney(loan.amount)} | 月还款:${formatMoney(loan.monthlyPayment)} | 剩余:${loan.remainingMonths}个月")
+                        }
+                        
+                        val totalMonthlyPayment = loans.sumOf { it.monthlyPayment }
+                        val moneyBefore = money
+                        
+                        // 检查资金是否充足
+                        if (moneyBefore < totalMonthlyPayment) {
+                            Log.w("MainActivity", "⚠️ 资金不足！需还款${formatMoney(totalMonthlyPayment)}，当前仅有${formatMoney(moneyBefore)}")
+                            Log.w("MainActivity", "⚠️ 将强制扣款，余额将变为负数！建议追加贷款或变卖资产")
+                        }
+                        
+                        money = safeAddMoney(money, -totalMonthlyPayment)
+                        Log.d("MainActivity", "🏦 月结算贷款还款: -${formatMoney(totalMonthlyPayment)} (${loans.size}笔贷款)")
+                        Log.d("MainActivity", "💰 还款前: ${formatMoney(moneyBefore)} → 还款后: ${formatMoney(money)}")
+                        
+                        // 记录资金流水
+                        com.example.yjcy.utils.MoneyFlowTracker.recordFlow(
+                            date = com.example.yjcy.data.GameDate(currentYear, currentMonth, currentDay),
+                            type = com.example.yjcy.utils.MoneyFlowTracker.FlowType.LOAN_PAYMENT,
+                            amount = -totalMonthlyPayment,
+                            balance = money,
+                            description = "${loans.size}笔贷款"
+                        )
+                        
+                        // 如果余额为负，再次警告
+                        if (money < 0) {
+                            Log.e("MainActivity", "❌ 账户余额为负：${formatMoney(money)}！公司面临破产风险！")
+                        }
+                        
+                        // 更新贷款剩余月数，移除已还清的贷款
+                        loans = loans.mapNotNull { loan ->
+                            val remaining = loan.remainingMonths - 1
+                            if (remaining > 0) {
+                                loan.copy(remainingMonths = remaining)
+                            } else {
+                                Log.d("MainActivity", "🎉 贷款已还清: ${loan.loanType.typeName}, 原贷款金额${formatMoney(loan.amount)}")
+                                null
+                            }
+                        }
                     }
                     
                     // 月结算：检查成就
@@ -3379,7 +3446,13 @@ fun GameScreen(
                         Log.d("MainActivity", "🏆 解锁${newlyUnlocked.size}个新成就: ${newlyUnlocked.map { it.name }}")
                     }
                     
+                    // 计算月结算的资金变化
+                    val settlementMoneyChange = money - settlementStartMoney
+                    val changeSymbol = if (settlementMoneyChange >= 0) "+" else ""
+                    Log.d("MainActivity", "💰 月结算资金变化: $changeSymbol${formatMoney(settlementMoneyChange)}")
+                    Log.d("MainActivity", "💰 月结算结束资金: ${formatMoney(money)}")
                     Log.d("MainActivity", "✅ 月结算完成: ${currentYear}年${currentMonth}月")
+                    Log.d("MainActivity", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
                 } else {
                     Log.d("MainActivity", "⏭️ 跳过月结算（本月已结算）: ${currentYear}年${currentMonth}月")
                 }
@@ -3418,6 +3491,7 @@ fun GameScreen(
                         
                         // 检查资金是否足够
                         if (money >= totalCost) {
+                            val moneyBeforePromotion = money
                             money = safeAddMoney(money, -totalCost)
                             fans += selectedPromotionType.fansGain * gamesNeedingPromotion.size
                             
@@ -3437,7 +3511,8 @@ fun GameScreen(
                                 }
                             }
                             
-                            Log.d("MainActivity", "📢 每日自动宣传: 为${gamesNeedingPromotion.size}个游戏进行了${selectedPromotionType.displayName}，总费用¥${totalCost}，宣传指数提升${(selectedPromotionType.promotionIndexGain * 100).toInt()}%")
+                            Log.d("MainActivity", "📢 每日自动宣传: ${gamesNeedingPromotion.size}个游戏 × ${selectedPromotionType.displayName}")
+                            Log.d("MainActivity", "💰 宣传费用: -${formatMoney(totalCost)} | 资金: ${formatMoney(moneyBeforePromotion)} → ${formatMoney(money)}")
                         } else {
                             Log.d("MainActivity", "📢 每日自动宣传: 资金不足（需要¥${totalCost}，当前¥${money}），跳过自动宣传")
                         }
@@ -4314,6 +4389,23 @@ fun GameScreen(
                             currentDay = currentDay,
                             competitors = competitors,
                             competitorNews = competitorNews,
+                            loans = loans,
+                            onLoanApply = { loan ->
+                                // 添加贷款记录
+                                loans = loans + loan
+                                // 增加资金
+                                money = safeAddMoney(money, loan.amount)
+                                Log.d("MainActivity", "💰 申请贷款成功: ${formatMoney(loan.amount)}, 年利率${(loan.interestRate * 100).toInt()}%, ${loan.totalMonths}个月, 月还款${formatMoney(loan.monthlyPayment)}")
+                                
+                                // 记录资金流水
+                                com.example.yjcy.utils.MoneyFlowTracker.recordFlow(
+                                    date = com.example.yjcy.data.GameDate(currentYear, currentMonth, currentDay),
+                                    type = com.example.yjcy.utils.MoneyFlowTracker.FlowType.LOAN_RECEIVED,
+                                    amount = loan.amount,
+                                    balance = money,
+                                    description = "${loan.loanType.typeName} | ${loan.totalMonths}个月 | 月还${formatMoney(loan.monthlyPayment)}"
+                                )
+                            },
                             onSecretaryChatClick = { showSecretaryChat = true },
                             revenueRefreshTrigger = revenueRefreshTrigger // 传递收益刷新触发器
                         )
@@ -6163,10 +6255,13 @@ fun CompanyOverviewContent(
     currentDay: Int = 1,
     competitors: List<CompetitorCompany> = emptyList(),
     competitorNews: List<CompetitorNews> = emptyList(),
+    loans: List<Loan> = emptyList(),
+    onLoanApply: (Loan) -> Unit = {},
     onSecretaryChatClick: () -> Unit = {},
     revenueRefreshTrigger: Int = 0 // 新增：收益刷新触发器
 ) {
     var showSecretaryBubble by remember { mutableStateOf(false) }
+    var showLoanDialog by remember { mutableStateOf(false) }
     
     val scrollState = rememberScrollState()
     
@@ -6528,6 +6623,7 @@ fun CompanyOverviewContent(
                 currentYear = currentYear,
                 selectedYear = selectedFinancialYear,
                 onYearChange = { selectedFinancialYear = it },
+                onLoanClick = { showLoanDialog = true },
                 content = {
                     // 总收入（可展开）
                     ExpandableFinancialItem(
@@ -6571,11 +6667,177 @@ fun CompanyOverviewContent(
                             fontWeight = FontWeight.Bold
                         )
                     }
+                    
+                    // 贷款列表（如果有贷款）
+                    if (loans.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        Text(
+                            text = "🏦 当前贷款",
+                            color = Color(0xFF60A5FA),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        loans.forEach { loan ->
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 3.dp)
+                                    .background(
+                                        color = Color(0xFF3B82F6).copy(alpha = 0.1f),
+                                        shape = RoundedCornerShape(6.dp)
+                                    )
+                                    .padding(8.dp)
+                            ) {
+                                Column {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = loan.loanType.typeName,
+                                            color = Color(0xFF60A5FA),
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "剩余${loan.remainingMonths}/${loan.totalMonths}月",
+                                            color = Color.White.copy(alpha = 0.7f),
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                    
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "本金 ${formatMoney(loan.amount)}",
+                                            color = Color.White.copy(alpha = 0.6f),
+                                            fontSize = 11.sp
+                                        )
+                                        Text(
+                                            text = "月还 ${formatMoney(loan.monthlyPayment)}",
+                                            color = Color(0xFFFBBF24),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // 贷款统计
+                        val totalLoanAmount = loans.sumOf { it.amount }
+                        val totalMonthlyPayment = loans.sumOf { it.monthlyPayment }
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "贷款总额",
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = 12.sp
+                            )
+                            Text(
+                                text = formatMoney(totalLoanAmount),
+                                color = Color(0xFFEF4444),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "月还款总额",
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = 12.sp
+                            )
+                            Text(
+                                text = formatMoney(totalMonthlyPayment),
+                                color = Color(0xFFFBBF24),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        
+                        // 资金不足警告
+                        if (money < totalMonthlyPayment) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(
+                                        color = Color(0xFFEF4444).copy(alpha = 0.15f),
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    .border(
+                                        width = 1.dp,
+                                        color = Color(0xFFEF4444).copy(alpha = 0.4f),
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    .padding(10.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.Top,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = "⚠️",
+                                        fontSize = 16.sp
+                                    )
+                                    Column {
+                                        Text(
+                                            text = "资金不足警告",
+                                            color = Color(0xFFEF4444),
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "当前余额不足以支付下月贷款！请追加贷款或变卖资产，否则账户将变为负数。",
+                                            color = Color.White.copy(alpha = 0.9f),
+                                            fontSize = 11.sp,
+                                            lineHeight = 14.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             )
             
             // 底部留白，避免内容被底部导航栏遮挡
             Spacer(modifier = Modifier.height(80.dp))
+        }
+        
+        // 贷款对话框
+        if (showLoanDialog) {
+            LoanDialog(
+                currentMoney = money,
+                currentYear = currentYear,
+                currentMonth = currentMonth,
+                currentDay = currentDay,
+                existingLoans = loans,
+                onDismiss = { showLoanDialog = false },
+                onApplyLoan = { loan ->
+                    onLoanApply(loan)
+                    showLoanDialog = false
+                }
+            )
         }
     }
 }
@@ -6668,6 +6930,7 @@ fun CompanyInfoCardWithYearSelector(
     onYearChange: (Int) -> Unit,
     items: List<Pair<String, String>> = emptyList(),
     onRefresh: (() -> Unit)? = null,
+    onLoanClick: (() -> Unit)? = null,
     content: (@Composable ColumnScope.() -> Unit)? = null
 ) {
     var showYearDialog by remember { mutableStateOf(false) }
@@ -6700,9 +6963,102 @@ fun CompanyInfoCardWithYearSelector(
                 
                 // 右侧按钮组
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // 贷款按钮（仅在有贷款回调时显示）
+                    if (onLoanClick != null) {
+                        Box(
+                            modifier = Modifier
+                                .height(38.dp)
+                                .drawBehind {
+                                    // 外部光晕
+                                    drawRoundRect(
+                                        brush = Brush.radialGradient(
+                                            colors = listOf(
+                                                Color(0xFF2563EB).copy(alpha = 0.6f),
+                                                Color.Transparent
+                                            ),
+                                            center = center,
+                                            radius = size.width * 0.8f
+                                        ),
+                                        cornerRadius = CornerRadius(20.dp.toPx()),
+                                        style = androidx.compose.ui.graphics.drawscope.Fill
+                                    )
+                                }
+                                .background(
+                                    brush = Brush.linearGradient(
+                                        colors = listOf(
+                                            Color(0xFF2563EB),
+                                            Color(0xFF3B82F6),
+                                            Color(0xFF60A5FA)
+                                        )
+                                    ),
+                                    shape = RoundedCornerShape(20.dp)
+                                )
+                                .border(
+                                    width = 1.5.dp,
+                                    brush = Brush.verticalGradient(
+                                        colors = listOf(
+                                            Color.White.copy(alpha = 0.4f),
+                                            Color.White.copy(alpha = 0.1f)
+                                        )
+                                    ),
+                                    shape = RoundedCornerShape(20.dp)
+                                )
+                                .clickable(onClick = onLoanClick)
+                                .padding(horizontal = 18.dp, vertical = 9.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            // 内部高光层
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .background(
+                                        brush = Brush.verticalGradient(
+                                            colors = listOf(
+                                                Color.White.copy(alpha = 0.3f),
+                                                Color.Transparent
+                                            ),
+                                            endY = 40f
+                                        ),
+                                        shape = RoundedCornerShape(20.dp)
+                                    )
+                            )
+                            
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    text = "💰",
+                                    fontSize = 15.sp,
+                                    style = androidx.compose.ui.text.TextStyle(
+                                        shadow = androidx.compose.ui.graphics.Shadow(
+                                            color = Color.Black.copy(alpha = 0.3f),
+                                            offset = androidx.compose.ui.geometry.Offset(0f, 2f),
+                                            blurRadius = 4f
+                                        )
+                                    )
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = "贷款",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    style = androidx.compose.ui.text.TextStyle(
+                                        shadow = androidx.compose.ui.graphics.Shadow(
+                                            color = Color.Black.copy(alpha = 0.3f),
+                                            offset = androidx.compose.ui.geometry.Offset(0f, 1f),
+                                            blurRadius = 3f
+                                        )
+                                    )
+                                )
+                            }
+                        }
+                    }
+                    
                     // 刷新按钮（仅在有刷新回调时显示）
                     if (onRefresh != null) {
                         IconButton(
@@ -6710,33 +7066,102 @@ fun CompanyInfoCardWithYearSelector(
                             modifier = Modifier.size(32.dp)
                         ) {
                             Text(
-                                text = "🔄",
+                                text = "",
                                 fontSize = 16.sp
                             )
                         }
                     }
                     
                     // 年份选择按钮
-                    OutlinedButton(
-                        onClick = { showYearDialog = true },
-                        modifier = Modifier.height(36.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = Color.White.copy(alpha = 0.1f),
-                            contentColor = Color.White
-                        ),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f)),
-                        shape = RoundedCornerShape(8.dp)
+                    Box(
+                        modifier = Modifier
+                            .height(38.dp)
+                            .drawBehind {
+                                // 外部光晕
+                                drawRoundRect(
+                                    brush = Brush.radialGradient(
+                                        colors = listOf(
+                                            Color(0xFF8B5CF6).copy(alpha = 0.6f),
+                                            Color.Transparent
+                                        ),
+                                        center = center,
+                                        radius = size.width * 0.8f
+                                    ),
+                                    cornerRadius = CornerRadius(20.dp.toPx()),
+                                    style = androidx.compose.ui.graphics.drawscope.Fill
+                                )
+                            }
+                            .background(
+                                brush = Brush.linearGradient(
+                                    colors = listOf(
+                                        Color(0xFF7C3AED),
+                                        Color(0xFF8B5CF6),
+                                        Color(0xFFA78BFA)
+                                    )
+                                ),
+                                shape = RoundedCornerShape(20.dp)
+                            )
+                            .border(
+                                width = 1.5.dp,
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.White.copy(alpha = 0.5f),
+                                        Color.White.copy(alpha = 0.15f)
+                                    )
+                                ),
+                                shape = RoundedCornerShape(20.dp)
+                            )
+                            .clickable { showYearDialog = true }
+                            .padding(horizontal = 18.dp, vertical = 9.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "第${selectedYear}年",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium
+                        // 内部高光层
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .background(
+                                    brush = Brush.verticalGradient(
+                                        colors = listOf(
+                                            Color.White.copy(alpha = 0.35f),
+                                            Color.Transparent
+                                        ),
+                                        endY = 40f
+                                    ),
+                                    shape = RoundedCornerShape(20.dp)
+                                )
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "▼",
-                            fontSize = 10.sp
-                        )
+                        
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = "第${selectedYear}年",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                style = androidx.compose.ui.text.TextStyle(
+                                    shadow = androidx.compose.ui.graphics.Shadow(
+                                        color = Color.Black.copy(alpha = 0.3f),
+                                        offset = androidx.compose.ui.geometry.Offset(0f, 1f),
+                                        blurRadius = 3f
+                                    )
+                                )
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = "▼",
+                                fontSize = 10.sp,
+                                color = Color.White,
+                                style = androidx.compose.ui.text.TextStyle(
+                                    shadow = androidx.compose.ui.graphics.Shadow(
+                                        color = Color.Black.copy(alpha = 0.3f),
+                                        offset = androidx.compose.ui.geometry.Offset(0f, 1f),
+                                        blurRadius = 2f
+                                    )
+                                )
+                            )
+                        }
                     }
                 }
             }

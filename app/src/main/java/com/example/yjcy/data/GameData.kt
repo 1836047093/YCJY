@@ -751,6 +751,77 @@ data class GameIP(
     }
 }
 
+/**
+ * 贷款数据类
+ */
+data class Loan(
+    val id: String = java.util.UUID.randomUUID().toString(), // 贷款唯一ID
+    val amount: Long, // 贷款金额
+    val interestRate: Double, // 年利率（如0.08表示8%）
+    val totalMonths: Int, // 总还款月数
+    val remainingMonths: Int, // 剩余还款月数
+    val monthlyPayment: Long, // 月还款额（本金+利息）
+    val startDate: GameDate, // 贷款开始日期
+    val loanType: LoanType // 贷款类型
+) {
+    /**
+     * 计算贷款总利息
+     */
+    fun getTotalInterest(): Long {
+        return monthlyPayment * totalMonths - amount
+    }
+    
+    /**
+     * 计算已还金额
+     */
+    fun getPaidAmount(): Long {
+        return monthlyPayment * (totalMonths - remainingMonths)
+    }
+    
+    /**
+     * 计算剩余本金
+     */
+    fun getRemainingPrincipal(): Long {
+        return monthlyPayment * remainingMonths
+    }
+}
+
+/**
+ * 贷款类型枚举
+ */
+enum class LoanType(
+    val typeName: String,
+    val maxAmount: Long, // 最大贷款金额
+    val interestRate: Double, // 年利率
+    val maxMonths: Int, // 最长还款月数
+    val minMonths: Int, // 最短还款月数
+    val description: String
+) {
+    SHORT_TERM("短期贷款", 5000000L, 0.06, 12, 6, "6-12个月，年利率6%，快速周转"),
+    MEDIUM_TERM("中期贷款", 20000000L, 0.08, 36, 12, "12-36个月，年利率8%，适合扩张"),
+    LONG_TERM("长期贷款", 50000000L, 0.10, 60, 24, "24-60个月，年利率10%，大额投资");
+    
+    /**
+     * 计算月利率
+     */
+    fun getMonthlyInterestRate(): Double {
+        return interestRate / 12
+    }
+    
+    /**
+     * 计算月还款额（等额本息）
+     * 公式：月还款额 = 贷款本金 × [月利率 × (1 + 月利率)^还款月数] / [(1 + 月利率)^还款月数 - 1]
+     */
+    fun calculateMonthlyPayment(amount: Long, months: Int): Long {
+        val monthlyRate = getMonthlyInterestRate()
+        if (monthlyRate == 0.0) return amount / months
+        
+        val temp = Math.pow(1 + monthlyRate, months.toDouble())
+        val monthlyPayment = amount * (monthlyRate * temp) / (temp - 1)
+        return monthlyPayment.toLong()
+    }
+}
+
 // 存档数据类
 data class SaveData(
     val companyName: String = "我的游戏公司",
@@ -770,6 +841,7 @@ data class SaveData(
     val revenueData: Map<String, GameRevenue> = emptyMap(), // 收益数据（所有已发售游戏的收益信息）
     val jobPostings: List<JobPosting> = emptyList(), // 招聘岗位列表
     val complaints: List<Complaint> = emptyList(), // 客诉列表
+    val loans: List<Loan> = emptyList(), // 贷款列表
     val autoProcessComplaints: Boolean = false, // 新增：自动处理客诉开关（默认关闭）
     val autoPromotionThreshold: Float = 0.5f, // 新增：自动宣传阈值（0-1，表示0%-100%，低于此值自动宣传）
     val autoApproveSalaryIncrease: Boolean = false, // 新增：自动审批员工涨薪开关（默认关闭）

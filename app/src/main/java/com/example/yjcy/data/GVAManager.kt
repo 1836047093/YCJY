@@ -182,8 +182,8 @@ object GVAManager {
      * 检查玩家游戏是否符合参赛条件
      */
     private fun isGameEligible(game: Game, startDate: GameDate, endDate: GameDate): Boolean {
-        // 必须已发售并有评分
-        if (game.rating == null || game.rating < 6.0f) return false
+        // 必须已发售并有评分（评分≥8.0）
+        if (game.rating == null || game.rating < 8.0f) return false
         if (game.releaseStatus != GameReleaseStatus.RELEASED && 
             game.releaseStatus != GameReleaseStatus.RATED) return false
         
@@ -200,8 +200,8 @@ object GVAManager {
      * 检查AI游戏是否符合参赛条件
      */
     private fun isCompetitorGameEligible(game: CompetitorGame, startDate: GameDate, endDate: GameDate): Boolean {
-        // 必须有足够高的评分
-        if (game.rating < 6.0f) return false
+        // 必须有足够高的评分（评分≥8.0）
+        if (game.rating < 8.0f) return false
         
         // 检查发售日期（AI游戏默认每月1号）
         val releaseDate = GameDate(game.releaseYear, game.releaseMonth, 1)
