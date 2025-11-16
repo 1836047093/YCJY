@@ -2982,4 +2982,154 @@ object RevenueManager {
         }
     }
     
+    /**
+     * GM工具：修改单机游戏总销量
+     * @param gameId 游戏ID
+     * @param newTotalSales 新的总销量
+     * @return 是否修改成功
+     */
+    fun gmSetSinglePlayerSales(gameId: String, newTotalSales: Long): Boolean {
+        val gameRevenue = gameRevenueMap[gameId] ?: return false
+        val (businessModel, _) = gameInfoMap[gameId] ?: return false
+        
+        if (businessModel != com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER) {
+            android.util.Log.w("RevenueManager", "GM修改失败：游戏 $gameId 不是单机游戏")
+            return false
+        }
+        
+        // 计算当前总销量
+        val currentTotalSales = gameRevenue.getTotalSales()
+        
+        if (newTotalSales < 0) {
+            android.util.Log.w("RevenueManager", "GM修改失败：销量不能为负数")
+            return false
+        }
+        
+        // 如果新销量更大，追加销量到最新一天
+        // 如果新销量更小，从最新一天开始减少销量
+        val difference = newTotalSales - currentTotalSales
+        
+        if (difference == 0L) {
+            android.util.Log.d("RevenueManager", "GM修改：销量无变化")
+            return true
+        }
+        
+        val updatedDailySalesList = if (difference > 0) {
+            // 增加销量：在最后一天添加差值
+            val lastIndex = gameRevenue.dailySalesList.lastIndex
+            if (lastIndex >= 0) {
+                gameRevenue.dailySalesList.mapIndexed { index, dailySales ->
+                    if (index == lastIndex) {
+                        dailySales.copy(sales = dailySales.sales + difference)
+                    } else {
+                        dailySales
+                    }
+                }
+            } else {
+                // 如果没有销量记录，创建一条
+                listOf(
+                    DailySales(
+                        date = java.util.Date(),
+                        sales = difference,
+                        revenue = difference * gameRevenue.releasePrice
+                    )
+                )
+            }
+        } else {
+            // 减少销量：从最后一天开始递减
+            var remainingToReduce = kotlin.math.abs(difference)
+            val mutableList = gameRevenue.dailySalesList.toMutableList()
+            
+            for (i in mutableList.lastIndex downTo 0) {
+                if (remainingToReduce <= 0) break
+                
+                val currentSales = mutableList[i].sales
+                if (currentSales <= remainingToReduce) {
+                    // 当天销量全部减掉
+                    remainingToReduce -= currentSales
+                    mutableList[i] = mutableList[i].copy(sales = 0)
+                } else {
+                    // 部分减少
+                    mutableList[i] = mutableList[i].copy(sales = currentSales - remainingToReduce)
+                    remainingToReduce = 0
+                }
+            }
+            
+            mutableList
+        }
+        
+        // 更新数据
+        gameRevenueMap[gameId] = gameRevenue.copy(
+            dailySalesList = updatedDailySalesList
+        )
+        saveRevenueData()
+        
+        android.util.Log.d("RevenueManager", "GM修改成功：游戏 $gameId 销量从 $currentTotalSales 修改为 $newTotalSales")
+        return true
+    }
+    
+    /**
+     * GM工具：修改网游总注册数
+     * @param gameId 游戏ID
+     * @param newTotalRegistered 新的总注册数
+     * @return 是否修改成功
+     */
+    fun gmSetOnlineGameRegistered(gameId: String, newTotalRegistered: Long): Boolean {
+        val gameRevenue = gameRevenueMap[gameId] ?: return false
+        val (businessModel, _) = gameInfoMap[gameId] ?: return false
+        
+        if (businessModel != com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
+            android.util.Log.w("RevenueManager", "GM修改失败：游戏 $gameId 不是网络游戏")
+            return false
+        }
+        
+        if (newTotalRegistered < 0) {
+            android.util.Log.w("RevenueManager", "GM修改失败：注册数不能为负数")
+            return false
+        }
+        
+        val oldRegistered = gameRevenue.totalRegisteredPlayers
+        
+        // 更新数据
+        gameRevenueMap[gameId] = gameRevenue.copy(
+            totalRegisteredPlayers = newTotalRegistered
+        )
+        saveRevenueData()
+        
+        android.util.Log.d("RevenueManager", "GM修改成功：游戏 $gameId 总注册从 $oldRegistered 修改为 $newTotalRegistered")
+        return true
+    }
+    
+    /**
+     * GM工具：修改网游兴趣值
+     * @param gameId 游戏ID
+     * @param newInterest 新的兴趣值（0-100）
+     * @return 是否修改成功
+     */
+    fun gmSetPlayerInterest(gameId: String, newInterest: Double): Boolean {
+        val gameRevenue = gameRevenueMap[gameId] ?: return false
+        val (businessModel, _) = gameInfoMap[gameId] ?: return false
+        
+        if (businessModel != com.example.yjcy.ui.BusinessModel.ONLINE_GAME) {
+            android.util.Log.w("RevenueManager", "GM修改失败：游戏 $gameId 不是网络游戏")
+            return false
+        }
+        
+        if (newInterest < 0 || newInterest > 100) {
+            android.util.Log.w("RevenueManager", "GM修改失败：兴趣值必须在0-100之间")
+            return false
+        }
+        
+        val oldInterest = gameRevenue.playerInterest
+        
+        // 更新数据
+        gameRevenueMap[gameId] = gameRevenue.copy(
+            playerInterest = newInterest
+        )
+        saveRevenueData()
+        
+        android.util.Log.d("RevenueManager", "GM修改成功：游戏 $gameId 兴趣值从 $oldInterest 修改为 $newInterest")
+        return true
+    }
+    
 }

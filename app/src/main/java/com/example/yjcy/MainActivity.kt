@@ -70,6 +70,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -196,6 +198,12 @@ import com.example.yjcy.ui.ProjectDisplayType
 import com.example.yjcy.ui.ProjectManagementWrapper
 import com.example.yjcy.ui.SalaryRequestDialog
 import com.example.yjcy.ui.SecretaryChatDialog
+import com.example.yjcy.ui.esports.TeamManagementScreen
+import com.example.yjcy.ui.esports.EsportsTestScreen
+import com.example.yjcy.ui.esports.TournamentCenterScreen
+import com.example.yjcy.managers.esports.HeroManager
+import com.example.yjcy.managers.esports.PlayerManager
+import com.example.yjcy.managers.esports.TournamentManager as EsportsTournamentManager
 import com.example.yjcy.ui.SecretaryChatScreen
 import com.example.yjcy.ui.ServerManagementContent
 import com.example.yjcy.ui.SubsidiaryManagementScreen
@@ -515,6 +523,21 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("secretary_chat") {
                         SecretaryChatScreen(navController)
+                    }
+                    composable("team_management") {
+                        TeamManagementScreen(
+                            onNavigateBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable("tournament_center") {
+                        TournamentCenterScreen(
+                            onNavigateBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable("esports_test") {
+                        EsportsTestScreen(
+                            onNavigateBack = { navController.popBackStack() }
+                        )
                     }
                     }
                 }
@@ -2678,23 +2701,27 @@ fun GameScreen(
                 val totalRevenue = revenue.dailySalesList.sumOf { it.revenue }
                 Log.d("GameScreen", "  - ${revenue.gameName} (${if (gameId.startsWith("inherited_")) "继承" else "自研"}): 记录${revenue.dailySalesList.size}天, 总收入¥${totalRevenue.toLong()}")
             }
-        } else {
-            // ===== 新游戏：清空旧数据 =====
-            Log.d("GameScreen", "【实例 $instanceId】===== 新游戏模式：清空旧数据 =====")
-            RevenueManager.clearAllData()
-            jobPostingService.clearAllData()
-            Log.d("GameScreen", "【实例 $instanceId】✓ 清空招聘岗位数据")
             
-            // 🔍 调试：确认清空后没有收入数据
-            val afterClear = RevenueManager.exportRevenueData()
-            if (afterClear.isNotEmpty()) {
-                Log.e("GameScreen", "⚠️ 警告：清空后仍有${afterClear.size}条收入数据！")
-                afterClear.forEach { (gameId, revenue) ->
-                    Log.e("GameScreen", "  - ${revenue.gameName} (ID: ${gameId.take(20)}...)")
-                }
-            } else {
-                Log.d("GameScreen", "✓ 确认收入数据已清空")
-            }
+            // 初始化MOBA电竞系统（读档模式）
+            HeroManager.initialize(saveData.mobaHeroes)
+            PlayerManager.initialize(saveData.esportsPlayers, saveData.myTeamPlayers)
+            EsportsTournamentManager.initialize(saveData.activeTournaments, saveData.tournamentHistory)
+            Log.d("GameScreen", "【实例 $instanceId】✓ MOBA电竞系统初始化完成：英雄${HeroManager.heroes.size}个，选手${PlayerManager.players.size}个，战队${PlayerManager.myTeam.size}人")
+            
+            Log.d("GameScreen", "【实例 $instanceId】===== 读档完成 =====")
+        } else {
+            // ===== 新游戏：清空所有数据 =====
+            Log.d("GameScreen", "【实例 $instanceId】===== 新游戏模式：清空所有数据 =====")
+            RevenueManager.clearAllData()
+            Log.d("GameScreen", "【实例 $instanceId】✓ RevenueManager已清空")
+            
+            // 初始化MOBA电竞系统（新游戏模式，自动生成100个英雄）
+            HeroManager.initialize(null)
+            PlayerManager.initialize(emptyList(), emptyList())
+            EsportsTournamentManager.initialize(emptyList(), emptyList())
+            Log.d("GameScreen", "【实例 $instanceId】✓ MOBA电竞系统初始化完成：自动生成${HeroManager.heroes.size}个英雄")
+            
+            Log.d("GameScreen", "【实例 $instanceId】===== 新游戏初始化完成 =====")
         }
     }
     
@@ -4735,6 +4762,10 @@ fun GameScreen(
                 },
                 onGVAConference = {
                     selectedTab = 6
+                    showTournamentMenu = false
+                },
+                onEsportsClub = {
+                    navController.navigate("team_management")
                     showTournamentMenu = false
                 }
             )
@@ -8754,6 +8785,7 @@ fun InGameSettingsContent(
         // GM工具箱（仅在GM模式激活时显示）
         if (gmModeEnabled) {
             var showSkillLevelDialog by remember { mutableStateOf(false) }
+            var showGameDataDialog by remember { mutableStateOf(false) }
             
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -8773,9 +8805,9 @@ fun InGameSettingsContent(
                         fontWeight = FontWeight.Bold
                     )
                     
-                    // 一键满配员工
+                    // 修改游戏数据
                     Button(
-                        onClick = onMaxEmployees,
+                        onClick = { showGameDataDialog = true },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFF8B5CF6)
@@ -8787,12 +8819,12 @@ fun InGameSettingsContent(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "👥",
+                                text = "📊",
                                 fontSize = 18.sp,
                                 modifier = Modifier.padding(end = 8.dp)
                             )
                             Text(
-                                text = "一键满配员工",
+                                text = "修改游戏数据",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -8848,6 +8880,321 @@ fun InGameSettingsContent(
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
                             )
+                        }
+                    }
+                }
+            }
+            
+            // 修改游戏数据对话框
+            if (showGameDataDialog) {
+                var selectedGame by remember { mutableStateOf<Game?>(null) }
+                var inputSalesValue by remember { mutableStateOf("") }
+                var inputRegisteredValue by remember { mutableStateOf("") }
+                var inputInterestValue by remember { mutableStateOf("") }
+                
+                // 获取已发售的游戏
+                val releasedGames = games.filter { 
+                    it.releaseStatus == GameReleaseStatus.RELEASED 
+                }
+                
+                Dialog(onDismissRequest = { 
+                    showGameDataDialog = false
+                    selectedGame = null
+                    inputSalesValue = ""
+                    inputRegisteredValue = ""
+                    inputInterestValue = ""
+                }) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF1F2937)
+                        ),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp)
+                        ) {
+                            Text(
+                                text = "📊 修改游戏数据",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                modifier = Modifier.padding(bottom = 16.dp)
+                            )
+                            
+                            if (releasedGames.isEmpty()) {
+                                Text(
+                                    text = "暂无已发售的游戏",
+                                    color = Color.White.copy(alpha = 0.6f),
+                                    fontSize = 14.sp,
+                                    modifier = Modifier.padding(vertical = 16.dp)
+                                )
+                            } else {
+                                // 游戏选择列表
+                                Text(
+                                    text = "选择游戏：",
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+                                
+                                LazyColumn(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = 200.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    items(releasedGames) { game ->
+                                        val isSelected = selectedGame?.id == game.id
+                                        val gameRevenue = RevenueManager.getGameRevenue(game.id)
+                                        
+                                        Card(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable { selectedGame = game },
+                                            colors = CardDefaults.cardColors(
+                                                containerColor = if (isSelected) 
+                                                    Color(0xFF8B5CF6) 
+                                                else 
+                                                    Color(0xFF374151)
+                                            ),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.padding(12.dp)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = game.name,
+                                                        color = Color.White,
+                                                        fontSize = 14.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Text(
+                                                        text = when (game.businessModel) {
+                                                            BusinessModel.SINGLE_PLAYER -> "单机"
+                                                            BusinessModel.ONLINE_GAME -> "网游"
+                                                        },
+                                                        color = Color.White.copy(alpha = 0.6f),
+                                                        fontSize = 12.sp
+                                                    )
+                                                }
+                                                
+                                                if (gameRevenue != null) {
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    if (game.businessModel == BusinessModel.SINGLE_PLAYER) {
+                                                        Text(
+                                                            text = "总销量: ${formatMoneyWithDecimals(gameRevenue.getTotalSales().toDouble())}",
+                                                            color = Color.White.copy(alpha = 0.7f),
+                                                            fontSize = 12.sp
+                                                        )
+                                                    } else {
+                                                        Text(
+                                                            text = "总注册: ${formatMoneyWithDecimals(gameRevenue.totalRegisteredPlayers.toDouble())} | 活跃: ${formatMoneyWithDecimals(gameRevenue.getActivePlayers().toDouble())}",
+                                                            color = Color.White.copy(alpha = 0.7f),
+                                                            fontSize = 12.sp
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // 输入框
+                                if (selectedGame != null) {
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    
+                                    if (selectedGame!!.businessModel == BusinessModel.SINGLE_PLAYER) {
+                                        // 单机游戏：修改总销量
+                                        Text(
+                                            text = "新的总销量：",
+                                            color = Color.White,
+                                            fontSize = 14.sp,
+                                            modifier = Modifier.padding(bottom = 8.dp)
+                                        )
+                                        OutlinedTextField(
+                                            value = inputSalesValue,
+                                            onValueChange = { inputSalesValue = it.filter { c -> c.isDigit() } },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            placeholder = { 
+                                                Text("输入新的总销量", color = Color.White.copy(alpha = 0.5f)) 
+                                            },
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedTextColor = Color.White,
+                                                unfocusedTextColor = Color.White,
+                                                focusedBorderColor = Color(0xFF8B5CF6),
+                                                unfocusedBorderColor = Color.White.copy(alpha = 0.3f)
+                                            ),
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                            singleLine = true
+                                        )
+                                    } else {
+                                        // 网游：修改总注册数
+                                        Text(
+                                            text = "新的总注册数：",
+                                            color = Color.White,
+                                            fontSize = 14.sp,
+                                            modifier = Modifier.padding(bottom = 8.dp)
+                                        )
+                                        OutlinedTextField(
+                                            value = inputRegisteredValue,
+                                            onValueChange = { inputRegisteredValue = it.filter { c -> c.isDigit() } },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            placeholder = { 
+                                                Text("输入新的总注册数", color = Color.White.copy(alpha = 0.5f)) 
+                                            },
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedTextColor = Color.White,
+                                                unfocusedTextColor = Color.White,
+                                                focusedBorderColor = Color(0xFF8B5CF6),
+                                                unfocusedBorderColor = Color.White.copy(alpha = 0.3f)
+                                            ),
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                            singleLine = true
+                                        )
+                                        Text(
+                                            text = "💡 活跃玩家数 = 总注册数 × 40% × 兴趣值倍率",
+                                            color = Color(0xFFFBBF24),
+                                            fontSize = 11.sp,
+                                            modifier = Modifier.padding(top = 4.dp)
+                                        )
+                                        
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                        
+                                        // 网游兴趣值输入
+                                        Text(
+                                            text = "兴趣值（0-100）：",
+                                            color = Color.White,
+                                            fontSize = 14.sp,
+                                            modifier = Modifier.padding(bottom = 8.dp)
+                                        )
+                                        val gameRevenue = RevenueManager.getGameRevenue(selectedGame!!.id)
+                                        val currentInterest = gameRevenue?.playerInterest ?: 0.0
+                                        Text(
+                                            text = "当前兴趣值：${String.format("%.1f", currentInterest)}%",
+                                            color = Color(0xFF10B981),
+                                            fontSize = 12.sp,
+                                            modifier = Modifier.padding(bottom = 8.dp)
+                                        )
+                                        OutlinedTextField(
+                                            value = inputInterestValue,
+                                            onValueChange = { 
+                                                val filtered = it.filter { c -> c.isDigit() || c == '.' }
+                                                val parts = filtered.split('.')
+                                                if (parts.size <= 2 && parts.all { part -> part.all { char -> char.isDigit() } }) {
+                                                    inputInterestValue = filtered
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            placeholder = { 
+                                                Text("输入新的兴趣值（0-100）", color = Color.White.copy(alpha = 0.5f)) 
+                                            },
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedTextColor = Color.White,
+                                                unfocusedTextColor = Color.White,
+                                                focusedBorderColor = Color(0xFF8B5CF6),
+                                                unfocusedBorderColor = Color.White.copy(alpha = 0.3f)
+                                            ),
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                            singleLine = true
+                                        )
+                                        Text(
+                                            text = "💡 设置为100可最大化活跃玩家数",
+                                            color = Color(0xFFFBBF24),
+                                            fontSize = 11.sp,
+                                            modifier = Modifier.padding(top = 4.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(24.dp))
+                            
+                            // 按钮
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = { 
+                                        showGameDataDialog = false
+                                        selectedGame = null
+                                        inputSalesValue = ""
+                                        inputRegisteredValue = ""
+                                        inputInterestValue = ""
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text("取消", color = Color.White)
+                                }
+                                
+                                Button(
+                                    onClick = {
+                                        if (selectedGame != null) {
+                                            var success = true
+                                            
+                                            if (selectedGame!!.businessModel == BusinessModel.SINGLE_PLAYER) {
+                                                // 单机游戏：修改销量
+                                                val newSales = inputSalesValue.toLongOrNull()
+                                                if (newSales != null) {
+                                                    success = RevenueManager.gmSetSinglePlayerSales(selectedGame!!.id, newSales)
+                                                } else {
+                                                    success = false
+                                                }
+                                            } else {
+                                                // 网游：修改总注册数和/或兴趣值
+                                                if (inputRegisteredValue.isNotBlank()) {
+                                                    val newRegistered = inputRegisteredValue.toLongOrNull()
+                                                    if (newRegistered != null) {
+                                                        success = RevenueManager.gmSetOnlineGameRegistered(selectedGame!!.id, newRegistered) && success
+                                                    } else {
+                                                        success = false
+                                                    }
+                                                }
+                                                
+                                                if (inputInterestValue.isNotBlank() && success) {
+                                                    val newInterest = inputInterestValue.toDoubleOrNull()
+                                                    if (newInterest != null) {
+                                                        success = RevenueManager.gmSetPlayerInterest(selectedGame!!.id, newInterest) && success
+                                                    } else {
+                                                        success = false
+                                                    }
+                                                }
+                                            }
+                                            
+                                            if (success) {
+                                                showGameDataDialog = false
+                                                selectedGame = null
+                                                inputSalesValue = ""
+                                                inputRegisteredValue = ""
+                                                inputInterestValue = ""
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    enabled = selectedGame != null && 
+                                        ((selectedGame!!.businessModel == BusinessModel.SINGLE_PLAYER && inputSalesValue.isNotBlank()) ||
+                                         (selectedGame!!.businessModel == BusinessModel.ONLINE_GAME && (inputRegisteredValue.isNotBlank() || inputInterestValue.isNotBlank()))),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF8B5CF6),
+                                        disabledContainerColor = Color.Gray
+                                    ),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text("确定", color = Color.White)
+                                }
+                            }
                         }
                     }
                 }
@@ -9037,7 +9384,12 @@ fun InGameSettingsContent(
                                 currentYearNominations = currentYearNominations, // 保存当年提名
                                 gvaAnnouncedDate = gvaAnnouncedDate, // 保存颁奖日期
                                 ownedIPs = ownedIPs, // 保存拥有的IP列表（收购竞争对手后获得）
-                                subsidiaries = subsidiaries, // 🔧 保存子公司列表（收购竞争对手后转为子公司）
+                                subsidiaries = subsidiaries, // 保存子公司列表（收购竞争对手后转为子公司）
+                                mobaHeroes = HeroManager.heroes, // MOBA电竞系统：英雄池
+                                esportsPlayers = PlayerManager.players, // MOBA电竞系统：所有选手
+                                myTeamPlayers = PlayerManager.myTeam.map { it.id }, // MOBA电竞系统：我的战队ID列表
+                                activeTournaments = EsportsTournamentManager.activeTournaments, // MOBA电竞系统：进行中的赛事
+                                tournamentHistory = EsportsTournamentManager.history, // MOBA电竞系统：赛事历史
                                 gmModeEnabled = gmModeEnabled, // 保存GM模式状态
                                 usedRedeemCodes = usedRedeemCodes, // 保存已使用的兑换码列表
                                 isSupporterUnlocked = isSupporterUnlocked, // 保存支持者功能解锁状态
@@ -9176,7 +9528,12 @@ fun InGameSettingsContent(
                                             currentYearNominations = currentYearNominations, // 保存当年提名
                                             gvaAnnouncedDate = gvaAnnouncedDate, // 保存颁奖日期
                                             ownedIPs = ownedIPs, // 保存拥有的IP列表（收购竞争对手后获得）
-                                            subsidiaries = subsidiaries, // 🔧 保存子公司列表（收购竞争对手后转为子公司）
+                                            subsidiaries = subsidiaries, // 保存子公司列表（收购竞争对手后转为子公司）
+                                            mobaHeroes = HeroManager.heroes, // MOBA电竞系统：英雄池
+                                            esportsPlayers = PlayerManager.players, // MOBA电竞系统：所有选手
+                                            myTeamPlayers = PlayerManager.myTeam.map { it.id }, // MOBA电竞系统：我的战队ID列表
+                                            activeTournaments = EsportsTournamentManager.activeTournaments, // MOBA电竞系统：进行中的赛事
+                                            tournamentHistory = EsportsTournamentManager.history, // MOBA电竞系统：赛事历史
                                             gmModeEnabled = gmModeEnabled, // 保存GM模式状态
                                             usedRedeemCodes = usedRedeemCodes, // 保存已使用的兑换码列表
                                             isSupporterUnlocked = isSupporterUnlocked, // 保存支持者功能解锁状态
@@ -9522,7 +9879,8 @@ fun GameSpeedDropdown(
 fun TournamentMenuDialog(
     onDismiss: () -> Unit,
     onTournamentManagement: () -> Unit,
-    onGVAConference: () -> Unit
+    onGVAConference: () -> Unit,
+    onEsportsClub: () -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -9617,6 +9975,40 @@ fun TournamentMenuDialog(
                     )
                     Text(
                         text = "年度游戏行业盛会",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.6f)
+                    )
+                }
+            }
+            
+            // 分隔线
+            HorizontalDivider(
+                color = Color.White.copy(alpha = 0.1f),
+                modifier = Modifier.padding(horizontal = 24.dp)
+            )
+            
+            // 电竞俱乐部选项
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onEsportsClub)
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "🎮",
+                    fontSize = 24.sp,
+                    modifier = Modifier.padding(end = 16.dp)
+                )
+                Column {
+                    Text(
+                        text = "电竞俱乐部",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF00D9FF)
+                    )
+                    Text(
+                        text = "管理职业电竞战队",
                         fontSize = 12.sp,
                         color = Color.White.copy(alpha = 0.6f)
                     )

@@ -843,7 +843,7 @@ private fun calculateDaysBetween(from: GameDate, to: GameDate): Int {
 fun Modifier.alpha(alpha: Float): Modifier = this.graphicsLayer(alpha = alpha)
 
 /**
- * 赛事类型卡片 - 显示赛事详情
+ * 赛事类型卡片 - 显示赛事详情（现代化设计）
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -857,23 +857,63 @@ fun TournamentTypeCard(
     val isEligible = eligibleGames.isNotEmpty()
     val canAfford = money >= tournamentType.baseCost
     
-    Card(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .then(
                 if (isEligible) Modifier.clickable(onClick = onClick)
                 else Modifier
-            ),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isEligible) 
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-            else 
-                Color.White.copy(alpha = 0.1f)
-        ),
-        shape = RoundedCornerShape(12.dp)
+            )
+            .graphicsLayer {
+                shadowElevation = if (isEligible) 12f else 4f
+            }
     ) {
+        // 左侧装饰条
+        Box(
+            modifier = Modifier
+                .width(6.dp)
+                .height(140.dp)
+                .align(Alignment.CenterStart)
+                .background(
+                    brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                        colors = if (isEligible) {
+                            listOf(
+                                Color(0xFF4CAF50),
+                                Color(0xFF2196F3)
+                            )
+                        } else {
+                            listOf(
+                                Color(0xFF666666),
+                                Color(0xFF999999)
+                            )
+                        }
+                    ),
+                    shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp)
+                )
+        )
+        
+        // 主内容区域 - 使用渐变背景
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 6.dp)
+                .background(
+                    brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                        colors = if (isEligible) {
+                            listOf(
+                                Color(0xFF1E3A8A).copy(alpha = 0.85f),
+                                Color(0xFF1E40AF).copy(alpha = 0.75f)
+                            )
+                        } else {
+                            listOf(
+                                Color(0xFF374151).copy(alpha = 0.6f),
+                                Color(0xFF4B5563).copy(alpha = 0.5f)
+                            )
+                        }
+                    ),
+                    shape = RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp)
+                )
+                .padding(16.dp)
         ) {
             // 标题行
             Row(
@@ -883,148 +923,210 @@ fun TournamentTypeCard(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(
-                        text = tournamentType.icon,
-                        fontSize = 32.sp
-                    )
+                    // 图标带光晕效果
+                    Box(
+                        modifier = Modifier
+                            .size(52.dp)
+                            .background(
+                                brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                                    colors = listOf(
+                                        Color(0xFFFFFFFF).copy(alpha = 0.15f),
+                                        Color.Transparent
+                                    )
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = tournamentType.icon,
+                            fontSize = 32.sp
+                        )
+                    }
+                    
                     Column {
                         Text(
                             text = tournamentType.displayName,
-                            fontSize = 18.sp,
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isEligible) MaterialTheme.colorScheme.primary else Color.Gray
+                            color = Color.White
                         )
                         Text(
                             text = "${tournamentType.duration}天赛事",
-                            fontSize = 12.sp,
-                            color = Color.Gray
+                            fontSize = 13.sp,
+                            color = Color.White.copy(alpha = 0.7f)
                         )
                     }
                 }
                 
                 // 状态标签
-                if (isEligible) {
-                    Surface(
-                        color = Color(0xFF4CAF50),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            text = "✓ 可举办 (${eligibleGames.size})",
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
+                Box(
+                    modifier = Modifier
+                        .background(
+                            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                colors = if (isEligible) {
+                                    listOf(Color(0xFF10B981), Color(0xFF059669))
+                                } else {
+                                    listOf(Color(0xFF6B7280), Color(0xFF4B5563))
+                                }
+                            ),
+                            shape = RoundedCornerShape(20.dp)
                         )
-                    }
-                } else {
-                    Surface(
-                        color = Color(0xFF666666),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            text = "✗ 暂不可用",
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
+                        .padding(horizontal = 14.dp, vertical = 7.dp)
+                ) {
+                    Text(
+                        text = if (isEligible) "✓ 可举办 (${eligibleGames.size})" else "✗ 暂不可用",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                 }
             }
             
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             
-            // 赛事信息网格
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            // 赛事信息网格 - 使用卡片式布局（3列）
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    InfoItem(
-                        label = "举办成本",
-                        value = formatMoney(tournamentType.baseCost),
-                        icon = "💰",
-                        color = if (canAfford) Color(0xFF4CAF50) else Color.Red
-                    )
-                    InfoItem(
-                        label = "奖金池",
-                        value = formatMoney(tournamentType.prizePool),
-                        icon = "🏆",
-                        color = Color(0xFFFFC107)
-                    )
-                }
+                // 成本信息
+                InfoCardItem(
+                    label = "成本",
+                    value = formatMoney(tournamentType.baseCost),
+                    icon = "💰",
+                    color = if (canAfford) Color(0xFF10B981) else Color(0xFFEF4444),
+                    modifier = Modifier.weight(1f)
+                )
                 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    InfoItem(
-                        label = "所需活跃",
-                        value = formatPlayerCount(tournamentType.minActivePlayers),
-                        icon = "👥",
-                        color = Color(0xFF2196F3)
-                    )
-                    InfoItem(
-                        label = "冷却时间",
-                        value = "${tournamentType.cooldownDays}天",
-                        icon = "⏰",
-                        color = Color(0xFF9C27B0)
-                    )
-                }
+                // 奖金池
+                InfoCardItem(
+                    label = "奖金",
+                    value = formatMoney(tournamentType.prizePool),
+                    icon = "🏆",
+                    color = Color(0xFFFBBF24),
+                    modifier = Modifier.weight(1f)
+                )
+                
+                // 所需活跃
+                InfoCardItem(
+                    label = "活跃",
+                    value = formatPlayerCount(tournamentType.minActivePlayers),
+                    icon = "👥",
+                    color = Color(0xFF3B82F6),
+                    modifier = Modifier.weight(1f)
+                )
             }
             
             Spacer(modifier = Modifier.height(12.dp))
             
-            // 奖励预览
-            Surface(
-                color = Color(0xFF1E88E5).copy(alpha = 0.1f),
-                shape = RoundedCornerShape(8.dp)
+            // 预期收益 - 使用渐变背景
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                            colors = listOf(
+                                Color(0xFF1E40AF).copy(alpha = 0.4f),
+                                Color(0xFF7C3AED).copy(alpha = 0.3f)
+                            )
+                        ),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    .padding(12.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
                         text = "📈 预期收益",
-                        fontSize = 13.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1E88E5)
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "• 粉丝增长: ${(tournamentType.fansGrowthMin * 100).toInt()}-${(tournamentType.fansGrowthMax * 100).toInt()}%",
-                        fontSize = 12.sp,
-                        color = Color.White.copy(alpha = 0.9f)
+                        color = Color.White
                     )
                     Text(
-                        text = "• 活跃玩家: ${(tournamentType.playersGrowthMin * 100).toInt()}-${(tournamentType.playersGrowthMax * 100).toInt()}%",
-                        fontSize = 12.sp,
-                        color = Color.White.copy(alpha = 0.9f)
-                    )
-                    Text(
-                        text = "• 兴趣值恢复: +${tournamentType.interestBonus.toInt()}%",
-                        fontSize = 12.sp,
-                        color = Color.White.copy(alpha = 0.9f)
+                        text = "粉丝 +${(tournamentType.fansGrowthMin * 100).toInt()}-${(tournamentType.fansGrowthMax * 100).toInt()}%  •  活跃 +${(tournamentType.playersGrowthMin * 100).toInt()}-${(tournamentType.playersGrowthMax * 100).toInt()}%  •  兴趣 +${tournamentType.interestBonus.toInt()}%",
+                        fontSize = 13.sp,
+                        color = Color.White.copy(alpha = 0.95f)
                     )
                 }
             }
             
             // 参赛条件提示
             if (!isEligible && totalGames > 0) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "⚠️ 需要：竞技类网游、评分≥8.0、活跃玩家≥${formatPlayerCount(tournamentType.minActivePlayers)}",
-                    fontSize = 11.sp,
-                    color = Color(0xFFFF9800),
+                Spacer(modifier = Modifier.height(10.dp))
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFFFF9800).copy(alpha = 0.1f), RoundedCornerShape(4.dp))
-                        .padding(8.dp)
+                        .background(
+                            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                colors = listOf(
+                                    Color(0xFFF59E0B).copy(alpha = 0.25f),
+                                    Color(0xFFEF4444).copy(alpha = 0.2f)
+                                )
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .padding(10.dp)
+                ) {
+                    Text(
+                        text = "⚠️ 需要：竞技类网游 • 评分≥8.0 • 活跃≥${formatPlayerCount(tournamentType.minActivePlayers)}",
+                        fontSize = 12.sp,
+                        color = Color(0xFFFBBF24),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 信息卡片项 - 现代化小卡片
+ */
+@Composable
+fun InfoCardItem(
+    label: String,
+    value: String,
+    icon: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .background(
+                color = Color.White.copy(alpha = 0.08f),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(10.dp)
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = icon,
+                    fontSize = 16.sp
+                )
+                Text(
+                    text = label,
+                    fontSize = 11.sp,
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontWeight = FontWeight.Medium
                 )
             }
+            Text(
+                text = value,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = color
+            )
         }
     }
 }
@@ -1066,7 +1168,7 @@ fun RowScope.InfoItem(
 }
 
 /**
- * 游戏选择对话框
+ * 游戏选择对话框（现代化设计）
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1081,97 +1183,233 @@ fun TournamentGameSelectionDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1E293B),
+        shape = RoundedCornerShape(20.dp),
         title = {
-            Column {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.padding(bottom = 8.dp)
+            ) {
+                // 图标光晕效果
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .background(
+                            brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                                colors = listOf(
+                                    Color(0xFFFFFFFF).copy(alpha = 0.2f),
+                                    Color.Transparent
+                                )
+                            ),
+                            shape = RoundedCornerShape(14.dp)
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(text = tournamentType.icon, fontSize = 28.sp)
-                    Column {
-                        Text(
-                            text = "举办${tournamentType.displayName}",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "选择参赛游戏",
-                            fontSize = 13.sp,
-                            color = Color.Gray
-                        )
-                    }
+                    Text(text = tournamentType.icon, fontSize = 32.sp)
+                }
+                
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = "举办${tournamentType.displayName}",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "选择参赛游戏",
+                        fontSize = 13.sp,
+                        color = Color.White.copy(alpha = 0.6f)
+                    )
                 }
             }
         },
         text = {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.heightIn(max = 400.dp)
             ) {
                 items(games) { game ->
                     val revenueData = revenueDataMap[game.id]
                     val activePlayers = revenueData?.getActivePlayers() ?: 0
                     
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelectGame(game) },
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(12.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = game.name,
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    Text(
-                                        text = "⭐ ${game.rating?.let { String.format("%.1f", it) } ?: "未评分"}",
-                                        fontSize = 12.sp,
-                                        color = Color(0xFFFFC107)
-                                    )
-                                }
-                                Icon(
-                                    imageVector = Icons.Default.PlayArrow,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = "👥 ${formatPlayerCount(activePlayers)}",
-                                    fontSize = 12.sp,
-                                    color = Color(0xFF2196F3)
-                                )
-                                Text(
-                                    text = game.theme.displayName,
-                                    fontSize = 12.sp,
-                                    color = Color.Gray
-                                )
-                            }
-                        }
-                    }
+                    GameSelectionCard(
+                        game = game,
+                        activePlayers = activePlayers,
+                        onClick = { onSelectGame(game) }
+                    )
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消")
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = Color(0xFF94A3B8)
+                )
+            ) {
+                Text("取消", fontSize = 15.sp, fontWeight = FontWeight.Medium)
             }
         }
     )
+}
+
+/**
+ * 游戏选择卡片 - 现代化设计
+ */
+@Composable
+fun GameSelectionCard(
+    game: Game,
+    activePlayers: Long,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        // 左侧装饰条
+        Box(
+            modifier = Modifier
+                .width(5.dp)
+                .height(100.dp)
+                .align(Alignment.CenterStart)
+                .background(
+                    brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFF3B82F6),
+                            Color(0xFF8B5CF6)
+                        )
+                    ),
+                    shape = RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp)
+                )
+        )
+        
+        // 主内容区域
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 5.dp)
+                .background(
+                    brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                        colors = listOf(
+                            Color(0xFF334155).copy(alpha = 0.8f),
+                            Color(0xFF475569).copy(alpha = 0.7f)
+                        )
+                    ),
+                    shape = RoundedCornerShape(topEnd = 10.dp, bottomEnd = 10.dp)
+                )
+                .padding(14.dp)
+        ) {
+            // 游戏名称和箭头
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = game.name,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    
+                    // 评分
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "⭐",
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = game.rating?.let { String.format("%.1f", it) } ?: "未评分",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFBBF24)
+                        )
+                    }
+                }
+                
+                // 右箭头图标
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(
+                            brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                                colors = listOf(
+                                    Color(0xFF3B82F6).copy(alpha = 0.3f),
+                                    Color.Transparent
+                                )
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        tint = Color(0xFF60A5FA),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(10.dp))
+            
+            // 活跃玩家和主题标签
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 活跃玩家
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier
+                        .background(
+                            color = Color(0xFF1E40AF).copy(alpha = 0.3f),
+                            shape = RoundedCornerShape(6.dp)
+                        )
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                ) {
+                    Text(text = "👥", fontSize = 14.sp)
+                    Text(
+                        text = formatPlayerCount(activePlayers),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF60A5FA)
+                    )
+                }
+                
+                // 主题标签
+                Box(
+                    modifier = Modifier
+                        .background(
+                            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                colors = listOf(
+                                    Color(0xFF6366F1).copy(alpha = 0.3f),
+                                    Color(0xFF8B5CF6).copy(alpha = 0.3f)
+                                )
+                            ),
+                            shape = RoundedCornerShape(6.dp)
+                        )
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        text = game.theme.displayName,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFFA78BFA)
+                    )
+                }
+            }
+        }
+    }
 }

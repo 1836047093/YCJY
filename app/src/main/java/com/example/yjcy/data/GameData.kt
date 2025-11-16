@@ -22,6 +22,15 @@ enum class FounderProfession(val displayName: String, val icon: String, val spec
     CUSTOMER_SERVICE("客服", "📞", "服务")
 }
 
+// MOBA英雄位置枚举
+enum class HeroPosition(val displayName: String) {
+    TOP("上单"),
+    JUNGLE("打野"),
+    MID("中单"),
+    ADC("ADC"),
+    SUPPORT("辅助")
+}
+
 // 游戏发售状态枚举
 enum class GameReleaseStatus {
     DEVELOPMENT,      // 开发中
@@ -854,6 +863,12 @@ data class SaveData(
     val gvaAnnouncedDate: GameDate? = null, // GVA：最近一次颁奖日期
     val ownedIPs: List<GameIP> = emptyList(), // 拥有的游戏IP列表（收购竞争对手后获得）
     val subsidiaries: List<Subsidiary> = emptyList(), // 子公司列表（收购竞争对手后转为子公司）
+    // MOBA电竞系统
+    val mobaHeroes: List<com.example.yjcy.data.esports.MobaHero> = emptyList(), // MOBA英雄池（100个英雄）
+    val esportsPlayers: List<com.example.yjcy.data.esports.EsportsPlayer> = emptyList(), // 所有电竞选手
+    val myTeamPlayers: List<String> = emptyList(), // 我的战队选手ID列表
+    val activeTournaments: List<com.example.yjcy.data.esports.Tournament> = emptyList(), // 进行中的赛事
+    val tournamentHistory: List<com.example.yjcy.data.esports.TournamentRecord> = emptyList(), // 赛事历史
     val gmModeEnabled: Boolean = false, // GM模式开关（通过兑换码激活）
     val usedRedeemCodes: Set<String> = emptySet(), // 已使用的兑换码列表
     val isSupporterUnlocked: Boolean = false, // 支持者功能是否解锁（通过SUPPORTER兑换码解锁）
