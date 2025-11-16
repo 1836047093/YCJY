@@ -685,26 +685,25 @@ object RevenueManager {
     }
 
     /**
-     * 计算下一次更新成本（随更新次数递增，无上限）
+     * 计算下一次更新成本（随更新次数递增，有上限）
      * 
      * **单机游戏**（DLC/资料片性质）：
-     * - 基础成本：2,000,000元（再次上调）
+     * - 基础成本：3,000,000元
      * - 递增系数：1.25（每次+25%）
-     * - 无上限，持续递增
-     * - 价格梯度：200万 → 250万 → 312.5万 → 390.6万 → 488.3万 → 610.4万 → 762.9万 → 953.7万 → 1192万...
+     * - **成本上限：500,000,000元（5亿）**
+     * - 价格梯度：300万 → 375万 → 469万 → 586万 → 732万 → 916万 → 1145万 → ... → 5亿（上限）
      * 
      * **网络游戏**（持续运营性质）：
-     * - 基础成本：4,000,000元（再次上调）
+     * - 基础成本：5,000,000元
      * - 递增系数：1.25（每次+25%）
-     * - 无上限，持续递增
-     * - 价格梯度：400万 → 500万 → 625万 → 781万 → 977万 → 1221万 → 1526万 → 1907万 → 2384万...
+     * - **成本上限：500,000,000元（5亿）**
+     * - 价格梯度：500万 → 625万 → 781万 → 977万 → 1221万 → 1526万 → 1907万 → ... → 5亿（上限）
      * 
-     * **设计理念**：
-     * - 单机游戏基础成本提升至200万，网游提升至400万，使更新成为重大投资决策
-     * - 移除成本上限，让更新成本持续递增，增加后期运营压力和策略深度
-     * - 第10次更新：单机约1192万，网游约2384万
-     * - 第15次更新：单机约5729万，网游约1.15亿
-     * - 鼓励玩家在早期阶段多更新，后期需要权衡收益与成本
+     * **成本上限设计理念**：
+     * 1. 高基础成本使更新成为重大投资决策
+     * 2. 设置5亿上限防止成本无限膨胀
+     * 3. 鼓励玩家在早期阶段多更新，后期需要权衡收益与成本
+     * 4. 达到上限后保持固定成本，提供可预测的长期运营成本
      */
     fun calculateUpdateCost(gameId: String): Double {
         val gameRevenue = gameRevenueMap[gameId] ?: return 0.0
@@ -713,15 +712,17 @@ object RevenueManager {
         val (businessModel, _) = gameInfoMap[gameId] 
             ?: (com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER to emptyList())
         
-        // 根据商业模式设置不同的基础成本（无上限）
+        // 根据商业模式设置不同的基础成本，统一上限为5亿
         val base = when (businessModel) {
-            com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER -> 2_000_000.0  // 单机：基础200万
-            com.example.yjcy.ui.BusinessModel.ONLINE_GAME -> 4_000_000.0    // 网游：基础400万
+            com.example.yjcy.ui.BusinessModel.SINGLE_PLAYER -> 3_000_000.0  // 单机：基础300万
+            com.example.yjcy.ui.BusinessModel.ONLINE_GAME -> 5_000_000.0    // 网游：基础500万
         }
+        val maxCost = 500_000_000.0  // 统一上限：5亿
         
-        // 使用1.25的递增系数（每次+25%），无上限
+        // 使用1.25的递增系数（每次+25%），但不超过上限
         val factor = Math.pow(1.25, gameRevenue.updateCount.toDouble())
-        return base * factor
+        val cost = base * factor
+        return cost.coerceAtMost(maxCost)
     }
 
     /**

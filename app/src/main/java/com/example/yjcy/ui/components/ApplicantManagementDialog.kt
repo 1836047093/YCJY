@@ -52,13 +52,15 @@ fun ApplicantManagementDialog(
     val maxEmployees = recruitmentService.getMaxEmployeeCount()
     
     // 响应式计算当前员工数量，确保雇佣后实时更新
-    val currentEmployeeCount by remember {
-        derivedStateOf { saveData.allEmployees.size }
+    // 修复：添加 saveData.allEmployees 作为 remember 的 key
+    val currentEmployeeCount = remember(saveData.allEmployees) {
+        saveData.allEmployees.size
     }
     
     // 响应式计算是否员工已满
-    val isEmployeeFull by remember {
-        derivedStateOf { saveData.allEmployees.size >= maxEmployees }
+    // 修复：添加 saveData.allEmployees 作为 remember 的 key
+    val isEmployeeFull = remember(saveData.allEmployees) {
+        saveData.allEmployees.size >= maxEmployees
     }
     
     var currentJobPosting by remember(jobPosting.id) { mutableStateOf(jobPosting) }
@@ -205,16 +207,15 @@ fun ApplicantManagementDialog(
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     // 各职位当前人数 - 横向排列（类似统计卡片）
-                    val positionCounts by remember {
-                        derivedStateOf {
-                            mapOf(
-                                "程序员" to saveData.allEmployees.count { it.position == "程序员" },
-                                "策划师" to saveData.allEmployees.count { it.position == "策划师" },
-                                "美术师" to saveData.allEmployees.count { it.position == "美术师" },
-                                "音效师" to saveData.allEmployees.count { it.position == "音效师" },
-                                "客服" to saveData.allEmployees.count { it.position == "客服" }
-                            )
-                        }
+                    // 修复：添加 saveData.allEmployees 作为 remember 的 key，确保雇佣员工后实时更新人数
+                    val positionCounts = remember(saveData.allEmployees) {
+                        mapOf(
+                            "程序员" to saveData.allEmployees.count { it.position == "程序员" },
+                            "策划师" to saveData.allEmployees.count { it.position == "策划师" },
+                            "美术师" to saveData.allEmployees.count { it.position == "美术师" },
+                            "音效师" to saveData.allEmployees.count { it.position == "音效师" },
+                            "客服" to saveData.allEmployees.count { it.position == "客服" }
+                        )
                     }
                     var selectedPositionDialog by remember { mutableStateOf<String?>(null) }
                     
