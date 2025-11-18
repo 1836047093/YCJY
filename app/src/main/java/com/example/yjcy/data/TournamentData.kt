@@ -28,7 +28,7 @@ enum class TournamentType(
         displayName = "城市杯",
         icon = "🥉",
         baseCost = 500000L,
-        duration = 3,
+        duration = 7, // 延长到7天，更有体验感
         prizePool = 100000L,
         minActivePlayers = 10000L,
         cooldownDays = 30,
@@ -46,7 +46,7 @@ enum class TournamentType(
         displayName = "全国锦标赛",
         icon = "🥈",
         baseCost = 2000000L,
-        duration = 7,
+        duration = 14, // 延长到14天，更符合真实赛事
         prizePool = 500000L,
         minActivePlayers = 50000L,
         cooldownDays = 90,
@@ -77,7 +77,31 @@ enum class TournamentType(
         playersGrowthMax = 0.40,
         interestBonus = 30.0,
         reputationBonus = 15
-    )
+    );
+    
+    /**
+     * 获取赛事阶段名称
+     */
+    fun getStageNameByProgress(progress: Float): String {
+        return when {
+            progress < 0.30 -> "小组赛"
+            progress < 0.60 -> "淘汰赛"
+            progress < 0.85 -> "半决赛"
+            else -> "决赛"
+        }
+    }
+    
+    /**
+     * 获取赛事阶段图标
+     */
+    fun getStageIconByProgress(progress: Float): String {
+        return when {
+            progress < 0.30 -> "🏟️"
+            progress < 0.60 -> "⚔️"
+            progress < 0.85 -> "🔥"
+            else -> "👑"
+        }
+    }
 }
 
 /**
@@ -87,6 +111,21 @@ enum class TournamentStatus {
     PREPARING,  // 筹备中
     ONGOING,    // 进行中
     COMPLETED   // 已完成
+}
+
+/**
+ * 赛事阶段枚举
+ */
+enum class TournamentStage(
+    val displayName: String,
+    val icon: String,
+    val description: String
+) {
+    PREPARATION("筹备阶段", "📋", "正在筹备赛事，招募战队和赞助商"),
+    GROUP_STAGE("小组赛", "🏟️", "各战队激烈角逐，争夺出线名额"),
+    KNOCKOUT("淘汰赛", "⚔️", "单败淘汰，每场都是生死战"),
+    SEMIFINALS("半决赛", "🔥", "顶尖战队对决，冠军近在眼前"),
+    FINALS("决赛", "👑", "巅峰对决，冠军即将诞生")
 }
 
 /**
@@ -135,6 +174,7 @@ data class EsportsTournament(
     val startMonth: Int,
     val startDay: Int,
     val currentDay: Int = 0, // 当前进行到第几天
+    val preparationDays: Int = 7, // 筹备天数（缩短到7天）
     val investment: Long, // 投入成本
     val sponsorRevenue: Long = 0, // 赞助商收入
     val ticketRevenue: Long = 0, // 门票收入
@@ -160,6 +200,37 @@ data class EsportsTournament(
      */
     fun getNetProfit(): Long {
         return getTotalRevenue() - investment
+    }
+    
+    /**
+     * 获取当前阶段
+     */
+    fun getCurrentStage(): TournamentStage {
+        if (status == TournamentStatus.PREPARING) {
+            return TournamentStage.PREPARATION
+        }
+        
+        val progress = currentDay.toFloat() / type.duration.toFloat()
+        return when {
+            progress < 0.30 -> TournamentStage.GROUP_STAGE
+            progress < 0.60 -> TournamentStage.KNOCKOUT
+            progress < 0.85 -> TournamentStage.SEMIFINALS
+            else -> TournamentStage.FINALS
+        }
+    }
+    
+    /**
+     * 获取阶段进度描述
+     */
+    fun getStageProgressText(): String {
+        return when (status) {
+            TournamentStatus.PREPARING -> "筹备中 (${currentDay}/${preparationDays}天)"
+            TournamentStatus.ONGOING -> {
+                val stage = getCurrentStage()
+                "${stage.displayName} - 第${currentDay}天/共${type.duration}天"
+            }
+            TournamentStatus.COMPLETED -> "已完成"
+        }
     }
 }
 
@@ -275,13 +346,16 @@ object TournamentManager {
             currentDate
         )
         
-        // 筹备期：开始日期后30天正式开始
-        if (daysPassed < 30) {
-            return tournament.copy(status = TournamentStatus.PREPARING)
+        // 筹备期：缩短到7天
+        if (daysPassed < tournament.preparationDays) {
+            return tournament.copy(
+                status = TournamentStatus.PREPARING,
+                currentDay = daysPassed + 1
+            )
         }
         
         // 计算赛事进行天数
-        val tournamentDay = daysPassed - 30 + 1
+        val tournamentDay = daysPassed - tournament.preparationDays + 1
         
         // 赛事进行中
         if (tournamentDay <= tournament.type.duration) {

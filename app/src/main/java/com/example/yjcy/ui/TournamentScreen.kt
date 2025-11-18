@@ -46,7 +46,10 @@ fun TournamentScreen(
         TournamentManager.canHostTournament(game, revenueData)
     }
     
-    val ongoingGames = games.filter { it.currentTournament?.status == TournamentStatus.ONGOING }
+    val ongoingGames = games.filter { 
+        it.currentTournament != null && 
+        it.currentTournament.status != TournamentStatus.COMPLETED 
+    }
     val completedGames = games.filter { !it.tournamentHistory.isNullOrEmpty() }
     
     Column(
@@ -645,53 +648,100 @@ fun OngoingTournamentCard(
             
             Spacer(modifier = Modifier.height(12.dp))
             
+            // 当前阶段显示（使用新的阶段系统）
+            val currentStage = tournament.getCurrentStage()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        color = when (currentStage) {
+                            TournamentStage.PREPARATION -> Color(0xFFE3F2FD)
+                            TournamentStage.GROUP_STAGE -> Color(0xFFFFF3E0)
+                            TournamentStage.KNOCKOUT -> Color(0xFFFFEBEE)
+                            TournamentStage.SEMIFINALS -> Color(0xFFFCE4EC)
+                            TournamentStage.FINALS -> Color(0xFFFFF9C4)
+                        },
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = currentStage.icon,
+                    fontSize = 24.sp,
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+                Column {
+                    Text(
+                        text = currentStage.displayName,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1976D2)
+                    )
+                    Text(
+                        text = currentStage.description,
+                        fontSize = 12.sp,
+                        color = Color(0xFF666666)
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
             // 进度条
-            val progress = tournament.currentDay.toFloat() / tournament.type.duration.toFloat()
+            val progress = if (tournament.status == TournamentStatus.PREPARING) {
+                tournament.currentDay.toFloat() / tournament.preparationDays.toFloat()
+            } else {
+                tournament.currentDay.toFloat() / tournament.type.duration.toFloat()
+            }
+            
             Column {
                 Text(
-                    text = "📅 第${tournament.currentDay}天 / 共${tournament.type.duration}天",
-                    fontSize = 14.sp
+                    text = tournament.getStageProgressText(),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 LinearProgressIndicator(
-                    progress = progress,
+                    progress = progress.coerceIn(0f, 1f),
                     modifier = Modifier.fillMaxWidth(),
-                    color = Color(0xFF4CAF50)
+                    color = when (currentStage) {
+                        TournamentStage.PREPARATION -> Color(0xFF2196F3)
+                        TournamentStage.GROUP_STAGE -> Color(0xFFFF9800)
+                        TournamentStage.KNOCKOUT -> Color(0xFFF44336)
+                        TournamentStage.SEMIFINALS -> Color(0xFFE91E63)
+                        TournamentStage.FINALS -> Color(0xFFFFEB3B)
+                    }
                 )
             }
             
             Spacer(modifier = Modifier.height(12.dp))
             
-            // 当前阶段
-            val stage = when {
-                progress < 0.25 -> "小组赛"
-                progress < 0.50 -> "淘汰赛"
-                progress < 0.75 -> "半决赛"
-                else -> "决赛"
+            // 实时数据（仅在正式比赛时显示）
+            if (tournament.status == TournamentStatus.ONGOING) {
+                val activePlayers = if (isCompetitor && competitorActivePlayers != null) {
+                    competitorActivePlayers
+                } else {
+                    revenueData?.getActivePlayers() ?: 0L
+                }
+                Text(
+                    text = "👥 预计观看: ${formatPlayerCount(activePlayers / 2)}人",
+                    fontSize = 13.sp,
+                    color = Color(0xFF666666)
+                )
+                Text(
+                    text = "📈 热度指数: ${"★".repeat((progress * 5).toInt())}${"☆".repeat(5 - (progress * 5).toInt())}",
+                    fontSize = 13.sp,
+                    color = Color(0xFFFFC107)
+                )
+            } else if (tournament.status == TournamentStatus.PREPARING) {
+                Text(
+                    text = "🔧 正在筹备中，招募战队和赞助商...",
+                    fontSize = 13.sp,
+                    color = Color(0xFF666666),
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                )
             }
-            Text(
-                text = "🏟️ 当前阶段: $stage",
-                fontSize = 14.sp
-            )
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // 实时数据
-            val activePlayers = if (isCompetitor && competitorActivePlayers != null) {
-                competitorActivePlayers
-            } else {
-                revenueData?.getActivePlayers() ?: 0L
-            }
-            Text(
-                text = "👥 预计观看: ${formatPlayerCount(activePlayers / 2)}人",
-                fontSize = 13.sp,
-                color = Color(0xFF666666)
-            )
-            Text(
-                text = "📈 热度指数: ${"★".repeat((progress * 5).toInt())}${"☆".repeat(5 - (progress * 5).toInt())}",
-                fontSize = 13.sp,
-                color = Color(0xFFFFC107)
-            )
         }
     }
 }

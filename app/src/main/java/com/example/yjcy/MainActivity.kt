@@ -4673,11 +4673,11 @@ fun GameScreen(
                                     // 扣除资金
                                     money = safeAddMoney(money, -tournament.investment)
                                     
-                                    // 更新游戏
+                                    // 更新游戏（保持PREPARING状态，不要强制改为ONGOING）
                                     games = games.map { g ->
                                         if (g.id == gameId) {
                                             g.copy(
-                                                currentTournament = tournament.copy(status = TournamentStatus.ONGOING),
+                                                currentTournament = tournament,
                                                 lastTournamentDate = GameDate(currentYear, currentMonth, currentDay)
                                             )
                                         } else {
@@ -5769,6 +5769,33 @@ fun GameScreen(
                                 // 更新员工列表
                                 allEmployees.clear()
                                 allEmployees.addAll(finalEmployees)
+                            },
+                            onMaxTeamPlayers = {
+                                // 一键满配战队成员：为每个位置招募1名SSR选手并自动签约
+                                val positions = listOf(
+                                    com.example.yjcy.data.HeroPosition.TOP,
+                                    com.example.yjcy.data.HeroPosition.JUNGLE,
+                                    com.example.yjcy.data.HeroPosition.MID,
+                                    com.example.yjcy.data.HeroPosition.ADC,
+                                    com.example.yjcy.data.HeroPosition.SUPPORT
+                                )
+                                
+                                // 清空现有战队
+                                com.example.yjcy.managers.esports.PlayerManager.myTeam.forEach { player ->
+                                    com.example.yjcy.managers.esports.PlayerManager.releasePlayer(player.id)
+                                }
+                                
+                                // 为每个位置招募1名SSR选手（确保每个位置都有且不重复）
+                                positions.forEach { position ->
+                                    val player = com.example.yjcy.managers.esports.PlayerManager.recruitPlayer(
+                                        rarity = com.example.yjcy.data.esports.PlayerRarity.SSR,
+                                        position = position
+                                    )
+                                    // 自动签约
+                                    com.example.yjcy.managers.esports.PlayerManager.signPlayer(player.id)
+                                }
+                                
+                                android.util.Log.d("GM", "已创建满配战队：5个位置各1名SSR选手")
                             },
                             onMoneyUpdate = { updatedMoney -> money = updatedMoney }
                         )
@@ -8235,6 +8262,7 @@ fun InGameSettingsContent(
     onMaxEmployees: () -> Unit = {}, // 一键满配员工回调
     onAddMoney: () -> Unit = {}, // 一键加钱回调
     onCreateTopEmployees: (Int) -> Unit = {}, // 创建各职位6名指定等级专属技能员工回调（参数：技能等级1-5）
+    onMaxTeamPlayers: () -> Unit = {}, // 一键满配战队成员回调
     onMoneyUpdate: (Long) -> Unit = {}, // 资金更新回调
     usedRedeemCodes: Set<String> = emptySet(), // 已使用的兑换码列表
     onUsedRedeemCodesUpdate: (Set<String>) -> Unit = {}, // 已使用兑换码更新回调
@@ -8896,6 +8924,32 @@ fun InGameSettingsContent(
                             )
                             Text(
                                 text = "各职位6名5级员工",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    
+                    // 一键满配战队成员
+                    Button(
+                        onClick = onMaxTeamPlayers,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF3B82F6)
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "⚽",
+                                fontSize = 18.sp,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                            Text(
+                                text = "一键满配战队成员",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
                             )

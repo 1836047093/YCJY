@@ -131,7 +131,17 @@ class SaveManager(context: Context) {
                 // 自动存档设置
                 autoSaveEnabled = saveData.autoSaveEnabled,
                 autoSaveInterval = saveData.autoSaveInterval,
-                lastAutoSaveDay = saveData.lastAutoSaveDay
+                lastAutoSaveDay = saveData.lastAutoSaveDay,
+                
+                // MOBA电竞系统
+                mobaHeroes = saveData.mobaHeroes,
+                esportsPlayers = saveData.esportsPlayers,
+                myTeamPlayers = saveData.myTeamPlayers,
+                activeTournaments = saveData.activeTournaments,
+                tournamentHistory = saveData.tournamentHistory,
+                
+                // GM模式
+                gmModeEnabled = saveData.gmModeEnabled
             )
             
             // 调试：修复后的子公司数据

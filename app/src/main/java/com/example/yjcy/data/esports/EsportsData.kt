@@ -191,7 +191,11 @@ data class Tournament(
     var currentPhase: TournamentPhase,
     val schedule: MutableList<ScheduledMatch>,
     val results: MutableMap<String, MatchResult>,
-    var prizePool: Long
+    var prizePool: Long,
+    var currentDay: Int = 0,  // 当前进行到第几天
+    var playerTeamId: String? = null,  // 玩家战队ID
+    val groupStandings: MutableMap<String, MutableList<TeamStanding>> = mutableMapOf(),  // 小组积分榜
+    var nextMatchId: String? = null  // 下一场玩家参与的比赛ID
 ) {
     enum class TournamentStatus {
         UPCOMING,
@@ -199,6 +203,29 @@ data class Tournament(
         IN_PROGRESS,
         COMPLETED
     }
+    
+    /**
+     * 获取当前阶段描述
+     */
+    fun getCurrentPhaseDescription(): String {
+        return when (currentPhase) {
+            TournamentPhase.REGISTRATION -> "报名阶段 (${currentDay}/${tier.registrationDays}天)"
+            TournamentPhase.GROUP_STAGE -> "小组赛 (第${currentDay - tier.registrationDays}天)"
+            TournamentPhase.PLAYOFFS -> "淘汰赛 (第${currentDay - tier.registrationDays - tier.groupStageDays}天)"
+            TournamentPhase.PLAY_IN -> "入围赛"
+            TournamentPhase.COMPLETED -> "已完成"
+        }
+    }
+    
+    /**
+     * 检查玩家是否参赛
+     */
+    fun isPlayerParticipating(): Boolean = playerTeamId != null
+    
+    /**
+     * 获取玩家战队
+     */
+    fun getPlayerTeam(): Team? = registeredTeams.find { it.id == playerTeamId }
 }
 
 enum class TournamentPhase {
@@ -221,12 +248,15 @@ enum class TournamentTier(
     val emoji: String,
     val entryFee: Long,
     val minPrizePool: Long,
-    val duration: Int,
+    val duration: Int,  // 总天数
+    val registrationDays: Int,  // 报名天数
+    val groupStageDays: Int,  // 小组赛天数
+    val playoffDays: Int,  // 淘汰赛天数
     val prestigeReward: Int
 ) {
-    CITY_CUP("城市杯", "🏙️", 100_000, 500_000, 30, 50),
-    CHAMPIONSHIP("锦标赛", "🏆", 500_000, 5_000_000, 60, 200),
-    WORLDS("全球总决赛", "🌍", 2_000_000, 50_000_000, 90, 1000)
+    CITY_CUP("城市杯", "🏙️", 100_000, 500_000, 14, 3, 7, 4, 50),
+    CHAMPIONSHIP("锦标赛", "🏆", 500_000, 5_000_000, 21, 5, 10, 6, 200),
+    WORLDS("全球总决赛", "🌍", 2_000_000, 50_000_000, 30, 7, 14, 9, 1000)
 }
 
 data class Team(
@@ -245,6 +275,21 @@ data class TournamentRecord(
     val prizeMoney: Long,
     val prestigeEarned: Int
 )
+
+/**
+ * 战队积分榜数据
+ */
+data class TeamStanding(
+    val team: Team,
+    var wins: Int = 0,
+    var losses: Int = 0,
+    var points: Int = 0,  // 积分（胜1场=3分）
+    var kills: Int = 0,
+    var deaths: Int = 0
+) {
+    fun winRate(): Double = if (wins + losses > 0) wins.toDouble() / (wins + losses) else 0.0
+    fun kda(): Double = if (deaths > 0) kills.toDouble() / deaths else 99.9
+}
 
 data class ScheduledMatch(
     val id: String,

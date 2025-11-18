@@ -41,11 +41,11 @@ object PlayerManager {
     /**
      * 招募选手（青训营）
      */
-    fun recruitPlayer(rarity: PlayerRarity? = null): EsportsPlayer {
+    fun recruitPlayer(rarity: PlayerRarity? = null, position: HeroPosition? = null): EsportsPlayer {
         val actualRarity = rarity ?: rollRarity()
-        val player = generatePlayer(actualRarity)
+        val player = generatePlayer(actualRarity, position)
         _players.add(player)
-        android.util.Log.d("PlayerManager", "招募选手: ${player.name} (${actualRarity.displayName})")
+        android.util.Log.d("PlayerManager", "招募选手: ${player.name} (${actualRarity.displayName}) - ${position?.name ?: "随机位置"}")
         return player
     }
     
