@@ -524,11 +524,7 @@ class MainActivity : ComponentActivity() {
                     composable("secretary_chat") {
                         SecretaryChatScreen(navController)
                     }
-                    composable("team_management") {
-                        TeamManagementScreen(
-                            onNavigateBack = { navController.popBackStack() }
-                        )
-                    }
+
                     composable("tournament_center") {
                         TournamentCenterScreen(
                             onNavigateBack = { navController.popBackStack() }
@@ -2305,6 +2301,7 @@ fun GameScreen(
     }
     var showTournamentMenu by remember { mutableStateOf(false) }
     var tournamentInitialTab by remember { mutableIntStateOf(0) }
+    var showTeamManagement by remember { mutableStateOf(false) } // 战队管理界面
     
     var showCompetitorMenu by remember { mutableStateOf(false) } // 竞争对手菜单（包含竞争对手和子公司）
     var showSubsidiaryManagement by remember { mutableStateOf(false) } // 子公司管理界面
@@ -4765,7 +4762,7 @@ fun GameScreen(
                     showTournamentMenu = false
                 },
                 onEsportsClub = {
-                    navController.navigate("team_management")
+                    showTeamManagement = true
                     showTournamentMenu = false
                 }
             )
@@ -4808,6 +4805,28 @@ fun GameScreen(
                 },
                 onDismiss = {
                     showSubsidiaryManagement = false
+                },
+                // TopInfoBar参数
+                money = money,
+                fans = fans,
+                year = currentYear,
+                month = currentMonth,
+                day = currentDay,
+                gameSpeed = gameSpeed,
+                onSpeedChange = { newSpeed -> gameSpeed = newSpeed },
+                onPauseToggle = { isPaused = !isPaused },
+                isPaused = isPaused,
+                onSettingsClick = { showSettings = true },
+                isSupporterUnlocked = isSupporterUnlocked,
+                onShowFeatureLockedDialog = { showFeatureLockedDialog = true }
+            )
+        }
+        
+        // 战队管理界面
+        if (showTeamManagement) {
+            TeamManagementScreen(
+                onNavigateBack = {
+                    showTeamManagement = false
                 },
                 // TopInfoBar参数
                 money = money,

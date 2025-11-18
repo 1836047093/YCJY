@@ -141,6 +141,7 @@ fun EligibleGamesTab(
     onHostTournament: (String, TournamentType) -> Unit
 ) {
     var selectedTournamentType by remember { mutableStateOf<TournamentType?>(null) }
+    var selectedGame by remember { mutableStateOf<Game?>(null) }
     
     LazyColumn(
         modifier = Modifier
@@ -191,7 +192,26 @@ fun EligibleGamesTab(
             money = money,
             onDismiss = { selectedTournamentType = null },
             onSelectGame = { game ->
-                onHostTournament(game.id, type)
+                // 不直接举办，而是显示确认对话框
+                selectedGame = game
+            }
+        )
+    }
+    
+    // 赛事确认对话框
+    if (selectedGame != null && selectedTournamentType != null) {
+        TournamentConfirmDialog(
+            game = selectedGame!!,
+            tournamentType = selectedTournamentType!!,
+            revenueData = revenueDataMap[selectedGame!!.id],
+            currentDate = currentDate,
+            money = money,
+            onDismiss = { 
+                selectedGame = null
+            },
+            onConfirm = {
+                onHostTournament(selectedGame!!.id, selectedTournamentType!!)
+                selectedGame = null
                 selectedTournamentType = null
             }
         )
@@ -1411,5 +1431,277 @@ fun GameSelectionCard(
                 }
             }
         }
+    }
+}
+
+
+/**
+ * 赛事确认对话框 - 显示详细信息并确认举办
+ */
+@Composable
+fun TournamentConfirmDialog(
+    game: Game,
+    tournamentType: TournamentType,
+    revenueData: GameRevenue?,
+    currentDate: GameDate,
+    money: Long,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    val activePlayers = revenueData?.getActivePlayers() ?: 0
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1E293B),
+        shape = RoundedCornerShape(20.dp),
+        title = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = tournamentType.icon,
+                        fontSize = 36.sp
+                    )
+                    Column {
+                        Text(
+                            text = "确认举办赛事",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = tournamentType.displayName,
+                            fontSize = 14.sp,
+                            color = Color(0xFF60A5FA)
+                        )
+                    }
+                }
+            }
+        },
+        text = {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.heightIn(max = 500.dp)
+            ) {
+                // 游戏信息
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                    colors = listOf(
+                                        Color(0xFF334155).copy(alpha = 0.8f),
+                                        Color(0xFF475569).copy(alpha = 0.7f)
+                                    )
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .padding(16.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = "🎮 参赛游戏",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White.copy(alpha = 0.7f)
+                            )
+                            Text(
+                                text = game.name,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                Text(
+                                    text = "⭐ ${game.rating?.let { String.format("%.1f", it) } ?: "未评分"}",
+                                    fontSize = 14.sp,
+                                    color = Color(0xFFFBBF24)
+                                )
+                                Text(
+                                    text = "👥 ${formatPlayerCount(activePlayers)}",
+                                    fontSize = 14.sp,
+                                    color = Color(0xFF60A5FA)
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                // 赛事规则
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                    colors = listOf(
+                                        Color(0xFF1E40AF).copy(alpha = 0.4f),
+                                        Color(0xFF7C3AED).copy(alpha = 0.3f)
+                                    )
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .padding(16.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(
+                                text = "📋 赛事规则",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White.copy(alpha = 0.7f)
+                            )
+                            
+                            TournamentInfoRow("⏱️ 赛事周期", "${tournamentType.duration}天")
+                            TournamentInfoRow("💰 举办成本", formatMoney(tournamentType.baseCost))
+                            TournamentInfoRow("🏆 奖金池", formatMoney(tournamentType.prizePool))
+                            TournamentInfoRow("👥 最低活跃", formatPlayerCount(tournamentType.minActivePlayers))
+                        }
+                    }
+                }
+                
+                // 预期收益
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                    colors = listOf(
+                                        Color(0xFF10B981).copy(alpha = 0.3f),
+                                        Color(0xFF059669).copy(alpha = 0.2f)
+                                    )
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .padding(16.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(
+                                text = "📈 预期收益",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White.copy(alpha = 0.7f)
+                            )
+                            
+                            TournamentInfoRow(
+                                "粉丝增长", 
+                                "+${(tournamentType.fansGrowthMin * 100).toInt()}-${(tournamentType.fansGrowthMax * 100).toInt()}%"
+                            )
+                            TournamentInfoRow(
+                                "活跃增长", 
+                                "+${(tournamentType.playersGrowthMin * 100).toInt()}-${(tournamentType.playersGrowthMax * 100).toInt()}%"
+                            )
+                            TournamentInfoRow(
+                                "兴趣提升", 
+                                "+${tournamentType.interestBonus.toInt()}%"
+                            )
+                        }
+                    }
+                }
+                
+                // 资金检查
+                item {
+                    val canAfford = money >= tournamentType.baseCost
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                color = if (canAfford) 
+                                    Color(0xFF10B981).copy(alpha = 0.2f)
+                                else 
+                                    Color(0xFFEF4444).copy(alpha = 0.2f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .padding(16.dp)
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (canAfford) "✓" else "✗",
+                                fontSize = 20.sp,
+                                color = if (canAfford) Color(0xFF10B981) else Color(0xFFEF4444)
+                            )
+                            Column {
+                                Text(
+                                    text = "当前资金: ${formatMoney(money)}",
+                                    fontSize = 14.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (canAfford) "资金充足" else "资金不足",
+                                    fontSize = 12.sp,
+                                    color = if (canAfford) Color(0xFF10B981) else Color(0xFFEF4444)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                enabled = money >= tournamentType.baseCost,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF10B981),
+                    disabledContainerColor = Color(0xFF6B7280)
+                ),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Text(
+                    text = "确认举办",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = Color(0xFF94A3B8)
+                )
+            ) {
+                Text(
+                    text = "取消",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+    )
+}
+
+/**
+ * 赛事信息行组件
+ */
+@Composable
+fun TournamentInfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            fontSize = 13.sp,
+            color = Color.White.copy(alpha = 0.8f)
+        )
+        Text(
+            text = value,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
     }
 }

@@ -1313,7 +1313,6 @@ object CompetitorManager {
         // 根据活跃玩家数决定赛事规模
         val tournamentType = when {
             selectedGame.activePlayers >= 500000L -> TournamentType.WORLD_FINALS
-            selectedGame.activePlayers >= 200000L -> TournamentType.INTERNATIONAL
             selectedGame.activePlayers >= 50000L -> TournamentType.NATIONAL
             else -> TournamentType.REGIONAL
         }

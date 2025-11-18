@@ -60,24 +60,6 @@ enum class TournamentType(
         interestBonus = 10.0,
         reputationBonus = 3
     ),
-    INTERNATIONAL(
-        displayName = "世界冠军赛",
-        icon = "🥇",
-        baseCost = 10000000L,
-        duration = 15,
-        prizePool = 3000000L,
-        minActivePlayers = 200000L,
-        cooldownDays = 180,
-        sponsorRateMin = 0.60,
-        sponsorRateMax = 0.80,
-        broadcastRevenue = 4000000L,
-        fansGrowthMin = 0.20,
-        fansGrowthMax = 0.35,
-        playersGrowthMin = 0.15,
-        playersGrowthMax = 0.25,
-        interestBonus = 20.0,
-        reputationBonus = 8
-    ),
     WORLD_FINALS(
         displayName = "全球总决赛",
         icon = "💎",
@@ -342,7 +324,6 @@ object TournamentManager {
         val costBonus = when (tournament.type) {
             TournamentType.REGIONAL -> 2.0
             TournamentType.NATIONAL -> 5.0
-            TournamentType.INTERNATIONAL -> 8.0
             TournamentType.WORLD_FINALS -> 10.0
         }
         successScore += costBonus
@@ -380,8 +361,8 @@ object TournamentManager {
         val broadcastRevenue = (type.broadcastRevenue * 
                                (1.0 + activePlayers / 1000000.0 * 0.2)).toLong()
         
-        // 门票收入（仅国际赛和全球赛）
-        val ticketRevenue = if (type == TournamentType.INTERNATIONAL || type == TournamentType.WORLD_FINALS) {
+        // 门票收入（仅全球赛）
+        val ticketRevenue = if (type == TournamentType.WORLD_FINALS) {
             val normalTickets = (activePlayers * 0.0001).toLong()
             val vipTickets = (activePlayers * 0.00001).toLong()
             val normalPrice = Random.nextInt(200, 500)
@@ -425,7 +406,6 @@ object TournamentManager {
         return when (type) {
             TournamentType.REGIONAL -> 300_000L        // 城市杯：30万
             TournamentType.NATIONAL -> 1_000_000L      // 全国锦标赛：100万
-            TournamentType.INTERNATIONAL -> 5_000_000L // 世界冠军赛：500万
             TournamentType.WORLD_FINALS -> 20_000_000L  // 全球总决赛：2000万
         }
     }

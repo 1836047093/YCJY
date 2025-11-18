@@ -1,82 +1,114 @@
 package com.example.yjcy.ui.esports
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.example.yjcy.TopInfoBar
 import com.example.yjcy.data.HeroPosition
 import com.example.yjcy.data.esports.EsportsPlayer
 import com.example.yjcy.managers.esports.HeroManager
 import com.example.yjcy.managers.esports.PlayerManager
+import com.example.yjcy.ui.components.SingleLineText
+import kotlinx.coroutines.delay
 
 /**
- * 战队管理主界面
+ * 战队管理主界面（全屏布局，参考子公司管理样式）
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TeamManagementScreen(
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    // TopInfoBar参数
+    money: Long = 0,
+    fans: Long = 0,
+    year: Int = 1,
+    month: Int = 1,
+    day: Int = 1,
+    gameSpeed: Int = 1,
+    onSpeedChange: (Int) -> Unit = {},
+    onPauseToggle: () -> Unit = {},
+    isPaused: Boolean = false,
+    onSettingsClick: () -> Unit = {},
+    isSupporterUnlocked: Boolean = false,
+    onShowFeatureLockedDialog: () -> Unit = {}
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by remember { mutableIntStateOf(0) }
     var showRecruitDialog by remember { mutableStateOf(false) }
     
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { 
-                    Text(
-                        "⚽ 战队管理",
-                        fontWeight = FontWeight.Bold
-                    ) 
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, "返回")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF1A1A2E)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF1E3A8A),
+                        Color(0xFF7C3AED)
+                    )
                 )
             )
-        },
-        containerColor = Color(0xFF0F0F1E)
-    ) { padding ->
+    ) {
+        // 顶部状态栏
+        TopInfoBar(
+            money = money,
+            fans = fans,
+            year = year,
+            month = month,
+            day = day,
+            gameSpeed = gameSpeed,
+            onSpeedChange = onSpeedChange,
+            onPauseToggle = onPauseToggle,
+            isPaused = isPaused,
+            onSettingsClick = onSettingsClick,
+            isSupporterUnlocked = isSupporterUnlocked,
+            onShowFeatureLockedDialog = onShowFeatureLockedDialog
+        )
+        
+        // 主内容区（深色背景）
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .background(Color(0xFF1a1a2e))
         ) {
-            // Tab栏
-            TabRow(
+            // 顶部标题栏
+            TeamTopBar(onBack = onNavigateBack)
+            
+            // 标签页
+            PrimaryScrollableTabRow(
                 selectedTabIndex = selectedTab,
-                containerColor = Color(0xFF1A1A2E),
+                modifier = Modifier.fillMaxWidth(),
+                containerColor = Color(0xFF16213e),
                 contentColor = Color.White
             ) {
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    text = { Text("战队阵容") }
+                    text = { SingleLineText(text = "战队阵容", fontSize = 14.sp) }
                 )
                 Tab(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    text = { Text("青训营") }
+                    text = { SingleLineText(text = "青训营", fontSize = 14.sp) }
                 )
                 Tab(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    text = { Text("全部选手") }
+                    text = { SingleLineText(text = "全部选手", fontSize = 14.sp) }
                 )
             }
             
@@ -100,6 +132,31 @@ fun TeamManagementScreen(
 }
 
 /**
+ * 顶部标题栏
+ */
+@Composable
+private fun TeamTopBar(onBack: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFF0f3460))
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        TextButton(onClick = onBack) {
+            SingleLineText(text = "← 返回", color = Color.White)
+        }
+        Spacer(modifier = Modifier.width(16.dp))
+        SingleLineText(
+            text = "⚽ 战队管理",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF4CAF50)
+        )
+    }
+}
+
+/**
  * 战队阵容Tab
  */
 @Composable
@@ -107,30 +164,37 @@ fun TeamRosterTab() {
     val myTeam = PlayerManager.myTeam
     
     if (myTeam.isEmpty()) {
+        // 空状态
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(32.dp),
             contentAlignment = Alignment.Center
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    "暂无战队成员",
-                    fontSize = 18.sp,
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                SingleLineText(
+                    text = "⚽",
+                    fontSize = 48.sp
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                SingleLineText(
+                    text = "暂无战队成员",
+                    fontSize = 16.sp,
                     color = Color.Gray
                 )
-                Text(
-                    "前往青训营招募选手",
+                Spacer(modifier = Modifier.height(8.dp))
+                SingleLineText(
+                    text = "前往青训营招募选手",
                     fontSize = 14.sp,
-                    color = Color.LightGray
+                    color = Color.Gray
                 )
             }
         }
     } else {
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // 按位置分组显示
@@ -145,7 +209,7 @@ fun TeamRosterTab() {
                             HeroPosition.ADC -> "ADC"
                             HeroPosition.SUPPORT -> "辅助"
                         }
-                        Text(
+                        SingleLineText(
                             text = "━━━ $posName ━━━",
                             fontSize = 14.sp,
                             color = Color.Gray,
@@ -178,20 +242,21 @@ fun RecruitmentTab(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
-                containerColor = Color(0xFF1A1A2E)
-            )
+                containerColor = Color(0xFF16213e)
+            ),
+            shape = RoundedCornerShape(12.dp)
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
+                SingleLineText(
                     "🎓 青训营招募",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
-                Text(
+                SingleLineText(
                     "从青训营招募新选手加入战队",
                     fontSize = 14.sp,
                     color = Color.LightGray
@@ -203,14 +268,15 @@ fun RecruitmentTab(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
-                containerColor = Color(0xFF1A1A2E)
-            )
+                containerColor = Color(0xFF16213e)
+            ),
+            shape = RoundedCornerShape(12.dp)
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
+                SingleLineText(
                     "📊 招募概率",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
@@ -235,9 +301,10 @@ fun RecruitmentTab(
                 .height(56.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFF4CAF50)
-            )
+            ),
+            shape = RoundedCornerShape(12.dp)
         ) {
-            Text(
+            SingleLineText(
                 "🎯 招募选手",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
@@ -253,13 +320,13 @@ fun RarityProbabilityRow(rarity: String, probability: String, color: Color) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
+        SingleLineText(
             text = rarity,
             fontSize = 14.sp,
             color = color,
             fontWeight = FontWeight.Bold
         )
-        Text(
+        SingleLineText(
             text = probability,
             fontSize = 14.sp,
             color = Color.LightGray
@@ -275,8 +342,9 @@ fun AllPlayersTab() {
     val allPlayers = PlayerManager.players
     
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         items(allPlayers) { player ->
@@ -299,8 +367,9 @@ fun PlayerCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF1A1A2E)
-        )
+            containerColor = Color(0xFF1E1E2E)
+        ),
+        shape = RoundedCornerShape(16.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -331,8 +400,11 @@ fun PlayerCard(
                 if (isMyTeam) {
                     Text(
                         text = "✓ 我的战队",
-                        fontSize = 12.sp,
-                        color = Color(0xFF4CAF50)
+                        fontSize = 11.sp,
+                        color = Color(0xFF4CAF50),
+                        modifier = Modifier
+                            .background(Color(0xFF4CAF50).copy(alpha = 0.2f), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
             }
@@ -341,17 +413,19 @@ fun PlayerCard(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text(
+                SingleLineText(
                     text = "位置: ${player.positionDisplayName}",
                     fontSize = 14.sp,
-                    color = Color.LightGray
+                    color = Color.White.copy(alpha = 0.6f)
                 )
-                Text(
+                SingleLineText(
                     text = "年龄: ${player.age}岁",
                     fontSize = 14.sp,
-                    color = Color.LightGray
+                    color = Color.White.copy(alpha = 0.6f)
                 )
             }
+            
+            Spacer(modifier = Modifier.height(4.dp))
             
             // 属性
             Column(
@@ -363,20 +437,27 @@ fun PlayerCard(
                 AttributeBar("心态", player.attributes.mentality)
             }
             
+            Spacer(modifier = Modifier.height(4.dp))
+            
             // 英雄池
             Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
+                    .padding(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
+                SingleLineText(
                     text = "英雄池:",
                     fontSize = 12.sp,
-                    color = Color.Gray
+                    color = Color.White.copy(alpha = 0.8f)
                 )
-                Text(
+                SingleLineText(
                     text = "${player.heroPool.size}个英雄",
                     fontSize = 12.sp,
-                    color = Color(0xFF2196F3)
+                    color = Color(0xFF2196F3),
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
@@ -425,7 +506,7 @@ fun AttributeBar(name: String, value: Int) {
 }
 
 /**
- * 招募结果对话框
+ * 招募结果对话框（带抽奖动画）
  */
 @Composable
 fun RecruitResultDialog(
@@ -434,31 +515,322 @@ fun RecruitResultDialog(
     // 执行招募
     val player = remember { PlayerManager.recruitPlayer() }
     
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text("🎉 招募成功！")
-        },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "${player.rarity.emoji} ${player.name}",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = player.rarity.color
-                )
-                Text("品质: ${player.rarity.displayName}")
-                Text("位置: ${player.positionDisplayName}")
-                Text("年龄: ${player.age}岁")
-                Text("综合评分: ${player.attributes.overallRating()}")
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("确定")
+    // 动画状态
+    var animationPhase by remember { mutableIntStateOf(0) }
+    // 0: 初始旋转动画
+    // 1: 显示品质光效
+    // 2: 显示完整信息
+    
+    LaunchedEffect(Unit) {
+        delay(1500) // 旋转动画持续1.5秒
+        animationPhase = 1
+        delay(800) // 光效持续0.8秒
+        animationPhase = 2
+    }
+    
+    Dialog(
+        onDismissRequest = { if (animationPhase == 2) onDismiss() },
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.9f)),
+            contentAlignment = Alignment.Center
+        ) {
+            when (animationPhase) {
+                0 -> SpinningCardAnimation()
+                1 -> RarityRevealAnimation(player)
+                2 -> PlayerDetailCard(player, onDismiss)
             }
         }
+    }
+}
+
+/**
+ * 旋转卡片动画
+ */
+@Composable
+fun SpinningCardAnimation() {
+    val infiniteTransition = rememberInfiniteTransition(label = "spin")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
     )
+    
+    Box(
+        modifier = Modifier
+            .size(200.dp)
+            .rotate(rotation)
+            .background(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0xFF4CAF50),
+                        Color(0xFF2196F3),
+                        Color(0xFF9C27B0)
+                    )
+                ),
+                shape = RoundedCornerShape(16.dp)
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "?",
+            fontSize = 80.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
+    }
+}
+
+/**
+ * 品质揭示动画
+ */
+@Composable
+fun RarityRevealAnimation(player: EsportsPlayer) {
+    // 根据品质选择不同的动画效果
+    val colors = when (player.rarity.displayName) {
+        "SSR" -> listOf(Color(0xFFFF9800), Color(0xFFFFEB3B), Color(0xFFFF5722))
+        "S" -> listOf(Color(0xFF9C27B0), Color(0xFFE91E63), Color(0xFF673AB7))
+        "A" -> listOf(Color(0xFF2196F3), Color(0xFF03A9F4), Color(0xFF00BCD4))
+        "B" -> listOf(Color(0xFF4CAF50), Color(0xFF8BC34A), Color(0xFF009688))
+        else -> listOf(Color(0xFFBDBDBD), Color(0xFF9E9E9E), Color(0xFF757575))
+    }
+    
+    // 脉冲动画
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 1.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(400, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
+    )
+    
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
+    
+    Box(
+        contentAlignment = Alignment.Center
+    ) {
+        // 外圈旋转光环（SSR和S品质特有）
+        if (player.rarity.displayName in listOf("SSR", "S")) {
+            Box(
+                modifier = Modifier
+                    .size(300.dp)
+                    .rotate(rotation)
+                    .background(
+                        brush = Brush.sweepGradient(
+                            colors = colors + colors[0]
+                        ),
+                        shape = RoundedCornerShape(50)
+                    )
+                    .alpha(0.3f)
+            )
+        }
+        
+        // 中间脉冲圆
+        Box(
+            modifier = Modifier
+                .size(250.dp * scale)
+                .background(
+                    brush = Brush.radialGradient(
+                        colors = colors + Color.Transparent
+                    ),
+                    shape = RoundedCornerShape(50)
+                )
+                .alpha(0.6f)
+        )
+        
+        // 品质文字
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = player.rarity.emoji,
+                fontSize = 100.sp,
+                modifier = Modifier.scale(scale)
+            )
+            Text(
+                text = player.rarity.displayName,
+                fontSize = 48.sp,
+                fontWeight = FontWeight.Bold,
+                color = player.rarity.color,
+                modifier = Modifier.scale(scale)
+            )
+        }
+    }
+}
+
+/**
+ * 选手详情卡片
+ */
+@Composable
+fun PlayerDetailCard(player: EsportsPlayer, onDismiss: () -> Unit) {
+    // 入场动画
+    val scale by animateFloatAsState(
+        targetValue = 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "scale"
+    )
+    
+    val alpha by animateFloatAsState(
+        targetValue = 1f,
+        animationSpec = tween(300),
+        label = "alpha"
+    )
+    
+    Card(
+        modifier = Modifier
+            .fillMaxWidth(0.9f)
+            .scale(scale)
+            .alpha(alpha),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF1E1E2E)
+        ),
+        shape = RoundedCornerShape(24.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // 标题
+            Text(
+                text = "🎉 招募成功！",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            
+            Divider(color = Color.White.copy(alpha = 0.1f))
+            
+            // 选手信息
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // 品质和名字
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = player.rarity.emoji,
+                        fontSize = 32.sp
+                    )
+                    Text(
+                        text = player.name,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = player.rarity.color
+                    )
+                }
+                
+                // 品质标签
+                Surface(
+                    color = player.rarity.color.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = player.rarity.displayName,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = player.rarity.color,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // 基本信息
+                InfoRow("位置", player.positionDisplayName)
+                InfoRow("年龄", "${player.age}岁")
+                InfoRow("综合评分", player.attributes.overallRating().toString())
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // 属性条
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "选手属性",
+                        fontSize = 14.sp,
+                        color = Color.Gray,
+                        fontWeight = FontWeight.Bold
+                    )
+                    AttributeBar("操作", player.attributes.mechanics)
+                    AttributeBar("意识", player.attributes.awareness)
+                    AttributeBar("团队", player.attributes.teamwork)
+                    AttributeBar("心态", player.attributes.mentality)
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // 确定按钮
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF4CAF50)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    text = "确定",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 信息行
+ */
+@Composable
+fun InfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            fontSize = 14.sp,
+            color = Color.Gray
+        )
+        Text(
+            text = value,
+            fontSize = 14.sp,
+            color = Color.White,
+            fontWeight = FontWeight.Bold
+        )
+    }
 }
