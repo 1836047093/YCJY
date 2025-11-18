@@ -241,3 +241,5 @@ Write-Host "  1. 配置阿里云安全组，开放3000端口" -ForegroundColor W
 Write-Host "  2. 测试API" -ForegroundColor White
 Write-Host ""
 
+
+

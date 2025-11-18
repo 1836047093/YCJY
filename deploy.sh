@@ -391,3 +391,5 @@ echo -e "${YELLOW}请在Android客户端中配置:${NC}"
 echo "  BASE_URL = \"http://$SERVER_IP/api/v1/redeem\""
 echo ""
 
+
+

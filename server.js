@@ -293,3 +293,5 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`API地址: http://localhost:${PORT}/api/v1/redeem`);
 });
 
+
+

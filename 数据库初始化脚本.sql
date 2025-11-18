@@ -196,3 +196,5 @@ SELECT COUNT(*) as total_codes FROM redeem_codes;
 SELECT COUNT(*) as supporter_codes FROM redeem_codes WHERE type = 'supporter';
 SELECT COUNT(*) as gm_codes FROM redeem_codes WHERE type = 'gm';
 
+
+
