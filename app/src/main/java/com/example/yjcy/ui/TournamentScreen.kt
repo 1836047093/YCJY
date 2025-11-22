@@ -21,7 +21,18 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.yjcy.data.*
-import com.example.yjcy.ui.components.TournamentIcon
+
+/**
+ * 获取赛事类型对应的图标
+ */
+private fun getTournamentIcon(tournamentTypeName: String): String {
+    return when (tournamentTypeName) {
+        "城市杯" -> "🥉"
+        "全国锦标赛" -> "🥈"
+        "全球总决赛" -> "💎"
+        else -> "🏆"
+    }
+}
 
 /**
  * 赛事中心主界面
@@ -36,7 +47,8 @@ fun TournamentScreen(
     fans: Long,
     competitors: List<CompetitorCompany> = emptyList(),
     initialTab: Int = 0,
-    onHostTournament: (String, TournamentType) -> Unit
+    onHostTournament: (String, TournamentType) -> Unit,
+    onRegisterTeam: ((String, String) -> Unit)? = null // (gameId, teamName) -> Unit
 ) {
     var selectedTab by remember(initialTab) { mutableStateOf(initialTab) }
     val tabs = listOf("🏆 可举办", "⏳ 进行中", "📊 历史记录")
@@ -123,7 +135,8 @@ fun TournamentScreen(
                     games = ongoingGames,
                     revenueDataMap = revenueDataMap,
                     currentDate = currentDate,
-                    competitors = competitors
+                    competitors = competitors,
+                    onRegisterTeam = onRegisterTeam
                 )
                 2 -> TournamentHistoryTab(
                     games = completedGames
@@ -400,9 +413,9 @@ fun TournamentTypeCard(
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TournamentIcon(
-                    tournamentType = type.displayName,
-                    size = 32f
+                Text(
+                    text = getTournamentIcon(type.displayName),
+                    fontSize = 32.sp
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
@@ -459,7 +472,8 @@ fun OngoingTournamentsTab(
     games: List<Game>,
     revenueDataMap: Map<String, GameRevenue>,
     currentDate: GameDate,
-    competitors: List<CompetitorCompany>
+    competitors: List<CompetitorCompany>,
+    onRegisterTeam: ((String, String) -> Unit)? = null // (gameId, teamName) -> Unit
 ) {
     // 选择器状态：0=我的公司，1=竞争对手
     var selectedCompanyIndex by remember { mutableIntStateOf(0) }
@@ -549,7 +563,8 @@ fun OngoingTournamentsTab(
                             currentDate = currentDate,
                             isCompetitor = selectedCompanyIndex != 0,
                             companyName = competitorData?.second,
-                            competitorActivePlayers = competitorData?.first
+                            competitorActivePlayers = competitorData?.first,
+                            onRegisterTeam = if (selectedCompanyIndex == 0) onRegisterTeam else null // 只有玩家公司可以报名
                         )
                     }
                 }
@@ -618,7 +633,8 @@ fun OngoingTournamentCard(
     currentDate: GameDate,
     isCompetitor: Boolean = false,
     companyName: String? = null,
-    competitorActivePlayers: Long? = null
+    competitorActivePlayers: Long? = null,
+    onRegisterTeam: ((String, String) -> Unit)? = null // (gameId, teamName) -> Unit
 ) {
     var showDetailDialog by remember { mutableStateOf(false) }
     
@@ -637,9 +653,9 @@ fun OngoingTournamentCard(
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TournamentIcon(
-                        tournamentType = tournament.type.displayName,
-                        size = 24f
+                    Text(
+                        text = getTournamentIcon(tournament.type.displayName),
+                        fontSize = 24.sp
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
@@ -756,12 +772,34 @@ fun OngoingTournamentCard(
                     color = Color(0xFFFFC107)
                 )
             } else if (tournament.status == TournamentStatus.PREPARING) {
-                Text(
-                    text = "🔧 正在筹备中，点击查看详情...",
-                    fontSize = 13.sp,
-                    color = Color(0xFF2196F3),
-                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
-                )
+                // 筹备期显示报名信息
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "📝 已报名: ${tournament.registeredTeams.size}/${tournament.getRequiredTeamCount()}",
+                            fontSize = 13.sp,
+                            color = Color(0xFF2196F3),
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (tournament.hasPlayerTeamRegistered) {
+                            Text(
+                                text = "✓ 你的战队已报名",
+                                fontSize = 12.sp,
+                                color = Color(0xFF4CAF50)
+                            )
+                        }
+                    }
+                    Text(
+                        text = "点击查看详情 →",
+                        fontSize = 12.sp,
+                        color = Color(0xFF2196F3),
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                    )
+                }
             }
         }
     }
@@ -770,7 +808,10 @@ fun OngoingTournamentCard(
     if (showDetailDialog) {
         TournamentDetailDialog(
             tournament = tournament,
-            onDismiss = { showDetailDialog = false }
+            onDismiss = { showDetailDialog = false },
+            onRegisterTeam = if (onRegisterTeam != null) {
+                { teamName -> onRegisterTeam(game.id, teamName) }
+            } else null
         )
     }
 }
@@ -781,7 +822,8 @@ fun OngoingTournamentCard(
 @Composable
 fun TournamentDetailDialog(
     tournament: EsportsTournament,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onRegisterTeam: ((String) -> Unit)? = null // 报名回调
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -790,9 +832,9 @@ fun TournamentDetailDialog(
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TournamentIcon(
-                        tournamentType = tournament.type.displayName,
-                        size = 28f
+                    Text(
+                        text = getTournamentIcon(tournament.type.displayName),
+                        fontSize = 28.sp
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
@@ -842,38 +884,55 @@ fun TournamentDetailDialog(
                         }
                     }
                     
-                    // 参赛战队
+                    // 已报名战队
                     item {
                         Card(
                             colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0))
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
                                 Text(
-                                    text = "⚔️ 参赛战队 (${tournament.participatingTeams.size}支)",
+                                    text = "⚔️ 已报名战队 (${tournament.registeredTeams.size}/${tournament.getRequiredTeamCount()})",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 16.sp,
                                     color = Color(0xFFFF6F00)
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
-                                tournament.participatingTeams.forEachIndexed { index, team ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "${index + 1}.",
-                                            fontSize = 12.sp,
-                                            color = Color.Gray,
-                                            modifier = Modifier.width(24.dp)
-                                        )
-                                        Text(
-                                            text = team,
-                                            fontSize = 14.sp
-                                        )
+                                
+                                if (tournament.registeredTeams.isEmpty()) {
+                                    Text(
+                                        text = "暂无战队报名",
+                                        fontSize = 14.sp,
+                                        color = Color.Gray,
+                                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                                    )
+                                } else {
+                                    tournament.registeredTeams.forEachIndexed { index, team ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "${index + 1}.",
+                                                fontSize = 12.sp,
+                                                color = Color.Gray,
+                                                modifier = Modifier.width(24.dp)
+                                            )
+                                            Text(
+                                                text = team,
+                                                fontSize = 14.sp
+                                            )
+                                        }
                                     }
                                 }
+                                
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "💡 报名截止：筹备期结束前",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF666666)
+                                )
                             }
                         }
                     }
@@ -996,8 +1055,30 @@ fun TournamentDetailDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("关闭")
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // 筹备期显示报名按钮
+                if (tournament.status == TournamentStatus.PREPARING && 
+                    onRegisterTeam != null && 
+                    !tournament.hasPlayerTeamRegistered &&
+                    tournament.canRegister()) {
+                    Button(
+                        onClick = {
+                            onRegisterTeam("我的战队")
+                            onDismiss()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF4CAF50)
+                        )
+                    ) {
+                        Text("报名参赛")
+                    }
+                }
+                
+                TextButton(onClick = onDismiss) {
+                    Text("关闭")
+                }
             }
         }
     )
@@ -1050,9 +1131,9 @@ fun TournamentHistoryCard(tournament: EsportsTournament) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TournamentIcon(
-                        tournamentType = tournament.type.displayName,
-                        size = 20f
+                    Text(
+                        text = getTournamentIcon(tournament.type.displayName),
+                        fontSize = 20.sp
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
@@ -1162,6 +1243,7 @@ private fun formatPlayerCount(count: Long): String {
 
 private fun formatMoney(amount: Long): String {
     return when {
+        amount >= 100000000 -> "¥%.2f亿".format(amount / 100000000.0)
         amount >= 10000 -> "¥${amount / 10000}万"
         amount >= 1000 -> "¥${amount / 1000}K"
         else -> "¥$amount"
@@ -1276,9 +1358,9 @@ fun TournamentTypeCard(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        TournamentIcon(
-                            tournamentType = tournamentType.displayName,
-                            size = 48f
+                        Text(
+                            text = getTournamentIcon(tournamentType.displayName),
+                            fontSize = 48.sp
                         )
                     }
                     
@@ -1542,9 +1624,9 @@ fun TournamentGameSelectionDialog(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    TournamentIcon(
-                        tournamentType = tournamentType.displayName,
-                        size = 48f
+                    Text(
+                        text = getTournamentIcon(tournamentType.displayName),
+                        fontSize = 48.sp
                     )
                 }
                 
@@ -1781,9 +1863,9 @@ fun TournamentConfirmDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    TournamentIcon(
-                        tournamentType = tournamentType.displayName,
-                        size = 32f
+                    Text(
+                        text = getTournamentIcon(tournamentType.displayName),
+                        fontSize = 32.sp
                     )
                     Column {
                         Text(
@@ -2023,4 +2105,174 @@ fun TournamentInfoRow(label: String, value: String) {
             color = Color.White
         )
     }
+}
+
+
+/**
+ * 抽签仪式对话框
+ */
+@Composable
+fun DrawCeremonyDialog(
+    tournament: EsportsTournament,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "🎲",
+                    fontSize = 48.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "抽签仪式",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 24.sp,
+                    color = Color.White
+                )
+                Text(
+                    text = tournament.type.displayName,
+                    fontSize = 16.sp,
+                    color = Color.White.copy(alpha = 0.8f)
+                )
+            }
+        },
+        text = {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 500.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF1E3A8A).copy(alpha = 0.3f)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "🎊 抽签完成！",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "各战队分组已确定，精彩对决即将开始！",
+                                fontSize = 14.sp,
+                                color = Color.White.copy(alpha = 0.9f),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                    }
+                }
+                
+                // 显示分组结果
+                tournament.drawGroups.entries.sortedBy { it.key }.forEach { (groupName, teams) ->
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color.White.copy(alpha = 0.1f)
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = "🏆",
+                                        fontSize = 24.sp
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = groupName,
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                                
+                                Spacer(modifier = Modifier.height(12.dp))
+                                
+                                teams.forEachIndexed { index, team ->
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = "${index + 1}.",
+                                            fontSize = 14.sp,
+                                            color = Color.White.copy(alpha = 0.7f),
+                                            modifier = Modifier.width(24.dp)
+                                        )
+                                        Text(
+                                            text = team,
+                                            fontSize = 14.sp,
+                                            color = Color.White,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFFBBF24).copy(alpha = 0.2f)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "💡",
+                                fontSize = 20.sp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "小组赛将在筹备期结束后正式开始，敬请期待！",
+                                fontSize = 13.sp,
+                                color = Color.White.copy(alpha = 0.9f)
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF3B82F6)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "期待比赛开始",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        containerColor = Color(0xFF1E293B),
+        shape = RoundedCornerShape(16.dp)
+    )
 }

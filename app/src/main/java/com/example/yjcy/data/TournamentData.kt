@@ -187,8 +187,12 @@ data class EsportsTournament(
     val reputationGained: Int = 0, // 声誉提升
     val champion: String = "", // 冠军战队名称
     val randomEvent: String = "", // 随机事件描述
-    val participatingTeams: List<String> = emptyList(), // 参赛战队列表
-    val sponsors: List<String> = emptyList() // 赞助商列表
+    val registeredTeams: List<String> = emptyList(), // 已报名战队列表（筹备期）
+    val participatingTeams: List<String> = emptyList(), // 参赛战队列表（正式比赛）
+    val sponsors: List<String> = emptyList(), // 赞助商列表
+    val hasPlayerTeamRegistered: Boolean = false, // 玩家战队是否已报名
+    val hasShownDrawCeremony: Boolean = false, // 是否已显示抽签仪式
+    val drawGroups: Map<String, List<String>> = emptyMap() // 抽签分组结果
 ) {
     /**
      * 获取总收益
@@ -233,6 +237,25 @@ data class EsportsTournament(
             }
             TournamentStatus.COMPLETED -> "已完成"
         }
+    }
+    
+    /**
+     * 获取需要的战队数量
+     */
+    fun getRequiredTeamCount(): Int {
+        return when (type) {
+            TournamentType.REGIONAL -> 8
+            TournamentType.NATIONAL -> 16
+            TournamentType.WORLD_FINALS -> 24
+        }
+    }
+    
+    /**
+     * 是否可以报名
+     */
+    fun canRegister(): Boolean {
+        return status == TournamentStatus.PREPARING && 
+               registeredTeams.size < getRequiredTeamCount()
     }
 }
 
@@ -317,7 +340,6 @@ object TournamentManager {
         currentDate: GameDate
     ): EsportsTournament {
         val championTeam = generateChampionTeam()
-        val teams = generateParticipatingTeams(type)
         val sponsors = generateSponsors(type)
         
         return EsportsTournament(
@@ -331,20 +353,70 @@ object TournamentManager {
             startDay = currentDate.day,
             investment = type.baseCost,
             champion = championTeam,
-            participatingTeams = teams,
-            sponsors = sponsors
+            registeredTeams = emptyList(), // 初始无报名战队
+            participatingTeams = emptyList(), // 正式比赛时才确定
+            sponsors = sponsors,
+            hasPlayerTeamRegistered = false
         )
     }
     
     /**
+     * 战队报名
+     */
+    fun registerTeam(
+        tournament: EsportsTournament,
+        teamName: String,
+        isPlayerTeam: Boolean = false
+    ): EsportsTournament {
+        if (!tournament.canRegister()) {
+            return tournament
+        }
+        
+        // 检查是否已报名
+        if (tournament.registeredTeams.contains(teamName)) {
+            return tournament
+        }
+        
+        return tournament.copy(
+            registeredTeams = tournament.registeredTeams + teamName,
+            hasPlayerTeamRegistered = tournament.hasPlayerTeamRegistered || isPlayerTeam
+        )
+    }
+    
+    /**
+     * AI战队自动报名（每日调用）
+     */
+    fun autoRegisterAITeams(tournament: EsportsTournament): EsportsTournament {
+        if (!tournament.canRegister()) {
+            return tournament
+        }
+        
+        // 每天有30%概率有AI战队报名
+        if (Random.nextDouble() < 0.3) {
+            val remainingSlots = tournament.getRequiredTeamCount() - tournament.registeredTeams.size
+            if (remainingSlots > 0) {
+                val newTeam = generateChampionTeam()
+                if (!tournament.registeredTeams.contains(newTeam)) {
+                    return tournament.copy(
+                        registeredTeams = tournament.registeredTeams + newTeam
+                    )
+                }
+            }
+        }
+        
+        return tournament
+    }
+    
+    /**
      * 更新赛事进度（每日调用）
+     * 返回 Pair(更新后的赛事, 是否需要显示抽签仪式)
      */
     fun updateTournament(
         tournament: EsportsTournament,
         currentDate: GameDate
-    ): EsportsTournament {
+    ): Pair<EsportsTournament, Boolean> {
         if (tournament.status == TournamentStatus.COMPLETED) {
-            return tournament
+            return Pair(tournament, false)
         }
         
         val daysPassed = calculateDaysBetween(
@@ -352,11 +424,43 @@ object TournamentManager {
             currentDate
         )
         
-        // 筹备期：缩短到7天
+        // 筹备期
         if (daysPassed < tournament.preparationDays) {
-            return tournament.copy(
+            var updatedTournament = tournament.copy(
                 status = TournamentStatus.PREPARING,
                 currentDay = daysPassed + 1
+            )
+            
+            // AI战队自动报名
+            updatedTournament = autoRegisterAITeams(updatedTournament)
+            
+            // 检查是否到达抽签日（筹备期的第7天）
+            val shouldShowDraw = !tournament.hasShownDrawCeremony && 
+                                 daysPassed + 1 == 7 &&
+                                 updatedTournament.registeredTeams.size >= 4 // 至少4支队伍才抽签
+            
+            return Pair(updatedTournament, shouldShowDraw)
+        }
+        
+        // 筹备期结束，确定参赛队伍
+        if (daysPassed == tournament.preparationDays && tournament.participatingTeams.isEmpty()) {
+            val finalTeams = if (tournament.registeredTeams.size >= tournament.getRequiredTeamCount()) {
+                // 报名满了，直接使用
+                tournament.registeredTeams.take(tournament.getRequiredTeamCount())
+            } else {
+                // 报名不足，补充AI战队
+                val remaining = tournament.getRequiredTeamCount() - tournament.registeredTeams.size
+                val aiTeams = (1..remaining).map { generateChampionTeam() }
+                tournament.registeredTeams + aiTeams
+            }
+            
+            return Pair(
+                tournament.copy(
+                    participatingTeams = finalTeams,
+                    status = TournamentStatus.ONGOING,
+                    currentDay = 1
+                ),
+                false
             )
         }
         
@@ -365,21 +469,80 @@ object TournamentManager {
         
         // 赛事进行中
         if (tournamentDay <= tournament.type.duration) {
-            return tournament.copy(
-                status = TournamentStatus.ONGOING,
-                currentDay = tournamentDay
+            return Pair(
+                tournament.copy(
+                    status = TournamentStatus.ONGOING,
+                    currentDay = tournamentDay
+                ),
+                false
             )
         }
         
         // 赛事已完成（首次完成时才结算）
         if (tournament.status != TournamentStatus.COMPLETED) {
-            return tournament.copy(
-                status = TournamentStatus.COMPLETED,
-                currentDay = tournament.type.duration
+            return Pair(
+                tournament.copy(
+                    status = TournamentStatus.COMPLETED,
+                    currentDay = tournament.type.duration
+                ),
+                false
             )
         }
         
-        return tournament
+        return Pair(tournament, false)
+    }
+    
+    /**
+     * 执行抽签仪式，生成分组
+     */
+    fun performDrawCeremony(tournament: EsportsTournament): EsportsTournament {
+        // 使用已报名的战队进行抽签
+        val teamsToUse = if (tournament.registeredTeams.size >= 4) {
+            tournament.registeredTeams
+        } else {
+            // 如果报名不足，先补充AI战队
+            val remaining = tournament.getRequiredTeamCount() - tournament.registeredTeams.size
+            val aiTeams = (1..remaining).map { generateChampionTeam() }
+            tournament.registeredTeams + aiTeams
+        }
+        
+        val groups = when (tournament.type) {
+            TournamentType.REGIONAL -> {
+                // 城市杯：8支队伍分成2组
+                val shuffledTeams = teamsToUse.take(8).shuffled()
+                mapOf(
+                    "A组" to shuffledTeams.take(4),
+                    "B组" to shuffledTeams.drop(4)
+                )
+            }
+            TournamentType.NATIONAL -> {
+                // 全国锦标赛：16支队伍分成4组
+                val shuffledTeams = teamsToUse.take(16).shuffled()
+                mapOf(
+                    "A组" to shuffledTeams.slice(0..3),
+                    "B组" to shuffledTeams.slice(4..7),
+                    "C组" to shuffledTeams.slice(8..11),
+                    "D组" to shuffledTeams.slice(12..15)
+                )
+            }
+            TournamentType.WORLD_FINALS -> {
+                // 全球总决赛：24支队伍分成6组
+                val shuffledTeams = teamsToUse.take(24).shuffled()
+                mapOf(
+                    "A组" to shuffledTeams.slice(0..3),
+                    "B组" to shuffledTeams.slice(4..7),
+                    "C组" to shuffledTeams.slice(8..11),
+                    "D组" to shuffledTeams.slice(12..15),
+                    "E组" to shuffledTeams.slice(16..19),
+                    "F组" to shuffledTeams.slice(20..23)
+                )
+            }
+        }
+        
+        return tournament.copy(
+            hasShownDrawCeremony = true,
+            drawGroups = groups
+        )
     }
     
     /**

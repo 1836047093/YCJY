@@ -1329,7 +1329,9 @@ object CompetitorManager {
             startDay = currentDay,
             currentDay = 1,
             investment = tournamentType.baseCost,
-            champion = ""
+            champion = "",
+            participatingTeams = emptyList(),
+            sponsors = emptyList()
         )
         
         // 生成赛事新闻

@@ -841,7 +841,7 @@ data class TeamLogoConfig(
     val borderColor2: Long = 0xFFFFA000,     // 橙金
     val iconColor: Long = 0xFFFFFFFF,        // 白色
     val teamName: String = "YJCY",          // 主标题
-    val subText: String = "GAMING"          // 副标题
+    val subText: String = ""               // 副标题
 )
 
 // 存档数据类
@@ -886,6 +886,7 @@ data class SaveData(
     val gmModeEnabled: Boolean = false, // GM模式开关（通过兑换码激活）
     val usedRedeemCodes: Set<String> = emptySet(), // 已使用的兑换码列表
     val isSupporterUnlocked: Boolean = false, // 支持者功能是否解锁（通过SUPPORTER兑换码解锁）
+    val esportsTeamUnlocked: Boolean = false, // 战队管理功能是否解锁（需要1亿资金解锁）
     val autoSaveEnabled: Boolean = false, // 自动存档开关（默认关闭）
     val autoSaveInterval: Int = 5, // 自动存档间隔（天，默认5天）
     val lastAutoSaveDay: Int = 0, // 上次自动存档时的游戏天数（用于计算是否到达存档间隔）

@@ -36,7 +36,9 @@ import com.example.yjcy.data.esports.EsportsPlayer
 import com.example.yjcy.managers.esports.HeroManager
 import com.example.yjcy.managers.esports.PlayerManager
 import com.example.yjcy.ui.components.SingleLineText
+import com.example.yjcy.utils.formatMoney
 import kotlinx.coroutines.delay
+import kotlin.random.Random
 
 /**
  * 战队管理主界面（全屏布局，参考子公司管理样式）
@@ -58,11 +60,15 @@ fun TeamManagementScreen(
     isPaused: Boolean = false,
     onSettingsClick: () -> Unit = {},
     isSupporterUnlocked: Boolean = false,
-    onShowFeatureLockedDialog: () -> Unit = {}
+    onShowFeatureLockedDialog: () -> Unit = {},
+    // 战队管理解锁相关
+    isTeamUnlocked: Boolean = false,
+    onUnlockTeam: (String, TeamLogoConfig) -> Unit = { _, _ -> }
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var showRecruitDialog by remember { mutableStateOf(false) }
     var showLogoEditor by remember { mutableStateOf(false) }
+    var showUnlockDialog by remember { mutableStateOf(!isTeamUnlocked) }
     
     Column(
         modifier = Modifier
@@ -101,46 +107,66 @@ fun TeamManagementScreen(
             // 顶部标题栏
             TeamTopBar(onBack = onNavigateBack)
             
-            // 标签页
-            PrimaryScrollableTabRow(
-                selectedTabIndex = selectedTab,
-                modifier = Modifier.fillMaxWidth(),
-                containerColor = Color(0xFF16213e),
-                contentColor = Color.White
-            ) {
-                Tab(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    text = { SingleLineText(text = "战队管理", fontSize = 14.sp) }
-                )
-                Tab(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    text = { SingleLineText(text = "青训营", fontSize = 14.sp) }
-                )
-                Tab(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    text = { SingleLineText(text = "全部选手", fontSize = 14.sp) }
-                )
-                Tab(
-                    selected = selectedTab == 3,
-                    onClick = { selectedTab = 3 },
-                    text = { SingleLineText(text = "英雄图鉴", fontSize = 14.sp) }
-                )
+            // 标签页（带滑动提示）
+            Box(modifier = Modifier.fillMaxWidth()) {
+                PrimaryScrollableTabRow(
+                    selectedTabIndex = selectedTab,
+                    modifier = Modifier.fillMaxWidth(),
+                    containerColor = Color(0xFF16213e),
+                    contentColor = Color.White
+                ) {
+                    Tab(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        text = { SingleLineText(text = "战队管理", fontSize = 14.sp) }
+                    )
+                    Tab(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        text = { SingleLineText(text = "青训营", fontSize = 14.sp) }
+                    )
+                    Tab(
+                        selected = selectedTab == 2,
+                        onClick = { selectedTab = 2 },
+                        text = { SingleLineText(text = "全部选手", fontSize = 14.sp) }
+                    )
+                    Tab(
+                        selected = selectedTab == 3,
+                        onClick = { selectedTab = 3 },
+                        text = { SingleLineText(text = "英雄图鉴", fontSize = 14.sp) }
+                    )
+                    Tab(
+                        selected = selectedTab == 4,
+                        onClick = { selectedTab = 4 },
+                        text = { SingleLineText(text = "俱乐部信息", fontSize = 14.sp) }
+                    )
+                }
+                
+                // 滑动提示箭头
+                TabScrollHint()
             }
             
             // 内容区域
-            when (selectedTab) {
-                0 -> TeamRosterTab(
-                    teamLogoConfig = teamLogoConfig,
-                    onEditLogo = { showLogoEditor = true }
+            if (!isTeamUnlocked) {
+                // 未解锁：显示解锁提示界面
+                TeamLockedContent(
+                    currentMoney = money,
+                    onUnlock = { showUnlockDialog = true }
                 )
-                1 -> RecruitmentTab(
-                    onRecruit = { showRecruitDialog = true }
-                )
-                2 -> AllPlayersTab()
-                3 -> HeroEncyclopediaTab()
+            } else {
+                // 已解锁：显示正常内容
+                when (selectedTab) {
+                    0 -> TeamRosterTab(
+                        teamLogoConfig = teamLogoConfig,
+                        onEditLogo = { showLogoEditor = true }
+                    )
+                    1 -> RecruitmentTab(
+                        onRecruit = { showRecruitDialog = true }
+                    )
+                    2 -> AllPlayersTab()
+                    3 -> HeroEncyclopediaTab()
+                    4 -> ClubInfoTab(teamLogoConfig = teamLogoConfig)
+                }
             }
         }
     }
@@ -161,6 +187,204 @@ fun TeamManagementScreen(
                 onUpdateTeamLogo(it)
                 showLogoEditor = false
             }
+        )
+    }
+    
+    // 解锁对话框
+    if (showUnlockDialog && !isTeamUnlocked) {
+        TeamUnlockDialog(
+            currentMoney = money,
+            onDismiss = { 
+                showUnlockDialog = false
+                onNavigateBack() // 取消解锁时返回
+            },
+            onUnlock = { teamName, logoConfig ->
+                onUnlockTeam(teamName, logoConfig)
+                showUnlockDialog = false
+            }
+        )
+    }
+}
+
+/**
+ * 未解锁提示界面
+ */
+@Composable
+private fun TeamLockedContent(
+    currentMoney: Long,
+    onUnlock: () -> Unit
+) {
+    val unlockCost = 100_000_000L // 1亿
+    val canAfford = currentMoney >= unlockCost
+    
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+            // 锁图标
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .background(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                Color(0xFF4CAF50).copy(alpha = 0.3f),
+                                Color.Transparent
+                            )
+                        ),
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                SingleLineText(
+                    text = "🔒",
+                    fontSize = 64.sp
+                )
+            }
+            
+            // 标题
+            SingleLineText(
+                text = "战队管理未解锁",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            
+            // 说明卡片
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF2A2A3E)
+                ),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    SingleLineText(
+                        text = "解锁后可以：",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF4CAF50)
+                    )
+                    
+                    FeatureItem("⚽", "招募电竞选手组建战队")
+                    FeatureItem("🏆", "参加MOBA电竞赛事")
+                    FeatureItem("🎯", "培养选手提升实力")
+                    FeatureItem("🏅", "赢取奖金和荣誉")
+                    FeatureItem("🎮", "管理英雄池和战术")
+                }
+            }
+            
+            // 费用信息
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (canAfford) {
+                        Color(0xFF4CAF50).copy(alpha = 0.2f)
+                    } else {
+                        Color(0xFFFF5252).copy(alpha = 0.2f)
+                    }
+                ),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        SingleLineText(
+                            text = "解锁费用:",
+                            fontSize = 14.sp,
+                            color = Color.Gray
+                        )
+                        SingleLineText(
+                            text = formatMoney(unlockCost),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        SingleLineText(
+                            text = "当前资金:",
+                            fontSize = 14.sp,
+                            color = Color.Gray
+                        )
+                        SingleLineText(
+                            text = formatMoney(currentMoney),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (canAfford) Color(0xFF4CAF50) else Color(0xFFFF5252)
+                        )
+                    }
+                }
+            }
+            
+            // 解锁按钮
+            Button(
+                onClick = onUnlock,
+                enabled = canAfford,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF4CAF50),
+                    disabledContainerColor = Color.Gray
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                SingleLineText(
+                    text = if (canAfford) "✅ 解锁战队管理" else "🔒 资金不足",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            
+            if (!canAfford) {
+                SingleLineText(
+                    text = "还需 ${formatMoney(unlockCost - currentMoney)}",
+                    fontSize = 14.sp,
+                    color = Color(0xFFFF5252)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 功能项目
+ */
+@Composable
+private fun FeatureItem(icon: String, text: String) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        SingleLineText(
+            text = icon,
+            fontSize = 20.sp
+        )
+        SingleLineText(
+            text = text,
+            fontSize = 14.sp,
+            color = Color.White.copy(alpha = 0.9f)
         )
     }
 }
@@ -1797,5 +2021,512 @@ fun getHeroTypeColor(type: com.example.yjcy.data.esports.HeroType): Color {
         com.example.yjcy.data.esports.HeroType.MAGE -> Color(0xFF2196F3)
         com.example.yjcy.data.esports.HeroType.MARKSMAN -> Color(0xFFFF9800)
         com.example.yjcy.data.esports.HeroType.SUPPORT -> Color(0xFF00BCD4)
+    }
+}
+
+/**
+ * 战队信息数据类
+ */
+data class EsportsTeamInfo(
+    val teamName: String,
+    val companyName: String,
+    val isPlayerTeam: Boolean = false,
+    val playerCount: Int = 5,
+    val averageRating: Int = 0,
+    val championships: Int = 0
+)
+
+/**
+ * 俱乐部信息Tab
+ */
+@Composable
+fun ClubInfoTab(teamLogoConfig: TeamLogoConfig = TeamLogoConfig()) {
+    // 生成示例战队数据（包括玩家战队和AI战队）
+    val teams = remember(teamLogoConfig.teamName) {
+        buildList {
+            // 玩家战队
+            add(
+                EsportsTeamInfo(
+                    teamName = teamLogoConfig.teamName,
+                    companyName = "玩家公司",
+                    isPlayerTeam = true,
+                    playerCount = PlayerManager.myTeam.size,
+                    averageRating = if (PlayerManager.myTeam.isNotEmpty()) {
+                        PlayerManager.myTeam.map { it.attributes.overallRating() }.average().toInt()
+                    } else 0,
+                    championships = 0
+                )
+            )
+            
+            // AI战队（示例数据）
+            val aiCompanies = listOf(
+                "腾讯游戏", "网易游戏", "米哈游", "完美世界", "巨人网络",
+                "三七互娱", "世纪华通", "吉比特", "心动网络", "莉莉丝",
+                "鹰角网络", "叠纸游戏", "西山居", "游族网络", "昆仑万维"
+            )
+            
+            val teamPrefixes = listOf(
+                "龙之", "凤凰", "狂暴", "闪电", "幻影", "钢铁", "星辰", "烈焰",
+                "寒冰", "雷霆", "暗影", "光明", "疾风", "巨浪", "天启", "永恒",
+                "荣耀", "传奇", "王者", "霸主", "神话", "英雄", "勇士", "战神"
+            )
+            
+            val teamSuffixes = listOf("战队", "俱乐部", "电竞", "联盟", "军团", "公会")
+            
+            // 生成15支AI战队
+            repeat(15) { index ->
+                add(
+                    EsportsTeamInfo(
+                        teamName = "${teamPrefixes[index % teamPrefixes.size]}${teamSuffixes[index % teamSuffixes.size]}",
+                        companyName = aiCompanies[index % aiCompanies.size],
+                        isPlayerTeam = false,
+                        playerCount = 5,
+                        averageRating = Random.nextInt(60, 90),
+                        championships = Random.nextInt(0, 5)
+                    )
+                )
+            }
+        }
+    }
+    
+    var searchQuery by remember { mutableStateOf("") }
+    var sortBy by remember { mutableStateOf("rating_desc") } // rating, rating_desc
+    
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // 顶部说明卡片
+        // 标题、搜索和排序整合卡片
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF16213e)
+            ),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // 标题和战队数量
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SingleLineText(
+                        "🏆 俱乐部信息",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    SingleLineText(
+                        "当前共有 ${teams.size} 支战队",
+                        fontSize = 13.sp,
+                        color = Color(0xFF4CAF50),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                
+                SingleLineText(
+                    "查看所有战队及其所属公司",
+                    fontSize = 13.sp,
+                    color = Color.LightGray
+                )
+                
+                HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                
+                // 搜索框
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { SingleLineText("搜索战队或公司名称...", fontSize = 14.sp) },
+                    leadingIcon = { SingleLineText("🔍", fontSize = 18.sp) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF4CAF50),
+                        unfocusedBorderColor = Color.Gray,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                )
+                
+                // 排序选项 - 现代化设计
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SingleLineText(
+                        "排序:",
+                        fontSize = 13.sp,
+                        color = Color.Gray
+                    )
+                    
+                    // 现代化实力排序按钮
+                    Row(
+                        modifier = Modifier
+                            .clickable { sortBy = if (sortBy == "rating") "rating_desc" else "rating" }
+                            .background(
+                                brush = Brush.horizontalGradient(
+                                    colors = listOf(
+                                        Color(0xFF667eea),
+                                        Color(0xFF764ba2)
+                                    )
+                                ),
+                                shape = RoundedCornerShape(20.dp)
+                            )
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        SingleLineText(
+                            text = "⚡",
+                            fontSize = 14.sp
+                        )
+                        SingleLineText(
+                            text = "实力",
+                            fontSize = 13.sp,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                        SingleLineText(
+                            text = if (sortBy == "rating_desc") "↓" else "↑",
+                            fontSize = 12.sp,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+            }
+        }
+        
+        // 战队列表
+        val filteredAndSortedTeams = teams
+            .filter { team ->
+                searchQuery.isEmpty() || 
+                team.teamName.contains(searchQuery, ignoreCase = true) ||
+                team.companyName.contains(searchQuery, ignoreCase = true)
+            }
+            .sortedWith(
+                when (sortBy) {
+                    "rating" -> compareBy { it.averageRating }  // 升序
+                    "rating_desc" -> compareByDescending { it.averageRating }  // 降序
+                    else -> compareByDescending { it.averageRating }  // 默认降序
+                }
+            )
+        
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(filteredAndSortedTeams) { team ->
+                TeamInfoCard(team = team)
+            }
+        }
+    }
+}
+
+/**
+ * 战队信息卡片
+ */
+@Composable
+fun TeamInfoCard(team: EsportsTeamInfo) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (team.isPlayerTeam) {
+                Color(0xFF1E3A5F) // 玩家战队使用特殊颜色
+            } else {
+                Color(0xFF1E1E2E)
+            }
+        ),
+        shape = RoundedCornerShape(16.dp),
+        border = if (team.isPlayerTeam) {
+            BorderStroke(2.dp, Color(0xFF4CAF50))
+        } else {
+            BorderStroke(1.dp, Color(0xFF2A2A3E))
+        }
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // 顶部：战队名称和标签
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SingleLineText(
+                        text = if (team.isPlayerTeam) "⚽" else "🎮",
+                        fontSize = 24.sp
+                    )
+                    Column {
+                        Text(
+                            text = team.teamName,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (team.isPlayerTeam) Color(0xFF4CAF50) else Color.White
+                        )
+                        if (team.isPlayerTeam) {
+                            Text(
+                                text = "我的战队",
+                                fontSize = 11.sp,
+                                color = Color(0xFF4CAF50),
+                                modifier = Modifier
+                                    .background(
+                                        Color(0xFF4CAF50).copy(alpha = 0.2f),
+                                        RoundedCornerShape(4.dp)
+                                    )
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+                
+                // 冠军数标识
+                if (team.championships > 0) {
+                    Surface(
+                        color = Color(0xFFFFD700).copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            SingleLineText(
+                                text = "🏆",
+                                fontSize = 14.sp
+                            )
+                            SingleLineText(
+                                text = "${team.championships}",
+                                fontSize = 12.sp,
+                                color = Color(0xFFFFD700),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+            
+            HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+            
+            // 所属公司
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SingleLineText(
+                        text = "🏢",
+                        fontSize = 16.sp
+                    )
+                    Column {
+                        SingleLineText(
+                            text = "所属公司",
+                            fontSize = 11.sp,
+                            color = Color.Gray
+                        )
+                        SingleLineText(
+                            text = team.companyName,
+                            fontSize = 15.sp,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+            
+            // 战队信息
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
+                TeamStatColumn(
+                    icon = "👥",
+                    label = "队员",
+                    value = "${team.playerCount}人",
+                    color = Color(0xFF2196F3)
+                )
+                TeamStatColumn(
+                    icon = "⭐",
+                    label = "平均实力",
+                    value = "${team.averageRating}",
+                    color = when {
+                        team.averageRating >= 80 -> Color(0xFFFF9800)
+                        team.averageRating >= 70 -> Color(0xFF4CAF50)
+                        else -> Color.Gray
+                    }
+                )
+                TeamStatColumn(
+                    icon = "🏆",
+                    label = "冠军数",
+                    value = "${team.championships}",
+                    color = Color(0xFFFFD700)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 战队统计列
+ */
+@Composable
+fun TeamStatColumn(
+    icon: String,
+    label: String,
+    value: String,
+    color: Color
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        SingleLineText(
+            text = icon,
+            fontSize = 20.sp
+        )
+        SingleLineText(
+            text = label,
+            fontSize = 11.sp,
+            color = Color.Gray
+        )
+        SingleLineText(
+            text = value,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = color
+        )
+    }
+}
+
+
+/**
+ * 标签页滑动提示组件
+ * 显示左右箭头提示用户可以滑动查看更多标签
+ */
+@Composable
+fun TabScrollHint() {
+    var showHint by remember { mutableStateOf(true) }
+    
+    // 5秒后自动隐藏提示
+    LaunchedEffect(Unit) {
+        delay(5000)
+        showHint = false
+    }
+    
+    if (!showHint) return
+    
+    // 左右箭头动画
+    val infiniteTransition = rememberInfiniteTransition(label = "scroll_hint")
+    
+    val leftArrowOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = -8f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "left_arrow"
+    )
+    
+    val rightArrowOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 8f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "right_arrow"
+    )
+    
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "alpha"
+    )
+    
+    Box(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        // 左侧箭头
+        Row(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(start = 8.dp)
+                .graphicsLayer {
+                    translationX = leftArrowOffset
+                    this.alpha = alpha
+                }
+                .background(
+                    Color(0xFF16213e).copy(alpha = 0.9f),
+                    RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp)
+                )
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "◀",
+                fontSize = 12.sp,
+                color = Color.White
+            )
+            Text(
+                text = "滑动",
+                fontSize = 10.sp,
+                color = Color.White.copy(alpha = 0.8f)
+            )
+        }
+        
+        // 右侧箭头
+        Row(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = 8.dp)
+                .graphicsLayer {
+                    translationX = rightArrowOffset
+                    this.alpha = alpha
+                }
+                .background(
+                    Color(0xFF16213e).copy(alpha = 0.9f),
+                    RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp)
+                )
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "滑动",
+                fontSize = 10.sp,
+                color = Color.White.copy(alpha = 0.8f)
+            )
+            Text(
+                text = "▶",
+                fontSize = 12.sp,
+                color = Color.White
+            )
+        }
     }
 }

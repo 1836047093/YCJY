@@ -208,6 +208,7 @@ import com.example.yjcy.managers.esports.TournamentManager as EsportsTournamentM
 import com.example.yjcy.ui.SecretaryChatScreen
 import com.example.yjcy.ui.ServerManagementContent
 import com.example.yjcy.ui.SubsidiaryManagementScreen
+import com.example.yjcy.ui.DrawCeremonyDialog
 import com.example.yjcy.ui.TournamentResultDialog
 import com.example.yjcy.ui.TournamentScreen
 import com.example.yjcy.ui.TutorialDialog
@@ -2428,12 +2429,14 @@ fun GameScreen(
     var autoSaveEnabled by remember { mutableStateOf(saveData?.autoSaveEnabled ?: false) }
     var autoSaveInterval by remember { mutableIntStateOf(saveData?.autoSaveInterval ?: 5) } // 自动存档间隔（天）
     var lastAutoSaveDay by remember { mutableIntStateOf(saveData?.lastAutoSaveDay ?: 0) } // 上次自动存档的游戏天数
-    
     // 已使用的兑换码状态
     var usedRedeemCodes by remember { mutableStateOf(saveData?.usedRedeemCodes ?: emptySet()) }
     
     // 支持者功能解锁状态（使用State存储异步结果）
     var isSupporterUnlocked by remember { mutableStateOf(saveData?.isSupporterUnlocked ?: false) }
+    
+    // 战队管理功能解锁状态
+    var esportsTeamUnlocked by remember { mutableStateOf(saveData?.esportsTeamUnlocked ?: false) }
     
     // 异步检查支持者功能解锁状态
     LaunchedEffect(userId, usedRedeemCodes) {
@@ -2469,6 +2472,10 @@ fun GameScreen(
     // 赛事完成弹窗状态
     var showTournamentResultDialog by remember { mutableStateOf(false) }
     var tournamentResult by remember { mutableStateOf(null as EsportsTournament?) }
+    
+    // 抽签仪式弹窗状态
+    var showDrawCeremonyDialog by remember { mutableStateOf(false) }
+    var drawCeremonyTournament by remember { mutableStateOf(null as EsportsTournament?) }
     
     // 成就系统状态
     var unlockedAchievements by remember { mutableStateOf(saveData?.unlockedAchievements ?: emptyList()) }
@@ -4231,7 +4238,7 @@ fun GameScreen(
                 games.map { game ->
                     val tournament = game.currentTournament
                     if (tournament != null && tournament.status != TournamentStatus.COMPLETED) {
-                        val updatedTournament = TournamentManager.updateTournament(
+                        val (updatedTournament, shouldShowDraw) = TournamentManager.updateTournament(
                             tournament,
                             GameDate(currentYear, currentMonth, currentDay)
                         )
@@ -4240,8 +4247,8 @@ fun GameScreen(
                         val isCompleted = updatedTournament.status == TournamentStatus.COMPLETED && 
                             tournament.status != TournamentStatus.COMPLETED
                         
-                        // 返回更新结果：Pair(Triple(游戏, 更新后的赛事, 原赛事), 是否完成)
-                        Pair(Triple(game, updatedTournament, tournament), isCompleted)
+                        // 返回更新结果：Triple(游戏, 更新后的赛事, 原赛事), 是否完成, 是否需要抽签
+                        Triple(Triple(game, updatedTournament, tournament), isCompleted, shouldShowDraw)
                     } else {
                         null
                     }
@@ -4252,8 +4259,20 @@ fun GameScreen(
             val tournamentUpdatedGames = games.map { game ->
                 val updateResult = tournamentUpdateResults.find { it.first.first.id == game.id }
                 if (updateResult != null) {
-                    val (triple, isCompleted) = updateResult
+                    val (triple, isCompleted, shouldShowDraw) = updateResult
                     val (updatedGame, updatedTournament, _) = triple
+                    
+                    // 检查是否需要显示抽签仪式
+                    if (shouldShowDraw) {
+                        val tournamentWithDraw = TournamentManager.performDrawCeremony(updatedTournament)
+                        drawCeremonyTournament = tournamentWithDraw
+                        showDrawCeremonyDialog = true
+                        return@map game.copy(
+                            currentTournament = tournamentWithDraw,
+                            allDevelopmentEmployees = game.allDevelopmentEmployees
+                        )
+                    }
+                    
                     if (isCompleted) {
                         // 结算完成的赛事
                         val revenueData = RevenueManager.getGameRevenue(updatedGame.id)
@@ -4845,7 +4864,23 @@ fun GameScreen(
                 isPaused = isPaused,
                 onSettingsClick = { showSettings = true },
                 isSupporterUnlocked = isSupporterUnlocked,
-                onShowFeatureLockedDialog = { showFeatureLockedDialog = true }
+                onShowFeatureLockedDialog = { showFeatureLockedDialog = true },
+                // 战队管理解锁相关
+                isTeamUnlocked = esportsTeamUnlocked,
+                onUnlockTeam = { teamName, logoConfig ->
+                    if (money >= 100_000_000L) {
+                        // 扣除费用
+                        money -= 100_000_000L
+                        // 解锁功能
+                        esportsTeamUnlocked = true
+                        // 设置队徽
+                        teamLogoConfig = logoConfig.copy(teamName = teamName)
+                        // 显示成功消息
+                        messageText = "✅ 成功解锁战队管理！\n战队名称：${teamName}\n扣除费用：¥1亿"
+                        showMessage = true
+                        android.util.Log.d("MainActivity", "战队管理解锁成功: 队名=${teamName}, 剩余资金=${money}")
+                    }
+                }
             )
         }
         
@@ -5872,6 +5907,17 @@ fun GameScreen(
             tutorialState = tutorialState,
             enabled = selectedTab == 5 // 进入服务器管理时触发
         )
+        
+        // 抽签仪式弹窗
+        if (showDrawCeremonyDialog && drawCeremonyTournament != null) {
+            DrawCeremonyDialog(
+                tournament = drawCeremonyTournament!!,
+                onDismiss = {
+                    showDrawCeremonyDialog = false
+                    drawCeremonyTournament = null
+                }
+            )
+        }
         
         // 赛事完成弹窗
         if (showTournamentResultDialog && tournamentResult != null) {
