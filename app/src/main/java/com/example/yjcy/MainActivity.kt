@@ -178,6 +178,7 @@ import com.example.yjcy.data.TutorialId
 import com.example.yjcy.data.UnlockedAchievement
 import com.example.yjcy.data.getRecommendedPrice
 import com.example.yjcy.data.getUpdateContentName
+import com.example.yjcy.data.TeamLogoConfig
 import com.example.yjcy.managers.AchievementManager
 import com.example.yjcy.service.CustomerServiceManager
 import com.example.yjcy.service.JobPostingService
@@ -2323,6 +2324,7 @@ fun GameScreen(
     // 项目管理界面的显示类型状态（使用 remember 保持在内存中）
     var selectedProjectType by remember { mutableStateOf(ProjectDisplayType.DEVELOPING) }
     var companyName by remember { mutableStateOf(saveData?.companyName ?: initialCompanyName) }
+    var teamLogoConfig by remember { mutableStateOf(saveData?.teamLogo ?: TeamLogoConfig()) } // 战队Logo配置
     var founderName by remember { mutableStateOf(saveData?.founderName ?: initialFounderName) }
     var founderProfession by remember { mutableStateOf(saveData?.founderProfession ?: try { FounderProfession.valueOf(initialFounderProfession) } catch (_: IllegalArgumentException) { FounderProfession.PROGRAMMER }) }
     var games by remember { mutableStateOf(saveData?.games ?: emptyList()) }
@@ -3122,6 +3124,7 @@ fun GameScreen(
                                 val saveData = SaveData(
                                     companyName = companyName,
                                     companyLogo = selectedLogo,
+                                    teamLogo = teamLogoConfig, // 保存战队Logo配置
                                     founderName = founderName,
                                     founderProfession = founderProfession,
                                     money = money,
@@ -4828,6 +4831,8 @@ fun GameScreen(
                 onNavigateBack = {
                     showTeamManagement = false
                 },
+                teamLogoConfig = teamLogoConfig,
+                onUpdateTeamLogo = { teamLogoConfig = it },
                 // TopInfoBar参数
                 money = money,
                 fans = fans,
@@ -5526,6 +5531,7 @@ fun GameScreen(
                             currentDay = currentDay,
                             companyName = companyName,
                             selectedLogo = selectedLogo,
+                            teamLogoConfig = teamLogoConfig,
                             founderName = founderName,
                             founderProfession = founderProfession,
                             games = games,
@@ -8232,6 +8238,7 @@ fun InGameSettingsContent(
     currentDay: Int = 1,
     companyName: String = "我的游戏公司",
     selectedLogo: String = "🎮",
+    teamLogoConfig: TeamLogoConfig = TeamLogoConfig(),
     founderName: String = "创始人",
     founderProfession: FounderProfession = FounderProfession.PROGRAMMER,
     games: List<Game> = emptyList(),
@@ -9431,6 +9438,7 @@ fun InGameSettingsContent(
                             val saveData = SaveData(
                                 companyName = companyName,
                                 companyLogo = selectedLogo,
+                                teamLogo = teamLogoConfig, // 保存战队Logo配置
                                 founderName = founderName,
                                 founderProfession = founderProfession,
                                 money = money,
@@ -9575,6 +9583,7 @@ fun InGameSettingsContent(
                                         val saveData = SaveData(
                                             companyName = companyName,
                                             companyLogo = selectedLogo,
+                                            teamLogo = teamLogoConfig, // 保存战队Logo配置
                                             founderName = founderName,
                                             founderProfession = founderProfession,
                                             money = money,

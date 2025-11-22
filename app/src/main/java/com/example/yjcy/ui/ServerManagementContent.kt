@@ -20,6 +20,7 @@ import com.example.yjcy.data.Game
 import com.example.yjcy.data.GameReleaseStatus
 import com.example.yjcy.data.RevenueManager
 import com.example.yjcy.data.ServerType
+import com.example.yjcy.utils.formatMoney
 import com.example.yjcy.utils.formatMoneyWithDecimals
 import androidx.compose.material.icons.filled.FilterList
 import com.example.yjcy.data.ServerInstance
@@ -189,23 +190,15 @@ fun ServerManagementContent(
                     
                     Spacer(modifier = Modifier.height(12.dp))
                     
-                    // 格式化容量显示（K/M格式）
+                    // 格式化容量显示（中文单位）
                     val formattedCapacity = remember(totalCapacity) {
                         val capacityInPeople = totalCapacity * 10000 // 万人转为人数
-                        when {
-                            capacityInPeople >= 1_000_000 -> "${capacityInPeople / 1_000_000}M"
-                            capacityInPeople >= 1_000 -> "${capacityInPeople / 1_000}K"
-                            else -> "$capacityInPeople"
-                        }
+                        formatMoney(capacityInPeople)
                     }
                     
-                    // 格式化总活跃数（K/M格式）
+                    // 格式化总活跃数（中文单位）
                     val formattedActivePlayers = remember(totalActivePlayers) {
-                        when {
-                            totalActivePlayers >= 1_000_000 -> "${totalActivePlayers / 1_000_000}M"
-                            totalActivePlayers >= 1_000 -> "${totalActivePlayers / 1_000}K"
-                            else -> "$totalActivePlayers"
-                        }
+                        formatMoney(totalActivePlayers)
                     }
                     
                     Row(
@@ -1120,25 +1113,13 @@ fun CapacityWarningDialog(
     onOpenPurchase: () -> Unit
 ) {
     // 格式化显示
-    val formattedActivePlayers = when {
-        totalActivePlayers >= 1_000_000 -> "${totalActivePlayers / 1_000_000}M"
-        totalActivePlayers >= 1_000 -> "${totalActivePlayers / 1_000}K"
-        else -> "$totalActivePlayers"
-    }
+    val formattedActivePlayers = formatMoney(totalActivePlayers)
     
     val capacityInPeople = totalCapacity * 10000
-    val formattedCapacity = when {
-        capacityInPeople >= 1_000_000 -> "${capacityInPeople / 1_000_000}M"
-        capacityInPeople >= 1_000 -> "${capacityInPeople / 1_000}K"
-        else -> "$capacityInPeople"
-    }
+    val formattedCapacity = formatMoney(capacityInPeople)
     
     val overCapacity = totalActivePlayers - capacityInPeople
-    val formattedOverCapacity = when {
-        overCapacity >= 1_000_000 -> "${overCapacity / 1_000_000}M"
-        overCapacity >= 1_000 -> "${overCapacity / 1_000}K"
-        else -> "$overCapacity"
-    }
+    val formattedOverCapacity = formatMoney(overCapacity)
     
     AlertDialog(
         onDismissRequest = onDismiss,

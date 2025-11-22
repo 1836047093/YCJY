@@ -831,10 +831,24 @@ enum class LoanType(
     }
 }
 
+/**
+ * 战队Logo配置类
+ */
+data class TeamLogoConfig(
+    val backgroundColor1: Long = 0xFF1565C0, // 深蓝
+    val backgroundColor2: Long = 0xFF0D47A1, // 更深蓝
+    val borderColor1: Long = 0xFFFFD700,     // 金色
+    val borderColor2: Long = 0xFFFFA000,     // 橙金
+    val iconColor: Long = 0xFFFFFFFF,        // 白色
+    val teamName: String = "YJCY",          // 主标题
+    val subText: String = "GAMING"          // 副标题
+)
+
 // 存档数据类
 data class SaveData(
     val companyName: String = "我的游戏公司",
     val companyLogo: String = "🎮", // 公司LOGO
+    val teamLogo: TeamLogoConfig = TeamLogoConfig(), // 战队Logo配置
     val founderName: String = "创始人",
     val founderProfession: FounderProfession? = null, // 新增字段,向后兼容
     val money: Long = 3000000L,

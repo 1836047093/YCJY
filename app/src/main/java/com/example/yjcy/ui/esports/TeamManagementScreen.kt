@@ -2,12 +2,16 @@ package com.example.yjcy.ui.esports
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,6 +22,8 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -25,6 +31,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.yjcy.TopInfoBar
 import com.example.yjcy.data.HeroPosition
+import com.example.yjcy.data.TeamLogoConfig
 import com.example.yjcy.data.esports.EsportsPlayer
 import com.example.yjcy.managers.esports.HeroManager
 import com.example.yjcy.managers.esports.PlayerManager
@@ -37,6 +44,8 @@ import kotlinx.coroutines.delay
 @Composable
 fun TeamManagementScreen(
     onNavigateBack: () -> Unit,
+    teamLogoConfig: TeamLogoConfig = TeamLogoConfig(), // 战队Logo配置
+    onUpdateTeamLogo: (TeamLogoConfig) -> Unit = {}, // 更新Logo回调
     // TopInfoBar参数
     money: Long = 0,
     fans: Long = 0,
@@ -53,6 +62,7 @@ fun TeamManagementScreen(
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var showRecruitDialog by remember { mutableStateOf(false) }
+    var showLogoEditor by remember { mutableStateOf(false) }
     
     Column(
         modifier = Modifier
@@ -101,7 +111,7 @@ fun TeamManagementScreen(
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    text = { SingleLineText(text = "战队阵容", fontSize = 14.sp) }
+                    text = { SingleLineText(text = "战队管理", fontSize = 14.sp) }
                 )
                 Tab(
                     selected = selectedTab == 1,
@@ -122,7 +132,10 @@ fun TeamManagementScreen(
             
             // 内容区域
             when (selectedTab) {
-                0 -> TeamRosterTab()
+                0 -> TeamRosterTab(
+                    teamLogoConfig = teamLogoConfig,
+                    onEditLogo = { showLogoEditor = true }
+                )
                 1 -> RecruitmentTab(
                     onRecruit = { showRecruitDialog = true }
                 )
@@ -136,6 +149,18 @@ fun TeamManagementScreen(
     if (showRecruitDialog) {
         RecruitResultDialog(
             onDismiss = { showRecruitDialog = false }
+        )
+    }
+    
+    // Logo编辑器对话框
+    if (showLogoEditor) {
+        TeamLogoEditorDialog(
+            currentConfig = teamLogoConfig,
+            onDismiss = { showLogoEditor = false },
+            onSave = { 
+                onUpdateTeamLogo(it)
+                showLogoEditor = false
+            }
         )
     }
 }
@@ -169,43 +194,70 @@ private fun TeamTopBar(onBack: () -> Unit) {
  * 战队阵容Tab
  */
 @Composable
-fun TeamRosterTab() {
+fun TeamRosterTab(
+    teamLogoConfig: TeamLogoConfig,
+    onEditLogo: () -> Unit
+) {
     val myTeam = PlayerManager.myTeam
     
-    if (myTeam.isEmpty()) {
-        // 空状态
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(32.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                SingleLineText(
-                    text = "⚽",
-                    fontSize = 48.sp
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                SingleLineText(
-                    text = "暂无战队成员",
-                    fontSize = 16.sp,
-                    color = Color.Gray
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                SingleLineText(
-                    text = "前往青训营招募选手",
-                    fontSize = 14.sp,
-                    color = Color.Gray
-                )
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // 顶部：动态队徽
+        item {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(modifier = Modifier.clickable { onEditLogo() }) {
+                        DynamicTeamLogo(config = teamLogoConfig)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "👆 点击定制队徽",
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+                }
             }
         }
-    } else {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+
+        if (myTeam.isEmpty()) {
+            // 空状态
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        SingleLineText(
+                            text = "⚽",
+                            fontSize = 48.sp
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        SingleLineText(
+                            text = "暂无战队成员",
+                            fontSize = 16.sp,
+                            color = Color.Gray
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        SingleLineText(
+                            text = "前往青训营招募选手",
+                            fontSize = 14.sp,
+                            color = Color.Gray
+                        )
+                    }
+                }
+            }
+        } else {
             // 按位置分组显示
             HeroPosition.values().forEach { position ->
                 val playersInPosition = myTeam.filter { it.position == position }
@@ -229,6 +281,164 @@ fun TeamRosterTab() {
                         PlayerCard(player = player, isMyTeam = true)
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * 动态队徽组件
+ */
+@Composable
+fun DynamicTeamLogo(
+    config: TeamLogoConfig = TeamLogoConfig(),
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "team_logo")
+    
+    // 1. 外圈旋转光环
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(8000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
+    
+    // 2. 内圈脉冲
+    val pulse by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse"
+    )
+    
+    // 3. 扫光效果
+    val shineTranslate by infiniteTransition.animateFloat(
+        initialValue = -100f,
+        targetValue = 300f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shine"
+    )
+    
+    Box(
+        modifier = modifier.size(160.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        // 背景光晕
+        Box(
+            modifier = Modifier
+                .size(140.dp)
+                .scale(pulse)
+                .background(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color(config.backgroundColor1).copy(alpha = 0.3f),
+                            Color.Transparent
+                        )
+                    ),
+                    shape = CircleShape
+                )
+        )
+        
+        // 外圈旋转纹理
+        Canvas(
+            modifier = Modifier
+                .size(130.dp)
+                .rotate(rotation)
+        ) {
+            drawCircle(
+                brush = Brush.sweepGradient(
+                    colors = listOf(
+                        Color.Transparent,
+                        Color(config.backgroundColor1), // 使用主色调1
+                        Color.Transparent,
+                        Color(config.backgroundColor2), // 使用主色调2
+                        Color.Transparent
+                    )
+                ),
+                style = Stroke(width = 4.dp.toPx())
+            )
+        }
+        
+        // 反向旋转内圈
+        Canvas(
+            modifier = Modifier
+                .size(110.dp)
+                .rotate(-rotation * 1.5f)
+        ) {
+            drawCircle(
+                brush = Brush.sweepGradient(
+                    colors = listOf(
+                        Color.Transparent,
+                        Color(config.borderColor1), // 使用边框色1
+                        Color.Transparent
+                    )
+                ),
+                style = Stroke(width = 2.dp.toPx(), pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(20f, 20f)))
+            )
+        }
+        
+        // 核心徽章 (盾形)
+        Box(
+            modifier = Modifier
+                .size(100.dp)
+                .scale(pulse),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val path = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(size.width / 2, 0f)
+                    lineTo(size.width, size.height / 3)
+                    lineTo(size.width / 2, size.height)
+                    lineTo(0f, size.height / 3)
+                    close()
+                }
+                
+                // 盾牌底色
+                drawPath(
+                    path = path,
+                    brush = Brush.linearGradient(
+                        colors = listOf(Color(config.backgroundColor1), Color(config.backgroundColor2))
+                    )
+                )
+                
+                // 盾牌边框
+                drawPath(
+                    path = path,
+                    style = Stroke(width = 4.dp.toPx()),
+                    brush = Brush.linearGradient(
+                        colors = listOf(Color(config.borderColor1), Color(config.borderColor2))
+                    )
+                )
+            }
+            
+            // 队名文字
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = config.teamName,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(config.iconColor),
+                    letterSpacing = 2.sp
+                )
+                Text(
+                    text = config.subText,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(config.borderColor1),
+                    letterSpacing = 4.sp
+                )
             }
         }
     }
@@ -635,16 +845,16 @@ fun RecruitResultDialog(
     // 动画状态
     var animationPhase by remember { mutableIntStateOf(0) }
     // 0: 光束聚集 (1.2秒)
-    // 1: 品质爆发 (1秒)
-    // 2: 卡片展示 (0.5秒)
-    // 3: 详细信息
+    // 1: 品质爆发 (0.8秒)
+    // 2: 卡片翻转 (1.0秒)
+    // 3: 详细信息展示
     
     LaunchedEffect(Unit) {
         delay(1200)
         animationPhase = 1
-        delay(1000)
+        delay(800)
         animationPhase = 2
-        delay(500)
+        delay(1200) // 给翻转和特效留足时间
         animationPhase = 3
     }
     
@@ -658,6 +868,22 @@ fun RecruitResultDialog(
                 .background(Color.Black),
             contentAlignment = Alignment.Center
         ) {
+            // 全局背景氛围（基于稀有度）
+            if (animationPhase >= 1) {
+                val glowColor = player.rarity.color
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .alpha(0.2f)
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(glowColor, Color.Transparent),
+                                radius = 800f
+                            )
+                        )
+                )
+            }
+
             when (animationPhase) {
                 0 -> BeamGatheringAnimation()
                 1 -> RarityBurstAnimation(player)
@@ -669,7 +895,7 @@ fun RecruitResultDialog(
 }
 
 /**
- * 光束聚集动画 - 第一阶段
+ * 光束聚集动画 - 第一阶段（增强版）
  */
 @Composable
 fun BeamGatheringAnimation() {
@@ -700,10 +926,10 @@ fun BeamGatheringAnimation() {
     Box(
         contentAlignment = Alignment.Center
     ) {
-        // 四周光束向中心聚集
-        repeat(12) { index ->
-            val angle = index * 30f
-            val distance = 300.dp * (1 - gatherProgress)
+        // 四周光束向中心聚集（数量增加，更细长）
+        repeat(16) { index ->
+            val angle = index * 22.5f
+            val distance = 400.dp * (1 - gatherProgress)
             
             Box(
                 modifier = Modifier
@@ -711,32 +937,32 @@ fun BeamGatheringAnimation() {
                         x = distance * kotlin.math.cos(Math.toRadians(angle.toDouble())).toFloat(),
                         y = distance * kotlin.math.sin(Math.toRadians(angle.toDouble())).toFloat()
                     )
-                    .size(8.dp, 80.dp)
-                    .rotate(angle)
+                    .size(4.dp, 120.dp)
+                    .rotate(angle + 90f) // 指向中心
                     .background(
-                        brush = Brush.verticalGradient(
+                        brush = Brush.linearGradient(
                             colors = listOf(
                                 Color.Transparent,
-                                Color.White.copy(alpha = 0.8f),
-                                Color(0xFFFFEB3B).copy(alpha = 0.6f)
+                                Color.White,
+                                Color(0xFF64B5F6) // 蓝色光流
                             )
-                        ),
-                        shape = RoundedCornerShape(4.dp)
+                        )
                     )
             )
         }
         
-        // 中心能量球
+        // 中心能量球（脉冲效果）
         Box(
             modifier = Modifier
                 .size(150.dp * gatherProgress)
+                .scale(1f + (gatherProgress * 0.2f)) // 变大
                 .rotate(rotation)
                 .background(
                     brush = Brush.radialGradient(
                         colors = listOf(
                             Color.White,
-                            Color(0xFFFFEB3B),
                             Color(0xFF2196F3),
+                            Color(0xFF3F51B5),
                             Color.Transparent
                         )
                     ),
@@ -744,36 +970,28 @@ fun BeamGatheringAnimation() {
                 )
         )
         
-        // 内圈旋转光环
+        // 魔法阵纹路
         Box(
             modifier = Modifier
-                .size(120.dp * gatherProgress)
-                .rotate(-rotation * 2)
-                .background(
-                    brush = Brush.sweepGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.White.copy(alpha = 0.8f),
-                            Color.Transparent
-                        )
-                    ),
-                    shape = RoundedCornerShape(50)
-                )
+                .size(200.dp * gatherProgress)
+                .rotate(-rotation)
+                .border(2.dp, Brush.sweepGradient(
+                    listOf(Color.Transparent, Color(0xFF2196F3), Color.Transparent)
+                ), CircleShape)
         )
     }
 }
 
 /**
- * 品质爆发动画 - 第二阶段
+ * 品质爆发动画 - 第二阶段（增强版）
  */
 @Composable
 fun RarityBurstAnimation(player: EsportsPlayer) {
     val colors = when (player.rarity.displayName) {
-        "SSR" -> listOf(Color(0xFFFF9800), Color(0xFFFFEB3B), Color(0xFFFF5722))
-        "S" -> listOf(Color(0xFF9C27B0), Color(0xFFE91E63), Color(0xFF673AB7))
-        "A" -> listOf(Color(0xFF2196F3), Color(0xFF03A9F4), Color(0xFF00BCD4))
-        "B" -> listOf(Color(0xFF4CAF50), Color(0xFF8BC34A), Color(0xFF009688))
-        else -> listOf(Color(0xFFBDBDBD), Color(0xFF9E9E9E), Color(0xFF757575))
+        "SSR" -> listOf(Color(0xFFFFD700), Color(0xFFFFAB00), Color(0xFFFF6D00)) // 金色传说
+        "S" -> listOf(Color(0xFFE040FB), Color(0xFF7C4DFF), Color(0xFF536DFE))   // 紫色史诗
+        "A" -> listOf(Color(0xFF40C4FF), Color(0xFF00B0FF), Color(0xFF0091EA))   // 蓝色稀有
+        else -> listOf(Color(0xFF69F0AE), Color(0xFF00E676), Color(0xFF00C853))  // 绿色普通
     }
     
     var burstProgress by remember { mutableFloatStateOf(0f) }
@@ -782,133 +1000,233 @@ fun RarityBurstAnimation(player: EsportsPlayer) {
         animate(
             initialValue = 0f,
             targetValue = 1f,
-            animationSpec = tween(1000, easing = FastOutSlowInEasing)
+            animationSpec = tween(800, easing = CubicBezierEasing(0.0f, 0.0f, 0.2f, 1.0f)) // 爆炸式缓动
         ) { value, _ ->
             burstProgress = value
         }
     }
     
-    val infiniteTransition = rememberInfiniteTransition(label = "burst")
+    Box(
+        contentAlignment = Alignment.Center
+    ) {
+        // 冲击波 (Shockwave)
+        Box(
+            modifier = Modifier
+                .size(1000.dp * burstProgress)
+                .alpha((1 - burstProgress).coerceIn(0f, 1f))
+                .border(
+                    width = 50.dp * (1 - burstProgress),
+                    color = colors[0],
+                    shape = CircleShape
+                )
+        )
+
+        // 核心爆发光芒
+        Box(
+            modifier = Modifier
+                .size(300.dp)
+                .scale(1f + burstProgress * 2f)
+                .alpha((1 - burstProgress).coerceIn(0f, 1f))
+                .background(
+                    brush = Brush.radialGradient(
+                        colors = listOf(Color.White, colors[0], Color.Transparent)
+                    )
+                )
+        )
+        
+        // 稀有度文字 (SSR/S 才有震撼效果)
+        if (player.rarity.displayName in listOf("SSR", "S", "A")) {
+             val textScale = 0.5f + burstProgress * 1.5f
+             Text(
+                 text = player.rarity.emoji, // 使用emoji作为图标
+                 fontSize = 100.sp,
+                 modifier = Modifier
+                     .scale(textScale)
+                     .alpha((1 - burstProgress).coerceIn(0f, 1f))
+             )
+        }
+    }
+}
+
+/**
+ * 卡片翻转动画 - 第三阶段（全新3D翻转+特效）
+ */
+@Composable
+fun CardRevealAnimation(player: EsportsPlayer) {
+    val isHighRarity = player.rarity.displayName in listOf("SSR", "S")
+    val mainColor = player.rarity.color
+    
+    // 翻转动画
+    val rotation = remember { Animatable(0f) }
+    // 震动偏移
+    val shakeOffset = remember { Animatable(0f) }
+    
+    LaunchedEffect(Unit) {
+        // 1. 卡牌出现并悬停
+        rotation.animateTo(
+            targetValue = 0f, // 初始就是背面(0度)
+            animationSpec = tween(100)
+        )
+        
+        // 2. 开始翻转 (0 -> 180度)
+        rotation.animateTo(
+            targetValue = 180f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioLowBouncy,
+                stiffness = Spring.StiffnessLow
+            )
+        )
+        
+        // 高稀有度落地时震动
+        if (isHighRarity) {
+            shakeOffset.animateTo(
+                targetValue = 10f,
+                animationSpec = keyframes {
+                    durationMillis = 300
+                    0f at 0
+                    -10f at 50
+                    10f at 100
+                    -5f at 150
+                    5f at 200
+                    0f at 300
+                }
+            )
+        }
+    }
+
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.offset(x = shakeOffset.value.dp, y = shakeOffset.value.dp)
+    ) {
+        // 背景特效 (粒子雨/闪电)
+        if (isHighRarity) {
+            HighRarityEffects(mainColor)
+        }
+        
+        // 3D翻转卡片
+        Box(
+            modifier = Modifier
+                .graphicsLayer {
+                    rotationY = rotation.value
+                    cameraDistance = 12f * density
+                }
+        ) {
+            if (rotation.value <= 90f) {
+                // 卡背 (0-90度)
+                CardBack()
+            } else {
+                // 卡面 (90-180度)
+                // 需修正镜像: 再次旋转180度 或者 scaleX = -1
+                Box(modifier = Modifier.graphicsLayer { rotationY = 180f }) {
+                    PlayerCardFront(player)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 高稀有度背景特效
+ */
+@Composable
+fun HighRarityEffects(color: Color) {
+    val infiniteTransition = rememberInfiniteTransition(label = "effects")
+    
+    // 1. 旋转光束
     val rotation by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
+        animationSpec = infiniteRepeatable(tween(10000, easing = LinearEasing)),
         label = "rotation"
     )
     
     Box(
-        contentAlignment = Alignment.Center
-    ) {
-        // 爆发冲击波（多层）
-        repeat(3) { layer ->
-            val layerDelay = layer * 0.2f
-            val layerProgress = (burstProgress - layerDelay).coerceIn(0f, 1f)
+        modifier = Modifier
+            .size(600.dp)
+            .rotate(rotation)
+            .background(
+                brush = Brush.sweepGradient(
+                    colors = listOf(
+                        Color.Transparent,
+                        color.copy(alpha = 0.3f),
+                        Color.Transparent,
+                        color.copy(alpha = 0.3f),
+                        Color.Transparent
+                    )
+                )
+            )
+    )
+    
+    // 2. 随机粒子 (简单模拟)
+    Box(modifier = Modifier.fillMaxSize()) {
+        repeat(20) {
+            val offsetX = remember { (Math.random() * 300 - 150).dp }
+            val offsetY = remember { (Math.random() * 500 - 250).dp }
+            val size = remember { (Math.random() * 4 + 2).dp }
+            val alpha by infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(
+                        durationMillis = (Math.random() * 1000 + 500).toInt(),
+                        delayMillis = (Math.random() * 1000).toInt()
+                    ),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "particle"
+            )
             
             Box(
                 modifier = Modifier
-                    .size(400.dp * layerProgress)
-                    .alpha((1 - layerProgress) * 0.6f)
-                    .background(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                colors[layer % colors.size].copy(alpha = 0.8f),
-                                Color.Transparent
-                            )
-                        ),
-                        shape = RoundedCornerShape(50)
-                    )
+                    .offset(offsetX, offsetY)
+                    .size(size)
+                    .alpha(alpha)
+                    .background(color, CircleShape)
             )
         }
-        
-        // SSR/S 特有效果
-        if (player.rarity.displayName in listOf("SSR", "S")) {
-            // 外层旋转光环
-            repeat(2) { index ->
-                Box(
-                    modifier = Modifier
-                        .size((350 - index * 50).dp)
-                        .rotate(rotation * (if (index % 2 == 0) 1f else -1.5f))
-                        .alpha(burstProgress)
-                        .background(
-                            brush = Brush.sweepGradient(
-                                colors = listOf(
-                                    Color.Transparent,
-                                    colors[0],
-                                    Color.Transparent,
-                                    colors[1],
-                                    Color.Transparent
-                                )
-                            ),
-                            shape = RoundedCornerShape(50)
-                        )
+    }
+}
+
+/**
+ * 卡背设计
+ */
+@Composable
+fun CardBack() {
+    Card(
+        modifier = Modifier
+            .width(280.dp)
+            .height(400.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A237E)),
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(4.dp, Brush.linearGradient(listOf(Color(0xFFFFD700), Color(0xFFFFA000))))
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            // 纹理
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(Color(0xFF304FFE), Color(0xFF1A237E))
+                    ),
+                    radius = size.maxDimension
                 )
             }
-        }
-        
-        // 粒子爆发（16个方向）
-        repeat(16) { index ->
-            val angle = index * 22.5f
-            val distance = 200.dp * burstProgress
-            val particleSize = if (player.rarity.displayName in listOf("SSR", "S")) 16.dp else 12.dp
             
-            Box(
-                modifier = Modifier
-                    .offset(
-                        x = distance * kotlin.math.cos(Math.toRadians(angle.toDouble())).toFloat(),
-                        y = distance * kotlin.math.sin(Math.toRadians(angle.toDouble())).toFloat()
-                    )
-                    .size(particleSize * (1 - burstProgress * 0.5f))
-                    .alpha(1 - burstProgress)
-                    .background(
-                        color = colors[index % colors.size],
-                        shape = RoundedCornerShape(50)
-                    )
-            )
-        }
-        
-        // 中心光球
-        Box(
-            modifier = Modifier
-                .size(180.dp * (0.5f + burstProgress * 0.5f))
-                .scale(1f + (kotlin.math.sin(burstProgress * Math.PI * 4).toFloat() * 0.1f))
-                .background(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            Color.White,
-                            colors[0],
-                            colors[1],
-                            Color.Transparent
-                        )
-                    ),
-                    shape = RoundedCornerShape(50)
-                )
-        )
-        
-        // 品质文字淡入
-        if (burstProgress > 0.6f) {
-            val textAlpha = ((burstProgress - 0.6f) / 0.4f).coerceIn(0f, 1f)
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
+            // Logo / 问号
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = player.rarity.emoji,
-                    fontSize = 120.sp,
-                    modifier = Modifier
-                        .alpha(textAlpha)
-                        .scale(0.8f + textAlpha * 0.2f)
+                    text = "❓",
+                    fontSize = 80.sp
                 )
+                Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = player.rarity.displayName,
-                    fontSize = 48.sp,
+                    text = "RECRUIT",
+                    fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    modifier = Modifier
-                        .alpha(textAlpha)
-                        .scale(0.8f + textAlpha * 0.2f)
+                    color = Color(0xFFFFD700),
+                    letterSpacing = 4.sp
                 )
             }
         }
@@ -916,116 +1234,114 @@ fun RarityBurstAnimation(player: EsportsPlayer) {
 }
 
 /**
- * 卡片展示动画 - 第三阶段
+ * 卡面设计 (用于翻转动画)
  */
 @Composable
-fun CardRevealAnimation(player: EsportsPlayer) {
-    val colors = when (player.rarity.displayName) {
-        "SSR" -> listOf(Color(0xFFFF9800), Color(0xFFFFEB3B), Color(0xFFFF5722))
-        "S" -> listOf(Color(0xFF9C27B0), Color(0xFFE91E63), Color(0xFF673AB7))
-        "A" -> listOf(Color(0xFF2196F3), Color(0xFF03A9F4), Color(0xFF00BCD4))
-        "B" -> listOf(Color(0xFF4CAF50), Color(0xFF8BC34A), Color(0xFF009688))
-        else -> listOf(Color(0xFFBDBDBD), Color(0xFF9E9E9E), Color(0xFF757575))
-    }
+fun PlayerCardFront(player: EsportsPlayer) {
+    val glowColor = player.rarity.color
     
-    var revealProgress by remember { mutableFloatStateOf(0f) }
-    
-    LaunchedEffect(Unit) {
-        animate(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = tween(500, easing = FastOutSlowInEasing)
-        ) { value, _ ->
-            revealProgress = value
-        }
-    }
-    
-    Box(
-        contentAlignment = Alignment.Center
+    Card(
+        modifier = Modifier
+            .width(280.dp)
+            .height(400.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E2E)),
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(2.dp, glowColor)
     ) {
-        // 背景光晕
         Box(
-            modifier = Modifier
-                .size(350.dp)
-                .alpha(revealProgress * 0.3f)
-                .background(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            colors[0],
-                            colors[1],
-                            Color.Transparent
-                        )
-                    ),
-                    shape = RoundedCornerShape(50)
-                )
-        )
-        
-        // 卡片
-        Card(
-            modifier = Modifier
-                .width(280.dp)
-                .height(400.dp)
-                .scale(0.5f + revealProgress * 0.5f)
-                .alpha(revealProgress),
-            colors = CardDefaults.cardColors(
-                containerColor = Color(0xFF1E1E2E)
-            ),
-            shape = RoundedCornerShape(24.dp)
+            modifier = Modifier.fillMaxSize()
         ) {
+            // 背景流光
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         brush = Brush.verticalGradient(
                             colors = listOf(
-                                colors[0].copy(alpha = 0.3f),
+                                glowColor.copy(alpha = 0.3f),
                                 Color(0xFF1E1E2E),
                                 Color(0xFF1E1E2E)
                             )
                         )
-                    ),
-                contentAlignment = Alignment.Center
+                    )
+            )
+            
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(24.dp),
+                modifier = Modifier
+                    .padding(24.dp)
+                    .align(Alignment.Center)
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(24.dp),
-                    modifier = Modifier.padding(24.dp)
+                // 品质图标
+                Text(
+                    text = player.rarity.emoji,
+                    fontSize = 100.sp
+                )
+                
+                // 选手名字
+                Text(
+                    text = player.name,
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = player.rarity.color
+                )
+                
+                // 品质标签
+                Surface(
+                    color = player.rarity.color.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    // 品质图标
                     Text(
-                        text = player.rarity.emoji,
-                        fontSize = 100.sp
-                    )
-                    
-                    // 选手名字
-                    Text(
-                        text = player.name,
-                        fontSize = 32.sp,
+                        text = player.rarity.displayName,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = player.rarity.color
-                    )
-                    
-                    // 品质标签
-                    Surface(
-                        color = player.rarity.color.copy(alpha = 0.2f),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            text = player.rarity.displayName,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = player.rarity.color,
-                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
-                        )
-                    }
-                    
-                    // 位置
-                    Text(
-                        text = player.positionDisplayName,
-                        fontSize = 18.sp,
-                        color = Color.White.copy(alpha = 0.8f)
+                        color = player.rarity.color,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
                     )
                 }
+                
+                // 位置
+                Text(
+                    text = player.positionDisplayName,
+                    fontSize = 18.sp,
+                    color = Color.White.copy(alpha = 0.8f)
+                )
+            }
+            
+            // 扫光特效
+            val transition = rememberInfiniteTransition(label = "shine")
+            val translateAnim by transition.animateFloat(
+                initialValue = -300f,
+                targetValue = 600f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(2000, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "shine_translate"
+            )
+            
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                // 简单的扫光带
+                val path = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(translateAnim, 0f)
+                    lineTo(translateAnim + 100f, 0f)
+                    lineTo(translateAnim - 200f, size.height)
+                    lineTo(translateAnim - 300f, size.height)
+                    close()
+                }
+                drawPath(
+                    path = path,
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.White.copy(alpha = 0.3f),
+                            Color.Transparent
+                        ),
+                        start = androidx.compose.ui.geometry.Offset(translateAnim - 100f, 0f),
+                        end = androidx.compose.ui.geometry.Offset(translateAnim + 100f, size.height)
+                    )
+                )
             }
         }
     }

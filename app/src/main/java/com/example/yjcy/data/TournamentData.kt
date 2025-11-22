@@ -28,7 +28,7 @@ enum class TournamentType(
         displayName = "城市杯",
         icon = "🥉",
         baseCost = 500000L,
-        duration = 7, // 延长到7天，更有体验感
+        duration = 14, // 延长到14天，更有体验感
         prizePool = 100000L,
         minActivePlayers = 10000L,
         cooldownDays = 30,
@@ -46,7 +46,7 @@ enum class TournamentType(
         displayName = "全国锦标赛",
         icon = "🥈",
         baseCost = 2000000L,
-        duration = 14, // 延长到14天，更符合真实赛事
+        duration = 21, // 延长到21天，更符合真实赛事
         prizePool = 500000L,
         minActivePlayers = 50000L,
         cooldownDays = 90,
@@ -64,7 +64,7 @@ enum class TournamentType(
         displayName = "全球总决赛",
         icon = "💎",
         baseCost = 30000000L,
-        duration = 30,
+        duration = 45, // 延长到45天，更符合大型国际赛事
         prizePool = 10000000L,
         minActivePlayers = 500000L,
         cooldownDays = 365,
@@ -174,7 +174,7 @@ data class EsportsTournament(
     val startMonth: Int,
     val startDay: Int,
     val currentDay: Int = 0, // 当前进行到第几天
-    val preparationDays: Int = 7, // 筹备天数（缩短到7天）
+    val preparationDays: Int = 14, // 筹备天数（延长到14天）
     val investment: Long, // 投入成本
     val sponsorRevenue: Long = 0, // 赞助商收入
     val ticketRevenue: Long = 0, // 门票收入
@@ -186,7 +186,9 @@ data class EsportsTournament(
     val interestBonus: Double = 0.0, // 兴趣值恢复
     val reputationGained: Int = 0, // 声誉提升
     val champion: String = "", // 冠军战队名称
-    val randomEvent: String = "" // 随机事件描述
+    val randomEvent: String = "", // 随机事件描述
+    val participatingTeams: List<String> = emptyList(), // 参赛战队列表
+    val sponsors: List<String> = emptyList() // 赞助商列表
 ) {
     /**
      * 获取总收益
@@ -315,6 +317,8 @@ object TournamentManager {
         currentDate: GameDate
     ): EsportsTournament {
         val championTeam = generateChampionTeam()
+        val teams = generateParticipatingTeams(type)
+        val sponsors = generateSponsors(type)
         
         return EsportsTournament(
             id = "tournament_${System.currentTimeMillis()}_${Random.nextInt()}",
@@ -326,7 +330,9 @@ object TournamentManager {
             startMonth = currentDate.month,
             startDay = currentDate.day,
             investment = type.baseCost,
-            champion = championTeam
+            champion = championTeam,
+            participatingTeams = teams,
+            sponsors = sponsors
         )
     }
     
@@ -587,5 +593,54 @@ object TournamentManager {
             number >= 1000 -> "${number / 1000}K"
             else -> number.toString()
         }
+    }
+    
+    /**
+     * 生成参赛战队列表
+     */
+    private fun generateParticipatingTeams(type: TournamentType): List<String> {
+        val teamCount = when (type) {
+            TournamentType.REGIONAL -> 8
+            TournamentType.NATIONAL -> 16
+            TournamentType.WORLD_FINALS -> 24
+        }
+        
+        val prefixes = listOf(
+            "龙之", "凤凰", "狂暴", "闪电", "幻影", "钢铁", "星辰", "烈焰", 
+            "寒冰", "雷霆", "暗影", "光明", "疾风", "巨浪", "天启", "永恒",
+            "荣耀", "传奇", "王者", "霸主", "神话", "英雄", "勇士", "战神"
+        )
+        val suffixes = listOf("战队", "俱乐部", "电竞", "联盟", "军团", "公会")
+        
+        return (1..teamCount).map {
+            prefixes.random() + suffixes.random()
+        }.distinct().take(teamCount)
+    }
+    
+    /**
+     * 生成赞助商列表
+     */
+    private fun generateSponsors(type: TournamentType): List<String> {
+        val sponsorCount = when (type) {
+            TournamentType.REGIONAL -> 3
+            TournamentType.NATIONAL -> 5
+            TournamentType.WORLD_FINALS -> 8
+        }
+        
+        val techSponsors = listOf(
+            "华为科技", "小米集团", "OPPO", "vivo", "联想集团", "海尔智家",
+            "TCL科技", "美的集团", "格力电器", "比亚迪"
+        )
+        val foodSponsors = listOf(
+            "康师傅", "统一企业", "娃哈哈", "农夫山泉", "伊利集团", 
+            "蒙牛乳业", "可口可乐", "百事可乐", "红牛", "东鹏特饮"
+        )
+        val otherSponsors = listOf(
+            "中国银行", "工商银行", "建设银行", "招商银行", "平安保险",
+            "中国移动", "中国联通", "中国电信", "京东商城", "天猫商城"
+        )
+        
+        val allSponsors = techSponsors + foodSponsors + otherSponsors
+        return allSponsors.shuffled().take(sponsorCount)
     }
 }

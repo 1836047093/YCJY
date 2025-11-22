@@ -599,6 +599,7 @@ fun OngoingTournamentsTab(
 /**
  * 进行中的赛事卡片
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OngoingTournamentCard(
     tournament: EsportsTournament,
@@ -609,8 +610,11 @@ fun OngoingTournamentCard(
     companyName: String? = null,
     competitorActivePlayers: Long? = null
 ) {
+    var showDetailDialog by remember { mutableStateOf(false) }
+    
     Card(
         modifier = Modifier.fillMaxWidth(),
+        onClick = { showDetailDialog = true },
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
@@ -736,14 +740,241 @@ fun OngoingTournamentCard(
                 )
             } else if (tournament.status == TournamentStatus.PREPARING) {
                 Text(
-                    text = "🔧 正在筹备中，招募战队和赞助商...",
+                    text = "🔧 正在筹备中，点击查看详情...",
                     fontSize = 13.sp,
-                    color = Color(0xFF666666),
+                    color = Color(0xFF2196F3),
                     fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
                 )
             }
         }
     }
+    
+    // 赛事详情对话框
+    if (showDetailDialog) {
+        TournamentDetailDialog(
+            tournament = tournament,
+            onDismiss = { showDetailDialog = false }
+        )
+    }
+}
+
+/**
+ * 赛事详情对话框
+ */
+@Composable
+fun TournamentDetailDialog(
+    tournament: EsportsTournament,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column {
+                Text(
+                    text = "${tournament.type.icon} ${tournament.type.displayName}",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp
+                )
+                Text(
+                    text = tournament.gameName,
+                    fontSize = 14.sp,
+                    color = Color.Gray
+                )
+            }
+        },
+        text = {
+            LazyColumn(
+                modifier = Modifier.heightIn(max = 500.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // 筹备期显示战队和赞助商
+                if (tournament.status == TournamentStatus.PREPARING) {
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD))
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "📋 筹备进度",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = Color(0xFF1976D2)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "第 ${tournament.currentDay} 天 / 共 ${tournament.preparationDays} 天",
+                                    fontSize = 14.sp
+                                )
+                                LinearProgressIndicator(
+                                    progress = (tournament.currentDay.toFloat() / tournament.preparationDays.toFloat()).coerceIn(0f, 1f),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp),
+                                    color = Color(0xFF2196F3)
+                                )
+                            }
+                        }
+                    }
+                    
+                    // 参赛战队
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0))
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "⚔️ 参赛战队 (${tournament.participatingTeams.size}支)",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = Color(0xFFFF6F00)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                tournament.participatingTeams.forEachIndexed { index, team ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "${index + 1}.",
+                                            fontSize = 12.sp,
+                                            color = Color.Gray,
+                                            modifier = Modifier.width(24.dp)
+                                        )
+                                        Text(
+                                            text = team,
+                                            fontSize = 14.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 赞助商
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9))
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "💰 赞助商 (${tournament.sponsors.size}家)",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = Color(0xFF2E7D32)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                tournament.sponsors.forEachIndexed { index, sponsor ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "🏢",
+                                            fontSize = 16.sp,
+                                            modifier = Modifier.padding(end = 8.dp)
+                                        )
+                                        Text(
+                                            text = sponsor,
+                                            fontSize = 14.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // 正式比赛期显示比赛信息
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0))
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "🏆 比赛进行中",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = Color(0xFFFF6F00)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "第 ${tournament.currentDay} 天 / 共 ${tournament.type.duration} 天",
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    text = "当前阶段: ${tournament.getCurrentStage().displayName}",
+                                    fontSize = 14.sp,
+                                    color = Color(0xFF666666)
+                                )
+                            }
+                        }
+                    }
+                    
+                    // 参赛战队（比赛期也显示）
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD))
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "⚔️ 参赛战队",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = Color(0xFF1976D2)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                tournament.participatingTeams.take(8).forEachIndexed { index, team ->
+                                    Text(
+                                        text = "• $team",
+                                        fontSize = 13.sp,
+                                        modifier = Modifier.padding(vertical = 2.dp)
+                                    )
+                                }
+                                if (tournament.participatingTeams.size > 8) {
+                                    Text(
+                                        text = "... 等共${tournament.participatingTeams.size}支战队",
+                                        fontSize = 12.sp,
+                                        color = Color.Gray,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // 投入信息
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = "💵 投入成本",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = formatMoney(tournament.investment),
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFE91E63)
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("关闭")
+            }
+        }
+    )
 }
 
 /**

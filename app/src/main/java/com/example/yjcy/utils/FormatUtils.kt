@@ -5,7 +5,7 @@ import java.util.Date
 
 /**
  * 资金格式化函数
- * 支持正数和负数的 K/M/B/T 单位显示，带小数位
+ * 支持正数和负数的 万/亿/兆 单位显示，带小数位
  */
 fun formatMoney(amount: Long): String {
     val absAmount = kotlin.math.abs(amount)
@@ -14,19 +14,15 @@ fun formatMoney(amount: Long): String {
     return when {
         absAmount >= 1_000_000_000_000L -> {
             val value = absAmount / 1_000_000_000_000.0
-            "$sign${String.format("%.2f", value)}T"
+            "$sign${String.format("%.2f", value)}兆"
         }
-        absAmount >= 1_000_000_000L -> {
-            val value = absAmount / 1_000_000_000.0
-            "$sign${String.format("%.2f", value)}B"
+        absAmount >= 100_000_000L -> {
+            val value = absAmount / 100_000_000.0
+            "$sign${String.format("%.2f", value)}亿"
         }
-        absAmount >= 1_000_000L -> {
-            val value = absAmount / 1_000_000.0
-            "$sign${String.format("%.2f", value)}M"
-        }
-        absAmount >= 1_000L -> {
-            val value = absAmount / 1_000.0
-            "$sign${String.format("%.2f", value)}K"
+        absAmount >= 10_000L -> {
+            val value = absAmount / 10_000.0
+            "$sign${String.format("%.2f", value)}万"
         }
         else -> amount.toString()
     }
@@ -34,17 +30,16 @@ fun formatMoney(amount: Long): String {
 
 /**
  * 增强版资金格式化函数，支持保留两位小数
- * 支持正数和负数的 K/M/B/T 单位显示
+ * 支持正数和负数的 万/亿/兆 单位显示
  */
 fun formatMoneyWithDecimals(amount: Double): String {
     val absAmount = kotlin.math.abs(amount)
     val sign = if (amount < 0) "-" else ""
     
     return when {
-        absAmount >= 1_000_000_000_000.0 -> String.format("%s%.2fT", sign, absAmount / 1_000_000_000_000.0)
-        absAmount >= 1_000_000_000.0 -> String.format("%s%.2fB", sign, absAmount / 1_000_000_000.0)
-        absAmount >= 1_000_000.0 -> String.format("%s%.2fM", sign, absAmount / 1_000_000.0)
-        absAmount >= 1_000.0 -> String.format("%s%.2fK", sign, absAmount / 1_000.0)
+        absAmount >= 1_000_000_000_000.0 -> String.format("%s%.2f兆", sign, absAmount / 1_000_000_000_000.0)
+        absAmount >= 100_000_000.0 -> String.format("%s%.2f亿", sign, absAmount / 100_000_000.0)
+        absAmount >= 10_000.0 -> String.format("%s%.2f万", sign, absAmount / 10_000.0)
         else -> String.format("%.2f", amount)
     }
 }

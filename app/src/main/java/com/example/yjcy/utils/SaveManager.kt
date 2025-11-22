@@ -50,11 +50,25 @@ class SaveManager(context: Context) {
             
             // 修复游戏数据：确保所有可空字段和新增字段都有正确的默认值
             val fixedGames = saveData.games.map { game ->
+                // 修复当前赛事的null字段
+                val fixedCurrentTournament = game.currentTournament?.copy(
+                    participatingTeams = game.currentTournament.participatingTeams ?: emptyList(),
+                    sponsors = game.currentTournament.sponsors ?: emptyList()
+                )
+                
+                // 修复赛事历史中的null字段
+                val fixedTournamentHistory = game.tournamentHistory?.map { tournament ->
+                    tournament.copy(
+                        participatingTeams = tournament.participatingTeams ?: emptyList(),
+                        sponsors = tournament.sponsors ?: emptyList()
+                    )
+                }
+                
                 game.copy(
                     // 赛事相关字段（可空）
-                    currentTournament = game.currentTournament,
+                    currentTournament = fixedCurrentTournament,
                     lastTournamentDate = game.lastTournamentDate,
-                    tournamentHistory = game.tournamentHistory,
+                    tournamentHistory = fixedTournamentHistory,
                     
                     // 更新历史（可空）
                     updateHistory = game.updateHistory,
@@ -106,7 +120,28 @@ class SaveManager(context: Context) {
                 gvaAnnouncedDate = saveData.gvaAnnouncedDate,
                 
                 // 竞争对手系统
-                competitors = saveData.competitors,
+                competitors = saveData.competitors?.map { competitor ->
+                    // 修复竞争对手游戏中的赛事数据（EsportsTournament类型）
+                    val fixedGames = competitor.games.map { game ->
+                        val fixedCurrentTournament = game.currentTournament?.copy(
+                            participatingTeams = game.currentTournament.participatingTeams ?: emptyList(),
+                            sponsors = game.currentTournament.sponsors ?: emptyList()
+                        )
+                        
+                        val fixedTournamentHistory = game.tournamentHistory?.map { tournament ->
+                            tournament.copy(
+                                participatingTeams = tournament.participatingTeams ?: emptyList(),
+                                sponsors = tournament.sponsors ?: emptyList()
+                            )
+                        }
+                        
+                        game.copy(
+                            currentTournament = fixedCurrentTournament,
+                            tournamentHistory = fixedTournamentHistory
+                        )
+                    }
+                    competitor.copy(games = fixedGames)
+                } ?: emptyList(),
                 competitorNews = saveData.competitorNews,
                 
                 // 收购系统（子公司和IP）
