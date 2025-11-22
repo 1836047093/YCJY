@@ -3162,6 +3162,7 @@ fun GameScreen(
                                     gmModeEnabled = gmModeEnabled,
                                     usedRedeemCodes = usedRedeemCodes,
                                     isSupporterUnlocked = isSupporterUnlocked,
+                                    esportsTeamUnlocked = esportsTeamUnlocked,
                                     autoSaveEnabled = autoSaveEnabled,
                                     autoSaveInterval = autoSaveInterval,
                                     lastAutoSaveDay = lastAutoSaveDay,

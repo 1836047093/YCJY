@@ -32,6 +32,9 @@ import com.example.yjcy.utils.formatMoney
 @Composable
 fun TeamUnlockDialog(
     currentMoney: Long,
+    companyName: String = "", // 公司名称
+    year: Int = 1, // 当前年份
+    month: Int = 1, // 当前月份
     onDismiss: () -> Unit,
     onUnlock: (teamName: String, logoConfig: TeamLogoConfig) -> Unit
 ) {
@@ -43,8 +46,11 @@ fun TeamUnlockDialog(
     var currentStep by remember { mutableIntStateOf(0) } // 0: 输入队名, 1: 选择队徽
     
     // 获取当前选中的配色方案
-    val currentLogoConfig = remember(selectedScheme, teamName) {
+    val currentLogoConfig = remember(selectedScheme, teamName, companyName, year, month) {
         val scheme = PredefinedTeamSchemes[selectedScheme]
+        // 格式化成立日期（例如：2025年1月）
+        val foundedDate = "${year}年${month}月"
+        
         TeamLogoConfig(
             backgroundColor1 = scheme.bg1,
             backgroundColor2 = scheme.bg2,
@@ -52,7 +58,9 @@ fun TeamUnlockDialog(
             borderColor2 = scheme.border2,
             iconColor = scheme.iconColor,
             teamName = teamName.uppercase(),
-            subText = ""
+            subText = "",
+            foundedDate = foundedDate,
+            ownerCompany = companyName
         )
     }
     

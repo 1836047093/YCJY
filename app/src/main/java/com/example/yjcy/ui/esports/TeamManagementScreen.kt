@@ -62,6 +62,7 @@ fun TeamManagementScreen(
     isSupporterUnlocked: Boolean = false,
     onShowFeatureLockedDialog: () -> Unit = {},
     // 战队管理解锁相关
+    companyName: String = "", // 公司名称
     isTeamUnlocked: Boolean = false,
     onUnlockTeam: (String, TeamLogoConfig) -> Unit = { _, _ -> }
 ) {
@@ -194,6 +195,9 @@ fun TeamManagementScreen(
     if (showUnlockDialog && !isTeamUnlocked) {
         TeamUnlockDialog(
             currentMoney = money,
+            companyName = companyName,
+            year = year,
+            month = month,
             onDismiss = { 
                 showUnlockDialog = false
                 onNavigateBack() // 取消解锁时返回
@@ -430,24 +434,127 @@ fun TeamRosterTab(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // 顶部：动态队徽
+        // 顶部：队徽和战队信息
         item {
-            Box(
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 16.dp),
-                contentAlignment = Alignment.Center
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF16213e)
+                ),
+                shape = RoundedCornerShape(12.dp)
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(modifier = Modifier.clickable { onEditLogo() }) {
-                        DynamicTeamLogo(config = teamLogoConfig)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 左侧：队徽
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Box(modifier = Modifier.clickable { onEditLogo() }) {
+                            DynamicTeamLogo(
+                                config = teamLogoConfig,
+                                modifier = Modifier.size(120.dp)
+                            )
+                        }
+                        Text(
+                            text = "👆 点击定制",
+                            fontSize = 10.sp,
+                            color = Color.Gray
+                        )
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "👆 点击定制队徽",
-                        fontSize = 12.sp,
-                        color = Color.Gray
-                    )
+                    
+                    // 右侧：战队信息
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // 第一行：战队名称
+                        SingleLineText(
+                            text = teamLogoConfig.teamName,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        
+                        // 第二行：战队副标题
+                        if (teamLogoConfig.subText.isNotEmpty()) {
+                            SingleLineText(
+                                text = teamLogoConfig.subText,
+                                fontSize = 14.sp,
+                                color = Color.Gray
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        // 第三行：成立时间和所属公司（横向排列）
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            // 成立时间
+                            if (teamLogoConfig.foundedDate.isNotEmpty()) {
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    SingleLineText(
+                                        text = "📅",
+                                        fontSize = 14.sp
+                                    )
+                                    Column {
+                                        SingleLineText(
+                                            text = "成立时间",
+                                            fontSize = 10.sp,
+                                            color = Color.Gray
+                                        )
+                                        SingleLineText(
+                                            text = teamLogoConfig.foundedDate,
+                                            fontSize = 13.sp,
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                            }
+                            
+                            // 所属公司
+                            if (teamLogoConfig.ownerCompany.isNotEmpty()) {
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    SingleLineText(
+                                        text = "🏢",
+                                        fontSize = 14.sp
+                                    )
+                                    Column {
+                                        SingleLineText(
+                                            text = "所属公司",
+                                            fontSize = 10.sp,
+                                            color = Color.Gray
+                                        )
+                                        SingleLineText(
+                                            text = teamLogoConfig.ownerCompany,
+                                            fontSize = 13.sp,
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -554,7 +661,7 @@ fun DynamicTeamLogo(
     )
     
     Box(
-        modifier = modifier.size(160.dp),
+        modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
         // 背景光晕

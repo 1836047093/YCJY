@@ -841,13 +841,15 @@ data class TeamLogoConfig(
     val borderColor2: Long = 0xFFFFA000,     // 橙金
     val iconColor: Long = 0xFFFFFFFF,        // 白色
     val teamName: String = "YJCY",          // 主标题
-    val subText: String = ""               // 副标题
+    val subText: String = "",               // 副标题
+    val foundedDate: String = "",           // 战队成立时间（如"2025年1月"）
+    val ownerCompany: String = ""           // 所属公司名称
 )
 
 // 存档数据类
 data class SaveData(
     val companyName: String = "我的游戏公司",
-    val companyLogo: String = "🎮", // 公司LOGO
+    val companyLogo: String = "", // 公司LOGO
     val teamLogo: TeamLogoConfig = TeamLogoConfig(), // 战队Logo配置
     val founderName: String = "创始人",
     val founderProfession: FounderProfession? = null, // 新增字段,向后兼容
