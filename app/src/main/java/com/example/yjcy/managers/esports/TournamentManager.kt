@@ -1,6 +1,8 @@
 package com.example.yjcy.managers.esports
 
 import com.example.yjcy.data.esports.*
+import com.example.yjcy.data.CompetitorCompany
+import com.example.yjcy.data.HeroPosition
 import java.util.Date
 import kotlin.random.Random
 
@@ -36,12 +38,13 @@ object TournamentManager {
     }
     
     /**
-     * 创建新赛事
+     * 创建新赛事（自动填充AI战队）
      */
     fun createTournament(
         tier: TournamentTier,
         year: Int,
-        season: TournamentSeason?
+        season: TournamentSeason?,
+        competitors: List<CompetitorCompany>? = null
     ): Tournament {
         val id = generateTournamentId(tier, year, season)
         
@@ -64,8 +67,18 @@ object TournamentManager {
             prizePool = tier.minPrizePool
         )
         
+        // 自动生成AI战队并报名
+        competitors?.let { 
+            val aiTeams = generateTeamsFromCompetitors(it)
+            aiTeams.forEach { team ->
+                tournament.registeredTeams.add(team)
+                android.util.Log.d("TournamentManager", 
+                    "AI战队${team.name}(${team.companyName})自动报名")
+            }
+        }
+        
         _tournaments[id] = tournament
-        android.util.Log.d("TournamentManager", "创建赛事: $id")
+        android.util.Log.d("TournamentManager", "创建赛事: $id，已报名${tournament.registeredTeams.size}队")
         return tournament
     }
     
@@ -519,6 +532,41 @@ object TournamentManager {
         }
     }
     
+    /**
+     * 从竞争对手公司生成电竞战队
+     */
+    fun generateTeamsFromCompetitors(competitors: List<CompetitorCompany>): List<Team> {
+        return competitors.take(8).mapIndexed { index, company ->
+            val teamNames = listOf(
+                "${company.name}战队", "${company.name}电竞", "${company.name}俱乐部",
+                "${company.name}联盟", "${company.name}勇士", "${company.name}传奇"
+            )
+            val teamName = teamNames.random()
+            
+            // 生成5-7名选手
+            val playerCount = 5 + Random.nextInt(3) // 5-7人
+            val positions: List<HeroPosition> = listOf(
+                HeroPosition.TOP, HeroPosition.JUNGLE, HeroPosition.MID, 
+                HeroPosition.ADC, HeroPosition.SUPPORT, HeroPosition.TOP, HeroPosition.JUNGLE
+            )
+            val players = (1..playerCount).map { playerIndex ->
+                val position = positions.getOrNull(playerIndex - 1) ?: HeroPosition.JUNGLE
+                PlayerManager.generatePlayerForTeam(
+                    teamId = "competitor_${company.id}",
+                    position = position
+                )
+            }
+            
+            Team(
+                id = "competitor_${company.id}",
+                name = teamName,
+                players = players,
+                tournamentHistory = emptyList(),
+                companyName = company.name
+            )
+        }
+    }
+
     /**
      * 获取赛事详情
      */

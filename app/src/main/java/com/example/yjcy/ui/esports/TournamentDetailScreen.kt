@@ -309,12 +309,19 @@ fun TeamCard(team: Team, isPlayerTeam: Boolean) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                SingleLineText(
-                    text = team.name,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
+                Column {
+                    SingleLineText(
+                        text = team.name,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    SingleLineText(
+                        text = team.companyName,
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+                }
                 if (isPlayerTeam) {
                     Text(
                         text = "我的战队",

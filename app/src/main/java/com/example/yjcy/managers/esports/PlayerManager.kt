@@ -64,6 +64,22 @@ object PlayerManager {
     }
     
     /**
+     * 为战队生成AI选手
+     */
+    fun generatePlayerForTeam(
+        rarity: PlayerRarity = PlayerRarity.C,
+        position: HeroPosition? = null,
+        teamId: String = "unknown_team"
+    ): EsportsPlayer {
+        val player = generatePlayer(rarity, position)
+        // 更新选手的团队相关字段
+        return player.copy(
+            id = "ai_${teamId}_${System.currentTimeMillis()}_${Random.nextInt(9999)}",
+            // 其他字段保持不变，但可以根据需要调整
+        )
+    }
+
+    /**
      * 生成选手
      */
     private fun generatePlayer(

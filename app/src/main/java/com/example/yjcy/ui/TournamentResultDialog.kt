@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.yjcy.data.EsportsTournament
 import com.example.yjcy.data.TournamentSuccessLevel
+import com.example.yjcy.ui.components.TournamentIcon
 
 /**
  * 赛事完成结果对话框
@@ -52,11 +53,20 @@ fun TournamentResultDialog(
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 // 赛事名称
-                Text(
-                    text = "${tournament.type.icon} ${tournament.type.displayName}",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TournamentIcon(
+                        tournamentType = tournament.type.displayName,
+                        size = 24f
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = tournament.type.displayName,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
                 
                 Text(
                     text = tournament.gameName,

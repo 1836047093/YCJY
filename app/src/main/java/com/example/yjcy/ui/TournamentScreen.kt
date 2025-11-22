@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.yjcy.data.*
+import com.example.yjcy.ui.components.TournamentIcon
 
 /**
  * 赛事中心主界面
@@ -396,11 +397,20 @@ fun TournamentTypeCard(
         border = if (isEligible) null else androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE0E0E0))
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                text = "${type.icon} ${type.displayName}",
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TournamentIcon(
+                    tournamentType = type.displayName,
+                    size = 32f
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = type.displayName,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            }
             Spacer(modifier = Modifier.height(8.dp))
             
             Text(
@@ -624,30 +634,37 @@ fun OngoingTournamentCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TournamentIcon(
+                        tournamentType = tournament.type.displayName,
+                        size = 24f
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "${tournament.type.icon} ${tournament.type.displayName}",
+                        text = tournament.type.displayName,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    Text(
-                        text = tournament.gameName,
-                        fontSize = 14.sp,
-                        color = Color.Gray
-                    )
                 }
-                
-                // 显示公司名称（仅竞争对手）
-                if (companyName != null) {
-                    Text(
-                        text = companyName,
-                        fontSize = 12.sp,
-                        color = Color.White,
-                        modifier = Modifier
-                            .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                }
+                Text(
+                    text = tournament.gameName,
+                    fontSize = 14.sp,
+                    color = Color.Gray
+                )
+            }
+            
+            // 显示公司名称（仅竞争对手）
+            if (companyName != null) {
+                Text(
+                    text = companyName,
+                    fontSize = 12.sp,
+                    color = Color.White,
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                )
             }
             
             Spacer(modifier = Modifier.height(12.dp))
@@ -671,7 +688,7 @@ fun OngoingTournamentCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = currentStage.icon,
+                    text = currentStage.displayName,
                     fontSize = 24.sp,
                     modifier = Modifier.padding(end = 8.dp)
                 )
@@ -770,11 +787,20 @@ fun TournamentDetailDialog(
         onDismissRequest = onDismiss,
         title = {
             Column {
-                Text(
-                    text = "${tournament.type.icon} ${tournament.type.displayName}",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TournamentIcon(
+                        tournamentType = tournament.type.displayName,
+                        size = 28f
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = tournament.type.displayName,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
+                    )
+                }
                 Text(
                     text = tournament.gameName,
                     fontSize = 14.sp,
@@ -1021,11 +1047,20 @@ fun TournamentHistoryCard(tournament: EsportsTournament) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(
-                    text = "${tournament.type.icon} ${tournament.type.displayName}",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TournamentIcon(
+                        tournamentType = tournament.type.displayName,
+                        size = 20f
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = tournament.type.displayName,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
                 Text(
                     text = tournament.successLevel.displayName,
                     fontSize = 12.sp,
@@ -1241,9 +1276,9 @@ fun TournamentTypeCard(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = tournamentType.icon,
-                            fontSize = 32.sp
+                        TournamentIcon(
+                            tournamentType = tournamentType.displayName,
+                            size = 48f
                         )
                     }
                     
@@ -1507,7 +1542,10 @@ fun TournamentGameSelectionDialog(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = tournamentType.icon, fontSize = 32.sp)
+                    TournamentIcon(
+                        tournamentType = tournamentType.displayName,
+                        size = 48f
+                    )
                 }
                 
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -1743,9 +1781,9 @@ fun TournamentConfirmDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(
-                        text = tournamentType.icon,
-                        fontSize = 36.sp
+                    TournamentIcon(
+                        tournamentType = tournamentType.displayName,
+                        size = 32f
                     )
                     Column {
                         Text(

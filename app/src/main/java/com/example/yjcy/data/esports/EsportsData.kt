@@ -263,7 +263,8 @@ data class Team(
     val id: String,
     val name: String,
     val players: List<EsportsPlayer>,
-    val tournamentHistory: List<TournamentRecord>
+    val tournamentHistory: List<TournamentRecord>,
+    val companyName: String = "未知"
 )
 
 data class TournamentRecord(
